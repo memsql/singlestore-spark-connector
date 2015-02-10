@@ -1,7 +1,7 @@
 lazy val connectorLib = (project in file("connectorLib")).
   settings(
     name := "MemSQLRDD",
-    version := "0.1.1",
+    version := "0.1.2",
     scalaVersion := "2.10.4",
     libraryDependencies  ++= Seq(
       "org.apache.spark" %% "spark-core" % "1.1.0" % "provided",
@@ -26,7 +26,7 @@ lazy val root = (project in file(".")).
   dependsOn(connectorLib).
   settings(
     name := "MemSQLRDDApp",
-    version := "0.1.1",
+    version := "0.1.2",
     scalaVersion := "2.10.4",
     libraryDependencies  ++= Seq(
       "org.apache.spark" %% "spark-core" % "1.1.0" % "provided",

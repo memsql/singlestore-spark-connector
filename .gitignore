@@ -1,0 +1,8 @@
+distribution/*
+lib/*
+memsql_read_rdd_output.txt/*
+project/project/*
+project/target/*
+connectorLib/target/*
+connectorLib/src/main/scala/com/memsql/spark/connector/target/*
+target/*

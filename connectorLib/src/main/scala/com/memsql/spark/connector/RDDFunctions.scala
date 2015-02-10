@@ -39,8 +39,6 @@ class RDDFunctions[T : ClassTag](rdd: RDD[Array[T]]) extends Serializable with L
     tableName: String,
     onDuplicateKeySql: String = "",
     insertBatchSize: Int = 10000) {
-    // Prepare the MySQL JDBC driver.
-    Class.forName("com.mysql.jdbc.Driver").newInstance()
     rdd.foreachPartition(
       insertPartitionInMemsql(
         dbHost, dbPort, user, password, dbName, tableName, onDuplicateKeySql,
@@ -121,6 +119,8 @@ class RDDFunctions[T : ClassTag](rdd: RDD[Array[T]]) extends Serializable with L
     user: String,
     password: String,
     dbName: String): Connection = {
+    // Make sure the JDBC driver is on the classpath.
+    Class.forName("com.mysql.jdbc.Driver").newInstance()
     val dbAddress = "jdbc:mysql://" + dbHost + ":" + dbPort + "/" + dbName
     DriverManager.getConnection(dbAddress, user, password)
   }
