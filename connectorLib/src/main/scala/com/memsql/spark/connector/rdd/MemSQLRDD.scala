@@ -56,8 +56,22 @@ class MemSQLRDD[T: ClassTag](
     Class.forName("com.mysql.jdbc.Driver").newInstance()
     val conn = getConnection(dbHost, dbPort, user, password, dbName)
 
+    val versionStmt = conn.createStatement
+    val versionRs = versionStmt.executeQuery("SHOW VARIABLES LIKE 'memsql_version'")
+    val versions = resultSetToIterator(versionRs).map(r => r.getString("Value")).toArray
+    val version = versions(0).split('.')(0).toInt
+    var explainQuery = ""
+
+    // In MemSQL v4.0 the EXPLAIN command no longer returns the query, so
+    // we run a version check.
+    if (version > 3) {
+        explainQuery = "EXPLAIN EXTENDED "
+    } else {
+        explainQuery = "EXPLAIN "
+    }
+
     val explainStmt = conn.createStatement
-    val explainRs = explainStmt.executeQuery("EXPLAIN " + sql)
+    val explainRs = explainStmt.executeQuery(explainQuery + sql)
     val extraAndQueries = resultSetToIterator(explainRs)
       .map(r => (r.getString("Extra"), r.getString("Query")))
       .toArray
