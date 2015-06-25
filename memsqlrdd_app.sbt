@@ -4,7 +4,8 @@ lazy val connectorLib = (project in file("connectorLib")).
     version := "0.1.2",
     scalaVersion := "2.10.4",
     libraryDependencies  ++= Seq(
-      "org.apache.spark" %% "spark-core" % "1.1.0" % "provided",
+      "org.apache.spark" %% "spark-core" % "1.4.0" % "provided",
+      "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided", 
       "mysql" % "mysql-connector-java" % "5.1.34"
     ),
     autoAPIMappings := true,
@@ -29,7 +30,8 @@ lazy val root = (project in file(".")).
     version := "0.1.2",
     scalaVersion := "2.10.4",
     libraryDependencies  ++= Seq(
-      "org.apache.spark" %% "spark-core" % "1.1.0" % "provided",
+      "org.apache.spark" %% "spark-core" % "1.4.0" % "provided",
+      "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided", 
       "mysql" % "mysql-connector-java" % "5.1.34"
     )
   )

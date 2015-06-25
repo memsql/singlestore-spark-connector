@@ -1,13 +1,16 @@
 package com.memsql.spark.connector.rdd
 
-import java.sql.{Connection, DriverManager, ResultSet}
+import java.sql.{Connection, DriverManager, ResultSet, ResultSetMetaData}
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Logging, Partition, SparkContext, SparkException, TaskContext}
+import org.apache.spark.{Logging, Partition, SparkContext, SparkException, TaskContext, Partitioner}
 import org.apache.spark.rdd.RDD
-
+import org.apache.spark.sql.sources._
 import com.memsql.spark.connector.util.NextIterator
+
+import org.apache.spark.sql.types._
+import org.apache.spark.sql._
 
 private class MemSQLRDDPartition(idx: Int, val host: String, val port: Int) extends Partition {
   override def index = idx
@@ -37,8 +40,8 @@ private class MemSQLRDDPartition(idx: Int, val host: String, val port: Int) exte
   *   takes care of calling next.  The default maps a ResultSet to an array of
   *   Object.
   */
-class MemSQLRDD[T: ClassTag](
-  sc: SparkContext,
+case class MemSQLRDD[T: ClassTag](
+  @transient sc: SparkContext,
   dbHost: String,
   dbPort: Int,
   user: String,
@@ -54,11 +57,11 @@ class MemSQLRDD[T: ClassTag](
   override def getPartitions: Array[Partition] = {
     // Prepare the MySQL JDBC driver.
     Class.forName("com.mysql.jdbc.Driver").newInstance()
-    val conn = getConnection(dbHost, dbPort, user, password, dbName)
+    val conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)
 
     val versionStmt = conn.createStatement
     val versionRs = versionStmt.executeQuery("SHOW VARIABLES LIKE 'memsql_version'")
-    val versions = resultSetToIterator(versionRs).map(r => r.getString("Value")).toArray
+    val versions = MemSQLRDD.resultSetToIterator(versionRs).map(r => r.getString("Value")).toArray
     val version = versions(0).split('.')(0).toInt
     var explainQuery = ""
 
@@ -72,7 +75,7 @@ class MemSQLRDD[T: ClassTag](
 
     val explainStmt = conn.createStatement
     val explainRs = explainStmt.executeQuery(explainQuery + sql)
-    val extraAndQueries = resultSetToIterator(explainRs)
+    val extraAndQueries = MemSQLRDD.resultSetToIterator(explainRs)
       .map(r => (r.getString("Extra"), r.getString("Query")))
       .toArray
     if (extraAndQueries(0)._1 == "memsql: Simple Iterator -> Network" && extraAndQueries.length > 1) {
@@ -89,7 +92,7 @@ class MemSQLRDD[T: ClassTag](
       new MemSQLRDDPartition(row.getInt("Ordinal"), row.getString("Host"), row.getInt("Port"))
     }
 
-    resultSetToIterator(partitionRs)
+    MemSQLRDD.resultSetToIterator(partitionRs)
       .filter(r => r.getString("Role") == "Master")
       .map(createPartition)
       .toArray
@@ -102,7 +105,7 @@ class MemSQLRDD[T: ClassTag](
     if (usePerPartitionSql) {
       partitionDb = dbName + '_' + part.index
     }
-    val conn = getConnection(part.host, part.port, user, password, partitionDb)
+    val conn = MemSQLRDD.getConnection(part.host, part.port, user, password, partitionDb)
     val stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
 
     // setFetchSize(Integer.MIN_VALUE) is a mysql driver specific way to force streaming results,
@@ -153,16 +156,6 @@ class MemSQLRDD[T: ClassTag](
     return Seq(memSqlSplit.host)
   }
 
-  private def getConnection(
-    host: String,
-    port: Int,
-    user: String,
-    password: String,
-    dbName: String): Connection = {
-    val dbAddress = "jdbc:mysql://" + host + ":" + port + "/" + dbName
-    DriverManager.getConnection(dbAddress, user, password)
-  }
-
   private def getPerPartitionSql(idx: Int): String = {
     // The EXPLAIN query that we run in getPartitions gives us the SQL query
     // that will be run against MemSQL partition number 0; we want to run this
@@ -177,14 +170,28 @@ class MemSQLRDD[T: ClassTag](
     }
   }
 
-  private def resultSetToIterator(rs: ResultSet): Iterator[ResultSet] = new Iterator[ResultSet] {
-    def hasNext = rs.next()
-    def next() = rs
-  }
 }
 
 object MemSQLRDD {
+
   def resultSetToObjectArray(rs: ResultSet): Array[Object] = {
-    Array.tabulate[Object](rs.getMetaData.getColumnCount)(i => rs.getObject(i + 1))
+    return Array.tabulate[Object](rs.getMetaData.getColumnCount)(i => rs.getObject(i + 1))
   }
+  
+  def getConnection(
+    host: String,
+    port: Int,
+    user: String,
+    password: String,
+    dbName: String): Connection = {
+    val dbAddress = "jdbc:mysql://" + host + ":" + port + "/" + dbName
+    DriverManager.getConnection(dbAddress, user, password)
+  }
+
+  def resultSetToIterator(rs: ResultSet): Iterator[ResultSet] = new Iterator[ResultSet] {
+    def hasNext = rs.next()
+    def next() = rs
+  }
+
 }
+

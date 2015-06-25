@@ -6,3 +6,4 @@ project/target/*
 connectorLib/target/*
 connectorLib/src/main/scala/com/memsql/spark/connector/target/*
 target/*
+*~
