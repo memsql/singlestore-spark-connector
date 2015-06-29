@@ -33,10 +33,30 @@ object MemSQLDataFrameUtils {
     }
   }
 
+  def DataFrameTypeToMemSQLTypeString(dataType : DataType) : String = {
+    dataType match {
+      case IntegerType => "INT"
+      case LongType => "BIGINT"
+      case DoubleType => "DOUBLE"
+      case FloatType => "FLOAT"
+      case ShortType => "TINYINT"
+      case ByteType => "BYTE"
+      case BooleanType => "BIT"
+      case StringType => "TEXT"
+      case BinaryType => "BLOB"
+      case TimestampType => "TIMESTAMP" // extra confusion not needed?  
+      case DateType => "DATE"
+      case DecimalType.Unlimited => "DECIMAL"
+      case _ => throw new IllegalArgumentException("Can't translate type " + dataType.toString)
+    }
+  }
+
+
   def JDBCTypeToDataFrameType(dataType : Int) : DataType = {
     dataType match {
       case java.sql.Types.INTEGER => IntegerType 
-      case java.sql.Types.BIGINT => IntegerType// LongType  // TODO: This can overflow if the bigint is truely big, but probably fine for now
+      case java.sql.Types.TINYINT => ShortType 
+      case java.sql.Types.BIGINT => LongType  // TODO: This will prevent inequalities for some dumb reason
       case java.sql.Types.DOUBLE => DoubleType 
       case java.sql.Types.REAL => FloatType 
       case java.sql.Types.BIT => BooleanType 
@@ -44,19 +64,23 @@ object MemSQLDataFrameUtils {
       case java.sql.Types.BLOB => BinaryType 
       case java.sql.Types.TIMESTAMP => TimestampType 
       case java.sql.Types.DATE => DateType 
+      case java.sql.Types.TIME => TimestampType  //srsly?
       case java.sql.Types.DECIMAL => DecimalType.Unlimited 
       case java.sql.Types.LONGNVARCHAR => StringType
       case java.sql.Types.LONGVARCHAR => StringType
       case java.sql.Types.VARCHAR => StringType
       case java.sql.Types.NVARCHAR => StringType
+      case java.sql.Types.LONGVARBINARY => BinaryType
+      case java.sql.Types.VARBINARY => BinaryType
       case _ => throw new IllegalArgumentException("Can't translate type " + dataType.toString)
     }
   }
   
   def GetJDBCValue(dataType : Int, ix : Int, row : ResultSet) : Any = {
-    dataType match {
+    val result = dataType match {
       case java.sql.Types.INTEGER => row.getInt(ix)
-      case java.sql.Types.BIGINT => row.getInt(ix)
+      case java.sql.Types.BIGINT => row.getLong(ix)
+      case java.sql.Types.TINYINT => row.getShort(ix)
       case java.sql.Types.DOUBLE => row.getDouble(ix) 
       case java.sql.Types.REAL => row.getDouble(ix) 
       case java.sql.Types.BIT => row.getBoolean(ix) 
@@ -64,13 +88,17 @@ object MemSQLDataFrameUtils {
       case java.sql.Types.BLOB => row.getClob(ix) 
       case java.sql.Types.TIMESTAMP => row.getString(ix) 
       case java.sql.Types.DATE => row.getDate(ix) 
+      case java.sql.Types.TIME => row.getTime(ix) 
       case java.sql.Types.DECIMAL => row.getBigDecimal(ix) 
       case java.sql.Types.LONGNVARCHAR => row.getString(ix) 
       case java.sql.Types.LONGVARCHAR => row.getString(ix) 
       case java.sql.Types.VARCHAR => row.getString(ix) 
       case java.sql.Types.NVARCHAR => row.getString(ix) 
+      case java.sql.Types.LONGVARBINARY => row.getString(ix) 
+      case java.sql.Types.VARBINARY => row.getString(ix) 
       case _ => throw new IllegalArgumentException("Can't translate type " + dataType.toString)
     }
+    if (row.wasNull) null else result
   }
 }
 
@@ -123,11 +151,9 @@ object MemSQLDataFrame {
     dbName: String,
     query: String) : StructType = {
 
-    // Prepare the MySQL JDBC driver.
-    Class.forName("com.mysql.jdbc.Driver").newInstance()
     val conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)  
-    val versionStmt = conn.createStatement
-    val metadata = versionStmt.executeQuery(limitZero(query)).getMetaData
+    val schemaStmt = conn.createStatement
+    val metadata = schemaStmt.executeQuery(limitZero(query)).getMetaData
     val count = metadata.getColumnCount
     val schema = StructType(Range(0,count).map(i => StructField(metadata.getColumnName(i+1), 
                                                                 MemSQLDataFrameUtils.JDBCTypeToDataFrameType(metadata.getColumnType(i+1)), 
@@ -147,51 +173,42 @@ case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlCont
   val schema : StructType = MemSQLDataFrame.getQuerySchema(rdd.dbHost, rdd.dbPort, rdd.user, rdd.password, rdd.dbName, rdd.sql)
 
   private def getWhere(filters: Array[Filter]) : String = {
-    var result = ""
+    var result = new StringBuilder
     for (i <- 0 to (filters.size - 1))
     {
       if (i != 0) // scala apparently has no "pythonic" join
       {
-	result = result + " and "
+	result.append(" AND ")
       }
-      result  = result + (filters(i) match
+      filters(i) match
       {
-	case EqualTo(attr, v) =>  attr + " = '" + StringEscapeUtils.escapeSql(v.toString) + "'"
-	case GreaterThan(attr, v) =>  attr + " > '" + StringEscapeUtils.escapeSql(v.toString) + "'"
-	case LessThan(attr, v) =>  attr + " < '" + StringEscapeUtils.escapeSql(v.toString) + "'"
-	case GreaterThanOrEqual(attr, v) => attr + " >= '" + StringEscapeUtils.escapeSql(v.toString) + "'"
-	case LessThanOrEqual(attr, v) => attr + " <= '" + StringEscapeUtils.escapeSql(v.toString) + "'"
+	case EqualTo(attr, v) =>  result.append(attr).append(" = '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
+	case GreaterThan(attr, v) =>  result.append(attr).append(" > '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
+	case LessThan(attr, v) =>  result.append(attr).append(" < '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
+	case GreaterThanOrEqual(attr, v) => result.append(attr).append(" >= '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
+	case LessThanOrEqual(attr, v) => result.append(attr).append(" <= '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
 	case In(attr, vs) => {
-          var inlist = attr + " in (" 
+          result.append(" in (")
           for (j <- 0 to (vs.size - 1))
           {
             if (j != 0)
             {
-              inlist += ","
+              result.append(",")
             }
-            inlist = inlist + "'" + StringEscapeUtils.escapeSql(vs(j).toString) + "'"
+            result.append("'").append(StringEscapeUtils.escapeSql(vs(j).toString)).append("'")
           }
-          inlist + " )"
+          result.append(" )")
         }
-      })
+      }
     }
-    return result
+    return result.toString
   }
   private def getProject(requiredColumns: Array[String]): String = {
     if (requiredColumns.size == 0) // for df.count, df.is_empty
     {
       return "1" 
     }
-    var result = ""
-    for (i <- 0 to (requiredColumns.size - 1))
-    {
-      if (i != 0)
-      {
-	result = result + ", "
-      } 
-      result = result + requiredColumns(i)
-    }
-    return result
+    return requiredColumns.mkString(",")
   }
   
   def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {

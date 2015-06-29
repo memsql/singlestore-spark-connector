@@ -1,14 +1,15 @@
 package com.memsql.spark.connector
 
-import java.sql.{Connection, DriverManager, PreparedStatement}
+import java.sql.{Connection, DriverManager, PreparedStatement, Types}
 
 import org.apache.spark.{Logging, SparkException}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
 import org.apache.spark.{SparkException, Logging}
 
-class RDDFunctions[T: ClassTag](rdd: RDD[Array[T]]) extends Serializable with Logging {
+class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
 
   /**
    * Saves an RDD's contents to a MemSQL database.  The RDD's elements should
@@ -31,7 +32,7 @@ class RDDFunctions[T: ClassTag](rdd: RDD[Array[T]]) extends Serializable with Lo
    *                          "ON DUPLICATE KEY UPDATE" clause of the INSERT queries we generate.
    * @param insertBatchSize How many rows to insert per INSERT query.
    */
-  def saveToMemsql(
+  def saveToMemSQL(
                     dbHost: String,
                     dbPort: Int,
                     user: String,
@@ -39,14 +40,15 @@ class RDDFunctions[T: ClassTag](rdd: RDD[Array[T]]) extends Serializable with Lo
                     dbName: String,
                     tableName: String,
                     onDuplicateKeySql: String = "",
+                    useInsertIgnore: Boolean = false,
                     insertBatchSize: Int = 10000) {
     rdd.foreachPartition(
-      insertPartitionInMemsql(
-        dbHost, dbPort, user, password, dbName, tableName, onDuplicateKeySql,
-        insertBatchSize, _: Iterator[Array[T]]))
+      insertPartitionInMemSQL(
+        dbHost, dbPort, user, password, dbName, tableName, onDuplicateKeySql, 
+        insertBatchSize, useInsertIgnore, _: Iterator[Row]))
   }
 
-  private def insertPartitionInMemsql(
+  private def insertPartitionInMemSQL(
                                        dbHost: String,
                                        dbPort: Int,
                                        user: String,
@@ -55,7 +57,8 @@ class RDDFunctions[T: ClassTag](rdd: RDD[Array[T]]) extends Serializable with Lo
                                        tableName: String,
                                        onDuplicateKeySql: String,
                                        insertBatchSize: Int,
-                                       iter: Iterator[Array[T]]) {
+                                       useInsertIgnore: Boolean, 
+                                       iter: Iterator[Row]) {
     var conn: Connection = null
     var stmt: PreparedStatement = null
     var numOutputColumns = -1
@@ -81,7 +84,11 @@ class RDDFunctions[T: ClassTag](rdd: RDD[Array[T]]) extends Serializable with Lo
           numOutputRows = rowGroup.length
           numOutputColumns = rowGroup(0).length
           val sql = new StringBuilder()
-          sql.append("INSERT IGNORE INTO ").append(tableName).append(" VALUES")
+          sql.append("INSERT ")
+          if (useInsertIgnore) {
+            sql.append("IGNORE ")
+          }
+          sql.append("INTO ").append(tableName).append(" VALUES")
           for (rowId <- 0 until numOutputRows) {
             if (rowId > 0) {
               sql.append(",")
@@ -105,8 +112,16 @@ class RDDFunctions[T: ClassTag](rdd: RDD[Array[T]]) extends Serializable with Lo
           if (row.length != numOutputColumns) {
             throw new SparkException("Unequal row lengths in parent RDD")
           }
-          for (x <- row) {
-            stmt.setObject(i, x)
+          for (j <- 0 until row.size) {
+            val x = row.get(j)
+            if (x == null)
+            {
+              stmt.setNull(i, Types.NULL)
+            }
+            else
+            {
+              stmt.setObject(i, x)
+            }
             i = i + 1
           }
         }
@@ -148,5 +163,27 @@ class RDDFunctions[T: ClassTag](rdd: RDD[Array[T]]) extends Serializable with Lo
     Class.forName("com.mysql.jdbc.Driver").newInstance()
     val dbAddress = "jdbc:mysql://" + dbHost + ":" + dbPort + "/" + dbName
     DriverManager.getConnection(dbAddress, user, password)
+  }
+}
+
+// TODO: make this work without copying data.  
+// The original version of RDDFunctions worked on an an RDD[Array[T]].
+// The code above works both for RDD[Array[T]] and RDD[Row], but in a duck-typed c++-templates sense
+// Row and Array[T] have no nontrivial common superclass (why not Seq[T]? import the implicit?), so I'm not sure how to do the code sharing in scala, 
+// but I don't want to worry about it now, so I just copy everything
+// 
+class RDDFunctionsLegacy[T: ClassTag](rdd: RDD[Array[T]]) extends Serializable with Logging {
+  def saveToMemSQL(
+                    dbHost: String,
+                    dbPort: Int,
+                    user: String,
+                    password: String,
+                    dbName: String,
+                    tableName: String,
+                    onDuplicateKeySql: String = "",
+                    useInsertIgnore: Boolean = false,
+                    insertBatchSize: Int = 10000) {
+    new RDDFunctions(rdd.map((r: Array[T]) => Row.fromSeq(Range(0,r.size).map(r(_))))) // TODO: this is idiomatically very wrong and probably copies the data TWICE
+                     .saveToMemSQL(dbHost, dbPort, user, password, dbName, tableName, onDuplicateKeySql, useInsertIgnore, insertBatchSize)
   }
 }

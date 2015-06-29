@@ -36,6 +36,6 @@ object WriteToMemSQLApp {
     }
 
     val rdd = sc.parallelize(values)
-    rdd.saveToMemsql(host, port, user, password, dbName, outputTableName)
+    rdd.saveToMemSQL(host, port, user, password, dbName, outputTableName)
   }
 }
