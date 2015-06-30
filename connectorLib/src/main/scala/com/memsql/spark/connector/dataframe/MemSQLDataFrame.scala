@@ -15,45 +15,23 @@ import com.memsql.spark.connector.rdd.MemSQLRDD
 import org.apache.commons.lang.StringEscapeUtils
 
 object MemSQLDataFrameUtils {
-  def DataFrameTypeToJDBCType(dataType : DataType) : Int = {
-    dataType match {
-      case IntegerType => java.sql.Types.INTEGER
-      case LongType => java.sql.Types.BIGINT
-      case DoubleType => java.sql.Types.DOUBLE
-      case FloatType => java.sql.Types.REAL
-      case ShortType => java.sql.Types.INTEGER
-      case ByteType => java.sql.Types.INTEGER
-      case BooleanType => java.sql.Types.BIT
-      case StringType => java.sql.Types.CLOB
-      case BinaryType => java.sql.Types.BLOB
-      case TimestampType => java.sql.Types.TIMESTAMP
-      case DateType => java.sql.Types.DATE
-      case DecimalType.Unlimited => java.sql.Types.DECIMAL
-      case _ => throw new IllegalArgumentException("Can't translate type " + dataType.toString)
-    }
-  }
-
   def DataFrameTypeToMemSQLTypeString(dataType : DataType) : String = {
+    // we match types having _.typeName not a MemSQL type (for instance ShortType.typeName  is "SHORT", but MemSQL calls it "TINYINT")
     dataType match {
-      case IntegerType => "INT"
-      case LongType => "BIGINT"
-      case DoubleType => "DOUBLE"
-      case FloatType => "FLOAT"
       case ShortType => "TINYINT"
+      case LongType => "BIGINT"
       case ByteType => "BYTE"
       case BooleanType => "BIT"
       case StringType => "TEXT"
       case BinaryType => "BLOB"
-      case TimestampType => "TIMESTAMP" // extra confusion not needed?  
-      case DateType => "DATE"
-      case DecimalType.Unlimited => "DECIMAL"
-      case _ => throw new IllegalArgumentException("Can't translate type " + dataType.toString)
+      case DecimalType.Unlimited => "DOUBLE"
+      case _ => return dataType.typeName
     }
   }
 
 
-  def JDBCTypeToDataFrameType(dataType : Int) : DataType = {
-    dataType match {
+  def JDBCTypeToDataFrameType(rsmd: ResultSetMetaData, ix: Int) : DataType = {
+    rsmd.getColumnType(ix) match {
       case java.sql.Types.INTEGER => IntegerType 
       case java.sql.Types.TINYINT => ShortType 
       case java.sql.Types.BIGINT => LongType  // TODO: This will prevent inequalities for some dumb reason
@@ -65,14 +43,14 @@ object MemSQLDataFrameUtils {
       case java.sql.Types.TIMESTAMP => TimestampType 
       case java.sql.Types.DATE => DateType 
       case java.sql.Types.TIME => TimestampType  //srsly?
-      case java.sql.Types.DECIMAL => DecimalType.Unlimited 
+      case java.sql.Types.DECIMAL => DecimalType(rsmd.getPrecision(ix), rsmd.getScale(ix))
       case java.sql.Types.LONGNVARCHAR => StringType
       case java.sql.Types.LONGVARCHAR => StringType
       case java.sql.Types.VARCHAR => StringType
       case java.sql.Types.NVARCHAR => StringType
       case java.sql.Types.LONGVARBINARY => BinaryType
       case java.sql.Types.VARBINARY => BinaryType
-      case _ => throw new IllegalArgumentException("Can't translate type " + dataType.toString)
+      case _ => throw new IllegalArgumentException("Can't translate type " + rsmd.getColumnTypeName(ix))
     }
   }
   
@@ -156,7 +134,7 @@ object MemSQLDataFrame {
     val metadata = schemaStmt.executeQuery(limitZero(query)).getMetaData
     val count = metadata.getColumnCount
     val schema = StructType(Range(0,count).map(i => StructField(metadata.getColumnName(i+1), 
-                                                                MemSQLDataFrameUtils.JDBCTypeToDataFrameType(metadata.getColumnType(i+1)), 
+                                                                MemSQLDataFrameUtils.JDBCTypeToDataFrameType(metadata, i+1), 
                                                                 metadata.isNullable(i+1) == ResultSetMetaData.columnNullable)))
     return schema
   }

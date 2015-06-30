@@ -205,5 +205,26 @@ object TestMemSQLTypes {
 
     }
 
+    val df_not_null2 = df_not_null.createMemSQLTableAs(host, port, user, password, dbName, "alltypes_not_null2")
+    val df_nullable2 = df_nullable.createMemSQLTableAs(host, port, user, password, dbName, "alltypes_nullable2")
+
+    assert(TestUtils.EqualDFs(df_not_null, df_not_null2))
+    assert(TestUtils.EqualDFs(df_nullable, df_nullable2))
+    
+    // its too much to hope that the schema will be the same from an arbitrary table to one created with createMemSQLTableAs
+    // but it shouldn't change on subsequent calls to createMemSQLTableAs
+    //
+    val df_not_null3 = df_not_null2.createMemSQLTableAs(host, port, user, password, dbName, "alltypes_not_null3")
+    val df_nullable3 = df_nullable2.createMemSQLTableAs(host, port, user, password, dbName, "alltypes_nullable3")
+    
+    println(df_not_null3.schema)
+    println(df_not_null2.schema)
+
+    println(df_nullable3.schema)
+    println(df_nullable2.schema)
+
+    assert(df_not_null3.schema.equals(df_not_null2.schema))
+    assert(df_nullable3.schema.equals(df_nullable2.schema))
+
   }
 }

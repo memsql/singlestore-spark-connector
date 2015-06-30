@@ -9,6 +9,7 @@ import org.apache.spark.sql.DataFrame
 
 import com.memsql.spark.connector.rdd.MemSQLRDD
 import com.memsql.spark.connector.dataframe.MemSQLDataFrameUtils
+import com.memsql.spark.connector.dataframe.MemSQLDataFrame
 
 import scala.reflect.ClassTag
 import org.apache.spark.{SparkException, Logging}
@@ -47,7 +48,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
                             password: String,
                             dbName: String,
                             tableName: String,
-                            ifNotExists: Boolean = false) 
+                            ifNotExists: Boolean = false) : DataFrame = 
     {
         val sql = new StringBuilder()
         sql.append("CREATE TABLE ")
@@ -60,7 +61,12 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
         {
             sql.append(col.name).append(" ")
             sql.append(MemSQLDataFrameUtils.DataFrameTypeToMemSQLTypeString(col.dataType))
-            if (!col.nullable)
+
+            if (col.nullable)
+            {
+                sql.append(" NULL DEFAULT NULL")
+            }
+            else
             {
                 sql.append(" NOT NULL")
             }
@@ -74,6 +80,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
         stmt.close()
 
         saveToMemSQL(dbHost, dbPort, user, password, dbName, tableName)
+        return MemSQLDataFrame.MakeMemSQLDF(df.sqlContext, dbHost, dbPort, user, password, dbName, tableName)
     }
 }
 
