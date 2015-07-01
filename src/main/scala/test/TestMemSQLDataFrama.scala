@@ -120,9 +120,13 @@ object TestSaveToMemSQLVeryBasic {
     val rdd = sc.parallelize(
       Array(Row(1,"pieguy"),
             Row(2,"gbop"),
-            Row(3,"berrydave"),
-            Row(4,"psyduck"),
-            Row(null,"null")))
+            Row(3,"berry\ndave"),
+            Row(4,"psy\tduck"),
+            Row(null,"null"),
+            Row(6,"berry\\tdave"),
+            Row(7,"berry\\ndave"),
+            Row(8,"\"berry\" 'dave'")))
+
     val schema = StructType(Array(StructField("a",IntegerType,true),
                                   StructField("b",StringType,false)))
     val df1 = sqlContext.createDataFrame(rdd, schema)
@@ -131,7 +135,7 @@ object TestSaveToMemSQLVeryBasic {
 
     val df_t = TestUtils.MemSQLDF(sqlContext,dbName, "t")
     assert(df_t.schema.equals(schema))
-    assert(df_t.count == 5)
+    assert(df_t.count == 8)
     assert(TestUtils.EqualDFs(df_t, df1))
 
     df1.saveToMemSQL(host, port, user, password, dbName, "t")
@@ -145,6 +149,8 @@ object TestSaveToMemSQLVeryBasic {
     // and expressions and column renaming
     df1.where(df1("a") < 5).select(df1("a") + 1 as "b",df1("a")).saveToMemSQL(host, port, user, password, dbName, "t")    
     assert (df_t.filter(df_t("b") === "3").count == 1)
+
+    
 
   }
 }
@@ -214,7 +220,9 @@ object TestMemSQLTypes {
     val df_not_null2 = df_not_null.createMemSQLTableAs(host, port, user, password, dbName, "alltypes_not_null2")
     val df_nullable2 = df_nullable.createMemSQLTableAs(host, port, user, password, dbName, "alltypes_nullable2")
 
+    println("df_not_null2")
     assert(TestUtils.EqualDFs(df_not_null, df_not_null2))
+    println("df_nullable2")
     assert(TestUtils.EqualDFs(df_nullable, df_nullable2))
     
     // its too much to hope that the schema will be the same from an arbitrary table to one created with createMemSQLTableAs

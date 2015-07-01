@@ -1,6 +1,7 @@
 package com.memsql.spark.connector
 
 import java.sql.{Connection, DriverManager, PreparedStatement, Types}
+// import org.apache.spark.util.Utils TODO: this object is private
 
 import org.apache.spark.{Logging, SparkException}
 import org.apache.spark.rdd.RDD
@@ -8,6 +9,15 @@ import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
 import org.apache.spark.{SparkException, Logging}
+
+import java.util.UUID
+import java.io._
+import java.lang.System
+
+import org.apache.commons.io.output._
+import java.util.zip.GZIPOutputStream
+import java.io.{PipedOutputStream, PipedInputStream}
+import net.jpountz.lz4._
 
 class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
 
@@ -42,10 +52,17 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
                     onDuplicateKeySql: String = "",
                     useInsertIgnore: Boolean = false,
                     insertBatchSize: Int = 10000) {
-    rdd.foreachPartition(
-      insertPartitionInMemSQL(
-        dbHost, dbPort, user, password, dbName, tableName, onDuplicateKeySql, 
-        insertBatchSize, useInsertIgnore, _: Iterator[Row]))
+    rdd.foreachPartition{
+      if (onDuplicateKeySql.isEmpty) { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
+        loadPartitionInMemSQL(
+          dbHost, dbPort, user, password, dbName, tableName, 
+          useInsertIgnore, _: Iterator[Row])
+      } else {
+        insertPartitionInMemSQL(
+          dbHost, dbPort, user, password, dbName, tableName, onDuplicateKeySql, 
+          insertBatchSize, useInsertIgnore, _: Iterator[Row])
+      }
+    }
   }
 
   private def insertPartitionInMemSQL(
@@ -152,6 +169,77 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       }
     }
   }
+  private def loadPartitionInMemSQL(
+                                    dbHost: String,
+                                    dbPort: Int,
+                                    user: String,
+                                    password: String,
+                                    dbName: String,
+                                    tableName: String,
+                                    useInsertIgnore: Boolean, 
+                                    iter: Iterator[Row],
+                                    compression:String = "gzip") {
+      
+    val basestream = new PipedOutputStream
+    val input = new PipedInputStream(basestream)
+
+    var outstream: OutputStream = basestream    
+    var ext = "tsv"
+    
+    compression match {
+      case "gzip" => {
+        ext = "gz"
+        // with gzip default 1 we get a 50% improvement in bandwith (up to 16 Mps) over gzip default 6 on customer workload
+        //
+        outstream = new GZIPOutputStream(basestream) {{ `def`.setLevel(1) }}
+      }
+      case "lz4" => {
+        ext = "lz4"
+        // blocksize for lz4 can be tween 16k (default) and 32 meg.
+        // we set to 1 meg, and have no data to support that this is faster.
+        //
+        outstream = new LZ4BlockOutputStream(outstream, 1048576, LZ4Factory.fastestInstance.fastCompressor)
+        assert(false, "we don't quite have lz4 working yet")
+      }
+      case "" => { }
+    }
+
+    val q = "LOAD DATA LOCAL INFILE '###." + ext + "' " + (if (useInsertIgnore) "IGNORE " else "") + "INTO TABLE " + tableName
+
+    new Thread(new Runnable {
+      override def run(): Unit = {
+        try {
+          for (row <- iter) {
+            for (i <- 0 until row.size) {
+              // We tried using off the shelf CSVWriter, but found it qualitatively slower.
+              // The csv writer below has been benchmarked at 90 Mps goint to a null output stream
+              //
+              var elt = ""
+              if (row(i) == null) {
+                elt = "\\N" 
+              } else {                
+                elt = row(i).toString
+                if (elt.indexOf('\\') != -1) { elt = elt.replace("\\","\\\\") }
+                if (elt.indexOf('\n') != -1) { elt = elt.replace("\n","\\n")  }
+                if (elt.indexOf('\t') != -1) { elt = elt.replace("\t","\\t")  }
+              }
+              outstream.write(elt.getBytes)
+              outstream.write(if (i== row.size - 1) '\n' else '\t')
+            }              
+          }
+        }
+        finally {
+          outstream.close()
+        }
+      }
+    }).start()
+    val conn = getMemSQLConnection(dbHost, dbPort, user, password, dbName)
+    val stmt = conn.createStatement.asInstanceOf[com.mysql.jdbc.Statement]
+    stmt.setLocalInfileInputStream(input)
+    stmt.executeQuery(q)
+    stmt.close()
+    conn.close()    
+  }  
 
   private def getMemSQLConnection(
                                    dbHost: String,
