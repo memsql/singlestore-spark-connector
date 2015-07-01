@@ -53,7 +53,12 @@ object TestMemSQLDataFrameVeryBasic {
       dbName,
       "r")
 
-    val dfs = Array(df_t, df_s)//, df_r) TODO: reference tables dont work
+    // we want to make sure that we pushdown simple queries to the leaves
+    assert (df_t.rdd.partitions.size > 1)
+    assert (df_s.rdd.partitions.size > 1)
+    assert (df_r.rdd.partitions.size == 1)
+
+    val dfs = Array(df_t, df_s, df_r) 
     for (i <- 0 until dfs.size)
     {
 
@@ -64,6 +69,7 @@ object TestMemSQLDataFrameVeryBasic {
         println(dfs(i).rdd.toDebugString)
         var results = dfs(i).collect()
         println(results.size)
+        println(dfs(i).rdd.partitions.size)
         assert(results.size == 1000)
         assert(dfs(i).count() == 1000)
     

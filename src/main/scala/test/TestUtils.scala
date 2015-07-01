@@ -35,7 +35,7 @@ object MemSQLTestSetup {
        (id INT , data VARCHAR(200), key(id), key(data), shard())
     """)
     stmt.execute("""
-       CREATE reference TABLE r
+       CREATE /*!90618 reference */ TABLE r
        (id INT PRIMARY KEY, data VARCHAR(200), key(data))
     """)
 

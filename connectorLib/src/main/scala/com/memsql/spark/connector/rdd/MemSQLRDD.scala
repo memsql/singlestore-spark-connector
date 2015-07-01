@@ -1,7 +1,7 @@
 package com.memsql.spark.connector.rdd
 
 import java.sql.{Connection, DriverManager, ResultSet, ResultSetMetaData}
-
+import scala.util.control.Breaks
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Logging, Partition, SparkContext, SparkException, TaskContext, Partitioner}
@@ -52,7 +52,7 @@ case class MemSQLRDD[T: ClassTag](
     extends RDD[T](sc, Nil) with Logging {
 
   var perPartitionSqlTemplate = ""
-  var usePerPartitionSql = true
+  var usePerPartitionSql = false
 
   override def getPartitions: Array[Partition] = {
     // Prepare the MySQL JDBC driver.
@@ -75,15 +75,24 @@ case class MemSQLRDD[T: ClassTag](
 
     val explainStmt = conn.createStatement
     val explainRs = explainStmt.executeQuery(explainQuery + sql)
-    val extraAndQueries = MemSQLRDD.resultSetToIterator(explainRs)
-      .map(r => (r.getString("Extra"), r.getString("Query")))
-      .toArray
-    if (extraAndQueries(0)._1 == "memsql: Simple Iterator -> Network" && extraAndQueries.length > 1) {
-      perPartitionSqlTemplate = extraAndQueries(1)._2
-    } else {
-      usePerPartitionSql = false
+    // TODO: this won't work with MarkoExplain
+    // TODO: this could be optimized work for distributed joins, but thats not the primary usecase (especially since joins aren't pushed down)
+    usePerPartitionSql = (0 until explainRs.getMetaData.getColumnCount).exists((i:Int) => explainRs.getMetaData.getColumnName(i+1).equals("Query"))
+    if (usePerPartitionSql) {
+      val extraAndQueries = MemSQLRDD.resultSetToIterator(explainRs)
+        .map(r => (r.getString("Extra"), r.getString("Query")))
+        .toArray
+      if (extraAndQueries(0)._1 == "memsql: Simple Iterator -> Network" && extraAndQueries.length > 1) {
+        usePerPartitionSql = true
+        perPartitionSqlTemplate = extraAndQueries(1)._2
+      } else {
+        usePerPartitionSql = false
+      }
+    }
+    if (!usePerPartitionSql){
       return Array[Partition](new MemSQLRDDPartition(0, dbHost, dbPort))
     }
+
 
     val partitionsStmt = conn.createStatement
     val partitionRs = partitionsStmt.executeQuery("SHOW PARTITIONS")
