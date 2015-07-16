@@ -32,7 +32,7 @@ lazy val etlLib = (project in file("etlLib")).
   dependsOn(connectorLib).
   settings(commonSettings: _*).
   settings(
-    name := "MemSQLPipeline",
+    name := "MemSQLETL",
     libraryDependencies  ++= Seq(
       "org.apache.spark" %% "spark-streaming" % "1.4.0" % "provided",
       "org.apache.spark" %% "spark-streaming-kafka" % "1.4.0" % "provided",
@@ -45,10 +45,11 @@ lazy val root = (project in file(".")).
   dependsOn(etlLib).
   settings(commonSettings: _*).
   settings(
-    name := "MemSQLRDDApp",
+    name := "MemSQL",
     libraryDependencies  ++= Seq(
       "org.apache.spark" %% "spark-core" % "1.4.0" % "provided",
       "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided", 
+      "org.apache.spark" %% "spark-streaming" % "1.4.0" % "provided",
       "mysql" % "mysql-connector-java" % "5.1.34"
     )
   )

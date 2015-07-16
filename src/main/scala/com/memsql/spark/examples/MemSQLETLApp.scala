@@ -1,15 +1,15 @@
-package com.memsql.etl.examples
+package com.memsql.spark.examples
 
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
-import com.memsql.etl.api.Pipeline
+import com.memsql.spark.etl.api.ETLPipeline
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import org.apache.spark.streaming.{Duration, StreamingContext, Time}
 
-object SimplePipeline extends Pipeline[Long, String] {
+object MemSQLETLApp extends ETLPipeline[Long, String] {
   override def extract(ssc: StreamingContext): InputDStream[Long] = {
     new InputDStream[Long](ssc) {
       override def stop(): Unit = {}
@@ -17,10 +17,7 @@ object SimplePipeline extends Pipeline[Long, String] {
       override def start(): Unit = {}
 
       override def compute(validTime: Time): Option[RDD[Long]] = {
-        if (Math.random() > 0.7)
-          Some(ssc.sparkContext.parallelize(Seq.fill(5)(Calendar.getInstance.getTimeInMillis)))
-        else
-          None
+        Some(ssc.sparkContext.parallelize(Seq.fill(5)(Calendar.getInstance.getTimeInMillis)))
       }
     }
   }
@@ -33,8 +30,7 @@ object SimplePipeline extends Pipeline[Long, String] {
   override def load(stream: DStream[String]): Unit = {}
 
   def main (args: Array[String]) {
-      val sparkConf = new SparkConf()
-                        .setMaster("spark://127.0.0.1:7077")
+      val sparkConf = new SparkConf().setMaster("spark://127.0.0.1:7077")
 
       val sparkStreamingContext = new StreamingContext(sparkConf, new Duration(5000))
       this.run(sparkStreamingContext)

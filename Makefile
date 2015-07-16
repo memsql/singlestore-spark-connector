@@ -3,33 +3,37 @@ SHELL := /bin/bash
 ##############################
 # BUILD
 #
-MEMSQLRDD_VERSION := $(shell sbt 'export connectorLib/version' | tail -n 1)
-export MEMSQLRDD_VERSION
+VERSION := $(shell sbt 'export version' | tail -n 1)
+export VERSION
 
 .PHONY: version
 version:
-	@echo $(MEMSQLRDD_VERSION)
+	@echo $(VERSION)
 
 .PHONY: clean
 clean:
 	sbt clean
 	sbt "project connectorLib" clean
+	sbt "project etlLib" clean
 	rm -rf distribution/
 
 .PHONY: build
 build: clean
 	sbt "project connectorLib" assembly
+	sbt "project etlLib" assembly
 	sbt assembly
 
 .PHONY: docs
 docs: clean
 	sbt "project connectorLib" doc
+	sbt "project etlLib" doc
 
 .PHONY: package
 package: docs build
-	mkdir -p distribution/dist/memsqlrdd-$(MEMSQLRDD_VERSION)
-	cp README.md distribution/dist/memsqlrdd-$(MEMSQLRDD_VERSION)/
-	cp connectorLib/target/scala-2.10/MemSQLRDD-assembly-$(MEMSQLRDD_VERSION).jar distribution/dist/memsqlrdd-$(MEMSQLRDD_VERSION)/
-	cp -r connectorLib/target/scala-2.10/api/ distribution/dist/memsqlrdd-$(MEMSQLRDD_VERSION)/docs/
+	mkdir -p distribution/dist/memsql-$(VERSION)
+	cp README.md distribution/dist/memsql-$(VERSION)/
+	cp target/scala-2.10/MemSQL-assembly-$(VERSION).jar distribution/dist/memsql-$(VERSION)/
+	cp -r connectorLib/target/scala-2.10/api/ distribution/dist/memsql-$(VERSION)/docs/
+	cp -r etlLib/target/scala-2.10/api/ distribution/dist/memsql-$(VERSION)/docs/
 	cd distribution/dist; \
-	tar cvzf memsqlrdd-$(MEMSQLRDD_VERSION).tar.gz memsqlrdd-$(MEMSQLRDD_VERSION)/
+	tar cvzf memsql-$(VERSION).tar.gz memsql-$(VERSION)/

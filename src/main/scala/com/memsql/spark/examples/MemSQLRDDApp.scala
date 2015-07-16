@@ -1,10 +1,9 @@
+package com.memsql.spark.examples
+
 import java.sql.{DriverManager, ResultSet}
 
-import org.apache.spark.SparkContext
-import org.apache.spark.SparkContext._
-import org.apache.spark.SparkConf
-
 import com.memsql.spark.connector.rdd.MemSQLRDD
+import org.apache.spark.{SparkConf, SparkContext}
 
 object MemSQLRDDApp {
   def main(args: Array[String]) {

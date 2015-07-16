@@ -1,11 +1,12 @@
-import java.sql.{DriverManager, ResultSet}
+package com.memsql.spark.examples
 
-import com.memsql.spark.connector._
+import java.sql.DriverManager
 
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import org.apache.spark.sql.Row
 import org.apache.spark.SparkConf
+import com.memsql.spark.connector._
 
 object WriteToMemSQLApp {
   def main(args: Array[String]) {

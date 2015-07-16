@@ -1,4 +1,4 @@
-package com.memsql.etl.api
+package com.memsql.spark.etl.api
 
 import scala.reflect.ClassTag
 import kafka.serializer.Decoder

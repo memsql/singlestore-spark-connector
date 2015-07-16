@@ -1,8 +1,8 @@
-package com.memsql.etl.api
+package com.memsql.spark.etl.api
 
 import org.apache.spark.streaming.StreamingContext
 
-trait Pipeline[S, R] extends Extractor[S] with Transformer[S, R] with Loader[R] {
+trait ETLPipeline[S, R] extends Extractor[S] with Transformer[S, R] with Loader[R] {
   def run(sc:StreamingContext): Unit = {
     val inputDStream = this.extract(sc)
     val transformedDStream = this.transform(inputDStream)
