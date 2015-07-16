@@ -19,21 +19,17 @@ clean:
 
 .PHONY: build
 build: clean
-	sbt "project connectorLib" assembly
-	sbt "project etlLib" assembly
 	sbt assembly
 
 .PHONY: docs
 docs: clean
-	sbt "project connectorLib" doc
-	sbt "project etlLib" doc
+	sbt unidoc
 
 .PHONY: package
 package: docs build
 	mkdir -p distribution/dist/memsql-$(VERSION)
 	cp README.md distribution/dist/memsql-$(VERSION)/
 	cp target/scala-2.10/MemSQL-assembly-$(VERSION).jar distribution/dist/memsql-$(VERSION)/
-	cp -r connectorLib/target/scala-2.10/api/ distribution/dist/memsql-$(VERSION)/docs/
-	cp -r etlLib/target/scala-2.10/api/ distribution/dist/memsql-$(VERSION)/docs/
+	cp -r target/scala-2.10/unidoc/ distribution/dist/memsql-$(VERSION)/docs/
 	cd distribution/dist; \
 	tar cvzf memsql-$(VERSION).tar.gz memsql-$(VERSION)/
