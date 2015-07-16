@@ -1,5 +1,8 @@
+MemSQL Spark Library
+====================
+
 MemSQL Spark Connector
-======================
+----------------------
 
 The MemSQL Spark connector provides tools for reading from and writing to
 MemSQL databases in Spark.
@@ -8,8 +11,7 @@ There are two parts to the connector; the MemSQLRDD and the saveToMemsql
 function.  The former allows users to read data out of a MemSQL database; the
 latter allows users to write to a MemSQL database.
 
-MemSQLRDD
----------
+###MemSQLRDD
 
 The MemSQLRDD reads rows out of a MemSQL database.
 
@@ -33,8 +35,7 @@ rdd.first()  // Contains the value of "test_column" for the first row
 Note that you can provide a mapRow function that can map rows in the query
 results to a return type of your choice.
 
-saveToMemsql
-------------
+###saveToMemsql
 
 The saveToMemsql function writes an array-based RDD to a MemSQL table.
 
@@ -47,16 +48,24 @@ val rdd = sc.parallelize(Array(Array("foo", "bar"), Array("baz", "qux")))
 rdd.saveToMemsql(dbHost, dbPort, dbUser, dbPassword, dbName, outputTableName, insertBatchSize=1000)
 ```
 
+MemSQL Spark ETL
+----------------
+The MemSQL Spark ETL library provides tools for defining a Spark Streaming job that
+integrates with MemSQL Ops.
+
+Examples
+--------
+
 Building
 --------
 Run ``make package`` to compile this connector.  This will create a
-directory called ``distribution/dist/memsqlrdd-<version number>``, which will
+directory called ``distribution/dist/memsql-<version number>``, which will
 contain a .jar file.  Simply put this .jar file in your class path to
-use this connector.
+use this library.
 
-This directory will also contain HTML documentation for the connector.
+This directory will also contain HTML documentation for the library.
 
-In order to compile this connector, you must have the [Simple Build
+In order to compile this library you must have the [Simple Build
 Tool (aka sbt)](http://www.scala-sbt.org/) installed.
 
 Tweaks
