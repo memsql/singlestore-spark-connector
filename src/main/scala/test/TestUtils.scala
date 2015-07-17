@@ -15,7 +15,7 @@ import org.apache.spark.sql._
 object MemSQLTestSetup {
   def SetupBasic() {
     val host = "127.0.0.1"
-    val port = 3306
+    val port = 10000
     val user = "root"
     val password = ""
     val dbName = "x_db"
@@ -53,7 +53,7 @@ object MemSQLTestSetup {
 
   def SetupAllMemSQLTypes(sqlContext: SQLContext, nullable: Boolean): DataFrame = {
     val host = "127.0.0.1"
-    val port = 3306
+    val port = 10000
     val user = "root"
     val password = ""
     val dbName = "alltypes_db"
@@ -92,7 +92,7 @@ object MemSQLTestSetup {
 object TestUtils {
   def DropAndCreate(dbName: String) {
     val host = "127.0.0.1"
-    val port = 3306
+    val port = 10000
     val user = "root"
     val password = ""
     val dbAddress = "jdbc:mysql://" + host + ":" + port
@@ -107,7 +107,7 @@ object TestUtils {
     MemSQLDataFrame.MakeMemSQLDF(
       sqlContext,
       "127.0.0.1",
-      3306,
+      10000,
       "root",
       "",
       dbName,

@@ -4,6 +4,7 @@ import com.memsql.spark.connector._
 
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
+import org.apache.spark.sql.Row
 import org.apache.spark.SparkConf
 
 object WriteToMemSQLApp {
@@ -30,12 +31,12 @@ object WriteToMemSQLApp {
     """)
     stmt.close()
 
-    var values = Array[Array[String]]()
+    var values = Array[Row]()
     for (i <- 0 until 1000) {
-      values = values :+ Array("test_data_" + "%04d".format(i))
+      values = values :+ Row("test_data_" + "%04d".format(i))
     }
 
     val rdd = sc.parallelize(values)
-    rdd.saveToMemSQL(host, port, user, password, dbName, outputTableName)
+    rdd.saveToMemSQL(dbName, outputTableName, host, port, user, password)
   }
 }

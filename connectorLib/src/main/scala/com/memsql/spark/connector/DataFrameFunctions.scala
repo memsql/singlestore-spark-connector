@@ -13,19 +13,26 @@ import com.memsql.spark.connector.dataframe.MemSQLDataFrame
 
 import scala.reflect.ClassTag
 import org.apache.spark.{SparkException, Logging}
+import com.memsql.spark.context.MemSQLSparkContext
 
 class DataFrameFunctions(df: DataFrame) extends Serializable with Logging 
 {
-    def saveToMemSQL(dbHost: String,
-                     dbPort: Int,
-                     user: String,
-                     password: String,
-                     dbName: String,
+    /*
+     * Saves a Spark dataframe to a memsql table with the same column names.
+     * If dbHost, dbPort, user and password are not specified,
+     * the MemSQLSparkContext will determine where each partition's data is sent.
+     * Otherwise, all partitions will load into the node specified by MemSQLSparkContext
+     */
+    def saveToMemSQL(dbName: String,
                      tableName: String,
+                     dbHost: String = null,
+                     dbPort: Int = -1,
+                     user: String = null,
+                     password: String = null,                     
                      onDuplicateKeySql: String = "",
                      useInsertIgnore: Boolean = false,
-                     insertBatchSize: Int = 10000) 
-    {
+                     upsertBatchSize: Int = 10000) 
+  {
         val insertTable = new StringBuilder()
         insertTable.append(tableName).append("(")
         var first = true
@@ -39,15 +46,21 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
             insertTable.append(col.name)
         }
         val insertTableString = insertTable.append(")").toString
-        df.rdd.saveToMemSQL(dbHost, dbPort, user, password, dbName, insertTableString, onDuplicateKeySql, useInsertIgnore, insertBatchSize)
+        df.rdd.saveToMemSQL(dbName, insertTableString, dbHost, dbPort, user, password,  onDuplicateKeySql, useInsertIgnore, upsertBatchSize)
     }
 
-    def createMemSQLTableAs(dbHost: String,
-                            dbPort: Int,
-                            user: String,
-                            password: String,
-                            dbName: String,
+    /*
+     * Creates a MemSQL table with the schema matching the Spark dataframe and loads the data into it.
+     * If dbHost, dbPort, user and password are not specified,
+     * the MemSQLSparkContext will determine where each partition's data is sent.
+     * Otherwise, all partitions will load into the node specified by MemSQLSparkContext
+     */
+    def createMemSQLTableAs(dbName: String,
                             tableName: String,
+                            dbHost: String = null,
+                            dbPort: Int = -1,
+                            user: String = null,
+                            password: String = null,
                             ifNotExists: Boolean = false) : DataFrame = 
     {
         val sql = new StringBuilder()
@@ -74,13 +87,36 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
         }
         sql.append("SHARD())") // not always optimial, but in the spirit of user not having to make hard choices
 
-        val conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)
+
+        var theHost: String = dbHost
+        var thePort: Int = dbPort
+        var theUser: String = user
+        var thePassword: String = password
+        if (dbHost == null || dbPort == -1 || user == null || password == null) 
+        {
+            df.rdd.sparkContext match 
+            {
+                case _: MemSQLSparkContext => 
+                {
+                    var msc = df.rdd.sparkContext.asInstanceOf[MemSQLSparkContext]
+                    theHost = msc.GetMemSQLMasterAggregator._1 // note: it's fine for this to be the MA, since its gaurenteed to be a fully pushed down query.  
+                    thePort = msc.GetMemSQLMasterAggregator._2
+                    theUser = msc.GetUserName
+                    thePassword = msc.GetPassword
+                }
+                case _ => 
+                {
+                    throw new SparkException("saveToMemSQL requires intializing Spark with MemSQLSparkContext or explicitly setting dbName, dbHost, user and password")
+                }
+            }
+        }
+        val conn = MemSQLRDD.getConnection(theHost, thePort, theUser, thePassword, dbName)
         val stmt = conn.createStatement
         stmt.executeUpdate(sql.toString) // TODO: should I be handling errors, or just expect the caller to catch them...
         stmt.close()
 
-        saveToMemSQL(dbHost, dbPort, user, password, dbName, tableName)
-        return MemSQLDataFrame.MakeMemSQLDF(df.sqlContext, dbHost, dbPort, user, password, dbName, tableName)
+        saveToMemSQL(dbName, tableName, dbHost, dbPort, user, password)
+        return MemSQLDataFrame.MakeMemSQLDF(df.sqlContext, theHost, thePort, theUser, thePassword, dbName, "SELECT * FROM " + tableName)
     }
 }
 

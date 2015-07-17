@@ -1,9 +1,11 @@
 package com.memsql.spark.connector
 
+import scala.util.Random
+
 import java.sql.{Connection, DriverManager, PreparedStatement, Types}
 // import org.apache.spark.util.Utils TODO: this object is private
 
-import org.apache.spark.{Logging, SparkException}
+import org.apache.spark.{Logging, SparkException, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
@@ -18,8 +20,10 @@ import org.apache.commons.io.output._
 import java.util.zip.GZIPOutputStream
 import java.io.{PipedOutputStream, PipedInputStream}
 import net.jpountz.lz4._
+import com.memsql.spark.context.MemSQLSparkContext
 
 class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
+
 
   /**
    * Saves an RDD's contents to a MemSQL database.  The RDD's elements should
@@ -27,43 +31,76 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
    * the table specified in tableName should have as many columns as the arrays
    * have elements.
    *
-   * @param dbHost the host to connect to for the master aggregator of the
-   *               MemSQL cluster.
-   * @param dbPort the port to connect to for the master aggregator of the
-   *               MemSQL cluster.
-   * @param user the username to use when connecting to the databases in the
-   *             MemSQL cluster.  All the nodes in the cluster should use the same user.
-   * @param password the password to use when connecting to the databases in the
-   *                 MemSQL cluster.  All the nodes in the cluster should use the same
-   *                 password.
+   * If dbHost, dbPort, user and password are not specified,
+   * the MemSQLSparkContext will determine where each partition's data is sent.
+   * Otherwise, all partitions will load into the node specified by MemSQLSparkContext.
+   *
+   * If MemSQLSparkContext is used to determine a partition's destination,
+   * and if the Spark executors are colocated with writable MemSQL nodes,
+   * then each Spark partition will insert into a randomly chosen colocated writable MemSQL node.
+   * If MemSQLSparkContext is used to determine a partitions's destination
+   * and the Spark executors are not colocated with writable MemSQL nodes,
+   * Spark partitions will insert writable MemSQL nodes round robin.  
+   *
    * @param dbName the name of the database we're working in.
    * @param tableName the name of the table we're saving the data in.
    * @param onDuplicateKeySql Optional SQL to include in the
    *                          "ON DUPLICATE KEY UPDATE" clause of the INSERT queries we generate.
-   * @param insertBatchSize How many rows to insert per INSERT query.
+   * @param upsertBatchSize How many rows to insert per INSERT query.  Has no effect if onDuplicateKeySql is not specified.
    */
   def saveToMemSQL(
-                    dbHost: String,
-                    dbPort: Int,
-                    user: String,
-                    password: String,
-                    dbName: String,
-                    tableName: String,
-                    onDuplicateKeySql: String = "",
-                    useInsertIgnore: Boolean = false,
-                    insertBatchSize: Int = 10000) {
-    rdd.foreachPartition{
-      if (onDuplicateKeySql.isEmpty) { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
-        loadPartitionInMemSQL(
-          dbHost, dbPort, user, password, dbName, tableName, 
-          useInsertIgnore, _: Iterator[Row])
+    dbName: String,
+    tableName: String,
+    dbHost: String = null,
+    dbPort: Int = -1,
+    user: String = null,
+    password: String = null,
+    onDuplicateKeySql: String = "",
+    useInsertIgnore: Boolean = false,
+    upsertBatchSize: Int = 10000) {
+
+    var theUser = user
+    var thePassword = password    
+    var availableNodes: Array[(String,Int)] = Array((dbHost,dbPort))
+    if (dbHost == null || dbPort == -1 || user == null || password == null) {
+      rdd.sparkContext match {
+        case _: MemSQLSparkContext => {
+          val msc = rdd.sparkContext.asInstanceOf[MemSQLSparkContext]
+          theUser = msc.GetUserName
+          thePassword = msc.GetPassword
+          availableNodes = msc.GetMemSQLNodesAvailableForIngest
+        }
+        case _ => {
+          throw new SparkException("saveToMemSQL requires intializing Spark with MemSQLSparkContext or explicitly setting dbName, dbHost, user and password")
+        }
+      }
+    }
+
+    val randomIndex = Random.nextInt(availableNodes.size)
+    rdd.foreachPartition{ part =>
+      val hostname = TaskContext.get.taskMetrics.hostname
+      var myAvailableNodes = availableNodes.filter(_._1.equals(hostname))
+      var ix = 0
+      if (myAvailableNodes.size == 0) {
+        myAvailableNodes = availableNodes
+        ix = (randomIndex + TaskContext.get.partitionId) % myAvailableNodes.size
       } else {
+        ix = Random.nextInt(myAvailableNodes.size)
+      }        
+      val node = myAvailableNodes(ix)      
+
+      if (onDuplicateKeySql.isEmpty) { 
+        loadPartitionInMemSQL(
+          node._1, node._2, theUser, thePassword, dbName, tableName, 
+          useInsertIgnore, part)
+      } else { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
         insertPartitionInMemSQL(
-          dbHost, dbPort, user, password, dbName, tableName, onDuplicateKeySql, 
-          insertBatchSize, useInsertIgnore, _: Iterator[Row])
+          node._1, node._2, theUser, thePassword, dbName, tableName, onDuplicateKeySql, 
+          upsertBatchSize, useInsertIgnore, part)
       }
     }
   }
+
 
   private def insertPartitionInMemSQL(
                                        dbHost: String,
@@ -73,7 +110,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
                                        dbName: String,
                                        tableName: String,
                                        onDuplicateKeySql: String,
-                                       insertBatchSize: Int,
+                                       upsertBatchSize: Int,
                                        useInsertIgnore: Boolean, 
                                        iter: Iterator[Row]) {
     var conn: Connection = null
@@ -84,7 +121,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     try {
       conn = getMemSQLConnection(dbHost, dbPort, user, password, dbName)
       conn.setAutoCommit(false)
-      val groupedPartitionContents = iter.grouped(insertBatchSize)
+      val groupedPartitionContents = iter.grouped(upsertBatchSize)
       for (group <- groupedPartitionContents) {
         val rowGroup = group.toArray
         if (rowGroup.isEmpty) {
@@ -254,24 +291,3 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
   }
 }
 
-// TODO: make this work without copying data.  
-// The original version of RDDFunctions worked on an an RDD[Array[T]].
-// The code above works both for RDD[Array[T]] and RDD[Row], but in a duck-typed c++-templates sense
-// Row and Array[T] have no nontrivial common superclass (why not Seq[T]? import the implicit?), so I'm not sure how to do the code sharing in scala, 
-// but I don't want to worry about it now, so I just copy everything
-// 
-class RDDFunctionsLegacy[T: ClassTag](rdd: RDD[Array[T]]) extends Serializable with Logging {
-  def saveToMemSQL(
-                    dbHost: String,
-                    dbPort: Int,
-                    user: String,
-                    password: String,
-                    dbName: String,
-                    tableName: String,
-                    onDuplicateKeySql: String = "",
-                    useInsertIgnore: Boolean = false,
-                    insertBatchSize: Int = 10000) {
-    new RDDFunctions(rdd.map((r: Array[T]) => Row.fromSeq(Range(0,r.size).map(r(_))))) // TODO: this is idiomatically very wrong and probably copies the data TWICE
-                     .saveToMemSQL(dbHost, dbPort, user, password, dbName, tableName, onDuplicateKeySql, useInsertIgnore, insertBatchSize)
-  }
-}

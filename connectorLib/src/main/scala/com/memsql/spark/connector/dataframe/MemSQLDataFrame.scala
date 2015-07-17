@@ -111,14 +111,14 @@ object MemSQLDataFrame {
     user: String,
     password: String,
     dbName: String,
-    tableName: String) : DataFrame = {
+    query: String) : DataFrame = {
     sqlContext.load("com.memsql.spark.connector.dataframe.MemSQLRelationProvider", Map(
       "dbHost" -> dbHost,
       "dbPort" -> dbPort.toString,
       "user" -> user,
       "password" -> password,
       "dbName" -> dbName,
-      "tableName" -> tableName))
+      "query" -> query))
   }
 
   def getQuerySchema(
@@ -207,7 +207,7 @@ class MemSQLRelationProvider extends RelationProvider {
 						           parameters("user"),
 						           parameters("password"),
 						           parameters("dbName"),
-						           "SELECT * FROM " + parameters("tableName")),
+                                                           parameters("query")),
 			  sqlContext)
   }
 }

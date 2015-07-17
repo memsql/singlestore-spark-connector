@@ -1,7 +1,5 @@
 package test
 
-import test.MemSQLTestSetup
-
 import java.sql.{DriverManager, ResultSet}
 
 import org.apache.spark.SparkContext
@@ -21,7 +19,7 @@ object TestMemSQLDataFrameVeryBasic {
     val sqlContext = new SQLContext(sc)
 
     val host = "127.0.0.1"
-    val port = 3306
+    val port = 10000
     val user = "root"
     val password = ""
     val dbName = "x_db"
@@ -110,7 +108,7 @@ object TestSaveToMemSQLVeryBasic {
     val sqlContext = new SQLContext(sc)
 
     val host = "127.0.0.1"
-    val port = 3306
+    val port = 10000
     val user = "root"
     val password = ""
     val dbName = "x_testsave"
@@ -131,23 +129,23 @@ object TestSaveToMemSQLVeryBasic {
                                   StructField("b",StringType,false)))
     val df1 = sqlContext.createDataFrame(rdd, schema)
 
-    df1.createMemSQLTableAs(host, port, user, password, dbName, "t")
+    df1.createMemSQLTableAs(dbName, "t", host, port, user, password)
 
     val df_t = TestUtils.MemSQLDF(sqlContext,dbName, "t")
     assert(df_t.schema.equals(schema))
     assert(df_t.count == 8)
     assert(TestUtils.EqualDFs(df_t, df1))
 
-    df1.saveToMemSQL(host, port, user, password, dbName, "t")
+    df1.saveToMemSQL(dbName, "t", host, port, user, password)
 
     assert(TestUtils.EqualDFs(df_t, df1.unionAll(df1)))
     
     // the column name matching should work
-    df1.select("b","a").saveToMemSQL(host, port, user, password, dbName, "t")
+    df1.select("b","a").saveToMemSQL(dbName, "t", host, port, user, password)
     assert(TestUtils.EqualDFs(df_t, df1.unionAll(df1).unionAll(df1)))
 
     // and expressions and column renaming
-    df1.where(df1("a") < 5).select(df1("a") + 1 as "b",df1("a")).saveToMemSQL(host, port, user, password, dbName, "t")    
+    df1.where(df1("a") < 5).select(df1("a") + 1 as "b",df1("a")).saveToMemSQL(dbName, "t", host, port, user, password)    
     assert (df_t.filter(df_t("b") === "3").count == 1)
 
     
@@ -162,7 +160,7 @@ object TestMemSQLTypes {
     val sqlContext = new SQLContext(sc)
 
     val host = "127.0.0.1"
-    val port = 3306
+    val port = 10000
     val user = "root"
     val password = ""
     val dbName = "alltypes_db"
@@ -217,8 +215,8 @@ object TestMemSQLTypes {
 
     }
 
-    val df_not_null2 = df_not_null.createMemSQLTableAs(host, port, user, password, dbName, "alltypes_not_null2")
-    val df_nullable2 = df_nullable.createMemSQLTableAs(host, port, user, password, dbName, "alltypes_nullable2")
+    val df_not_null2 = df_not_null.createMemSQLTableAs(dbName, "alltypes_not_null2", host, port, user, password)
+    val df_nullable2 = df_nullable.createMemSQLTableAs(dbName, "alltypes_nullable2", host, port, user, password)
 
     println("df_not_null2")
     assert(TestUtils.EqualDFs(df_not_null, df_not_null2))
@@ -228,8 +226,8 @@ object TestMemSQLTypes {
     // its too much to hope that the schema will be the same from an arbitrary table to one created with createMemSQLTableAs
     // but it shouldn't change on subsequent calls to createMemSQLTableAs
     //
-    val df_not_null3 = df_not_null2.createMemSQLTableAs(host, port, user, password, dbName, "alltypes_not_null3")
-    val df_nullable3 = df_nullable2.createMemSQLTableAs(host, port, user, password, dbName, "alltypes_nullable3")
+    val df_not_null3 = df_not_null2.createMemSQLTableAs(dbName, "alltypes_not_null3", host, port, user, password)
+    val df_nullable3 = df_nullable2.createMemSQLTableAs(dbName, "alltypes_nullable3", host, port, user, password)
     
     println(df_not_null3.schema)
     println(df_not_null2.schema)
