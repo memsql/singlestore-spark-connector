@@ -4,9 +4,9 @@ import org.apache.spark.streaming.StreamingContext
 
 trait ETLPipeline[S, R] extends Extractor[S] with Transformer[S, R] with Loader[R] {
   def run(sc:StreamingContext): Unit = {
-    val inputDStream = this.extract(sc)
-    val transformedDStream = this.transform(inputDStream)
-    this.load(transformedDStream)
+    val inputDStream = extract(sc)
+    val transformedDStream = transform(inputDStream)
+    load(transformedDStream)
 
     Console.println(s"${inputDStream.count()} rows after extract")
     Console.println(s"${transformedDStream.count()} rows after transform")
