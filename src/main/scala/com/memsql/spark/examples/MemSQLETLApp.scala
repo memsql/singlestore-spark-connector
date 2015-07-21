@@ -9,7 +9,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import org.apache.spark.streaming.{Duration, StreamingContext, Time}
 
-object MemSQLETLApp extends ETLPipeline[Long, String] {
+case class MemSQLETLApp() extends ETLPipeline[Long,String]{
   override def extract(ssc: StreamingContext): InputDStream[Long] = {
     new InputDStream[Long](ssc) {
       override def stop(): Unit = {}
@@ -28,11 +28,13 @@ object MemSQLETLApp extends ETLPipeline[Long, String] {
   }
 
   override def load(stream: DStream[String]): Unit = {}
+}
+object MemSQLETLApp {
+  def main(args: Array[String]) {
+    val sparkConf = new SparkConf().setMaster("spark://127.0.0.1:7077")
 
-  def main (args: Array[String]) {
-      val sparkConf = new SparkConf().setMaster("spark://127.0.0.1:7077")
-
-      val sparkStreamingContext = new StreamingContext(sparkConf, new Duration(5000))
-      this.run(sparkStreamingContext)
+    val sparkStreamingContext = new StreamingContext(sparkConf, new Duration(5000))
+    val app = MemSQLETLApp()
+    app.run(sparkStreamingContext)
   }
 }
