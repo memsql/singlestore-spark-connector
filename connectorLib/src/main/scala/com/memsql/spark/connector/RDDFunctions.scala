@@ -62,6 +62,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     var theUser = user
     var thePassword = password    
     var availableNodes: Array[(String,Int)] = Array((dbHost,dbPort))
+    var compression = "gzip"
     if (dbHost == null || dbPort == -1 || user == null || password == null) {
       rdd.sparkContext match {
         case _: MemSQLSparkContext => {
@@ -81,18 +82,20 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       val hostname = TaskContext.get.taskMetrics.hostname
       var myAvailableNodes = availableNodes.filter(_._1.equals(hostname))
       var ix = 0
-      if (myAvailableNodes.size == 0) {
+      if (myAvailableNodes.size == 0) { // there is no MemSQL node available for colocation
         myAvailableNodes = availableNodes
         ix = (randomIndex + TaskContext.get.partitionId) % myAvailableNodes.size
-      } else {
+      } else { // there is at least one MemSQL node avaiable for colocation
         ix = Random.nextInt(myAvailableNodes.size)
+        // In testing on a Litterbug cluster with 4 nodes and a 1% sample, not using gzip in the colocated case nearly halves per-batch latency.  
+        compression = "tsv"
       }        
       val node = myAvailableNodes(ix)      
 
       if (onDuplicateKeySql.isEmpty) { 
         loadPartitionInMemSQL(
           node._1, node._2, theUser, thePassword, dbName, tableName, 
-          useInsertIgnore, part)
+          useInsertIgnore, part, compression=compression)
       } else { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
         insertPartitionInMemSQL(
           node._1, node._2, theUser, thePassword, dbName, tableName, onDuplicateKeySql, 

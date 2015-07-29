@@ -111,7 +111,7 @@ object TestUtils {
       "root",
       "",
       dbName,
-      tableName)
+      "SELECT * FROM " + tableName)
   }
   def CollectAndSort(df: DataFrame): Seq[Row] = {
     return df.collect.sorted(RowOrdering.forSchema(df.schema.map(_.dataType))) // zomg why is this like this?

@@ -33,7 +33,7 @@ object TestMemSQLDataFrameVeryBasic {
       user,
       password,
       dbName,
-      "t")
+      "SELECT * FROM t")
     val df_s = MemSQLDataFrame.MakeMemSQLDF(
       sqlContext,
       host,
@@ -41,7 +41,7 @@ object TestMemSQLDataFrameVeryBasic {
       user,
       password,
       dbName,
-      "s")
+      "SELECT * FROM s")
     val df_r = MemSQLDataFrame.MakeMemSQLDF(
       sqlContext,
       host,
@@ -49,7 +49,7 @@ object TestMemSQLDataFrameVeryBasic {
       user,
       password,
       dbName,
-      "r")
+      "SELECT * FROM r")
 
     // we want to make sure that we pushdown simple queries to the leaves
     assert (df_t.rdd.partitions.size > 1)
