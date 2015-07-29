@@ -155,6 +155,9 @@ object TestSaveToMemSQLVeryBasic {
 
 object TestMemSQLTypes {
   def main(args: Array[String]) {
+    val keyless = args.indexOf("keyless") != -1
+    println("args.size = " + args.size)
+    println("keyless = " + keyless)
     val conf = new SparkConf().setAppName("MemSQLRDD Application")
     val sc = new SparkContext(conf)
     val sqlContext = new SQLContext(sc)
@@ -164,6 +167,14 @@ object TestMemSQLTypes {
     val user = "root"
     val password = ""
     val dbName = "alltypes_db"
+
+    val dbAddress = "jdbc:mysql://" + host + ":" + port
+    val conn = DriverManager.getConnection(dbAddress, user, password)
+    val stmt = conn.createStatement
+    stmt.executeQuery("set global plan_expiration_minutes = 0") // this way we can look in the plancache to see what queries were issued after the fact.  
+    println("waiting for plans to flush")
+    Thread sleep 60000
+    stmt.executeQuery("set global plan_expiration_minutes = default") // this way we can look in the plancache to see what queries were issued after the fact.  
 
     TestUtils.DropAndCreate(dbName)
     
@@ -215,8 +226,8 @@ object TestMemSQLTypes {
 
     }
 
-    val df_not_null2 = df_not_null.createMemSQLTableAs(dbName, "alltypes_not_null2", host, port, user, password)
-    val df_nullable2 = df_nullable.createMemSQLTableAs(dbName, "alltypes_nullable2", host, port, user, password)
+    val df_not_null2 = df_not_null.createMemSQLTableAs(dbName, "alltypes_not_null2", host, port, user, password, useKeylessShardedOptimization=keyless)
+    val df_nullable2 = df_nullable.createMemSQLTableAs(dbName, "alltypes_nullable2", host, port, user, password, useKeylessShardedOptimization=keyless)
 
     println("df_not_null2")
     assert(TestUtils.EqualDFs(df_not_null, df_not_null2))
@@ -226,8 +237,8 @@ object TestMemSQLTypes {
     // its too much to hope that the schema will be the same from an arbitrary table to one created with createMemSQLTableAs
     // but it shouldn't change on subsequent calls to createMemSQLTableAs
     //
-    val df_not_null3 = df_not_null2.createMemSQLTableAs(dbName, "alltypes_not_null3", host, port, user, password)
-    val df_nullable3 = df_nullable2.createMemSQLTableAs(dbName, "alltypes_nullable3", host, port, user, password)
+    val df_not_null3 = df_not_null2.createMemSQLTableAs(dbName, "alltypes_not_null3", host, port, user, password, useKeylessShardedOptimization=keyless)
+    val df_nullable3 = df_nullable2.createMemSQLTableAs(dbName, "alltypes_nullable3", host, port, user, password, useKeylessShardedOptimization=keyless)
     
     println(df_not_null3.schema)
     println(df_not_null2.schema)
@@ -237,6 +248,11 @@ object TestMemSQLTypes {
 
     assert(df_not_null3.schema.equals(df_not_null2.schema))
     assert(df_nullable3.schema.equals(df_nullable2.schema))
-
+    
+    // If we are in keyless mode, the agg should have received no load data queries, since the loads should happen directly on the leaves.
+    // Conversely, if we are not in keyless mode, the loads should happen on the agg.
+    //
+    val plans = MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.plancache where query_text like 'LOAD%'")).toArray
+    assert(keyless == (plans.size == 0))
   }
 }

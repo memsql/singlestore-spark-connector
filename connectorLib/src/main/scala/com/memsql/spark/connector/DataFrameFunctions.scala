@@ -31,7 +31,8 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
                      password: String = null,                     
                      onDuplicateKeySql: String = "",
                      useInsertIgnore: Boolean = false,
-                     upsertBatchSize: Int = 10000) 
+                     upsertBatchSize: Int = 10000,
+                     useKeylessShardedOptimization: Boolean = false) 
   {
         val insertTable = new StringBuilder()
         insertTable.append(tableName).append("(")
@@ -46,7 +47,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
             insertTable.append(col.name)
         }
         val insertTableString = insertTable.append(")").toString
-        df.rdd.saveToMemSQL(dbName, insertTableString, dbHost, dbPort, user, password,  onDuplicateKeySql, useInsertIgnore, upsertBatchSize)
+        df.rdd.saveToMemSQL(dbName, insertTableString, dbHost, dbPort, user, password,  onDuplicateKeySql, useInsertIgnore, upsertBatchSize, useKeylessShardedOptimization)
     }
 
     /*
@@ -61,7 +62,8 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
                             dbPort: Int = -1,
                             user: String = null,
                             password: String = null,
-                            ifNotExists: Boolean = false) : DataFrame = 
+                            ifNotExists: Boolean = false,
+                            useKeylessShardedOptimization: Boolean = false) : DataFrame = 
     {
         val sql = new StringBuilder()
         sql.append("CREATE TABLE ")
@@ -115,7 +117,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
         stmt.executeUpdate(sql.toString) // TODO: should I be handling errors, or just expect the caller to catch them...
         stmt.close()
 
-        saveToMemSQL(dbName, tableName, dbHost, dbPort, user, password)
+        saveToMemSQL(dbName, tableName, dbHost, dbPort, user, password, useKeylessShardedOptimization=useKeylessShardedOptimization)
         return MemSQLDataFrame.MakeMemSQLDF(df.sqlContext, theHost, thePort, theUser, thePassword, dbName, "SELECT * FROM " + tableName)
     }
 }

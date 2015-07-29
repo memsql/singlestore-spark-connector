@@ -2,7 +2,7 @@ package com.memsql.spark.connector
 
 import scala.util.Random
 
-import java.sql.{Connection, DriverManager, PreparedStatement, Types}
+import java.sql.{Connection, DriverManager, PreparedStatement, Types, Statement}
 // import org.apache.spark.util.Utils TODO: this object is private
 
 import org.apache.spark.{Logging, SparkException, TaskContext}
@@ -21,6 +21,7 @@ import java.util.zip.GZIPOutputStream
 import java.io.{PipedOutputStream, PipedInputStream}
 import net.jpountz.lz4._
 import com.memsql.spark.context.MemSQLSparkContext
+import com.memsql.spark.connector.rdd.MemSQLRDD
 
 class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
 
@@ -47,6 +48,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
    * @param onDuplicateKeySql Optional SQL to include in the
    *                          "ON DUPLICATE KEY UPDATE" clause of the INSERT queries we generate.
    * @param upsertBatchSize How many rows to insert per INSERT query.  Has no effect if onDuplicateKeySql is not specified.
+   * @param useKeylessShardedOptimization if set, data is loaded directly into leaf partitions.  Can increased performance at the expense of higher variance sharding.    
    */
   def saveToMemSQL(
     dbName: String,
@@ -57,22 +59,44 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     password: String = null,
     onDuplicateKeySql: String = "",
     useInsertIgnore: Boolean = false,
-    upsertBatchSize: Int = 10000) {
+    upsertBatchSize: Int = 10000,
+    useKeylessShardedOptimization: Boolean = false) {
 
     var theUser = user
     var thePassword = password    
-    var availableNodes: Array[(String,Int)] = Array((dbHost,dbPort))
     var compression = "gzip"
+    var availableNodes: Array[(String,Int,String)] = Array((dbHost,dbPort,dbName))
     if (dbHost == null || dbPort == -1 || user == null || password == null) {
       rdd.sparkContext match {
         case _: MemSQLSparkContext => {
           val msc = rdd.sparkContext.asInstanceOf[MemSQLSparkContext]
           theUser = msc.GetUserName
           thePassword = msc.GetPassword
-          availableNodes = msc.GetMemSQLNodesAvailableForIngest
+          availableNodes = msc.GetMemSQLNodesAvailableForIngest.map(node => (node._1,node._2,dbName))
         }
         case _ => {
           throw new SparkException("saveToMemSQL requires intializing Spark with MemSQLSparkContext or explicitly setting dbName, dbHost, user and password")
+        }
+      }
+    }
+    if (useKeylessShardedOptimization) {
+      var conn: Connection = null
+      var stmt: Statement = null
+      try {
+        val randomIndex = Random.nextInt(availableNodes.size)        
+        val dbAddress = "jdbc:mysql://" + availableNodes(randomIndex)._1 + ":" + availableNodes(randomIndex)._2
+        conn = DriverManager.getConnection(dbAddress, theUser, thePassword)
+        stmt = conn.createStatement
+        availableNodes = MemSQLRDD.resultSetToIterator(stmt.executeQuery("SHOW PARTITIONS FROM " + dbName))
+                        .filter(_.getString("Role").equals("Master"))
+                        .map(r => (r.getString("Host"), r.getInt("Port"), dbName + "_" + r.getString("Ordinal")))
+                        .toArray
+      } finally {
+        if (stmt != null && !stmt.isClosed()) {
+          stmt.close()
+        }
+        if (conn != null && !conn.isClosed()) {
+          conn.close()
         }
       }
     }
@@ -94,11 +118,11 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
 
       if (onDuplicateKeySql.isEmpty) { 
         loadPartitionInMemSQL(
-          node._1, node._2, theUser, thePassword, dbName, tableName, 
+          node._1, node._2, theUser, thePassword, node._3, tableName, 
           useInsertIgnore, part, compression=compression)
       } else { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
         insertPartitionInMemSQL(
-          node._1, node._2, theUser, thePassword, dbName, tableName, onDuplicateKeySql, 
+          node._1, node._2, theUser, thePassword, node._3, tableName, onDuplicateKeySql, 
           upsertBatchSize, useInsertIgnore, part)
       }
     }
