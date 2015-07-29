@@ -6,10 +6,11 @@ import java.util.Calendar
 import com.memsql.spark.connector._
 import com.memsql.spark.etl.api.ETLPipeline
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import org.apache.spark.streaming.{StreamingContext, Time}
 
-case class MemSQLETLApp() extends ETLPipeline[Long,Array[String]]{
+case class MemSQLETLApp() extends ETLPipeline[Long, Row] {
   def extract(ssc: StreamingContext): InputDStream[Long] = {
     new InputDStream[Long](ssc) {
       override def stop(): Unit = {}
@@ -22,16 +23,16 @@ case class MemSQLETLApp() extends ETLPipeline[Long,Array[String]]{
     }
   }
 
-  def transform(from: DStream[Long]): DStream[Array[String]] = {
+  def transform(from: DStream[Long]): DStream[Row] = {
     val dateFormat = new SimpleDateFormat()
     from.map { x =>
-      Array(dateFormat.format(x))
+      Row(dateFormat.format(x))
     }
   }
 
-  def load(stream: DStream[Array[String]]): Unit = {
+  def load(stream: DStream[Row]): Unit = {
     stream.foreachRDD { rdd =>
-      rdd.saveToMemsql("127.0.0.1", 3306, "root", "", "test", "test")
+      rdd.saveToMemSQL("test", "test", "127.0.0.1", 3306, "root", "")
     }
   }
 }

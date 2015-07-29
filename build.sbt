@@ -10,7 +10,7 @@ lazy val connectorLib = (project in file("connectorLib")).
     name := "MemSQLRDD",
     libraryDependencies  ++= Seq(
       "org.apache.spark" %% "spark-core" % "1.4.0" % "provided",
-      "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided", 
+      "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided",
       "mysql" % "mysql-connector-java" % "5.1.34"
     ),
     autoAPIMappings := true,
@@ -36,6 +36,7 @@ lazy val etlLib = (project in file("etlLib")).
     libraryDependencies  ++= Seq(
       "org.apache.spark" %% "spark-streaming" % "1.4.0" % "provided",
       "org.apache.spark" %% "spark-streaming-kafka" % "1.4.0" % "provided",
+      "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided",
       "org.apache.kafka" %% "kafka" % "0.8.2.1"
     ),
     autoAPIMappings := true,
@@ -62,7 +63,7 @@ lazy val root = (project in file(".")).
     name := "MemSQL",
     libraryDependencies  ++= Seq(
       "org.apache.spark" %% "spark-core" % "1.4.0" % "provided",
-      "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided", 
+      "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided",
       "org.apache.spark" %% "spark-streaming" % "1.4.0" % "provided",
       "mysql" % "mysql-connector-java" % "5.1.34"
     )
