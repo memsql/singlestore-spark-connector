@@ -103,31 +103,67 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
 
     val randomIndex = Random.nextInt(availableNodes.size)
     rdd.foreachPartition{ part =>
-      val hostname = TaskContext.get.taskMetrics.hostname
-      var myAvailableNodes = availableNodes.filter(_._1.equals(hostname))
-      var ix = 0
-      if (myAvailableNodes.size == 0) { // there is no MemSQL node available for colocation
-        myAvailableNodes = availableNodes
-        ix = (randomIndex + TaskContext.get.partitionId) % myAvailableNodes.size
-      } else { // there is at least one MemSQL node avaiable for colocation
-        ix = Random.nextInt(myAvailableNodes.size)
-        // In testing on a Litterbug cluster with 4 nodes and a 1% sample, not using gzip in the colocated case nearly halves per-batch latency.  
+      val node = chooseMemSQLTarget(availableNodes, randomIndex)
+      if (node.isColocated) {
         compression = "tsv"
-      }        
-      val node = myAvailableNodes(ix)      
+      }
 
       if (onDuplicateKeySql.isEmpty) { 
         loadPartitionInMemSQL(
-          node._1, node._2, theUser, thePassword, node._3, tableName, 
+          node.targetHost, node.targetPort, theUser, thePassword, node.targetDb, tableName, 
           useInsertIgnore, part, compression=compression)
       } else { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
         insertPartitionInMemSQL(
-          node._1, node._2, theUser, thePassword, node._3, tableName, onDuplicateKeySql, 
+          node.targetHost, node.targetPort, theUser, thePassword, node.targetDb, tableName, onDuplicateKeySql, 
           upsertBatchSize, useInsertIgnore, part)
       }
     }
   }
 
+  /*
+   * A struct enclosing the data required for loading a Spark partition into a MemSQL node
+   */
+  case class MemSQLTarget(partitionIndex: Int,
+                          myHostName:  String,
+                          targetHost:  String,
+                          targetPort:  Int,
+                          targetDb:    String,
+                          isColocated: Boolean)
+
+  /*
+   * From a list of possibilities, chooses a MemSQLTarget.
+   * Must be called from an executor.
+   */
+  private def chooseMemSQLTarget(availableNodes: Array[(String, Int, String)], randomIndex: Int) : MemSQLTarget = {
+    val hostname = TaskContext.get.taskMetrics.hostname
+    val id = TaskContext.get.partitionId
+    var myAvailableNodes = availableNodes.filter(_._1.equals(hostname))
+    var ix = 0
+    var isColocated = false
+    if (myAvailableNodes.size == 0) { // there is no MemSQL node available for colocation
+      myAvailableNodes = availableNodes
+      ix = (randomIndex + TaskContext.get.partitionId) % myAvailableNodes.size
+    } else { // there is at least one MemSQL node avaiable for colocation
+      ix = Random.nextInt(myAvailableNodes.size)
+      isColocated = true
+    }        
+    val node = myAvailableNodes(ix)      
+    MemSQLTarget(id, hostname, node._1, node._2, node._3, isColocated)
+  }
+
+  /*
+   * A debugging utility.
+   * Returns an Array of MemSQLTarget structs, one for each Spark partition.
+   * Represents one possibility for the Spark -> MemSQL mapping created by calling saveToMemSQL.
+   */
+  def saveToMemSQLDryRun : Array[MemSQLTarget] = {
+    val msc = rdd.sparkContext.asInstanceOf[MemSQLSparkContext]
+    val availableNodes = msc.GetMemSQLNodesAvailableForIngest.map(node => (node._1,node._2,null: String))
+    val randomIndex = Random.nextInt(availableNodes.size)
+    rdd.mapPartitions{ part =>
+      Array(chooseMemSQLTarget(availableNodes, randomIndex)).toIterator
+    }.collect
+  }
 
   private def insertPartitionInMemSQL(
                                        dbHost: String,
