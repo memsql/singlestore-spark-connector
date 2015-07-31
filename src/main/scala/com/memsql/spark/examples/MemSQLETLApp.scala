@@ -5,12 +5,16 @@ import java.util.Calendar
 
 import com.memsql.spark.connector._
 import com.memsql.spark.etl.api.ETLPipeline
+import com.memsql.spark.etl.api.MemSQLLoader
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
 import org.apache.spark.streaming.{StreamingContext, Time}
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.types._
 
-case class MemSQLETLApp() extends ETLPipeline[Long, Row] {
+case class MemSQLETLApp() extends ETLPipeline[Long] {
   def extract(ssc: StreamingContext): InputDStream[Long] = {
     new InputDStream[Long](ssc) {
       override def stop(): Unit = {}
@@ -23,16 +27,13 @@ case class MemSQLETLApp() extends ETLPipeline[Long, Row] {
     }
   }
 
-  def transform(from: DStream[Long]): DStream[Row] = {
+  def transform(sqlContext: SQLContext, from: RDD[Long]): DataFrame = {
     val dateFormat = new SimpleDateFormat()
-    from.map { x =>
+    val transformed = from.map { x =>
       Row(dateFormat.format(x))
     }
+    sqlContext.createDataFrame(transformed, StructType(Array(StructField("val_datetime",TimestampType,false))))
   }
 
-  def load(stream: DStream[Row]): Unit = {
-    stream.foreachRDD { rdd =>
-      rdd.saveToMemSQL("test", "test", "127.0.0.1", 3306, "root", "")
-    }
-  }
+  def load(df: DataFrame): Unit = MemSQLLoader.makeMemSQLLoader("test","test")
 }
