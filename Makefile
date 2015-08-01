@@ -15,6 +15,7 @@ clean:
 	sbt clean
 	sbt "project connectorLib" clean
 	sbt "project etlLib" clean
+	sbt "project superapp" clean
 	rm -rf distribution/
 
 .PHONY: build

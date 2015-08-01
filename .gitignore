@@ -6,5 +6,6 @@ project/target/*
 connectorLib/target/*
 connectorLib/src/main/scala/com/memsql/spark/connector/target/*
 etlLib/target/*
+superapp/target/*
 target/*
 *~

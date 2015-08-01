@@ -54,9 +54,35 @@ lazy val etlLib = (project in file("etlLib")).
     }
   )
 
+lazy val superapp = (project in file("superapp")).
+  dependsOn(connectorLib).
+  dependsOn(etlLib).
+  settings(commonSettings: _*).
+  settings(
+    name := "superapp",
+    parallelExecution in Test := false,
+    libraryDependencies ++= {
+      val akkaVersion = "2.3.9"
+      val sprayVersion = "1.3.2"
+      Seq(
+        "io.spray" %% "spray-can" % sprayVersion,
+        "io.spray" %% "spray-routing" % sprayVersion,
+        "io.spray" %% "spray-json" % sprayVersion,
+        "com.typesafe.akka" %% "akka-actor" % akkaVersion,
+        "com.github.scopt" %% "scopt" % "3.2.0",
+        "mysql" % "mysql-connector-java" % "5.1.34",
+        "org.apache.spark" %% "spark-core" % "1.4.0" % "provided",
+        "org.apache.spark" %% "spark-streaming" % "1.4.0" % "provided",
+        "org.scalatest" %% "scalatest" % "2.2.5" % "test",
+        "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
+      )
+    }
+  )
+
 lazy val root = (project in file(".")).
   dependsOn(connectorLib).
   dependsOn(etlLib).
+  dependsOn(superapp).
   settings(commonSettings: _*).
   settings(unidocSettings: _*).
   settings(
