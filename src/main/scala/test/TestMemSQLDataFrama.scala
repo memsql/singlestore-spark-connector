@@ -1,5 +1,6 @@
 package test
 
+import com.memsql.spark.context.MemSQLSparkContext
 import java.sql.{DriverManager, ResultSet}
 
 import org.apache.spark.SparkContext
@@ -255,4 +256,56 @@ object TestMemSQLTypes {
     val plans = MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.plancache where query_text like 'LOAD%'")).toArray
     assert(keyless == (plans.size == 0))
   }
+}
+
+object TestCreateWithKeys 
+{
+    def main(args: Array[String]) 
+    {
+        val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")
+        val sc = new MemSQLSparkContext(conf, "127.0.0.1", 10000, "root", "")
+        val sqlContext = new SQLContext(sc)
+        TestUtils.DropAndCreate("db")
+      
+        val rdd = sc.parallelize(Array[Row]())
+        val schema = StructType(Array(StructField("a",IntegerType,true),
+                                      StructField("b",StringType,false)))
+        val df = sqlContext.createDataFrame(rdd, schema)
+
+        df.createMemSQLTableFromSchema("db","t1", keys=Array(Shard("")))
+        df.createMemSQLTableFromSchema("db","t2", keys=Array(Shard("a")))
+        df.createMemSQLTableFromSchema("db","t3", keys=Array(Shard("a,b")))
+        df.createMemSQLTableFromSchema("db","t4", keys=Array(PrimaryKey("a,b"), Shard("a")))
+        df.createMemSQLTableFromSchema("db","t5", keys=Array(UniqueKey("a,b"), Shard("a")))
+        df.createMemSQLTableFromSchema("db","t6", keys=Array(PrimaryKey("a,b"), Key("b")))
+        df.createMemSQLTableFromSchema("db","t7", keys=Array(Shard("a"), KeyUsingClusteredColumnStore("b")))
+
+        val conn = sc.GetMAConnection
+        var stmt = conn.createStatement
+       
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t1'")).toArray.size==0)
+
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t2'")).toArray.size==1)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t2' and index_type='SHARD'")).toArray.size==1)
+
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t3'")).toArray.size==2)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t3' and index_type='SHARD'")).toArray.size==2)
+
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4'")).toArray.size==3)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4' and index_type='SHARD'")).toArray.size==1)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4' and index_name='PRIMARY'")).toArray.size==2)
+
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5'")).toArray.size==3)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5' and index_type='SHARD'")).toArray.size==1)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5' and index_name='PRIMARY'")).toArray.size==0)
+
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6'")).toArray.size==5)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6' and index_type='SHARD'")).toArray.size==2)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6' and index_name='PRIMARY'")).toArray.size==4)
+
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7'")).toArray.size==2)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='SHARD'")).toArray.size==1)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='CLUSTERED COLUMN'")).toArray.size==1)
+
+    }
 }

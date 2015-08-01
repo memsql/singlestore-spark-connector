@@ -15,6 +15,13 @@ import scala.reflect.ClassTag
 import org.apache.spark.{SparkException, Logging}
 import com.memsql.spark.context.MemSQLSparkContext
 
+abstract class MemSQLKey
+case class Shard(columns: String) extends MemSQLKey
+case class Key(columns: String) extends MemSQLKey
+case class KeyUsingClusteredColumnStore(columns: String) extends MemSQLKey
+case class PrimaryKey(columns: String) extends MemSQLKey
+case class UniqueKey(columns: String) extends MemSQLKey
+
 class DataFrameFunctions(df: DataFrame) extends Serializable with Logging 
 {
     /*
@@ -32,7 +39,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
                      onDuplicateKeySql: String = "",
                      useInsertIgnore: Boolean = false,
                      upsertBatchSize: Int = 10000,
-                     useKeylessShardedOptimization: Boolean = false) 
+                     useKeylessShardedOptimization: Boolean = false)
   {
         val insertTable = new StringBuilder()
         insertTable.append(tableName).append("(")
@@ -63,10 +70,26 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
                             user: String = null,
                             password: String = null,
                             ifNotExists: Boolean = false,
+                            keys: Array[MemSQLKey] = Array(),
                             useKeylessShardedOptimization: Boolean = false) : DataFrame = 
     {
+        val resultDf = df.createMemSQLTableFromSchema(dbName, tableName, dbHost, dbPort, user, password, ifNotExists, keys)
+        df.saveToMemSQL(dbName, tableName, dbHost, dbPort, user, password, useKeylessShardedOptimization=useKeylessShardedOptimization)
+        return resultDf
+   }
+
+    def createMemSQLTableFromSchema(dbName: String,
+                                    tableName: String,
+                                    dbHost: String = null,
+                                    dbPort: Int = -1,
+                                    user: String = null,
+                                    password: String = null,
+                                    ifNotExists: Boolean = false,
+                                    keys: Array[MemSQLKey] = Array()) : DataFrame = 
+    {
         val sql = new StringBuilder()
-        sql.append("CREATE TABLE ")
+        sql.append("CREATE ")
+        sql.append("TABLE ")
         if (ifNotExists)
         {
             sql.append("IF NOT EXISTS ")
@@ -87,8 +110,44 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
             }
             sql.append(",")
         }
-        sql.append("SHARD())") // not always optimial, but in the spirit of user not having to make hard choices
-
+        val hasShardKey = keys.exists(_ match 
+        { 
+            case shardKey: Shard => true 
+            case pk: PrimaryKey => true
+            case _ => false
+        })
+        val theKeys = if (hasShardKey) keys else keys :+ Shard("")
+        for (i <- 0 until theKeys.size)
+        {
+            theKeys(i) match
+            {
+                case shardkey: Shard => 
+                {
+                    sql.append("SHARD(").append(shardkey.columns).append(")")
+                }            
+                case index: Key => 
+                {
+                    sql.append("INDEX(").append(index.columns).append(")")
+                }                                
+                case pk: PrimaryKey => 
+                {
+                    sql.append("PRIMARY KEY(").append(pk.columns).append(")")
+                }                                
+                case uk: UniqueKey => 
+                {
+                    sql.append("UNIQUE KEY(").append(uk.columns).append(")")
+                }                                
+                case projection: KeyUsingClusteredColumnStore => 
+                {
+                    sql.append("KEY(").append(projection.columns).append(") USING CLUSTERED COLUMNSTORE")
+                }                                
+            }      
+            if (i != theKeys.size - 1)
+            {
+                sql.append(",")
+            }
+        }
+        sql.append(")")
 
         var theHost: String = dbHost
         var thePort: Int = dbPort
@@ -116,8 +175,6 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
         val stmt = conn.createStatement
         stmt.executeUpdate(sql.toString) // TODO: should I be handling errors, or just expect the caller to catch them...
         stmt.close()
-
-        saveToMemSQL(dbName, tableName, dbHost, dbPort, user, password, useKeylessShardedOptimization=useKeylessShardedOptimization)
         return MemSQLDataFrame.MakeMemSQLDF(df.sqlContext, theHost, thePort, theUser, thePassword, dbName, "SELECT * FROM " + tableName)
     }
 }
