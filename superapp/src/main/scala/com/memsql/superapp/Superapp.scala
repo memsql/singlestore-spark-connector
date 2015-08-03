@@ -4,16 +4,14 @@ import com.memsql.superapp.server.WebServer
 
 import akka.actor.{ActorSystem, Props}
 import akka.io.IO
-import com.memsql.superapp.util.{JarLoader, Paths}
-import org.apache.spark.{SparkContext, SparkConf}
-import org.apache.spark.sql.SQLContext
+import com.memsql.superapp.util.Paths
+import org.apache.spark.SparkConf
 import org.apache.spark.streaming.{Duration, StreamingContext}
 import com.memsql.spark.context.{MemSQLSparkContext, MemSQLSQLContext}
 import spray.can.Http
 import akka.pattern.ask
 import scala.concurrent._
 import scala.concurrent.duration._
-import akka.util.Timeout
 import scala.util.{Failure, Try, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -69,14 +67,14 @@ object SuperApp {
     val sparkStreamingContext = new StreamingContext(sparkContext, new Duration(5000))
 
     implicit val system = ActorSystem("superapp")
-    var pipelineMonitors = Map[String, Runnable]()
+    var pipelineMonitors = Map[String, PipelineMonitor]()
 
     // initialize api
-    val api = system.actorOf(Props(classOf[ApiActor], config), "api")
+    import ApiActor._
+    val api = system.actorOf(Props(classOf[ApiActor], config), "/api")
 
     // initialize web server
-    val service = system.actorOf(Props[WebServer], "web-server")
-    implicit val timeout = Timeout(5.seconds)
+    val service = system.actorOf(Props[WebServer], "/web-server")
     IO(Http) ? Http.Bind(service, interface="0.0.0.0", port=config.port) onComplete {
       case Success(Http.Bound(endpoint)) => Console.println("Listening")
       case _ => {
@@ -91,35 +89,32 @@ object SuperApp {
         pipelines.foreach { pipeline =>
           var nextState = pipeline.state
           var error = ""
+
           (pipeline.state, pipelineMonitors.get(pipeline.pipeline_id)) match {
             case (PipelineState.RUNNING, None) => {
-              try {
-                val clazz = JarLoader.loadClass(pipeline.jar, pipeline.main_class)
-                //TODO does this pollute the classpath for the lifetime of the superapp?
-                //TODO if an updated jar is appended to the classpath the superapp will always run the old version
-                //distribute jar to all tasks run by this spark context
-                sparkContext.addJar(pipeline.jar)
-                val pipelineInstance = clazz.newInstance.asInstanceOf[{def run(sc: StreamingContext, sqlContext: SQLContext)}]
-                val pipelineThread = new Thread {
-                  override def run {
-                    Console.println(s"Starting pipeline ${pipeline.pipeline_id}")
-                    nextState = PipelineState.RUNNING
-                    pipelineInstance.run(sparkStreamingContext, sqlContext)
-                  }
+              PipelineMonitor.of(api, pipeline, sparkContext, sqlContext, sparkStreamingContext) match {
+                case Some(pipelineMonitor)  => {
+                  pipelineMonitor.start
+                  pipelineMonitors += (pipeline.pipeline_id -> pipelineMonitor)
                 }
-                pipelineThread.start
-                pipelineMonitors = pipelineMonitors + (pipeline.pipeline_id -> pipelineThread)
-              } catch {
-                case e: Exception =>
-                  error = s"Failed to load class for pipeline: $e"
-                  nextState = PipelineState.ERROR
-                  Console.println(s"Failed to load class for pipeline: $e")
-                  e.printStackTrace()
+                case None => //failed to start pipeline, state is now ERROR
               }
             }
-            case (PipelineState.RUNNING, Some(pipelineMonitor)) => //TODO monitor running pipeline and set state to stopped or error
-            case (PipelineState.STOPPED, Some(pipelineMonitor)) => //TODO stop the running pipeline
-            case (PipelineState.ERROR, Some(pipelineMonitor)) => //TODO record error
+            case (PipelineState.RUNNING, Some(pipelineMonitor)) => {
+              //TODO monitor running pipeline and set state to stopped or error
+              if (!pipelineMonitor.isAlive) {
+                nextState = PipelineState.STOPPED
+                pipelineMonitors = pipelineMonitors.filterKeys(_ == pipeline.pipeline_id)
+              }
+            }
+            case (PipelineState.STOPPED, Some(pipelineMonitor)) => {
+              //TODO stop the running pipeline
+              if (pipelineMonitor.isAlive) {
+                pipelineMonitor.stop
+              }
+              nextState = PipelineState.STOPPED
+              pipelineMonitors = pipelineMonitors.filterKeys(_ == pipeline.pipeline_id)
+            }
             case (_, _) => //do nothing
           }
 

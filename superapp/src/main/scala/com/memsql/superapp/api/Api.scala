@@ -1,6 +1,8 @@
 package com.memsql.superapp.api
 
 import akka.actor.Actor
+import akka.util.Timeout
+import scala.concurrent.duration._
 import com.memsql.superapp.Config
 import com.memsql.superapp.util.BaseException
 import spray.json._
@@ -58,6 +60,7 @@ object ApiActor {
   case class PipelinePut(pipeline_id: String, jar: String, main_class: String)
   case class PipelineUpdate(pipeline_id: String, state: PipelineState, error: String = null, _validate: Boolean = false)
   case class PipelineDelete(pipeline_id: String)
+  implicit val timeout = Timeout(5.seconds)
 }
 
 class ApiActor(config: Config) extends Actor {

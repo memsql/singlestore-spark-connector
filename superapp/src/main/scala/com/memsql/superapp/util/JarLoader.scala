@@ -16,6 +16,7 @@ object JarLoader {
 
     var file = new File(path)
     if (file.isFile) {
+      Console.println(s"Loading jar from local file at $path")
       url = file.toURI.toURL
     } else {
       try {

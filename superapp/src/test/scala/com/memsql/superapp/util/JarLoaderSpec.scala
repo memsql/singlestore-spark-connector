@@ -1,12 +1,18 @@
 package com.memsql.superapp.util
 
+import java.io.File
+
 import com.memsql.superapp.UnitSpec
 
 class JarLoaderSpec extends UnitSpec {
   "JarLoader" should "load class from a jar" in {
-    val clazz = JarLoader.loadClass("http://coreos-10.memcompute.com:8080/repository/internal/com/memsql/memsql/0.1.2/memsql-0.1.2.jar",
+    var clazz = JarLoader.loadClass("http://coreos-10.memcompute.com:8080/repository/internal/com/memsql/memsql/0.1.2/memsql-0.1.2.jar",
       "com.memsql.spark.etl.api.Loader")
     assert(Paths.exists("test_root/jars/memsql-0.1.2.jar"))
+    assert(clazz.getPackage.getName == "com.memsql.spark.etl.api")
+
+    clazz = JarLoader.loadClass(Paths.join(new File(".").getCanonicalPath, "target/scala-2.10/MemSQL-assembly-0.1.2.jar"),
+      "com.memsql.spark.etl.api.Loader")
     assert(clazz.getPackage.getName == "com.memsql.spark.etl.api")
   }
 
