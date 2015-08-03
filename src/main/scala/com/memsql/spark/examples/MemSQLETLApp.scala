@@ -15,7 +15,7 @@ import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.types._
 
 case class MemSQLETLApp() extends ETLPipeline[Long] {
-  def extract(ssc: StreamingContext): InputDStream[Long] = {
+  override def extract(ssc: StreamingContext): InputDStream[Long] = {
     new InputDStream[Long](ssc) {
       override def stop(): Unit = {}
 
@@ -27,7 +27,7 @@ case class MemSQLETLApp() extends ETLPipeline[Long] {
     }
   }
 
-  def transform(sqlContext: SQLContext, from: RDD[Long]): DataFrame = {
+  override def transform(sqlContext: SQLContext, from: RDD[Long]): DataFrame = {
     val dateFormat = new SimpleDateFormat()
     val transformed = from.map { x =>
       Row(dateFormat.format(x))
@@ -35,5 +35,5 @@ case class MemSQLETLApp() extends ETLPipeline[Long] {
     sqlContext.createDataFrame(transformed, StructType(Array(StructField("val_datetime",TimestampType,false))))
   }
 
-  def load(df: DataFrame): Unit = MemSQLLoader.makeMemSQLLoader("test","test")
+  override def load(df: DataFrame) = MemSQLLoader.makeMemSQLLoader("test","test").load(df)
 }
