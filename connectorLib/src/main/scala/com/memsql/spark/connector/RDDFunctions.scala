@@ -41,14 +41,14 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
    * then each Spark partition will insert into a randomly chosen colocated writable MemSQL node.
    * If MemSQLSparkContext is used to determine a partitions's destination
    * and the Spark executors are not colocated with writable MemSQL nodes,
-   * Spark partitions will insert writable MemSQL nodes round robin.  
+   * Spark partitions will insert writable MemSQL nodes round robin.
    *
    * @param dbName the name of the database we're working in.
    * @param tableName the name of the table we're saving the data in.
    * @param onDuplicateKeySql Optional SQL to include in the
    *                          "ON DUPLICATE KEY UPDATE" clause of the INSERT queries we generate.
    * @param upsertBatchSize How many rows to insert per INSERT query.  Has no effect if onDuplicateKeySql is not specified.
-   * @param useKeylessShardedOptimization if set, data is loaded directly into leaf partitions.  Can increased performance at the expense of higher variance sharding.    
+   * @param useKeylessShardedOptimization if set, data is loaded directly into leaf partitions.  Can increased performance at the expense of higher variance sharding.
    */
   def saveToMemSQL(
     dbName: String,
@@ -63,7 +63,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     useKeylessShardedOptimization: Boolean = false) {
 
     var theUser = user
-    var thePassword = password    
+    var thePassword = password
     var compression = "gzip"
     var availableNodes: Array[(String,Int,String)] = Array((dbHost,dbPort,dbName))
     if (dbHost == null || dbPort == -1 || user == null || password == null) {
@@ -83,7 +83,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       var conn: Connection = null
       var stmt: Statement = null
       try {
-        val randomIndex = Random.nextInt(availableNodes.size)        
+        val randomIndex = Random.nextInt(availableNodes.size)
         val dbAddress = "jdbc:mysql://" + availableNodes(randomIndex)._1 + ":" + availableNodes(randomIndex)._2
         conn = DriverManager.getConnection(dbAddress, theUser, thePassword)
         stmt = conn.createStatement
@@ -108,13 +108,13 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
         compression = "tsv"
       }
 
-      if (onDuplicateKeySql.isEmpty) { 
+      if (onDuplicateKeySql.isEmpty) {
         loadPartitionInMemSQL(
-          node.targetHost, node.targetPort, theUser, thePassword, node.targetDb, tableName, 
+          node.targetHost, node.targetPort, theUser, thePassword, node.targetDb, tableName,
           useInsertIgnore, part, compression=compression)
       } else { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
         insertPartitionInMemSQL(
-          node.targetHost, node.targetPort, theUser, thePassword, node.targetDb, tableName, onDuplicateKeySql, 
+          node.targetHost, node.targetPort, theUser, thePassword, node.targetDb, tableName, onDuplicateKeySql,
           upsertBatchSize, useInsertIgnore, part)
       }
     }
@@ -146,8 +146,8 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     } else { // there is at least one MemSQL node avaiable for colocation
       ix = Random.nextInt(myAvailableNodes.size)
       isColocated = true
-    }        
-    val node = myAvailableNodes(ix)      
+    }
+    val node = myAvailableNodes(ix)
     MemSQLTarget(id, hostname, node._1, node._2, node._3, isColocated)
   }
 
@@ -174,7 +174,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
                                        tableName: String,
                                        onDuplicateKeySql: String,
                                        upsertBatchSize: Int,
-                                       useInsertIgnore: Boolean, 
+                                       useInsertIgnore: Boolean,
                                        iter: Iterator[Row]) {
     var conn: Connection = null
     var stmt: PreparedStatement = null
@@ -276,16 +276,16 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
                                     password: String,
                                     dbName: String,
                                     tableName: String,
-                                    useInsertIgnore: Boolean, 
+                                    useInsertIgnore: Boolean,
                                     iter: Iterator[Row],
                                     compression:String = "gzip") {
-      
+
     val basestream = new PipedOutputStream
     val input = new PipedInputStream(basestream)
 
-    var outstream: OutputStream = basestream    
+    var outstream: OutputStream = basestream
     var ext = "tsv"
-    
+
     compression match {
       case "gzip" => {
         ext = "gz"
@@ -301,7 +301,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
         outstream = new LZ4BlockOutputStream(outstream, 1048576, LZ4Factory.fastestInstance.fastCompressor)
         assert(false, "we don't quite have lz4 working yet")
       }
-      case "" => { }
+      case default => { }
     }
 
     val q = "LOAD DATA LOCAL INFILE '###." + ext + "' " + (if (useInsertIgnore) "IGNORE " else "") + "INTO TABLE " + tableName
@@ -316,8 +316,8 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
               //
               var elt = ""
               if (row(i) == null) {
-                elt = "\\N" 
-              } else {                
+                elt = "\\N"
+              } else {
                 elt = row(i).toString
                 if (elt.indexOf('\\') != -1) { elt = elt.replace("\\","\\\\") }
                 if (elt.indexOf('\n') != -1) { elt = elt.replace("\n","\\n")  }
@@ -325,7 +325,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
               }
               outstream.write(elt.getBytes)
               outstream.write(if (i== row.size - 1) '\n' else '\t')
-            }              
+            }
           }
         }
         finally {
@@ -338,8 +338,8 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     stmt.setLocalInfileInputStream(input)
     stmt.executeQuery(q)
     stmt.close()
-    conn.close()    
-  }  
+    conn.close()
+  }
 
   private def getMemSQLConnection(
                                    dbHost: String,
@@ -353,4 +353,3 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     DriverManager.getConnection(dbAddress, user, password)
   }
 }
-

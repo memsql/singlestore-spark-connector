@@ -6,6 +6,10 @@ SHELL := /bin/bash
 VERSION := $(shell sbt 'export version' | tail -n 1)
 export VERSION
 
+.PHONY: git-commit-template
+git-commit-template: .commit_template
+	@git config commit.template .commit_template
+
 .PHONY: version
 version:
 	@echo $(VERSION)

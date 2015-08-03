@@ -73,6 +73,7 @@ lazy val superapp = (project in file("superapp")).
         "mysql" % "mysql-connector-java" % "5.1.34",
         "org.apache.spark" %% "spark-core" % "1.4.0" % "provided",
         "org.apache.spark" %% "spark-streaming" % "1.4.0" % "provided",
+        "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided",
         "org.scalatest" %% "scalatest" % "2.2.5" % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
       )

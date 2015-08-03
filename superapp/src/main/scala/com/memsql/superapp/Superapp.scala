@@ -6,7 +6,9 @@ import akka.actor.{ActorSystem, Props}
 import akka.io.IO
 import com.memsql.superapp.util.{JarLoader, Paths}
 import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.streaming.{Duration, StreamingContext}
+import com.memsql.spark.context.{MemSQLSparkContext, MemSQLSQLContext}
 import spray.can.Http
 import akka.pattern.ask
 import scala.concurrent._
@@ -64,7 +66,8 @@ object SuperApp {
 
     //TODO verify we have sane defaults for spark conf
     val sparkConf = new SparkConf().setAppName("SuperApp Manager")
-    val sparkContext = new SparkContext(sparkConf)
+    val sparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
+    val sqlContext = new MemSQLSQLContext(sparkContext)
     val sparkStreamingContext = new StreamingContext(sparkContext, new Duration(5000))
 
     implicit val system = ActorSystem("superapp")
@@ -98,12 +101,12 @@ object SuperApp {
                 //TODO if an updated jar is appended to the classpath the superapp will always run the old version
                 //distribute jar to all tasks run by this spark context
                 sparkContext.addJar(pipeline.jar)
-                val pipelineInstance = clazz.newInstance.asInstanceOf[{def run(sc: StreamingContext)}]
+                val pipelineInstance = clazz.newInstance.asInstanceOf[{def run(sc: StreamingContext, sqlContext: SQLContext)}]
                 val pipelineThread = new Thread {
                   override def run {
                     Console.println(s"Starting pipeline ${pipeline.pipeline_id}")
                     nextState = PipelineState.RUNNING
-                    pipelineInstance.run(sparkStreamingContext)
+                    pipelineInstance.run(sparkStreamingContext, sqlContext)
                   }
                 }
                 pipelineThread.start
