@@ -9,8 +9,8 @@ lazy val connectorLib = (project in file("connectorLib")).
   settings(
     name := "MemSQLRDD",
     libraryDependencies  ++= Seq(
-      "org.apache.spark" %% "spark-core" % "1.4.0" % "provided",
-      "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided",
+      "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
+      "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
       "mysql" % "mysql-connector-java" % "5.1.34"
     ),
     autoAPIMappings := true,
@@ -22,7 +22,7 @@ lazy val connectorLib = (project in file("connectorLib")).
         } yield entry.data).headOption
       }
       val links = Seq(
-        findManagedDependency("org.apache.spark", "spark-core").map(d => d -> url("https://spark.apache.org/docs/1.4.0/api/scala/"))
+        findManagedDependency("org.apache.spark", "spark-core").map(d => d -> url("https://spark.apache.org/docs/1.4.1/api/scala/"))
       )
       links.collect { case Some(d) => d }.toMap
     }
@@ -34,9 +34,9 @@ lazy val etlLib = (project in file("etlLib")).
   settings(
     name := "MemSQLETL",
     libraryDependencies  ++= Seq(
-      "org.apache.spark" %% "spark-streaming" % "1.4.0" % "provided",
-      "org.apache.spark" %% "spark-streaming-kafka" % "1.4.0" % "provided",
-      "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided",
+      "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
+      "org.apache.spark" %% "spark-streaming-kafka" % "1.4.1" % "provided",
+      "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
       "org.apache.kafka" %% "kafka" % "0.8.2.1"
     ),
     autoAPIMappings := true,
@@ -48,7 +48,7 @@ lazy val etlLib = (project in file("etlLib")).
         } yield entry.data).headOption
       }
       val links = Seq(
-        findManagedDependency("org.apache.spark", "spark-core").map(d => d -> url("https://spark.apache.org/docs/1.4.0/api/scala/"))
+        findManagedDependency("org.apache.spark", "spark-core").map(d => d -> url("https://spark.apache.org/docs/1.4.1/api/scala/"))
       )
       links.collect { case Some(d) => d }.toMap
     }
@@ -71,9 +71,9 @@ lazy val superapp = (project in file("superapp")).
         "com.typesafe.akka" %% "akka-actor" % akkaVersion,
         "com.github.scopt" %% "scopt" % "3.2.0",
         "mysql" % "mysql-connector-java" % "5.1.34",
-        "org.apache.spark" %% "spark-core" % "1.4.0" % "provided",
-        "org.apache.spark" %% "spark-streaming" % "1.4.0" % "provided",
-        "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided",
+        "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
+        "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
+        "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
         "org.scalatest" %% "scalatest" % "2.2.5" % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"
       )
@@ -89,9 +89,9 @@ lazy val root = (project in file(".")).
   settings(
     name := "MemSQL",
     libraryDependencies  ++= Seq(
-      "org.apache.spark" %% "spark-core" % "1.4.0" % "provided",
-      "org.apache.spark" %% "spark-sql" % "1.4.0"  % "provided",
-      "org.apache.spark" %% "spark-streaming" % "1.4.0" % "provided",
+      "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
+      "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
+      "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
       "mysql" % "mysql-connector-java" % "5.1.34"
     )
   )
