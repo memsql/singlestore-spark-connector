@@ -289,7 +289,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     compression match {
       case "gzip" => {
         ext = "gz"
-        // with gzip default 1 we get a 50% improvement in bandwith (up to 16 Mps) over gzip default 6 on customer workload
+        // with gzip default 1 we get a 50% improvement in bandwidth (up to 16 Mps) over gzip default 6 on customer workload
         //
         outstream = new GZIPOutputStream(basestream) {{ `def`.setLevel(1) }}
       }
@@ -312,7 +312,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
           for (row <- iter) {
             for (i <- 0 until row.size) {
               // We tried using off the shelf CSVWriter, but found it qualitatively slower.
-              // The csv writer below has been benchmarked at 90 Mps goint to a null output stream
+              // The csv writer below has been benchmarked at 90 Mps going to a null output stream
               //
               var elt = ""
               if (row(i) == null) {
