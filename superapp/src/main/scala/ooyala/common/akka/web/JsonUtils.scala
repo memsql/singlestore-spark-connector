@@ -63,6 +63,7 @@ object JsonUtils {
       case o: JsObject => mapFormat[String, Any].read(value)
       case JsTrue => true
       case JsFalse => false
+      case JsNull => null
       case x => deserializationError("Do not understand how to deserialize " + x)
     }
   }
@@ -81,4 +82,3 @@ object JsonUtils {
 
   def listFromJson(json: String): Seq[Any] = json.parseJson.convertTo[Seq[Any]]
 }
-

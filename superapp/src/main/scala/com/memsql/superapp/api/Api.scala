@@ -1,55 +1,21 @@
 package com.memsql.superapp.api
 
+import com.memsql.spark.etl.api._
 import akka.actor.Actor
 import akka.util.Timeout
 import scala.concurrent.duration._
 import com.memsql.superapp.Config
 import com.memsql.superapp.util.BaseException
+import com.memsql.spark.etl.api.PipelineConfig
 import spray.json._
 
 import scala.collection.mutable
 import scala.util.{Failure, Success}
 
-object PipelineState extends Enumeration {
-  type PipelineState = Value
-  val RUNNING, STOPPED, ERROR = Value
-}
-
 import PipelineState._
-
-case class Pipeline(pipeline_id: String,
-                    var state: PipelineState,
-                    jar: String,
-                    main_class: String,
-                    var error: String = null)
-
-object ApiJsonProtocol extends DefaultJsonProtocol {
-  implicit object pipelineFormat extends RootJsonFormat[Pipeline] {
-    override def read(value: JsValue): Pipeline = {
-      value.asJsObject.getFields("pipeline_id", "state", "jar", "main_class", "error") match {
-        case Seq(JsString(pipeline_id), JsString(state), JsString(jar), JsString(main_class), JsString(error)) => {
-          PipelineState.values.find(_.toString == state) match {
-            case s: Some[PipelineState] => Pipeline(pipeline_id, s.get, jar, main_class, error)
-            case None => deserializationError(s"pipeline state $state does not exist")
-          }
-        }
-        case _ => deserializationError("pipeline expected")
-      }
-    }
-
-    override def write(obj: Pipeline): JsValue = {
-      JsObject(
-        "pipeline_id" -> JsString(obj.pipeline_id),
-        "state" -> JsString(obj.state.toString),
-        "active" -> JsBoolean(obj.state == PipelineState.RUNNING),
-        "jar" -> JsString(obj.jar),
-        "main_class" -> JsString(obj.main_class),
-        "error" -> (if (obj.error == null) JsNull else JsString(obj.error))
-      )
-    }
-  }
-
-}
+import PipelineExtractType._
+import PipelineTransformType._
+import PipelineLoadType._
 
 case class ApiException(message: String) extends BaseException(message: String)
 
@@ -57,8 +23,8 @@ object ApiActor {
   case object Ping
   case object PipelineQuery
   case class PipelineGet(pipeline_id: String)
-  case class PipelinePut(pipeline_id: String, jar: String, main_class: String)
-  case class PipelineUpdate(pipeline_id: String, state: PipelineState, error: String = null, _validate: Boolean = false)
+  case class PipelinePut(pipeline_id: String, jar: String, main_class: String, config: PipelineConfig = null)
+  case class PipelineUpdate(pipeline_id: String, state: PipelineState = null, config: PipelineConfig = null, error: String = null, _validate: Boolean = false)
   case class PipelineDelete(pipeline_id: String)
   implicit val timeout = Timeout(5.seconds)
 }
@@ -77,33 +43,57 @@ class ApiActor(config: Config) extends Actor {
         case None => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }
     }
-    case PipelinePut(pipeline_id, jar, main_class) => {
+    case PipelinePut(pipeline_id, jar, main_class, config) => {
+      var pipelineConfig = config
+      if (pipelineConfig == null) {
+        pipelineConfig = PipelineConfig(None, None, None)
+      }
+      if (pipelineConfig.extract_config.isEmpty) {
+        pipelineConfig.extract_config = Some(PipelineExtractConfig(
+          PipelineExtractType.USER, PipelineUserExtractConfigData("")))
+      }
+      if (pipelineConfig.transform_config.isEmpty) {
+        pipelineConfig.transform_config = Some(PipelineTransformConfig(
+          PipelineTransformType.USER, PipelineUserTransformConfigData("")))
+      }
+      if (pipelineConfig.load_config.isEmpty) {
+        pipelineConfig.load_config = Some(PipelineLoadConfig(
+          PipelineLoadType.USER, PipelineUserLoadConfigData("")))
+      }
       pipelines.find(_.pipeline_id == pipeline_id) match {
         case p: Some[Pipeline] => sender ! Failure(ApiException(s"pipeline with id $pipeline_id already exists"))
         case _ => {
-          pipelines += Pipeline(pipeline_id, RUNNING, jar, main_class)
+          pipelines += Pipeline(pipeline_id, RUNNING, jar, main_class, pipelineConfig)
           sender ! Success(true)
         }
       }
     }
-    case PipelineUpdate(pipeline_id, state, error, _validate) => {
+    case PipelineUpdate(pipeline_id, state, config, error, _validate) => {
       pipelines.find(_.pipeline_id == pipeline_id) match {
         case p: Some[Pipeline] => {
           val pipeline = p.get
           val oldState = pipeline.state
-          pipeline.state = (pipeline.state, state, _validate) match {
-            case (_, _, false) => state
-            case (RUNNING, STOPPED, _) => state
-            case (STOPPED, RUNNING, _) => state
-            case default => pipeline.state
+          val oldConfig = pipeline.config
+          var updated = false
+
+          if (state != null) {
+            pipeline.state = (pipeline.state, state, _validate) match {
+              case (_, _, false) => state
+              case (RUNNING, STOPPED, _) => state
+              case (STOPPED, RUNNING, _) => state
+              case default => pipeline.state
+            }
+            if (oldState != pipeline.state) {
+              pipeline.error = error
+              updated = true
+            }
           }
 
-          if (oldState != pipeline.state) {
-            pipeline.error = error
-            sender ! Success(true)
-          } else {
-            sender ! Success(false)
+          if (config != null) {
+            pipeline.config = config
+            updated = oldConfig != pipeline.config
           }
+          sender ! Success(updated)
         }
         case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }

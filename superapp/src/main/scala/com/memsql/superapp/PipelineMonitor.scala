@@ -3,6 +3,7 @@ package com.memsql.superapp
 import akka.pattern.ask
 import akka.actor.ActorRef
 import com.memsql.spark.context.{MemSQLSQLContext, MemSQLSparkContext}
+import com.memsql.spark.etl.api.PipelineConfig
 import com.memsql.superapp.api.{ApiActor, PipelineState, Pipeline}
 import ApiActor._
 import com.memsql.superapp.util.JarLoader
@@ -22,8 +23,8 @@ object PipelineMonitor {
       //TODO if an updated jar is appended to the classpath the superapp will always run the old version
       //distribute jar to all tasks run by this spark context
       sparkContext.addJar(pipeline.jar)
-      val pipelineInstance = clazz.newInstance.asInstanceOf[ {def run(sc: StreamingContext, sqlContext: MemSQLSQLContext)}]
-      Some(PipelineMonitor(api, pipeline.pipeline_id, pipelineInstance, streamingContext, sqlContext))
+      val pipelineInstance = clazz.newInstance.asInstanceOf[ {def run(sc: StreamingContext, sqlContext: MemSQLSQLContext, config: PipelineConfig)}]
+      Some(PipelineMonitor(api, pipeline.pipeline_id, pipeline.config, pipelineInstance, streamingContext, sqlContext))
     } catch {
       case e: Exception => {
         val errorMessage = s"Failed to load class for pipeline ${pipeline.pipeline_id}: $e"
@@ -42,7 +43,8 @@ object PipelineMonitor {
 
 case class PipelineMonitor(api: ActorRef,
                            pipeline_id: String,
-                           pipelineInstance: {def run(sc: StreamingContext, sqlc: MemSQLSQLContext)},
+                           pipelineConfig: PipelineConfig,
+                           pipelineInstance: {def run(sc: StreamingContext, sqlc: MemSQLSQLContext, config: PipelineConfig)},
                            streamingContext: StreamingContext,
                            sqlContext: MemSQLSQLContext) {
   private var exception: Exception = null
@@ -53,7 +55,7 @@ case class PipelineMonitor(api: ActorRef,
         Console.println(s"Starting pipeline $pipeline_id")
         val future = (api ? PipelineUpdate(pipeline_id, PipelineState.RUNNING)).mapTo[Try[Boolean]]
         future.map {
-          case Success(resp) => pipelineInstance.run(streamingContext, sqlContext)
+          case Success(resp) => pipelineInstance.run(streamingContext, sqlContext, pipelineConfig)
           case Failure(error) => Console.println(s"Failed to update pipeline $pipeline_id state to RUNNING: $error")
         }
       } catch {
@@ -84,4 +86,3 @@ case class PipelineMonitor(api: ActorRef,
     thread.join
   }
 }
-

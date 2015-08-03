@@ -8,8 +8,8 @@ object ETLPipeline {
 }
 
 trait ETLPipeline[S]  {
-  
-  val extractor: Extractor[S] 
+
+  val extractor: Extractor[S]
   val transformer: Transformer[S]
   val loader: Loader
 

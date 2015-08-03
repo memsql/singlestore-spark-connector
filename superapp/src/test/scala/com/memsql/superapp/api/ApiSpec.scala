@@ -1,6 +1,7 @@
 package com.memsql.superapp.api
 
 import akka.actor.Props
+import com.memsql.spark.etl.api._
 import com.memsql.superapp.{Config, TestKitSpec}
 import com.memsql.superapp.api.ApiActor._
 import scala.concurrent.duration._
@@ -57,10 +58,19 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.state == PipelineState.RUNNING)
           assert(pipeline.jar == "site.com/foo.jar")
           assert(pipeline.main_class == "com.foo.FooMain")
+          assert(pipeline.config.extract_config.get.`type` == PipelineExtractType.USER)
+          assert(pipeline.config.extract_config.get.config.asInstanceOf[PipelineUserExtractConfigData].value == "")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
-      apiRef ! PipelinePut("pipeline2", jar="site.com/bar.jar", main_class="com.bar.BarMain")
+      val config = PipelineConfig(
+        Some(PipelineExtractConfig(
+          PipelineExtractType.KAFKA,
+          PipelineKafkaExtractConfigData(
+            "test1", "test2", Map()))),
+        None,
+        None)
+      apiRef ! PipelinePut("pipeline2", jar="site.com/bar.jar", main_class="com.bar.BarMain", config=config)
       expectMsg(Success(true))
 
       apiRef ! PipelineQuery
@@ -77,6 +87,8 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.state == PipelineState.RUNNING)
           assert(pipeline.jar == "site.com/bar.jar")
           assert(pipeline.main_class == "com.bar.BarMain")
+          assert(pipeline.config.extract_config.get.`type` == PipelineExtractType.KAFKA)
+          assert(pipeline.config.extract_config.get.config.asInstanceOf[PipelineKafkaExtractConfigData].zk_quorum == "test1")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
     }
@@ -123,6 +135,37 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.state == PipelineState.ERROR)
           assert(pipeline.error == "something crashed")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
+
+      // Updating configs should be allowed
+      val config = PipelineConfig(
+        Some(PipelineExtractConfig(
+          PipelineExtractType.KAFKA,
+          PipelineKafkaExtractConfigData(
+            "test1", "test2", Map()))),
+        None,
+        None)
+      apiRef ! PipelineUpdate("pipeline1", config=config)
+      expectMsg(Success(true))
+      apiRef ! PipelineGet("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val pipeline = resp.get.asInstanceOf[Pipeline]
+          assert(pipeline.config.extract_config.get.`type` == PipelineExtractType.KAFKA)
+          assert(pipeline.config.extract_config.get.config.asInstanceOf[PipelineKafkaExtractConfigData].zk_quorum == "test1")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
+
+      //no-op updates to configs should return false
+      apiRef ! PipelineUpdate("pipeline1", config=config)
+      expectMsg(Success(false))
+      apiRef ! PipelineGet("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val pipeline = resp.get.asInstanceOf[Pipeline]
+          assert(pipeline.config.extract_config.get.`type` == PipelineExtractType.KAFKA)
+          assert(pipeline.config.extract_config.get.config.asInstanceOf[PipelineKafkaExtractConfigData].zk_quorum == "test1")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
     }

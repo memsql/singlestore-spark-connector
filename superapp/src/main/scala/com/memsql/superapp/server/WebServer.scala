@@ -3,7 +3,9 @@ package com.memsql.superapp.server
 import akka.actor.Actor
 import akka.pattern.ask
 import com.memsql.superapp.api._
+import com.memsql.spark.etl.api.PipelineConfig
 import spray.http.StatusCodes
+import spray.httpx.SprayJsonSupport._
 import spray.routing.HttpService
 import spray.json._
 import scala.concurrent.duration._
@@ -59,23 +61,28 @@ trait WebService extends HttpService {
     } ~
     path("pipeline" / "put") {
       parameter('pipeline_id.as[String], 'jar.as[String], 'main_class.as[String]) { (pipeline_id, jar, main_class) =>
-        post { ctx =>
-          val future = (api ? PipelinePut(pipeline_id, jar, main_class)).mapTo[Try[Boolean]]
-          future.map {
-            case Success(resp) => ctx.complete(Map[String, Boolean]("success" -> resp).toJson.toString)
-            case Failure(error) => ctx.complete(StatusCodes.BadRequest, error.toString)
+        entity(as[PipelineConfig]) { config =>
+          post { ctx =>
+            val future = (api ? PipelinePut(pipeline_id, jar, main_class, config)).mapTo[Try[Boolean]]
+            future.map {
+              case Success(resp) => ctx.complete(Map[String, Boolean]("success" -> resp).toJson.toString)
+              case Failure(error) => ctx.complete(StatusCodes.BadRequest, error.toString)
+            }
           }
         }
       }
     } ~
     path("pipeline" / "update") {
       parameter('pipeline_id.as[String], 'active.as[Boolean]) { (pipeline_id, active) =>
-        patch { ctx =>
-          val state = if (active) PipelineState.RUNNING else PipelineState.STOPPED
-          val future = (api ? PipelineUpdate(pipeline_id, state, _validate = true)).mapTo[Try[Boolean]]
-          future.map {
-            case Success(resp) => ctx.complete(Map[String, Boolean]("success" -> resp).toJson.toString)
-            case Failure(error) => ctx.complete(StatusCodes.NotFound, error.toString)
+        entity(as[Option[PipelineConfig]]) { configMaybe =>
+          var config = configMaybe.orNull
+          patch { ctx =>
+            val state = if (active) PipelineState.RUNNING else PipelineState.STOPPED
+            val future = (api ? PipelineUpdate(pipeline_id, state, config, _validate = true)).mapTo[Try[Boolean]]
+            future.map {
+              case Success(resp) => ctx.complete(Map[String, Boolean]("success" -> resp).toJson.toString)
+              case Failure(error) => ctx.complete(StatusCodes.NotFound, error.toString)
+            }
           }
         }
       }
