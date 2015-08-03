@@ -7,9 +7,14 @@ object ETLPipeline {
   val BATCH_DURATION = 5000
 }
 
-trait ETLPipeline[S] extends Extractor[S] with Transformer[S] with Loader {
+trait ETLPipeline[S]  {
+  
+  val extractor: Extractor[S] 
+  val transformer: Transformer[S]
+  val loader: Loader
+
   def run(ssc:StreamingContext, sqlContext: SQLContext): Unit = {
-    val inputDStream = extract(ssc)
+    val inputDStream = extractor.extract(ssc)
     var time: Long = 0
 
     // manually compute the next RDD in the DStream so that we can sidestep issues with
@@ -19,8 +24,8 @@ trait ETLPipeline[S] extends Extractor[S] with Transformer[S] with Loader {
 
       inputDStream.compute(Time(time)) match {
         case Some(rdd) => {
-          val df = transform(sqlContext, rdd)
-          load(df)
+          val df = transformer.transform(sqlContext, rdd)
+          loader.load(df)
 
           Console.println(s"${inputDStream.count()} rows after extract")
           Console.println(s"${df.count()} rows after transform")
