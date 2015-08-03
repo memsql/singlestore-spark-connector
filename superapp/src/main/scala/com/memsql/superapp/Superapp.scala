@@ -48,13 +48,6 @@ object SuperApp {
   }
 
   def init(config:Config): Unit = {
-    //verify that the MemSQL library is compiled into the jar or available on the classpath
-    try {
-      Class.forName("com.memsql.spark.etl.api.ETLPipeline")
-    } catch {
-      case e: Exception => Console.println("Could not find MemSQL library on classpath"); sys.exit(1)
-    }
-
     Paths.initialize(config.dataDir)
   }
 
