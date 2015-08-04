@@ -9,9 +9,10 @@ import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
 
-import com.memsql.spark.connector.dataframe.MemSQLDataFrame
+import com.memsql.spark.connector.dataframe._
 import com.memsql.spark.connector.rdd.MemSQLRDD
 import com.memsql.spark.connector._
+
 
 object TestMemSQLDataFrameVeryBasic {
   def main(args: Array[String]) {
@@ -272,12 +273,12 @@ object TestCreateWithKeys
                                       StructField("b",StringType,false)))
         val df = sqlContext.createDataFrame(rdd, schema)
 
-        df.createMemSQLTableFromSchema("db","t1", keys=Array(Shard("")))
+        df.createMemSQLTableFromSchema("db","t1", keys=Array(Shard()))
         df.createMemSQLTableFromSchema("db","t2", keys=Array(Shard("a")))
-        df.createMemSQLTableFromSchema("db","t3", keys=Array(Shard("a,b")))
-        df.createMemSQLTableFromSchema("db","t4", keys=Array(PrimaryKey("a,b"), Shard("a")))
-        df.createMemSQLTableFromSchema("db","t5", keys=Array(UniqueKey("a,b"), Shard("a")))
-        df.createMemSQLTableFromSchema("db","t6", keys=Array(PrimaryKey("a,b"), Key("b")))
+        df.createMemSQLTableFromSchema("db","t3", keys=Array(Shard("a","b")))
+        df.createMemSQLTableFromSchema("db","t4", keys=Array(PrimaryKey("a","b"), Shard("a")))
+        df.createMemSQLTableFromSchema("db","t5", keys=Array(UniqueKey("a","b"), Shard("a")))
+        df.createMemSQLTableFromSchema("db","t6", keys=Array(PrimaryKey("a","b"), Key("b")))
         df.createMemSQLTableFromSchema("db","t7", keys=Array(Shard("a"), KeyUsingClusteredColumnStore("b")))
 
         val conn = sc.GetMAConnection

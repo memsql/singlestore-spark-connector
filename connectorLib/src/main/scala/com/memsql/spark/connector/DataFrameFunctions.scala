@@ -15,12 +15,7 @@ import scala.reflect.ClassTag
 import org.apache.spark.{SparkException, Logging}
 import com.memsql.spark.context.MemSQLSparkContext
 
-abstract class MemSQLKey
-case class Shard(columns: String) extends MemSQLKey
-case class Key(columns: String) extends MemSQLKey
-case class KeyUsingClusteredColumnStore(columns: String) extends MemSQLKey
-case class PrimaryKey(columns: String) extends MemSQLKey
-case class UniqueKey(columns: String) extends MemSQLKey
+import com.memsql.spark.connector.dataframe._
 
 class DataFrameFunctions(df: DataFrame) extends Serializable with Logging 
 {
@@ -110,43 +105,9 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
             }
             sql.append(",")
         }
-        val hasShardKey = keys.exists(_ match 
-        { 
-            case shardKey: Shard => true 
-            case pk: PrimaryKey => true
-            case _ => false
-        })
-        val theKeys = if (hasShardKey) keys else keys :+ Shard("")
-        for (i <- 0 until theKeys.size)
-        {
-            theKeys(i) match
-            {
-                case shardkey: Shard => 
-                {
-                    sql.append("SHARD(").append(shardkey.columns).append(")")
-                }            
-                case index: Key => 
-                {
-                    sql.append("INDEX(").append(index.columns).append(")")
-                }                                
-                case pk: PrimaryKey => 
-                {
-                    sql.append("PRIMARY KEY(").append(pk.columns).append(")")
-                }                                
-                case uk: UniqueKey => 
-                {
-                    sql.append("UNIQUE KEY(").append(uk.columns).append(")")
-                }                                
-                case projection: KeyUsingClusteredColumnStore => 
-                {
-                    sql.append("KEY(").append(projection.columns).append(") USING CLUSTERED COLUMNSTORE")
-                }                                
-            }      
-            if (i != theKeys.size - 1)
-            {
-                sql.append(",")
-            }
-        }
+        val hasShardKey = keys.exists(_.canBeUsedAsShardKey)
+        val theKeys = if (hasShardKey) keys else keys :+ Shard()
+        sql.append(theKeys.map((k : MemSQLKey) => k.toSQL).mkString(","))
         sql.append(")")
 
         var theHost: String = dbHost
