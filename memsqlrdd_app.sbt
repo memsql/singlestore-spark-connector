@@ -1,13 +1,19 @@
+lazy val commonSettings = Seq(
+  organization := "com.memsql",
+  version := "0.1.3-SNAPSHOT",
+  scalaVersion := "2.10.4"
+)
+
 lazy val connectorLib = (project in file("connectorLib")).
+  settings(commonSettings: _*).
   settings(
-    name := "MemSQLRDD",
-    version := "0.1.2",
-    scalaVersion := "2.10.4",
+    name := "memsql-spark-connector",
     libraryDependencies  ++= Seq(
-      "org.apache.spark" %% "spark-core" % "1.1.0" % "provided",
+      "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
       "mysql" % "mysql-connector-java" % "5.1.34"
     ),
     autoAPIMappings := true,
+    publishTo := Some(Resolver.file("file",  new File(Path.userHome.absolutePath+"/.m2/repository"))),
     apiMappings ++= {
       def findManagedDependency(organization: String, name: String): Option[File] = {
         (for {
@@ -24,12 +30,11 @@ lazy val connectorLib = (project in file("connectorLib")).
 
 lazy val root = (project in file(".")).
   dependsOn(connectorLib).
+  settings(commonSettings: _*).
   settings(
     name := "MemSQLRDDApp",
-    version := "0.1.2",
-    scalaVersion := "2.10.4",
     libraryDependencies  ++= Seq(
-      "org.apache.spark" %% "spark-core" % "1.1.0" % "provided",
+      "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
       "mysql" % "mysql-connector-java" % "5.1.34"
     )
   )

@@ -25,11 +25,16 @@ build: clean
 docs: clean
 	sbt "project connectorLib" doc
 
+.PHONY: m2publish
+m2publish: clean
+	sbt "project connectorLib" publish
+
+
 .PHONY: package
 package: docs build
 	mkdir -p distribution/dist/memsqlrdd-$(MEMSQLRDD_VERSION)
 	cp README.md distribution/dist/memsqlrdd-$(MEMSQLRDD_VERSION)/
-	cp connectorLib/target/scala-2.10/MemSQLRDD-assembly-$(MEMSQLRDD_VERSION).jar distribution/dist/memsqlrdd-$(MEMSQLRDD_VERSION)/
+	cp connectorLib/target/scala-2.10/memsql-spark-connector-assembly-$(MEMSQLRDD_VERSION).jar distribution/dist/memsqlrdd-$(MEMSQLRDD_VERSION)/
 	cp -r connectorLib/target/scala-2.10/api/ distribution/dist/memsqlrdd-$(MEMSQLRDD_VERSION)/docs/
 	cd distribution/dist; \
 	tar cvzf memsqlrdd-$(MEMSQLRDD_VERSION).tar.gz memsqlrdd-$(MEMSQLRDD_VERSION)/

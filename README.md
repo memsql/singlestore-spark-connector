@@ -59,6 +59,28 @@ This directory will also contain HTML documentation for the connector.
 In order to compile this connector, you must have the [Simple Build
 Tool (aka sbt)](http://www.scala-sbt.org/) installed.
 
+Publishing
+----------
+Run ``make m2publish`` to publish the connector to your local Maven
+repository. To use it, include the following in your pom.xml:
+
+```
+    <dependency>
+      <groupId>com.memsql</groupId>
+      <artifactId>memsql-spark-connector_2.10</artifactId>
+      <version>0.1.3-SNAPSHOT</version>
+    </dependency>
+```
+
+Or, if you are using sbt:
+
+```
+libraryDependencies += "com.memsql" % "memsql-spark-connector_2.10" % "0.1.3-SNAPSHOT"
+```
+
+Note: you should change 0.1.3-SNAPSHOT if the version has been updated.
+You can run ``make version`` to get the current version.
+
 Tweaks
 ------
 The saveToMemsql function has an optional insertBatchSize argument. This
