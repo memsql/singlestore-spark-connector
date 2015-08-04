@@ -20,7 +20,7 @@ object WriteToMemSQLApp {
     val password = ""
     val outputTableName = "output"
 
-    val dbAddress = "jdbc:mysql://" + host + ":" + port + "/" + dbName
+    val dbAddress = "jdbc:mysql://" + host + ":" + port
     val conn = DriverManager.getConnection(dbAddress, user, password)
     val stmt = conn.createStatement
     stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName)

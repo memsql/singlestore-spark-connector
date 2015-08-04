@@ -1,0 +1,4 @@
+{
+    "builder_path": "scripts/build_dockertest.sh",
+    "tester_path": "/storage/testroot/dockertest.sh"
+}

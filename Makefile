@@ -38,3 +38,7 @@ package: docs build
 	cp -r target/scala-2.10/unidoc/ distribution/dist/memsql-$(VERSION)/docs/
 	cd distribution/dist; \
 	tar cvzf memsql-$(VERSION).tar.gz memsql-$(VERSION)/
+
+.PHONY: psytest
+psytest: package
+	psy dockertest .psyduck

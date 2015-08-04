@@ -9,4 +9,5 @@ etlLib/target/*
 superapp/target/*
 target/*
 test_root/*
+*.pyc
 *~

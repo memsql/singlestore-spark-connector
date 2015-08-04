@@ -71,10 +71,10 @@ object SuperApp {
 
     // initialize api
     import ApiActor._
-    val api = system.actorOf(Props(classOf[ApiActor], config), "/api")
+    val api = system.actorOf(Props(classOf[ApiActor], config), "api")
 
     // initialize web server
-    val service = system.actorOf(Props[WebServer], "/web-server")
+    val service = system.actorOf(Props[WebServer], "web-server")
     IO(Http) ? Http.Bind(service, interface="0.0.0.0", port=config.port) onComplete {
       case Success(Http.Bound(endpoint)) => Console.println("Listening")
       case _ => {
