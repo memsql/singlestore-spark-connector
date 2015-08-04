@@ -17,7 +17,7 @@ import akka.util.Timeout
 import scala.util.{Failure, Try, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case class Config(port:Int = 9001,
+case class Config(port:Int = 10001,
                   dataDir:String = "",
                   dbHost:String = "127.0.0.1",
                   dbPort:Int = 3306,
@@ -59,6 +59,11 @@ object SuperApp {
 
     //TODO verify we have sane defaults for spark conf
     val sparkConf = new SparkConf().setAppName("SuperApp Manager")
+      .set("spark.blockManager.port", (config.port + 1).toString)
+      .set("spark.broadcast.port", (config.port + 2).toString)
+      .set("spark.driver.port", (config.port + 3).toString)
+      .set("spark.executor.port", (config.port + 4).toString)
+      .set("spark.fileserver.port", (config.port + 5).toString)
     val sparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
     val sqlContext = new MemSQLSQLContext(sparkContext)
     val sparkStreamingContext = new StreamingContext(sparkContext, new Duration(5000))
