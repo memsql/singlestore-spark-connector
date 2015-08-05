@@ -13,9 +13,19 @@ import org.apache.spark.sql.Row
 //
 object JSONTransformer extends Serializable {
 
+  /**
+   * Produces dataframes with a single StringType column containing the json data.
+   * Function `preprocess` is called on each row
+   *
+   * NOTE: The resulting dataframe is suitable for loading to a target table that has additional columns with defaults (including `TIMESTAMP default CURRENT_TIME` and computed columns).
+   * NOTE: For ingest into a MemSQL table without an `INDEX USING CLUSTERED COLUMNSTORE`, consider using a `FlattenedJSONExtractor`.    
+   *
+   * @param jsonColumnName the name of the StringType column.
+   * @param preprocess a function to turn the input RDD into a JSON string
+   */
   def makeSimpleJSONExtractor[S](
     jsonColumnName: String,
-    preprocess: S => String
+    preprocess: S => String = ((s : S) => s.toString)
   )
   : Transformer[S] = {
     new Transformer[S] {
@@ -27,6 +37,19 @@ object JSONTransformer extends Serializable {
     }
   }
 
+  /**
+   * Produces dataframes with a key column and a StringType column containing the json data from an RDD[(K,V)].
+   * This is suitable, for instance, for processing a KafkaStream of JSON blobs.
+   *
+   * NOTE: The resulting dataframe is suitable for loading to a target table that has additional columns with defaults (including `TIMESTAMP default CURRENT_TIME` and computed columns).
+   * NOTE: For ingest into a MemSQL table without an `INDEX USING CLUSTERED COLUMNSTORE`, consider using a `FlattenedJSONExtractor`.    
+   * 
+   * @param jsonColumnName the name of the StringType column.
+   * @param keyColumnName the name of the key column.  If null or ommited, the key is stripped.  
+   * @param keyColumnType the type of the key column.
+   * @param preprocessValue a function to turn the input RDD's values into a JSON string
+   * @param preprocessKey a function to turn the input RDD's key into a Key
+   */
   def makeSimpleJSONKeyValueExtractor[K,V](
     jsonColumnName: String,
     keyColumnName: String = null,

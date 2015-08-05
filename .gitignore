@@ -11,3 +11,5 @@ target/*
 test_root/*
 *.pyc
 *~
+python/*
+*.class
