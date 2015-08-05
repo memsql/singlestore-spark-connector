@@ -88,8 +88,6 @@ object SuperApp {
       Await.ready((api ? PipelineQuery).mapTo[List[Pipeline]], 5.seconds).map { pipelines =>
         pipelines.foreach { pipeline =>
           var nextState = pipeline.state
-          var error = ""
-
           (pipeline.state, pipelineMonitors.get(pipeline.pipeline_id)) match {
             case (PipelineState.RUNNING, None) => {
               PipelineMonitor.of(api, pipeline, sparkContext, sqlContext, sparkStreamingContext) match {
@@ -118,7 +116,7 @@ object SuperApp {
             case (_, _) => //do nothing
           }
 
-          val future = (api ? PipelineUpdate(pipeline.pipeline_id, nextState, error = error)).mapTo[Try[Boolean]]
+          val future = (api ? PipelineUpdate(pipeline.pipeline_id, nextState)).mapTo[Try[Boolean]]
           future.map {
             case Success(resp) => //ignore
             case Failure(error) => Console.println(s"Failed to update pipeline ${pipeline.pipeline_id} to state $nextState, $error")

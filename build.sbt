@@ -34,6 +34,7 @@ lazy val etlLib = (project in file("etlLib")).
   settings(
     name := "MemSQLETL",
     libraryDependencies  ++= Seq(
+      "io.spray" %% "spray-json" % "1.3.2",
       "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
       "org.apache.spark" %% "spark-streaming-kafka" % "1.4.1" % "provided",
       "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
@@ -67,7 +68,6 @@ lazy val superapp = (project in file("superapp")).
       Seq(
         "io.spray" %% "spray-can" % sprayVersion,
         "io.spray" %% "spray-routing" % sprayVersion,
-        "io.spray" %% "spray-json" % sprayVersion,
         "com.typesafe.akka" %% "akka-actor" % akkaVersion,
         "com.github.scopt" %% "scopt" % "3.2.0",
         "mysql" % "mysql-connector-java" % "5.1.34",

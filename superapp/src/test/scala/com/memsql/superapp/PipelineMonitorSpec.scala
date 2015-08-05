@@ -60,7 +60,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalM
           whenReady((apiRef ? PipelineGet("pipeline1")).mapTo[Try[Pipeline]]) {
             case Success(updatedPipeline) => {
               assert(updatedPipeline.state == PipelineState.ERROR)
-              assert(updatedPipeline.error.contains("Could not load"))
+              assert(updatedPipeline.error.get.contains("Could not load"))
             }
             case Failure(error) => fail(s"Expected pipeline ${pipeline.pipeline_id} to exist: $error")
           }

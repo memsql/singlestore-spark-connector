@@ -3,7 +3,7 @@ package com.memsql.superapp
 import akka.pattern.ask
 import akka.actor.ActorRef
 import com.memsql.spark.context.{MemSQLSQLContext, MemSQLSparkContext}
-import com.memsql.spark.etl.api.PipelineConfig
+import com.memsql.spark.etl.api.configs.PipelineConfig
 import com.memsql.superapp.api.{ApiActor, PipelineState, Pipeline}
 import ApiActor._
 import com.memsql.superapp.util.JarLoader
@@ -27,7 +27,7 @@ object PipelineMonitor {
       Some(PipelineMonitor(api, pipeline.pipeline_id, pipeline.config, pipelineInstance, streamingContext, sqlContext))
     } catch {
       case e: Exception => {
-        val errorMessage = s"Failed to load class for pipeline ${pipeline.pipeline_id}: $e"
+        val errorMessage = Some(s"Failed to load class for pipeline ${pipeline.pipeline_id}: $e")
         Console.println(errorMessage)
         e.printStackTrace
         val future = (api ? PipelineUpdate(pipeline.pipeline_id, PipelineState.ERROR, error = errorMessage)).mapTo[Try[Boolean]]
@@ -63,7 +63,7 @@ case class PipelineMonitor(api: ActorRef,
         case e: Exception => {
           exception = e
           Console.println(s"Unexpected exception: $e")
-          val future = (api ? PipelineUpdate(pipeline_id, PipelineState.ERROR, error = e.toString)).mapTo[Try[Boolean]]
+          val future = (api ? PipelineUpdate(pipeline_id, PipelineState.ERROR, error = Some(e.toString))).mapTo[Try[Boolean]]
           future.map {
             case Success(resp) => //exit
             case Failure(error) => Console.println(s"Failed to update pipeline $pipeline_id state to ERROR: $error")

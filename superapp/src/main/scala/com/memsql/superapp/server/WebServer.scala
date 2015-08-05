@@ -3,7 +3,7 @@ package com.memsql.superapp.server
 import akka.actor.Actor
 import akka.pattern.ask
 import com.memsql.superapp.api._
-import com.memsql.spark.etl.api.PipelineConfig
+import com.memsql.spark.etl.api.configs.PipelineConfig
 import spray.http.StatusCodes
 import spray.httpx.SprayJsonSupport._
 import spray.routing.HttpService

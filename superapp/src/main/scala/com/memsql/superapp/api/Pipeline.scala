@@ -1,6 +1,6 @@
 package com.memsql.superapp.api
 
-import com.memsql.spark.etl.api.{PipelineConfig, PipelineExtractConfig}
+import com.memsql.spark.etl.api.configs.PipelineConfig
 import spray.json._
 
 object PipelineState extends Enumeration {
@@ -15,4 +15,4 @@ case class Pipeline(pipeline_id: String,
                     jar: String,
                     main_class: String,
                     var config: PipelineConfig,
-                    var error: String = null)
+                    var error: Option[String] = None)

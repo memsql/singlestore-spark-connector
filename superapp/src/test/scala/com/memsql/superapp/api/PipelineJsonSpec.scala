@@ -1,12 +1,16 @@
 package com.memsql.superapp.api
 
-import com.memsql.spark.etl.api._
+import com.memsql.spark.etl.api.configs._
 import com.memsql.superapp.api._
 import com.memsql.superapp.api.ApiJsonProtocol._
-import com.memsql.superapp.{TestKitSpec}
+import com.memsql.superapp.TestKitSpec
 import ooyala.common.akka.web.JsonUtils._
 import scala.util.{Success, Failure}
 import spray.json._
+
+import ExtractPhaseKind._
+import TransformPhaseKind._
+import LoadPhaseKind._
 
 class PipelineJsonSpec extends TestKitSpec("PipelineJsonSpec") {
   "Pipeline" should {
@@ -24,8 +28,8 @@ class PipelineJsonSpec extends TestKitSpec("PipelineJsonSpec") {
       assert(jsonMap("state") == "RUNNING")
       assert(jsonMap("jar") == "site.com/foo.jar")
       assert(jsonMap("main_class") == "com.foo.FooMain")
-      assert(jsonMap("config") == "{\"config_version\":42}")
-      assert(jsonMap("error") == null)
+      assert(jsonMap("config") == Map("config_version" -> 42))
+      assert(!(jsonMap contains "error"))
 
       // Errors should be included.
       val pipeline2 = Pipeline(
@@ -34,7 +38,7 @@ class PipelineJsonSpec extends TestKitSpec("PipelineJsonSpec") {
         jar="site.com/foo.jar",
         main_class="com.foo.FooMain",
         config=PipelineConfig(None, None, None),
-        error="Test error")
+        error=Some("Test error"))
 
       jsonString = pipeline2.toJson.toString
       jsonMap = mapFromJson(jsonString)
@@ -43,16 +47,19 @@ class PipelineJsonSpec extends TestKitSpec("PipelineJsonSpec") {
 
     "serialize to JSON with configs" in {
       val config = PipelineConfig(
-        Some(PipelineExtractConfig(
-          PipelineExtractType.KAFKA,
-          PipelineKafkaExtractConfigData(
-            "test1", "test2", Map("foo" -> 1)))),
-        Some(PipelineTransformConfig(
-          PipelineTransformType.USER,
-          PipelineUserTransformConfigData("Test user data 1"))),
-        Some(PipelineLoadConfig(
-          PipelineLoadType.USER,
-          PipelineUserLoadConfigData("Test user data 2"))))
+        Some(Phase[ExtractPhaseKind](
+          ExtractPhaseKind.Kafka,
+          ExtractPhase.writeConfig(
+            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", "test2", Map("foo" -> 1))))),
+        Some(Phase[TransformPhaseKind](
+          TransformPhaseKind.User,
+          TransformPhase.writeConfig(
+            TransformPhaseKind.User, UserTransformConfig("Test user data 1")))),
+        Some(Phase[LoadPhaseKind](
+          LoadPhaseKind.User,
+          LoadPhase.writeConfig(
+            LoadPhaseKind.User, UserLoadConfig("Test user data 2")))),
+        config_version=42)
 
       val pipeline = Pipeline(
         "pipeline1",
@@ -62,28 +69,55 @@ class PipelineJsonSpec extends TestKitSpec("PipelineJsonSpec") {
         config=config)
       val jsonString = pipeline.toJson.toString
       val jsonMap = mapFromJson(jsonString)
-      val configMap = mapFromJson(jsonMap("config").asInstanceOf[String])
-      val extractConfigMap = configMap("extract_config").asInstanceOf[Map[String, Any]]
-      assert(extractConfigMap("type") == "KAFKA")
-      val kafkaConfigMap = mapFromJson(extractConfigMap("config").asInstanceOf[String])
+      val configMap = jsonMap("config").asInstanceOf[Map[String, Any]]
+      val extractConfigMap = configMap("extract").asInstanceOf[Map[String, Any]]
+      assert(extractConfigMap("kind") == "Kafka")
+      val kafkaConfigMap = extractConfigMap("config").asInstanceOf[Map[String, Any]]
       assert(kafkaConfigMap("zk_quorum") == "test1")
       assert(kafkaConfigMap("group_id") == "test2")
       assert(kafkaConfigMap("topics").asInstanceOf[Map[String, Any]]("foo") == 1)
-      val transformConfigMap = configMap("transform_config").asInstanceOf[Map[String, Any]]
-      assert(transformConfigMap("type") == "USER")
-      val transformUserConfigMap = mapFromJson(transformConfigMap("config").asInstanceOf[String])
+      val transformConfigMap = configMap("transform").asInstanceOf[Map[String, Any]]
+      assert(transformConfigMap("kind") == "User")
+      val transformUserConfigMap = transformConfigMap("config").asInstanceOf[Map[String, Any]]
       assert(transformUserConfigMap("value") == "Test user data 1")
-      val loadConfigMap = configMap("load_config").asInstanceOf[Map[String, Any]]
-      assert(loadConfigMap("type") == "USER")
-      val loadUserConfigMap = mapFromJson(loadConfigMap("config").asInstanceOf[String])
+      val loadConfigMap = configMap("load").asInstanceOf[Map[String, Any]]
+      assert(loadConfigMap("kind") == "User")
+      val loadUserConfigMap = loadConfigMap("config").asInstanceOf[Map[String, Any]]
       assert(loadUserConfigMap("value") == "Test user data 2")
     }
 
     "deserialize from JSON" in {
-      val jsonString = """{
+        val config_json = """{
+          "extract": {
+              "kind": "Kafka",
+              "config": {
+                  "zk_quorum": "test1",
+                  "group_id": "test2",
+                  "topics": {
+                      "foo": 1
+                  }
+              }
+          },
+          "transform": {
+              "kind": "User",
+              "config": {
+                  "value": "Test user data 1"
+              }
+          },
+          "load": {
+              "kind": "User",
+              "config": {
+                  "value": "Test user data 2"
+              }
+          },
+          "config_version": 42
+      }
+      """
+
+      val jsonString = s"""{
         "pipeline_id": "pipeline1",
         "state": "RUNNING",
-        "config": "{\"config_version\": 42, \"extract_config\":{\"type\":\"KAFKA\",\"config\":\"{\\\"zk_quorum\\\":\\\"test1\\\",\\\"group_id\\\":\\\"test2\\\",\\\"topics\\\":{\\\"foo\\\":1}}\"},\"transform_config\":{\"type\":\"USER\",\"config\":\"{\\\"value\\\":\\\"Test user data 1\\\"}\"},\"load_config\":{\"type\":\"USER\",\"config\":\"{\\\"value\\\":\\\"Test user data 2\\\"}\"}}",
+        "config": $config_json,
         "main_class": "com.foo.FooMain",
         "error": "test error",
         "jar": "site.com/foo.jar",
@@ -94,30 +128,35 @@ class PipelineJsonSpec extends TestKitSpec("PipelineJsonSpec") {
       assert(pipeline.state == PipelineState.RUNNING)
       assert(pipeline.jar == "site.com/foo.jar")
       assert(pipeline.main_class == "com.foo.FooMain")
-      assert(pipeline.error == "test error")
+      assert(pipeline.error == Some("test error"))
       assert(pipeline.config.config_version == 42)
-      assert(pipeline.config.extract_config.get.`type` == PipelineExtractType.KAFKA)
-      assert(pipeline.config.extract_config.get.config.asInstanceOf[PipelineKafkaExtractConfigData].zk_quorum == "test1")
-      assert(pipeline.config.extract_config.get.config.asInstanceOf[PipelineKafkaExtractConfigData].group_id == "test2")
-      assert(pipeline.config.extract_config.get.config.asInstanceOf[PipelineKafkaExtractConfigData].topics("foo") == 1)
-      assert(pipeline.config.transform_config.get.`type` == PipelineTransformType.USER)
-      assert(pipeline.config.transform_config.get.config.asInstanceOf[PipelineUserTransformConfigData].value == "Test user data 1")
-      assert(pipeline.config.load_config.get.`type` == PipelineLoadType.USER)
-      assert(pipeline.config.load_config.get.config.asInstanceOf[PipelineUserLoadConfigData].value == "Test user data 2")
+      assert(pipeline.config.extract.get.kind == ExtractPhaseKind.Kafka)
+      val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.get.kind, pipeline.config.extract.get.config).asInstanceOf[KafkaExtractConfig]
+      assert(kafkaConfig.zk_quorum == "test1")
+      assert(kafkaConfig.group_id == "test2")
+      assert(kafkaConfig.topics("foo") == 1)
+      assert(pipeline.config.transform.get.kind == TransformPhaseKind.User)
+      val userTransformConfig = TransformPhase.readConfig(pipeline.config.transform.get.kind, pipeline.config.transform.get.config).asInstanceOf[UserTransformConfig]
+      assert(userTransformConfig.value == "Test user data 1")
+      assert(pipeline.config.load.get.kind == LoadPhaseKind.User)
+      val userLoadConfig = LoadPhase.readConfig(pipeline.config.load.get.kind, pipeline.config.load.get.config).asInstanceOf[UserLoadConfig]
+      assert(userLoadConfig.value == "Test user data 2")
     }
 
     "be preserved through a round trip" in {
       val config = PipelineConfig(
-        Some(PipelineExtractConfig(
-          PipelineExtractType.KAFKA,
-          PipelineKafkaExtractConfigData(
-            "test1", "test2", Map("foo" -> 1)))),
-        Some(PipelineTransformConfig(
-          PipelineTransformType.USER,
-          PipelineUserTransformConfigData("Test user data 1"))),
-        Some(PipelineLoadConfig(
-          PipelineLoadType.USER,
-          PipelineUserLoadConfigData("Test user data 2"))),
+        Some(Phase[ExtractPhaseKind](
+          ExtractPhaseKind.Kafka,
+          ExtractPhase.writeConfig(
+            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", "test2", Map("foo" -> 1))))),
+        Some(Phase[TransformPhaseKind](
+          TransformPhaseKind.User,
+          TransformPhase.writeConfig(
+            TransformPhaseKind.User, UserTransformConfig("Test user data 1")))),
+        Some(Phase[LoadPhaseKind](
+          LoadPhaseKind.User,
+          LoadPhase.writeConfig(
+            LoadPhaseKind.User, UserLoadConfig("Test user data 2")))),
         config_version=42)
 
       val pipeline1 = Pipeline(

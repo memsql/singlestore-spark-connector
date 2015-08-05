@@ -2,11 +2,15 @@ package com.memsql.superapp.api
 
 import akka.actor.Props
 import com.memsql.spark.etl.api._
+import com.memsql.spark.etl.api.configs._
 import com.memsql.superapp.{Config, TestKitSpec}
 import com.memsql.superapp.api.ApiActor._
 import scala.concurrent.duration._
+import spray.json._
 
 import scala.util.{Success, Failure}
+
+import ExtractPhaseKind._
 
 class ApiSpec extends TestKitSpec("ApiActorSpec") {
   val apiRef = system.actorOf(Props(classOf[ApiActor], Config()))
@@ -58,20 +62,32 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.state == PipelineState.RUNNING)
           assert(pipeline.jar == "site.com/foo.jar")
           assert(pipeline.main_class == "com.foo.FooMain")
-          assert(pipeline.config.extract_config.get.`type` == PipelineExtractType.USER)
-          assert(pipeline.config.extract_config.get.config.asInstanceOf[PipelineUserExtractConfigData].value == "")
+          assert(pipeline.config.extract.get.kind == ExtractPhaseKind.User)
+          val userConfig = ExtractPhase.readConfig(pipeline.config.extract.get.kind, pipeline.config.extract.get.config).asInstanceOf[UserExtractConfig]
+          assert(userConfig.value == "")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
       val config = PipelineConfig(
-        Some(PipelineExtractConfig(
-          PipelineExtractType.KAFKA,
-          PipelineKafkaExtractConfigData(
-            "test1", "test2", Map()))),
+        Some(Phase[ExtractPhaseKind](
+          ExtractPhaseKind.Kafka,
+          ExtractPhase.writeConfig(
+            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", "test2", Map("foo" -> 1))))),
         None,
         None)
       apiRef ! PipelinePut("pipeline2", jar="site.com/bar.jar", main_class="com.bar.BarMain", config=config)
       expectMsg(Success(true))
+
+      val badConfig = PipelineConfig(
+        Some(Phase[ExtractPhaseKind](
+          ExtractPhaseKind.Kafka, """{ "bad_kafka_config": 42 }""".parseJson)),
+        None,
+        None)
+      apiRef ! PipelinePut("pipeline3", jar="site.com/bar.jar", main_class="com.bar.BarMain", config=badConfig)
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
 
       apiRef ! PipelineQuery
       receiveOne(1.second) match {
@@ -87,8 +103,9 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.state == PipelineState.RUNNING)
           assert(pipeline.jar == "site.com/bar.jar")
           assert(pipeline.main_class == "com.bar.BarMain")
-          assert(pipeline.config.extract_config.get.`type` == PipelineExtractType.KAFKA)
-          assert(pipeline.config.extract_config.get.config.asInstanceOf[PipelineKafkaExtractConfigData].zk_quorum == "test1")
+          assert(pipeline.config.extract.get.kind == ExtractPhaseKind.Kafka)
+          val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.get.kind, pipeline.config.extract.get.config).asInstanceOf[KafkaExtractConfig]
+          assert(kafkaConfig.zk_quorum == "test1")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
     }
@@ -115,14 +132,14 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
-      apiRef ! PipelineUpdate("pipeline1", PipelineState.ERROR, error="something crashed")
+      apiRef ! PipelineUpdate("pipeline1", PipelineState.ERROR, error=Some("something crashed"))
       expectMsg(Success(true))
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.state == PipelineState.ERROR)
-          assert(pipeline.error == "something crashed")
+          assert(pipeline.error == Some("something crashed"))
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
@@ -134,16 +151,16 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.state == PipelineState.ERROR)
-          assert(pipeline.error == "something crashed")
+          assert(pipeline.error == Some("something crashed"))
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
       // Updating configs should be allowed
       val config = PipelineConfig(
-        Some(PipelineExtractConfig(
-          PipelineExtractType.KAFKA,
-          PipelineKafkaExtractConfigData(
-            "test1", "test2", Map()))),
+        Some(Phase[ExtractPhaseKind](
+          ExtractPhaseKind.Kafka,
+          ExtractPhase.writeConfig(
+            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", "test2", Map("foo" -> 1))))),
         None,
         None)
       apiRef ! PipelineUpdate("pipeline1", config=config)
@@ -152,8 +169,9 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       receiveOne(1.second) match {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
-          assert(pipeline.config.extract_config.get.`type` == PipelineExtractType.KAFKA)
-          assert(pipeline.config.extract_config.get.config.asInstanceOf[PipelineKafkaExtractConfigData].zk_quorum == "test1")
+          assert(pipeline.config.extract.get.kind == ExtractPhaseKind.Kafka)
+          val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.get.kind, pipeline.config.extract.get.config).asInstanceOf[KafkaExtractConfig]
+          assert(kafkaConfig.zk_quorum == "test1")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
@@ -164,8 +182,21 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       receiveOne(1.second) match {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
-          assert(pipeline.config.extract_config.get.`type` == PipelineExtractType.KAFKA)
-          assert(pipeline.config.extract_config.get.config.asInstanceOf[PipelineKafkaExtractConfigData].zk_quorum == "test1")
+          assert(pipeline.config.extract.get.kind == ExtractPhaseKind.Kafka)
+          val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.get.kind, pipeline.config.extract.get.config).asInstanceOf[KafkaExtractConfig]
+          assert(kafkaConfig.zk_quorum == "test1")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
+
+      // Configs that do not deserialize should be rejected.
+      val badConfig = PipelineConfig(
+        Some(Phase[ExtractPhaseKind](
+          ExtractPhaseKind.Kafka, """{ "bad_kafka_config": 42 }""".parseJson)),
+        None,
+        None)
+      apiRef ! PipelineUpdate("pipeline1", config=badConfig)
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
     }
