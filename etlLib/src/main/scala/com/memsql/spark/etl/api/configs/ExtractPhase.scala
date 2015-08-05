@@ -3,13 +3,20 @@ package com.memsql.spark.etl.api.configs
 import spray.json._
 import ExtractPhaseKind._
 
-case class KafkaExtractConfig(zk_quorum: String,
-                              group_id: String,
-                              topics: Map[String, Int]) extends PhaseConfig
+object KafkaExtractOutputType extends Enumeration {
+  type KafkaExtractOutputType = Value
+  val String, ByteArray = Value
+}
+import KafkaExtractOutputType._
+
+case class KafkaExtractConfig(kafka_brokers: String,
+                              topics: List[String],
+                              output_type: Option[KafkaExtractOutputType]) extends PhaseConfig
 
 case class UserExtractConfig(value: String) extends PhaseConfig
 
-object ExtractPhase extends DefaultJsonProtocol {
+object ExtractPhase extends JsonEnumProtocol {
+  implicit val kafkaExtractOutputTypeFormat = jsonEnum(KafkaExtractOutputType)
   val kafkaConfigFormat = jsonFormat3(KafkaExtractConfig)
   val userConfigFormat = jsonFormat1(UserExtractConfig)
 

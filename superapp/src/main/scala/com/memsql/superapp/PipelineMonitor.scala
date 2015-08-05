@@ -3,11 +3,12 @@ package com.memsql.superapp
 import akka.pattern.ask
 import akka.actor.ActorRef
 import com.memsql.spark.context.{MemSQLSQLContext, MemSQLSparkContext}
-import com.memsql.spark.etl.api.ETLPipeline
+import com.memsql.spark.etl.api.{ETLPipeline, KafkaExtractor, MemSQLLoader}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.superapp.api.{ApiActor, PipelineState, Pipeline}
 import ApiActor._
 import com.memsql.superapp.util.{BaseException, JarLoader}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.{Time, StreamingContext}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success, Try}
@@ -79,9 +80,17 @@ case class PipelineMonitor(api: ActorRef,
   })
 
   def runPipeline(): Unit = {
-    val extractor = pipelineInstance.extractor
-    val transformer = pipelineInstance.transformer
-    val loader = pipelineInstance.loader
+    val extractor = pipelineConfig.extract.get.kind match {
+      case ExtractPhaseKind.Kafka => new KafkaExtractor
+      case ExtractPhaseKind.User => pipelineInstance.extractor
+    }
+    val transformer = pipelineConfig.transform.get.kind match {
+      case TransformPhaseKind.User => pipelineInstance.transformer
+    }
+    val loader = pipelineConfig.load.get.kind match {
+      case LoadPhaseKind.MemSQL => new MemSQLLoader
+      case LoadPhaseKind.User => pipelineInstance.loader
+    }
 
     var extractConfig: PhaseConfig = null
     var transformConfig: PhaseConfig = null
@@ -104,7 +113,7 @@ case class PipelineMonitor(api: ActorRef,
 
       inputDStream.compute(Time(time)) match {
         case Some(rdd) => {
-          val df = transformer.transform(sqlContext, rdd, transformConfig)
+          val df = transformer.transform(sqlContext, rdd.asInstanceOf[RDD[Any]], transformConfig)
           loader.load(df, loadConfig)
 
           Console.println(s"${inputDStream.count()} rows after extract")

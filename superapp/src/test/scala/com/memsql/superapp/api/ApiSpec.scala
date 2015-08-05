@@ -72,7 +72,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         Some(Phase[ExtractPhaseKind](
           ExtractPhaseKind.Kafka,
           ExtractPhase.writeConfig(
-            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", "test2", Map("foo" -> 1))))),
+            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", List("test2"), None)))),
         None,
         None)
       apiRef ! PipelinePut("pipeline2", jar="site.com/bar.jar", main_class="com.bar.BarMain", config=config)
@@ -105,7 +105,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.main_class == "com.bar.BarMain")
           assert(pipeline.config.extract.get.kind == ExtractPhaseKind.Kafka)
           val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.get.kind, pipeline.config.extract.get.config).asInstanceOf[KafkaExtractConfig]
-          assert(kafkaConfig.zk_quorum == "test1")
+          assert(kafkaConfig.kafka_brokers == "test1")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
     }
@@ -160,7 +160,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         Some(Phase[ExtractPhaseKind](
           ExtractPhaseKind.Kafka,
           ExtractPhase.writeConfig(
-            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", "test2", Map("foo" -> 1))))),
+            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", List("test2"), None)))),
         None,
         None)
       apiRef ! PipelineUpdate("pipeline1", config=config)
@@ -171,7 +171,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.config.extract.get.kind == ExtractPhaseKind.Kafka)
           val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.get.kind, pipeline.config.extract.get.config).asInstanceOf[KafkaExtractConfig]
-          assert(kafkaConfig.zk_quorum == "test1")
+          assert(kafkaConfig.kafka_brokers == "test1")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
@@ -184,7 +184,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.config.extract.get.kind == ExtractPhaseKind.Kafka)
           val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.get.kind, pipeline.config.extract.get.config).asInstanceOf[KafkaExtractConfig]
-          assert(kafkaConfig.zk_quorum == "test1")
+          assert(kafkaConfig.kafka_brokers == "test1")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 

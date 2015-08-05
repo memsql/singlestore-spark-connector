@@ -1,35 +1,23 @@
 package com.memsql.spark.etl.api
 
-import com.memsql.spark.etl.api.configs.PhaseConfig
-import scala.reflect.ClassTag
-import kafka.serializer.Decoder
+import kafka.serializer.{DefaultDecoder, StringDecoder}
+import com.memsql.spark.etl.api.configs.{PhaseConfig, KafkaExtractConfig, KafkaExtractOutputType}
+import com.memsql.spark.etl.api.configs.KafkaExtractOutputType._
 import org.apache.spark.streaming.StreamingContext
-import kafka.message.MessageAndMetadata
-import kafka.common.TopicAndPartition
 import org.apache.spark.streaming.kafka.KafkaUtils
 import org.apache.spark.streaming.dstream.InputDStream
 
-
-object KafkaExtractor extends Serializable {
-
-  def directKafkaExtractor[K: ClassTag, V: ClassTag, KD <: Decoder[K] : ClassTag, VD <: Decoder[V] : ClassTag]
-  (
-    kafkaParams: Map[String, String],
-    topics: Set[String]
-    ): Extractor[(K, V)] = {
-    new Extractor[(K, V)] {
-      override def extract(ssc: StreamingContext, extractConfig: PhaseConfig): InputDStream[(K, V)] = KafkaUtils.createDirectStream[K, V, KD, VD](ssc, kafkaParams, topics)
+class KafkaExtractor extends Extractor[(String, Any)] {
+  override def extract(ssc: StreamingContext, extractConfig: PhaseConfig): InputDStream[(String, Any)] = {
+    val kafkaConfig = extractConfig.asInstanceOf[KafkaExtractConfig]
+    val kafkaParams = Map(
+      "metadata.broker.list" -> kafkaConfig.kafka_brokers
+    )
+    val topicsSet = kafkaConfig.topics.toSet
+    val createStreamFunc = kafkaConfig.output_type match {
+      case Some(KafkaExtractOutputType.String) => KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](_: StreamingContext, _: Map[String, String], _: Set[String])
+      case default => KafkaUtils.createDirectStream[String, Array[Byte], StringDecoder, DefaultDecoder](_: StreamingContext, _: Map[String, String], _: Set[String])
     }
-  }
-
-  def directKafkaExtractor[K: ClassTag, V: ClassTag, KD <: Decoder[K] : ClassTag, VD <: Decoder[V] : ClassTag, R: ClassTag]
-  (
-    kafkaParams: Map[String, String],
-    fromOffsets: Map[TopicAndPartition, Long],
-    messageHandler: MessageAndMetadata[K, V] => R
-    ): Extractor[R] = {
-    new Extractor[R] {
-      override def extract(ssc: StreamingContext, extractConfig: PhaseConfig): InputDStream[R] = KafkaUtils.createDirectStream[K, V, KD, VD, R](ssc, kafkaParams, fromOffsets, messageHandler)
-    }
+    createStreamFunc(ssc, kafkaParams, topicsSet).asInstanceOf[InputDStream[(String, Any)]]
   }
 }

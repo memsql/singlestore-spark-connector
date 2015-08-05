@@ -49,7 +49,7 @@ class PipelineJsonSpec extends UnitSpec {
       Some(Phase[ExtractPhaseKind](
         ExtractPhaseKind.Kafka,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", "test2", Map("foo" -> 1))))),
+          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", List("test2"), None)))),
       Some(Phase[TransformPhaseKind](
         TransformPhaseKind.User,
         TransformPhase.writeConfig(
@@ -72,9 +72,9 @@ class PipelineJsonSpec extends UnitSpec {
     val extractConfigMap = configMap("extract").asInstanceOf[Map[String, Any]]
     assert(extractConfigMap("kind") == "Kafka")
     val kafkaConfigMap = extractConfigMap("config").asInstanceOf[Map[String, Any]]
-    assert(kafkaConfigMap("zk_quorum") == "test1")
-    assert(kafkaConfigMap("group_id") == "test2")
-    assert(kafkaConfigMap("topics").asInstanceOf[Map[String, Any]]("foo") == 1)
+    assert(kafkaConfigMap("kafka_brokers") == "test1")
+    assert(kafkaConfigMap("topics") == List("test2"))
+    assert(!(kafkaConfigMap contains "output_type"))
     val transformConfigMap = configMap("transform").asInstanceOf[Map[String, Any]]
     assert(transformConfigMap("kind") == "User")
     val transformUserConfigMap = transformConfigMap("config").asInstanceOf[Map[String, Any]]
@@ -90,11 +90,8 @@ class PipelineJsonSpec extends UnitSpec {
           "extract": {
               "kind": "Kafka",
               "config": {
-                  "zk_quorum": "test1",
-                  "group_id": "test2",
-                  "topics": {
-                      "foo": 1
-                  }
+                  "kafka_brokers": "test1",
+                  "topics": [ "test2" ]
               }
           },
           "transform": {
@@ -131,9 +128,8 @@ class PipelineJsonSpec extends UnitSpec {
     assert(pipeline.config.config_version == 42)
     assert(pipeline.config.extract.get.kind == ExtractPhaseKind.Kafka)
     val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.get.kind, pipeline.config.extract.get.config).asInstanceOf[KafkaExtractConfig]
-    assert(kafkaConfig.zk_quorum == "test1")
-    assert(kafkaConfig.group_id == "test2")
-    assert(kafkaConfig.topics("foo") == 1)
+    assert(kafkaConfig.kafka_brokers == "test1")
+    assert(kafkaConfig.topics == List("test2"))
     assert(pipeline.config.transform.get.kind == TransformPhaseKind.User)
     val userTransformConfig = TransformPhase.readConfig(pipeline.config.transform.get.kind, pipeline.config.transform.get.config).asInstanceOf[UserTransformConfig]
     assert(userTransformConfig.value == "Test user data 1")
@@ -147,7 +143,7 @@ class PipelineJsonSpec extends UnitSpec {
       Some(Phase[ExtractPhaseKind](
         ExtractPhaseKind.Kafka,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", "test2", Map("foo" -> 1))))),
+          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", List("test2"), None)))),
       Some(Phase[TransformPhaseKind](
         TransformPhaseKind.User,
         TransformPhase.writeConfig(
