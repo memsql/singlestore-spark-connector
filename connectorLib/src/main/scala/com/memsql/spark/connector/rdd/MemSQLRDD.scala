@@ -1,6 +1,6 @@
 package com.memsql.spark.connector.rdd
 
-import java.sql.{Connection, DriverManager, ResultSet, ResultSetMetaData}
+import java.sql.{Connection, DriverManager, ResultSet, ResultSetMetaData, Statement}
 import scala.util.control.Breaks
 import scala.reflect.ClassTag
 
@@ -55,56 +55,71 @@ case class MemSQLRDD[T: ClassTag](
   var usePerPartitionSql = false
 
   override def getPartitions: Array[Partition] = {
-    // Prepare the MySQL JDBC driver.
-    Class.forName("com.mysql.jdbc.Driver").newInstance()
-    val conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)
-
-    val versionStmt = conn.createStatement
-    val versionRs = versionStmt.executeQuery("SHOW VARIABLES LIKE 'memsql_version'")
-    val versions = MemSQLRDD.resultSetToIterator(versionRs).map(r => r.getString("Value")).toArray
-    val version = versions(0).split('.')(0).toInt
-    var explainQuery = ""
-
-    // In MemSQL v4.0 the EXPLAIN command no longer returns the query, so
-    // we run a version check.
-    if (version > 3) {
-        explainQuery = "EXPLAIN EXTENDED "
-    } else {
-        explainQuery = "EXPLAIN "
-    }
-
-    val explainStmt = conn.createStatement
-    val explainRs = explainStmt.executeQuery(explainQuery + sql)
-    // TODO: this won't work with MarkoExplain
-    // TODO: this could be optimized work for distributed joins, but thats not the primary usecase (especially since joins aren't pushed down)
-    usePerPartitionSql = (0 until explainRs.getMetaData.getColumnCount).exists((i:Int) => explainRs.getMetaData.getColumnName(i+1).equals("Query"))
-    if (usePerPartitionSql) {
-      val extraAndQueries = MemSQLRDD.resultSetToIterator(explainRs)
-        .map(r => (r.getString("Extra"), r.getString("Query")))
-        .toArray
-      if (extraAndQueries(0)._1 == "memsql: Simple Iterator -> Network" && extraAndQueries.length > 1) {
-        usePerPartitionSql = true
-        perPartitionSqlTemplate = extraAndQueries(1)._2
+    var conn: Connection = null
+    var versionStmt: Statement = null
+    var explainStmt: Statement = null
+    try {
+      // Prepare the MySQL JDBC driver.
+      Class.forName("com.mysql.jdbc.Driver").newInstance()
+      conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)
+  
+      versionStmt = conn.createStatement
+      val versionRs = versionStmt.executeQuery("SHOW VARIABLES LIKE 'memsql_version'")
+      val versions = MemSQLRDD.resultSetToIterator(versionRs).map(r => r.getString("Value")).toArray
+      val version = versions(0).split('.')(0).toInt
+      var explainQuery = ""
+  
+      // In MemSQL v4.0 the EXPLAIN command no longer returns the query, so
+      // we run a version check.
+      if (version > 3) {
+          explainQuery = "EXPLAIN EXTENDED "
       } else {
-        usePerPartitionSql = false
+          explainQuery = "EXPLAIN "
       }
-    }
-    if (!usePerPartitionSql){
-      return Array[Partition](new MemSQLRDDPartition(0, dbHost, dbPort))
-    }
-
-
-    val partitionsStmt = conn.createStatement
-    val partitionRs = partitionsStmt.executeQuery("SHOW PARTITIONS")
-
-    def createPartition(row: ResultSet): MemSQLRDDPartition = {
-      new MemSQLRDDPartition(row.getInt("Ordinal"), row.getString("Host"), row.getInt("Port"))
-    }
-
-    MemSQLRDD.resultSetToIterator(partitionRs)
+  
+      explainStmt = conn.createStatement
+      val explainRs = explainStmt.executeQuery(explainQuery + sql)
+      // TODO: this won't work with MarkoExplain
+      // TODO: this could be optimized work for distributed joins, but thats not the primary usecase (especially since joins aren't pushed down)
+      usePerPartitionSql = (0 until explainRs.getMetaData.getColumnCount).exists((i:Int) => explainRs.getMetaData.getColumnName(i+1).equals("Query"))
+      if (usePerPartitionSql) {
+        val extraAndQueries = MemSQLRDD.resultSetToIterator(explainRs)
+          .map(r => (r.getString("Extra"), r.getString("Query")))
+          .toArray
+        if (extraAndQueries(0)._1 == "memsql: Simple Iterator -> Network" && extraAndQueries.length > 1) {
+          usePerPartitionSql = true
+          perPartitionSqlTemplate = extraAndQueries(1)._2
+        } else {
+          usePerPartitionSql = false
+        }
+      }
+      if (!usePerPartitionSql){
+        return Array[Partition](new MemSQLRDDPartition(0, dbHost, dbPort))
+      }
+  
+  
+      val partitionsStmt = conn.createStatement
+      val partitionRs = partitionsStmt.executeQuery("SHOW PARTITIONS")
+  
+      def createPartition(row: ResultSet): MemSQLRDDPartition = {
+        new MemSQLRDDPartition(row.getInt("Ordinal"), row.getString("Host"), row.getInt("Port"))
+      }
+  
+     return MemSQLRDD.resultSetToIterator(partitionRs)
       .filter(r => r.getString("Role") == "Master")
       .map(createPartition)
       .toArray
+    } finally {      
+      if (null != versionStmt && ! versionStmt.isClosed()) {
+        versionStmt.close()
+      }
+      if (null != explainStmt && ! explainStmt.isClosed()) {
+        explainStmt.close()
+      }
+      if (null != conn && ! conn.isClosed()) {
+        conn.close()
+      }
+    }
   }
 
   override def compute(thePart: Partition, context: TaskContext) = new NextIterator[T] {
@@ -117,14 +132,8 @@ case class MemSQLRDD[T: ClassTag](
     val conn = MemSQLRDD.getConnection(part.host, part.port, user, password, partitionDb)
     val stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
 
-    // setFetchSize(Integer.MIN_VALUE) is a mysql driver specific way to force streaming results,
-    // rather than pulling entire resultset into memory.
-    // see http://dev.mysql.com/doc/refman/5.0/en/connector-j-reference-implementation-notes.html
-    stmt.setFetchSize(Integer.MIN_VALUE)
-    logInfo("statement fetch size set to: " + stmt.getFetchSize + " to force MySQL streaming ")
-
     val rs = stmt.executeQuery(getPerPartitionSql(part.index))
-
+    
     override def getNext: T = {
       if (rs.next()) {
         mapRow(rs)
@@ -135,13 +144,6 @@ case class MemSQLRDD[T: ClassTag](
     }
 
     override def close() {
-      try {
-        if (null != rs && ! rs.isClosed()) {
-          rs.close()
-        }
-      } catch {
-        case e: Exception => logWarning("Exception closing resultset", e)
-      }
       try {
         if (null != stmt && ! stmt.isClosed()) {
           stmt.close()

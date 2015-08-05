@@ -254,6 +254,13 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       }
     } finally {
       try {
+        if (rs != null && rs.isClosed()) {
+          rs.close()
+        }
+      } catch {
+        case e: Exception => logWarning("Exception closing result set", e)
+      }
+      try {
         if (stmt != null && !stmt.isClosed()) {
           stmt.close()
         }
@@ -333,12 +340,21 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
         }
       }
     }).start()
-    val conn = getMemSQLConnection(dbHost, dbPort, user, password, dbName)
-    val stmt = conn.createStatement.asInstanceOf[com.mysql.jdbc.Statement]
-    stmt.setLocalInfileInputStream(input)
-    stmt.executeQuery(q)
-    stmt.close()
-    conn.close()
+    var conn: Connection = null
+    var stmt: com.mysql.jdbc.Statement = null
+    try {
+      conn = getMemSQLConnection(dbHost, dbPort, user, password, dbName)
+      stmt = conn.createStatement.asInstanceOf[com.mysql.jdbc.Statement]
+      stmt.setLocalInfileInputStream(input)
+      stmt.executeQuery(q)
+    } finally {
+      if (stmt != null && !stmt.isClosed()) {
+        stmt.close()
+      }
+      if (null != conn && !conn.isClosed()) {
+        conn.close()
+      }
+    }
   }
 
   private def getMemSQLConnection(

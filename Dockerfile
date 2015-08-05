@@ -39,9 +39,11 @@ RUN sudo /tmp/memsql-ops-4.0.33-spark/install.sh -n
 # prepare memsql
 ENV MEMSQL_LICENSE_KEY 636df1618e694d2bb785fe0093e6f486
 RUN wget -q -O /tmp/memsqlbin_amd64.tar.gz http://download.memsql.com/$MEMSQL_LICENSE_KEY/memsqlbin_amd64.tar.gz
-RUN sudo memsql-ops start && \
+RUN sudo rm /var/lib/memsql-ops/data/memsql-ops.pid && \
+    sudo memsql-ops start && \
     sudo memsql-ops file-add -t memsql /tmp/memsqlbin_amd64.tar.gz && \
-    sudo memsql-ops stop
+    sudo memsql-ops stop && \
+    sudo rm /var/lib/memsql-ops/data/memsql-ops.pid
 
 # clean up
 RUN sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/* /tmp/*
@@ -52,7 +54,7 @@ RUN sudo wget -q -O /storage/testroot/memsql-spark/memsql-spark.tar.gz \
     http://download.memsql.com/memsql-spark-1.4.1-distribution-0.1.3/memsql-spark-1.4.1-distribution-0.1.3.tar.gz && \
     sudo tar zxvf /storage/testroot/memsql-spark/memsql-spark.tar.gz -C /storage/testroot/memsql-spark && \
     sudo rm /storage/testroot/memsql-spark/memsql-spark.tar.gz
-ADD target/scala-2.10/MemSQL-assembly-0.1.3.jar /storage/testroot/memsql-spark/super_app/super_app.jar
+ADD tests/target/scala-2.10/tests-assembly-0.1.3.jar /storage/testroot/memsql-spark/super_app/super_app.jar
 
 # prepare java for tests
 RUN sudo ln -sf /var/lib/memsql-ops/data/spark/install/jdk/bin/java /usr/bin/java

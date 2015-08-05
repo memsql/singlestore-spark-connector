@@ -20,11 +20,16 @@ clean:
 	sbt "project connectorLib" clean
 	sbt "project etlLib" clean
 	sbt "project superapp" clean
+	sbt "project tests" clean
 	rm -rf distribution/
 
 .PHONY: build
 build: clean
 	sbt assembly
+
+.PHONY: build-test
+build-test: clean
+	sbt "project tests" assembly
 
 .PHONY: docs
 docs: clean
@@ -40,5 +45,5 @@ package: docs build
 	tar cvzf memsql-$(VERSION).tar.gz memsql-$(VERSION)/
 
 .PHONY: psytest
-psytest: package
+psytest: build-test
 	psy dockertest .psyduck

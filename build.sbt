@@ -82,6 +82,24 @@ lazy val superapp = (project in file("superapp")).
     }
   )
 
+lazy val tests = (project in file("tests")).
+  dependsOn(connectorLib).
+  dependsOn(superapp).
+  settings(commonSettings: _*).
+  settings(
+    name := "tests",
+    parallelExecution in Test := false,
+    libraryDependencies ++= {
+      Seq(
+        "mysql" % "mysql-connector-java" % "5.1.34",
+        "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
+        "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
+        "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided"
+      )
+    }
+  )
+
+
 lazy val root = (project in file(".")).
   dependsOn(connectorLib).
   dependsOn(etlLib).
@@ -97,3 +115,4 @@ lazy val root = (project in file(".")).
       "mysql" % "mysql-connector-java" % "5.1.34"
     )
   )
+

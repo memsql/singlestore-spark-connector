@@ -1,6 +1,6 @@
 package com.memsql.spark.connector.dataframe
 
-import java.sql.{Connection, DriverManager, ResultSet, ResultSetMetaData, Types}
+import java.sql.{Connection, DriverManager, ResultSet, ResultSetMetaData, Types, Statement}
 
 import scala.reflect.ClassTag
 
@@ -129,14 +129,25 @@ object MemSQLDataFrame {
     dbName: String,
     query: String) : StructType = {
 
-    val conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)  
-    val schemaStmt = conn.createStatement
-    val metadata = schemaStmt.executeQuery(limitZero(query)).getMetaData
-    val count = metadata.getColumnCount
-    val schema = StructType(Range(0,count).map(i => StructField(metadata.getColumnName(i+1), 
-                                                                MemSQLDataFrameUtils.JDBCTypeToDataFrameType(metadata, i+1), 
-                                                                metadata.isNullable(i+1) == ResultSetMetaData.columnNullable)))
-    return schema
+    var conn: Connection = null
+    var schemaStmt: Statement = null
+    try {
+      conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)  
+      schemaStmt = conn.createStatement
+      val metadata = schemaStmt.executeQuery(limitZero(query)).getMetaData
+      val count = metadata.getColumnCount
+      val schema = StructType(Range(0,count).map(i => StructField(metadata.getColumnName(i+1), 
+                                                                  MemSQLDataFrameUtils.JDBCTypeToDataFrameType(metadata, i+1), 
+                                                                  metadata.isNullable(i+1) == ResultSetMetaData.columnNullable)))
+      return schema
+    } finally {
+      if (schemaStmt != null && !schemaStmt.isClosed()) {
+        schemaStmt.close()
+      }
+      if (null != conn && !conn.isClosed()) {
+        conn.close()
+      }
+    }
   }
 
   def limitZero(q: String) : String = {

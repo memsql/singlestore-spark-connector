@@ -1,6 +1,6 @@
 package com.memsql.spark
 
-import com.memsql.spark.context.MemSQLSparkContext
+import com.memsql.spark.context.{MemSQLSparkContext, MemSQLSQLContext}
 import java.sql.{DriverManager, ResultSet, SQLException, Connection, Statement}
 
 import org.apache.spark.sql.catalyst.expressions.RowOrdering
@@ -9,7 +9,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
-
+import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.DataFrame
 
@@ -17,7 +17,6 @@ import com.memsql.spark.connector.dataframe.MemSQLDataFrame
 import com.memsql.spark.connector.dataframe._
 import com.memsql.spark.connector.rdd.MemSQLRDD
 import com.memsql.spark.connector._
-import com.memsql.spark.connector
 
 object MemSQLTestSetup {
   def SetupBasic() {
@@ -153,6 +152,16 @@ object TestUtils {
       }
     }
     return true
+  }
+
+  def connectToMA: Connection = {
+    val dbAddress = "jdbc:mysql://127.0.0.1:10000"
+    DriverManager.getConnection(dbAddress, "root", "")
+  }
+  def doDDL(conn: Connection, q: String) {
+    val stmt = conn.createStatement
+    stmt.execute(q)
+    stmt.close()
   }
 }
 object Types {
@@ -328,9 +337,9 @@ object TestSaveToMemSQLVeryBasic {
 
   }
 }
-
 object TestMemSQLTypes {
   def main(args: Array[String]) {
+    Class.forName("com.mysql.jdbc.Driver")
     val keyless = args.indexOf("keyless") != -1
     println("args.size = " + args.size)
     println("keyless = " + keyless)
@@ -485,7 +494,6 @@ object TestCreateWithKeys
     }
 }
 
-
 object TestMemSQLContextVeryBasic 
 {
     def main(args: Array[String]) 
@@ -496,14 +504,10 @@ object TestMemSQLContextVeryBasic
         TestUtils.DropAndCreate("db")
       
         assert(sc.GetMemSQLNodesAvailableForIngest.size == 2)
-        assert(sc.GetMemSQLNodesAvailableForIngest(0)._1 == "127.0.0.1")
-        assert(sc.GetMemSQLNodesAvailableForIngest(1)._1 == "127.0.0.1")
         assert(sc.GetMemSQLNodesAvailableForIngest(0)._2 == 10003)
         assert(sc.GetMemSQLNodesAvailableForIngest(1)._2 == 10004)
     
         assert(sc.GetMemSQLLeaves.size == 2)
-        assert(sc.GetMemSQLLeaves(0)._1 == "127.0.0.1")
-        assert(sc.GetMemSQLLeaves(1)._1 == "127.0.0.1")
         assert(sc.GetMemSQLLeaves(0)._2 == 10001)
         assert(sc.GetMemSQLLeaves(1)._2 == 10002)
 
@@ -512,7 +516,8 @@ object TestMemSQLContextVeryBasic
                 Row(2,"gbop"),
                 Row(3,"berrydave"),
                 Row(4,"psyduck"),
-                Row(null,"null")))
+                Row(null,"null")),
+          20)
         val schema = StructType(Array(StructField("a",IntegerType,true),
                                       StructField("b",StringType,false)))
         val df = sqlContext.createDataFrame(rdd, schema)
@@ -521,5 +526,148 @@ object TestMemSQLContextVeryBasic
         assert(TestUtils.EqualDFs(df, memdf))
         val memdf2 = df.createMemSQLTableAs("db","t2","127.0.0.1",10000,"root","")
         assert(TestUtils.EqualDFs(df, memdf2))
+
+        // lets make sure colocation works.
+        val targets = df.rdd.saveToMemSQLDryRun
+        assert (targets.exists(_.targetPort == 10003))
+        assert (targets.exists(_.targetPort == 10004))
+        for (t <- targets) 
+        {
+            assert (t.isColocated)
+            assert (t.targetPort == 10004 || t.targetPort == 10003)
+        }          
     }
+}
+
+object TestSaveToMemSQLErrors {
+  def main(args: Array[String]) {
+    val conn = TestUtils.connectToMA
+    val conf = new SparkConf().setAppName("TestSaveToMemSQLErrors")
+    val sc = new MemSQLSparkContext(conf, "127.0.0.1", 10000, "root", "")
+    val sqlContext = new MemSQLSQLContext(sc)
+    TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
+
+    val rdd = sc.parallelize(
+      Array(Row(1,"pieguy"),
+            Row(2,"gbop"),
+            Row(3,"berry\ndave"),
+            Row(4,"psy\tduck")))
+
+    val schema = StructType(Array(StructField("a",IntegerType,true),
+                                  StructField("b",StringType,false)))
+    val df1 = sqlContext.createDataFrame(rdd, schema)
+
+    try {
+      df1.saveToMemSQL("x_db", "t")
+      assert(false)
+    } catch {
+      case e: SparkException => {
+        println(e.getMessage)
+        assert(e.getMessage.contains("Table 'x_db.t' doesn't exist"))
+      }
+    }
+    val df2 = df1.createMemSQLTableAs("x_db","t")
+    for (dupKeySql <- Array("","b = 1")) {
+      for (df <- Array(df1, df2)) {
+        try {
+          df.select(df("a") as "a", df("b") as "b", df("a") as "c").saveToMemSQL("x_db", "t", onDuplicateKeySql = dupKeySql)
+        } catch {
+          case e: SparkException => {
+            assert(e.getMessage.contains("Unknown column 'c' in 'field list'"))
+          }
+        }      
+        try {
+          df.select(df("a"), df("b"), df("a")).saveToMemSQL("x_db", "t", onDuplicateKeySql = dupKeySql)
+        } catch {
+          case e: SparkException => {
+            assert(e.getMessage.contains("Column 'a' specified twice"))
+          }
+        }
+      }      
+    }
+  } 
+}
+
+object TestLeakedConns {
+  def main(args: Array[String]) {
+    val conn = TestUtils.connectToMA
+    TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
+    println("sleeping for ten seconds while we let memsql set up the reference db")
+    Thread.sleep(10000) 
+    val baseConns = numConns(conn)
+    println ("base number connections = " + baseConns)
+    val conf = new SparkConf().setAppName("TestSaveToMemLeakedConns")
+    val sc = new MemSQLSparkContext(conf, "127.0.0.1", 10000, "root", "")
+    assert (baseConns == numConns(conn)) // creating the MemSQLSparkContext shouldn't leak a connection
+    
+    TestUtils.doDDL(conn, "CREATE TABLE x_db.t(a bigint primary key, b bigint)")
+    
+    val rdd1 = sc.parallelize(Array(Row(1,1), Row(2,2), Row(3,3)))
+    rdd1.saveToMemSQL("x_db","t")
+    assert (baseConns == numConns(conn)) // successful saveToMemSQL shouldn't leak a connection
+    rdd1.saveToMemSQL("x_db", "t", onDuplicateKeySql = "b = 1")
+    assert (baseConns == numConns(conn)) // successful saveToMemSQL with upsert shouldn't leak a connection
+
+    val rddnull = sc.parallelize(Array(Row(null,3)))
+    for (dupKeySql <- Array("","b = 1")) {
+      try {
+        rddnull.saveToMemSQL("x_db", "t", onDuplicateKeySql = dupKeySql)
+        assert (false)
+      } catch {
+        case e: SparkException => {
+          assert(e.getMessage.contains("NULL supplied to NOT NULL column 'a' at row 0")
+                 || e.getMessage.contains("Column 'a' cannot be null"))
+        }
+      }
+      assert (baseConns == numConns(conn)) // failed saveToMemSQL shouldn't leak a connection
+    }    
+
+    val memrdd = sc.CreateRDDFromMemSQLQuery("x_db","SELECT * FROM t")
+    println(memrdd.collect()(0))
+    assert (baseConns == numConns(conn)) // reading from MemSQLRDD shouldn't leak a connection
+
+    val q = "SELECT a FROM t WHERE a < (SELECT a FROM t)" // query has runtime error because t has two rows
+    val memrddfail = sc.CreateRDDFromMemSQLQuery("x_db",q)
+    try {
+      println("before collect")
+      println(memrddfail.collect()(0))
+      println("after collect")
+      assert(false)
+    } catch {
+      case e: SparkException => {
+        println("in catch")
+        assert(e.getMessage.contains("Subquery returns more than 1 row"))
+      }     
+    }
+    assert (baseConns == numConns(conn)) // failed reading from MemSQLRDD shouldn't leak a connection
+
+    val sqlContext = new MemSQLSQLContext(sc)
+    val df = sqlContext.createDataFrameFromMemSQLTable("x_db", "t")
+    assert (baseConns == numConns(conn)) // getting metadata for dataframe shouldn't leak a connection
+
+    df.createMemSQLTableFromSchema("x_db","s")
+    assert (baseConns == numConns(conn)) // creating a table shouldn't leak a connection
+    
+    try {
+      df.createMemSQLTableFromSchema("x_db","r",keys=Array(PrimaryKey("a"), PrimaryKey("b")))
+      assert(false)      
+    } catch {
+      case e: Exception => {
+        assert(e.getMessage.contains("Multiple primary key defined"))
+      }     
+    }
+    assert (baseConns == numConns(conn)) // failing to create a table shouldn't leak a connection
+  }
+  
+  def numConns(conn: Connection) : Int = {
+    val q = "SHOW STATUS LIKE 'THREADS_CONNECTED'"
+    val stmt = conn.createStatement
+    val result = MemSQLRDD.resultSetToIterator(stmt.executeQuery(q)).map((r:ResultSet) => r.getString("Value")).toArray
+    println("num conns = " + result(0).toInt)
+    for (r <- MemSQLRDD.resultSetToIterator(stmt.executeQuery("show processlist"))) {
+      println("    processlist " + r.getString("Id") + " " + r.getString("db") + " " + r.getString("Command") + " "+ r.getString("State") + " " + r.getString("Info"))
+    }
+    stmt.close()
+    return result(0).toInt
+  }
 }

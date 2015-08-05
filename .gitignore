@@ -3,6 +3,7 @@ lib/*
 memsql_read_rdd_output.txt/*
 project/project/*
 project/target/*
+tests/target/*
 connectorLib/target/*
 connectorLib/src/main/scala/com/memsql/spark/connector/target/*
 etlLib/target/*
@@ -11,5 +12,5 @@ target/*
 test_root/*
 *.pyc
 *~
-python/*
 *.class
+python/

@@ -1,6 +1,6 @@
 package com.memsql.spark.connector
 
-import java.sql.{Connection, DriverManager, PreparedStatement}
+import java.sql.{Connection, DriverManager, PreparedStatement, Statement}
 
 import org.apache.spark.{Logging, SparkException}
 import org.apache.spark.rdd.RDD
@@ -132,10 +132,23 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
                 }
             }
         }
-        val conn = MemSQLRDD.getConnection(theHost, thePort, theUser, thePassword, dbName)
-        val stmt = conn.createStatement
-        stmt.executeUpdate(sql.toString) // TODO: should I be handling errors, or just expect the caller to catch them...
-        stmt.close()
+        var conn: Connection = null 
+        var stmt: Statement = null 
+        try 
+        {
+            conn = MemSQLRDD.getConnection(theHost, thePort, theUser, thePassword, dbName)
+            stmt = conn.createStatement
+            stmt.executeUpdate(sql.toString) // TODO: should I be handling errors, or just expect the caller to catch them...
+        }
+        finally
+        {
+            if (stmt != null && !stmt.isClosed()) {
+                stmt.close()
+            }
+            if (null != conn && !conn.isClosed()) {
+              conn.close()
+            }
+        }
         return MemSQLDataFrame.MakeMemSQLDF(df.sqlContext, theHost, thePort, theUser, thePassword, dbName, "SELECT * FROM " + tableName)
     }
 }
