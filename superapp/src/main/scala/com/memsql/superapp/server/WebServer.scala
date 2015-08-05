@@ -23,7 +23,7 @@ trait WebService extends HttpService {
   import com.memsql.superapp.api.ApiActor._
   import ooyala.common.akka.web.JsonUtils._
 
-  val api = actorRefFactory.actorSelection("api")
+  val api = actorRefFactory.actorSelection("../api")
   implicit val timeout = Timeout(5.seconds)
 
   val route = {
