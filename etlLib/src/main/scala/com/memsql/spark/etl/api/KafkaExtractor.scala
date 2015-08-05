@@ -1,5 +1,6 @@
 package com.memsql.spark.etl.api
 
+import com.memsql.spark.etl.api.configs.PhaseConfig
 import scala.reflect.ClassTag
 import kafka.serializer.Decoder
 import org.apache.spark.streaming.StreamingContext
@@ -17,7 +18,7 @@ object KafkaExtractor extends Serializable {
     topics: Set[String]
     ): Extractor[(K, V)] = {
     new Extractor[(K, V)] {
-      override def extract(ssc: StreamingContext): InputDStream[(K, V)] = KafkaUtils.createDirectStream[K, V, KD, VD](ssc, kafkaParams, topics)
+      override def extract(ssc: StreamingContext, extractConfig: PhaseConfig): InputDStream[(K, V)] = KafkaUtils.createDirectStream[K, V, KD, VD](ssc, kafkaParams, topics)
     }
   }
 
@@ -28,7 +29,7 @@ object KafkaExtractor extends Serializable {
     messageHandler: MessageAndMetadata[K, V] => R
     ): Extractor[R] = {
     new Extractor[R] {
-      override def extract(ssc: StreamingContext): InputDStream[R] = KafkaUtils.createDirectStream[K, V, KD, VD, R](ssc, kafkaParams, fromOffsets, messageHandler)
+      override def extract(ssc: StreamingContext, extractConfig: PhaseConfig): InputDStream[R] = KafkaUtils.createDirectStream[K, V, KD, VD, R](ssc, kafkaParams, fromOffsets, messageHandler)
     }
   }
 }

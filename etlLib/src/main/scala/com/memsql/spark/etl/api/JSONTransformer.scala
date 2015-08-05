@@ -2,6 +2,7 @@ package com.memsql.spark.etl.api
 
 import org.apache.spark.sql.DataFrame
 import com.memsql.spark.connector._
+import com.memsql.spark.etl.api.configs.PhaseConfig
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.SQLContext
@@ -18,7 +19,7 @@ object JSONTransformer extends Serializable {
   )
   : Transformer[S] = {
     new Transformer[S] {
-      override def transform(sqlContext: SQLContext, rdd: RDD[S]): DataFrame = {
+      override def transform(sqlContext: SQLContext, rdd: RDD[S], transformConfig: PhaseConfig): DataFrame = {
         val transformedRDD = rdd.map(r => Row(preprocess(r)))
         val schema = StructType(Array(StructField(jsonColumnName, StringType, true)))
         sqlContext.createDataFrame(transformedRDD, schema)
@@ -35,7 +36,7 @@ object JSONTransformer extends Serializable {
   )
   : Transformer[(K,V)] = {
     new Transformer[(K,V)] {
-      override def transform(sqlContext: SQLContext, rdd: RDD[(K,V)]): DataFrame = {
+      override def transform(sqlContext: SQLContext, rdd: RDD[(K,V)], transformConfig: PhaseConfig): DataFrame = {
         val transformedRDD = if (keyColumnName == null) {
           rdd.map(r => Row(preprocessValue(r._2)))
         } else {
@@ -51,4 +52,3 @@ object JSONTransformer extends Serializable {
     }
   }
 }
-
