@@ -11,8 +11,9 @@ object PipelineState extends Enumeration {
 import PipelineState._
 
 case class Pipeline(pipeline_id: String,
-                    var state: PipelineState,
+                    state: PipelineState,
                     jar: String,
-                    var batch_interval: Long,
-                    var config: PipelineConfig,
-                    var error: Option[String] = None)
+                    batch_interval: Long,
+                    config: PipelineConfig,
+                    last_updated: Long,
+                    error: Option[String] = None)

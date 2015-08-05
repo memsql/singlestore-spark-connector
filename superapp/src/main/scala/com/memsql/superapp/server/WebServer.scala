@@ -84,11 +84,11 @@ trait WebService extends HttpService {
       }
     } ~
     path("pipeline" / "update") {
-      parameter('pipeline_id.as[String], 'active.as[Boolean], 'batch_interval.as[Long].?) { (pipeline_id, active, batch_interval) =>
+      parameter('pipeline_id.as[String], 'active.as[Boolean], 'jar.as[String].?, 'batch_interval.as[Long].?) { (pipeline_id, active, jar, batch_interval) =>
         entity(as[Option[PipelineConfig]]) { configMaybe =>
           patch { ctx =>
             val state = if (active) PipelineState.RUNNING else PipelineState.STOPPED
-            val future = (api ? PipelineUpdate(pipeline_id, state, batch_interval, configMaybe, _validate = true)).mapTo[Try[Boolean]]
+            val future = (api ? PipelineUpdate(pipeline_id, state, jar, batch_interval, configMaybe, _validate = true)).mapTo[Try[Boolean]]
             future.map {
               case Success(resp) => ctx.complete(Map[String, Boolean]("success" -> resp).toJson.toString)
               case Failure(error) => ctx.complete(StatusCodes.NotFound, error.toString)

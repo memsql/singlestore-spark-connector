@@ -32,7 +32,8 @@ class PipelineJsonSpec extends UnitSpec {
       state=PipelineState.RUNNING,
       jar="site.com/foo.jar",
       batch_interval=100,
-      config=config)
+      config=config,
+      last_updated=1)
 
     var jsonString = pipeline1.toJson.toString
     var jsonMap = mapFromJson(jsonString)
@@ -50,6 +51,7 @@ class PipelineJsonSpec extends UnitSpec {
       jar="site.com/foo.jar",
       batch_interval=12,
       config=config,
+      last_updated=15,
       error=Some("Test error"))
 
     jsonString = pipeline2.toJson.toString
@@ -78,6 +80,7 @@ class PipelineJsonSpec extends UnitSpec {
       state=PipelineState.RUNNING,
       jar="site.com/foo.jar",
       batch_interval=100,
+      last_updated=145,
       config=config)
     val jsonString = pipeline.toJson.toString
     val jsonMap = mapFromJson(jsonString)
@@ -134,6 +137,7 @@ class PipelineJsonSpec extends UnitSpec {
         "state": "RUNNING",
         "config": $config_json,
         "batch_interval": 100,
+        "last_updated": 145,
         "error": "test error",
         "jar": "site.com/foo.jar",
         "active": true
@@ -143,6 +147,7 @@ class PipelineJsonSpec extends UnitSpec {
     assert(pipeline.state == PipelineState.RUNNING)
     assert(pipeline.jar == "site.com/foo.jar")
     assert(pipeline.batch_interval == 100)
+    assert(pipeline.last_updated == 145)
     assert(pipeline.error == Some("test error"))
     assert(pipeline.config.config_version == 42)
     assert(pipeline.config.extract.kind == ExtractPhaseKind.Kafka)
@@ -181,6 +186,7 @@ class PipelineJsonSpec extends UnitSpec {
       state=PipelineState.RUNNING,
       jar="site.com/foo.jar",
       batch_interval=1234,
+      last_updated=12,
       config=config)
 
     val pipeline2 = pipeline1.toJson.toString.parseJson.convertTo[Pipeline]

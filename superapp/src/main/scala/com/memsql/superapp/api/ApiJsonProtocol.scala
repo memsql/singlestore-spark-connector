@@ -13,5 +13,5 @@ object ApiJsonProtocol extends JsonEnumProtocol {
   implicit val pipelineConfigFormat = jsonFormat4(PipelineConfig)
 
   implicit val pipelineStateFormat = jsonEnum(PipelineState)
-  implicit val pipelineFormat = jsonFormat6(Pipeline)
+  implicit val pipelineFormat = jsonFormat7(Pipeline)
 }

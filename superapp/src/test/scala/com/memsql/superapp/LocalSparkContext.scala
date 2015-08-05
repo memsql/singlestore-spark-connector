@@ -15,37 +15,36 @@
  * limitations under the License.
  */
 
-//NOTE: modified to work with MemSQLSparkContext
 package com.memsql.superapp
 
-import com.memsql.spark.context.MemSQLSparkContext
+import org.apache.spark.SparkContext
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.BeforeAndAfterEach
 import org.scalatest.Suite
 
-/** Manages a local `sc` {@link MemSQLSparkContext} variable, correctly stopping it after each test. */
-trait LocalMemSQLSparkContext extends BeforeAndAfterEach with BeforeAndAfterAll { self: Suite =>
+/** Manages a local `sc` {@link SparkContext} variable, correctly stopping it after each test. */
+trait LocalSparkContext extends BeforeAndAfterEach with BeforeAndAfterAll { self: Suite =>
 
-  @transient var sc: MemSQLSparkContext = _
+  @transient var sc: SparkContext = _
 
   override def beforeAll() {
     super.beforeAll()
   }
 
   override def afterEach() {
-    resetMemSQLSparkContext()
+    resetSparkContext()
     super.afterEach()
   }
 
-  def resetMemSQLSparkContext(): Unit = {
-    LocalMemSQLSparkContext.stop(sc)
+  def resetSparkContext(): Unit = {
+    LocalSparkContext.stop(sc)
     sc = null
   }
 
 }
 
-object LocalMemSQLSparkContext {
-  def stop(sc: MemSQLSparkContext) {
+object LocalSparkContext {
+  def stop(sc: SparkContext) {
     if (sc != null) {
       sc.stop()
     }
@@ -54,7 +53,7 @@ object LocalMemSQLSparkContext {
   }
 
   /** Runs `f` by passing in `sc` and ensures that `sc` is stopped. */
-  def withSpark[T](sc: MemSQLSparkContext)(f: MemSQLSparkContext => T): T = {
+  def withSpark[T](sc: SparkContext)(f: SparkContext => T): T = {
     try {
       f(sc)
     } finally {

@@ -19,11 +19,11 @@ object Paths {
       baseDir.mkdir
       jarDir.mkdir
       if (!baseDir.isDirectory || !jarDir.isDirectory) {
-        throw new PathException(s"Could not create directories for $base")
+        throw new PathException(s"Could not create directories for `$base`")
       }
     } catch {
       case p: PathException => throw p
-      case e: Exception => throw new PathException(s"Could not create directories for $base", e)
+      case e: Exception => throw new PathException(s"Could not create directories for `$base`", e)
     }
 
     BASE_DIR = baseDir.toString

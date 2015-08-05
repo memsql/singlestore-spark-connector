@@ -1,12 +1,18 @@
 package com.memsql.superapp
 
-import akka.actor.ActorSystem
+import akka.actor.{Actor, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
-import com.memsql.superapp.util.Paths
-import org.scalatest.concurrent.{ScalaFutures, AsyncAssertions}
+import com.memsql.superapp.api.ApiService
+import com.memsql.superapp.util.{Clock, Paths}
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll, Matchers}
 import org.scalamock.scalatest.MockFactory
 import scala.sys.process._
+
+class TestApiActor(mockTime: Clock) extends Actor with ApiService {
+  override def clock = mockTime
+  override def receive: Receive = handleMessage
+}
 
 abstract class TestKitSpec(name: String)
   extends TestKit(ActorSystem(name))
@@ -27,5 +33,19 @@ abstract class TestKitSpec(name: String)
 
   override protected def afterAll() {
     system.shutdown()
+  }
+
+  class MockTime extends Clock {
+    private var time = 0
+
+    override def currentTimeMillis: Long = time
+
+    def tick(): Unit = {
+      time += 1
+    }
+  }
+
+  class TestException(message: String) extends Exception {
+    override def toString: String = s"TestException: $message"
   }
 }

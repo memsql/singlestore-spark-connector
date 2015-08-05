@@ -18,7 +18,7 @@ import ApiJsonProtocol._
 class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
 
   def actorRefFactory = system
-  val apiRef = system.actorOf(Props(classOf[ApiActor], Config()), "api")
+  val apiRef = system.actorOf(Props[ApiActor], "api")
 
   val kafkaConfig = PipelineConfig(Phase[ExtractPhaseKind](
                                     ExtractPhaseKind.Kafka,
@@ -39,7 +39,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
                                                 ExtractPhase.writeConfig(
                                                   ExtractPhaseKind.User, UserExtractConfig("com.user.Extract", ""))))
   val kafkaConfigEntity = HttpEntity(`application/json`, kafkaConfig.toJson.toString)
-  val basicPipeline = Pipeline("asdf", PipelineState.RUNNING, "asdf.jar", 100, kafkaConfig)
+  val basicPipeline = Pipeline("asdf", state=PipelineState.RUNNING, jar="asdf.jar", batch_interval=100, config=kafkaConfig, last_updated=0)
   def putPipeline(pipeline: Pipeline): Unit = {
     val configEntity = HttpEntity(`application/json`, pipeline.config.toJson.toString)
     Post(s"/pipeline/put?pipeline_id=${pipeline.pipeline_id}&jar=${pipeline.jar}&batch_interval=${pipeline.batch_interval}", configEntity) ~> route ~> check {
@@ -150,7 +150,16 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     putPipeline(basicPipeline)
 
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
-      assert(responseAs[String] == basicPipeline.toJson.toString)
+      //we ignore the value of last_updated here
+      val webPipelineJson = responseAs[String].parseJson.asJsObject
+      val basicPipelineJson = basicPipeline.toJson.asJsObject
+      assert(webPipelineJson.fields.filterKeys(_ != "last_updated") == basicPipelineJson.fields.filterKeys(_ != "last_updated"))
+
+      //and the value of last_updated should have changed
+      val last_updated = webPipelineJson.getFields("last_updated")(0).toString.toLong
+      assert(last_updated > basicPipeline.last_updated)
+      assert(last_updated < System.currentTimeMillis)
+
       assert(status == OK)
     }
   }
@@ -288,10 +297,47 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == OK)
     }
 
-    // pipeline should still be running with the same config
+    // updates to jar should always return true
+    Patch("/pipeline/update?pipeline_id=asdf&active=true&jar=asdf.jar") ~> route ~> check {
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
+      assert(status == OK)
+    }
+
+    // pipeline should be running with the same config and the same jar
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
+      assert(pipeline.jar == basicPipeline.jar)
+      assert(pipeline.config == kafkaConfig)
+      assert(pipeline.batch_interval == 999)
+      assert(status == OK)
+    }
+
+    Patch("/pipeline/update?pipeline_id=asdf&active=true&jar=asdf2.jar") ~> route ~> check {
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
+      assert(status == OK)
+    }
+
+    // pipeline should be running with the same config and the updated jar
+    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
+      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
+      assert(pipeline.state == PipelineState.RUNNING)
+      assert(pipeline.jar == "asdf2.jar")
+      assert(pipeline.config == kafkaConfig)
+      assert(pipeline.batch_interval == 999)
+      assert(status == OK)
+    }
+
+    Patch("/pipeline/update?pipeline_id=asdf&active=true&jar=asdf.jar") ~> route ~> check {
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
+      assert(status == OK)
+    }
+
+    // pipeline should be running with the same config and the previous jar
+    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
+      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
+      assert(pipeline.state == PipelineState.RUNNING)
+      assert(pipeline.jar == basicPipeline.jar)
       assert(pipeline.config == kafkaConfig)
       assert(pipeline.batch_interval == 999)
       assert(status == OK)
@@ -402,7 +448,20 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     putPipeline(basicPipeline)
 
     Get("/pipeline/query") ~> route ~> check {
-      assert(responseAs[String] == JsArray(basicPipeline.toJson).toString)
+      //we expect a single pipeline
+      val webPipelinesJson = responseAs[String].parseJson.asInstanceOf[JsArray]
+      assert(webPipelinesJson.elements.length == 1)
+
+      //whose value should be the same as basicPipeline, excepting last_updated
+      val webPipelineJson = webPipelinesJson.elements(0).asJsObject
+      val basicPipelineJson = basicPipeline.toJson.asJsObject
+      assert(webPipelineJson.fields.filterKeys(_ != "last_updated") == basicPipelineJson.fields.filterKeys(_ != "last_updated"))
+
+      //and the value of last_updated should have changed
+      val last_updated = webPipelineJson.getFields("last_updated")(0).toString.toLong
+      assert(last_updated > basicPipeline.last_updated)
+      assert(last_updated < System.currentTimeMillis)
+
       assert(status == OK)
     }
 

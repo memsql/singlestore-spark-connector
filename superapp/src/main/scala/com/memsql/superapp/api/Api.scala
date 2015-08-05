@@ -1,14 +1,13 @@
 package com.memsql.superapp.api
 
-import akka.actor.Actor
+import akka.actor.Actor.Receive
+import akka.actor.{ActorRef, Actor}
 import akka.util.Timeout
 import scala.concurrent.duration._
-import com.memsql.superapp.Config
-import com.memsql.superapp.util.BaseException
+import com.memsql.superapp.util.{Clock, BaseException}
 import com.memsql.spark.etl.api.configs._
 import spray.json._
 
-import scala.collection.mutable
 import scala.util.{Failure, Success}
 
 import PipelineState._
@@ -20,22 +19,30 @@ object ApiActor {
   case object PipelineQuery
   case class PipelineGet(pipeline_id: String)
   case class PipelinePut(pipeline_id: String, jar: String, batch_interval: Long, config: PipelineConfig)
-  case class PipelineUpdate(pipeline_id: String, state: PipelineState = null, batch_interval: Option[Long] = None,
-                            config: Option[PipelineConfig] = None, error: Option[String] = None, _validate: Boolean = false)
+  case class PipelineUpdate(pipeline_id: String, state: PipelineState = null, jar: Option[String] = None,
+                            batch_interval: Option[Long] = None, config: Option[PipelineConfig] = None,
+                            error: Option[String] = None, _validate: Boolean = false)
   case class PipelineDelete(pipeline_id: String)
   implicit val timeout = Timeout(5.seconds)
 }
 
-class ApiActor(config: Config) extends Actor {
+class ApiActor extends Actor with ApiService {
+  override def receive = handleMessage
+}
+
+trait ApiService {
   import ApiActor._
+  def sender: ActorRef
 
-  private var pipelines = new mutable.ListBuffer[Pipeline]()
+  private var pipelines = Map[String, Pipeline]()
 
-  override def receive: Receive = {
+  private[superapp] def clock = new Clock()
+
+  def handleMessage: Receive = {
     case Ping => sender ! "pong"
-    case PipelineQuery => sender ! pipelines.toList
+    case PipelineQuery => sender ! pipelines.values.toList
     case PipelineGet(pipeline_id) => {
-      pipelines.find(_.pipeline_id == pipeline_id) match {
+      pipelines.get(pipeline_id) match {
         case Some(pipeline) => sender ! Success(pipeline)
         case None => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }
@@ -51,10 +58,10 @@ class ApiActor(config: Config) extends Actor {
         ExtractPhase.readConfig(config.extract.kind, config.extract.config)
         TransformPhase.readConfig(config.transform.kind, config.transform.config)
         LoadPhase.readConfig(config.load.kind, config.load.config)
-        pipelines.find(_.pipeline_id == pipeline_id) match {
+        pipelines.get(pipeline_id) match {
           case p: Some[Pipeline] => sender ! Failure(ApiException(s"pipeline with id $pipeline_id already exists"))
           case _ => {
-            pipelines += Pipeline(pipeline_id, RUNNING, jar, batch_interval, config)
+            pipelines = pipelines + (pipeline_id -> Pipeline(pipeline_id, RUNNING, jar, batch_interval, config, clock.currentTimeMillis))
             sender ! Success(true)
           }
         }
@@ -63,16 +70,19 @@ class ApiActor(config: Config) extends Actor {
         case e: DeserializationException => sender ! Failure(ApiException(s"config does not validate: $e"))
       }
     }
-    case PipelineUpdate(pipeline_id, state, batch_interval, config, error, _validate) => {
-      pipelines.find(_.pipeline_id == pipeline_id) match {
-        case p: Some[Pipeline] => {
-          val pipeline = p.get
+    case PipelineUpdate(pipeline_id, state, jar, batch_interval, config, error, _validate) => {
+      pipelines.get(pipeline_id) match {
+        case Some(pipeline) => {
           var updated = false
-          var newPipeline = pipeline.copy()
+          var newState = pipeline.state
+          var newJar = pipeline.jar
+          var newBatchInterval = pipeline.batch_interval
+          var newConfig = pipeline.config
+          var newError = pipeline.error
 
           try {
             if (state != null) {
-              newPipeline.state = (pipeline.state, state, _validate) match {
+              newState = (pipeline.state, state, _validate) match {
                 case (_, _, false) => state
                 case (RUNNING, STOPPED, _) => state
                 case (STOPPED, RUNNING, _) => state
@@ -80,15 +90,21 @@ class ApiActor(config: Config) extends Actor {
                 case (prev, next, _) => throw new ApiException(s"cannot update state from $prev to $next")
               }
 
-              updated |= newPipeline.state != pipeline.state
+              updated |= newState != pipeline.state
+            }
+
+            if (jar.isDefined) {
+              newJar = jar.get
+              //NOTE: we assume the jar has been changed if it is provided here
+              updated = true
             }
 
             if (batch_interval.isDefined) {
               if (batch_interval.get <= 0) {
                 throw new ApiException("batch_interval must be positive")
               }
-              newPipeline.batch_interval = batch_interval.get
-              updated |= newPipeline.batch_interval != pipeline.batch_interval
+              newBatchInterval = batch_interval.get
+              updated |= newBatchInterval != pipeline.batch_interval
             }
 
             if (config.isDefined) {
@@ -97,20 +113,21 @@ class ApiActor(config: Config) extends Actor {
               ExtractPhase.readConfig(config.get.extract.kind, config.get.extract.config)
               TransformPhase.readConfig(config.get.transform.kind, config.get.transform.config)
               LoadPhase.readConfig(config.get.load.kind, config.get.load.config)
-              newPipeline.config = config.get
-              updated |= pipeline.config != newPipeline.config
+              newConfig = config.get
+              updated |= pipeline.config != newConfig
             }
 
             if (error.isDefined) {
-              newPipeline.error = error
-              updated |= newPipeline.error != pipeline.error
+              newError = error
+              updated |= newError != pipeline.error
             }
 
             // update all fields in the pipeline and respond with success
-            pipeline.state = newPipeline.state
-            pipeline.batch_interval = newPipeline.batch_interval
-            pipeline.config = newPipeline.config
-            pipeline.error = newPipeline.error
+            if (updated) {
+              val newLastUpdated = clock.currentTimeMillis
+              val newPipeline = Pipeline(pipeline_id, state=newState, jar=newJar, batch_interval=newBatchInterval, last_updated=newLastUpdated, config=newConfig, error=newError)
+              pipelines = pipelines + (pipeline_id -> newPipeline)
+            }
             sender ! Success(updated)
           } catch {
             case e: ApiException => sender ! Failure(e)
@@ -121,9 +138,9 @@ class ApiActor(config: Config) extends Actor {
       }
     }
     case PipelineDelete(pipeline_id) => {
-      pipelines.find(_.pipeline_id == pipeline_id) match {
-        case p: Some[Pipeline] => {
-          pipelines -= p.get
+      pipelines.get(pipeline_id) match {
+        case Some(pipeline) => {
+          pipelines = pipelines -- Set(pipeline_id)
           sender ! Success(true)
         }
         case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))

@@ -2,12 +2,14 @@ package com.memsql.superapp
 
 import com.memsql.superapp.server.WebServer
 
-import akka.actor.{ActorSystem, Props}
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.io.IO
 import com.memsql.superapp.util.Paths
+import com.memsql.superapp.api._
+import ApiActor._
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming.{Duration, StreamingContext}
-import com.memsql.spark.context.{MemSQLSparkContext, MemSQLSQLContext}
+import com.memsql.spark.context.MemSQLSparkContext
 import spray.can.Http
 import akka.pattern.ask
 import scala.concurrent._
@@ -20,11 +22,12 @@ case class Config(port:Int = 10001,
                   dbHost:String = "127.0.0.1",
                   dbPort:Int = 3306,
                   dbUser:String = "root",
-                  dbPassword:String = "",
-                  dbName:String = "memsql_spark")
+                  dbPassword:String = "")
 
 object SuperApp {
   val VERSION = "0.1.3"
+
+  val PIPELINE_UPDATE_INTERVAL = 5.seconds
 
   def main(args: Array[String]): Unit = {
     val parser = new scopt.OptionParser[Config]("superapp") {
@@ -38,90 +41,144 @@ object SuperApp {
       opt[Int]("dbPort") action { (x, c) => c.copy(dbPort = x) } text "MemSQL Master port"
       opt[String]("dbUser") action { (x, c) => c.copy(dbUser = x) } text "MemSQL Master user"
       opt[String]("dbPassword") action { (x, c) => c.copy(dbPassword = x) } text "MemSQL Master password"
-      opt[String]("dbName") action { (x, c) => c.copy(dbName = x) } text "MemSQL Master name"
     }
 
     parser.parse(args, Config()) match {
-      case Some(config) => run(config)
+      case Some(config) => {
+        new SuperApp(config).run()
+      }
       case None => sys.exit(1)
     }
   }
+}
 
-  def init(config:Config): Unit = {
-    Paths.initialize(config.dataDir)
-  }
+class SuperApp(val providedConfig: Config) extends Application {
+  override lazy val config = providedConfig
+  override implicit val system = ActorSystem("superapp")
+  override val api = system.actorOf(Props[ApiActor], "api")
+  override val web = system.actorOf(Props[WebServer], "web")
 
-  def run(config:Config) {
-    import com.memsql.superapp.api._
-    import com.memsql.superapp.api.ApiActor._
-
-    init(config)
-
-    //TODO verify we have sane defaults for spark conf
-    val sparkConf = new SparkConf().setAppName("SuperApp Manager")
+  //TODO verify we have sane defaults for spark conf
+  override val sparkConf = {
+    new SparkConf().setAppName("SuperApp Manager")
       .set("spark.blockManager.port", (config.port + 1).toString)
       .set("spark.broadcast.port", (config.port + 2).toString)
       .set("spark.driver.port", (config.port + 3).toString)
       .set("spark.executor.port", (config.port + 4).toString)
       .set("spark.fileserver.port", (config.port + 5).toString)
-    val sparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
-    val sqlContext = new MemSQLSQLContext(sparkContext)
-    val sparkStreamingContext = new StreamingContext(sparkContext, new Duration(5000))
+  }
 
-    implicit val system = ActorSystem("superapp")
-    var pipelineMonitors = Map[String, PipelineMonitor]()
-
-    // initialize api
-    import ApiActor._
-    val api = system.actorOf(Props(classOf[ApiActor], config), "api")
-
-    // initialize web server
-    val service = system.actorOf(Props[WebServer], "web-server")
-    IO(Http) ? Http.Bind(service, interface="0.0.0.0", port=config.port) onComplete {
-      case Success(Http.Bound(endpoint)) => Console.println("Listening")
-      case _ => {
-        Console.println(s"Failed to bind to 0.0.0.0:${config.port}")
-        system.shutdown()
-        sys.exit(1)
-      }
+  IO(Http) ? Http.Bind(web, interface = "0.0.0.0", port = config.port) onComplete {
+    case Success(Http.Bound(endpoint)) => Console.println("Listening")
+    case _ => {
+      Console.println(s"Failed to bind to 0.0.0.0:${config.port}")
+      system.shutdown()
+      sys.exit(1)
     }
+  }
+}
 
-    while(true) {
-      val pipelines = Await.result[List[Pipeline]]((api ? PipelineQuery).mapTo[List[Pipeline]], 5.seconds)
-      pipelines.foreach { pipeline =>
-        (pipeline.state, pipelineMonitors.get(pipeline.pipeline_id)) match {
-          case (PipelineState.RUNNING, None) => {
-            PipelineMonitor.of(api, pipeline, sparkContext, sqlContext, sparkStreamingContext) match {
-              case Some(pipelineMonitor)  => {
-                pipelineMonitor.ensureStarted
-                pipelineMonitors += (pipeline.pipeline_id -> pipelineMonitor)
-              }
-              case None => //failed to start pipeline, state is now ERROR
-            }
+trait Application {
+  private[superapp] lazy val config: Config = Config()
+  Paths.initialize(config.dataDir)
+
+  implicit private[superapp] val system: ActorSystem
+  private[superapp] val api: ActorRef
+  private[superapp] val web: ActorRef
+
+  private[superapp] val sparkConf: SparkConf
+  private[superapp] lazy val sparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
+  private[superapp] lazy val streamingContext = new StreamingContext(sparkContext, new Duration(5000))
+
+  private[superapp] var pipelineMonitors = Map[String, PipelineMonitor]()
+
+  def run(): Unit = {
+    while (true) {
+      update()
+      Thread.sleep(SuperApp.PIPELINE_UPDATE_INTERVAL.toMillis)
+    }
+  }
+
+  def update(): Unit = {
+    val pipelines = Await.result[List[Pipeline]]((api ? PipelineQuery).mapTo[List[Pipeline]], 5.seconds)
+    pipelines.foreach(updatePipeline)
+    cleanupPipelineMonitors(pipelines)
+  }
+
+  private[superapp] def updatePipeline(pipeline: Pipeline): Unit = {
+    (pipeline.state, pipelineMonitors.get(pipeline.pipeline_id)) match {
+      //start a pipeline monitor for this pipeline
+      case (PipelineState.RUNNING, None) => {
+        startPipeline(pipeline)
+      }
+      //verify the monitor is still running and restart if necessary
+      case (PipelineState.RUNNING, Some(pipelineMonitor)) => {
+        pipeline.last_updated > pipelineMonitor.lastUpdated match {
+          case true => {
+            // NOTE: we always restart the pipeline monitor instead of mutating values in
+            // the currently running monitor for simplicity
+            stopPipeline(pipelineMonitor)
+            startPipeline(pipeline)
           }
-          case (PipelineState.RUNNING, Some(pipelineMonitor)) => {
-            pipelineMonitor.ensureStarted
-          }
-          case (PipelineState.STOPPED, Some(pipelineMonitor)) => {
-            pipelineMonitor.stop
-            pipelineMonitors = pipelineMonitors.filterKeys(_ != pipeline.pipeline_id)
-          }
-          case (_, _) => //do nothing
+          case false => pipelineMonitor.ensureStarted
         }
       }
+      //stop and remove the pipeline monitor if the user requested it
+      case (PipelineState.STOPPED, Some(pipelineMonitor)) => {
+        stopPipeline(pipelineMonitor)
+      }
+      case (_, _) => //do nothing
+    }
+  }
 
-      // remove pipelines which have been deleted via the API
-      val currentPipelineIds = pipelines.map(_.pipeline_id).toSet
-      pipelineMonitors.foreach((p: (String, PipelineMonitor)) => {
-        val pipeline_id = p._1
-        if (!currentPipelineIds.contains(pipeline_id)) {
+  private[superapp] def startPipeline(pipeline: Pipeline): Unit = {
+    newPipelineMonitor(pipeline) match {
+      case Success(pipelineMonitor) => {
+        pipelineMonitor.ensureStarted
+        pipelineMonitors = pipelineMonitors + (pipeline.pipeline_id -> pipelineMonitor)
+      }
+      case Failure(error) => {
+        val future = (api ? PipelineUpdate(pipeline.pipeline_id, PipelineState.ERROR, error = Some(error.toString))).mapTo[Try[Boolean]]
+        future.map {
+          case Success(resp) => //exit
+          case Failure(error) => Console.println(s"Failed to update pipeline ${pipeline.pipeline_id} state to ERROR: $error")
+        }
+      }
+    }
+  }
+
+  private[superapp] def stopPipeline(pipelineMonitor: PipelineMonitor): Unit = {
+    pipelineMonitor.stop
+    pipelineMonitors = pipelineMonitors.filterKeys(_ != pipelineMonitor.pipeline_id)
+  }
+
+  private[superapp] def newPipelineMonitor(pipeline: Pipeline): Try[PipelineMonitor] = {
+    try {
+      Success(new DefaultPipelineMonitor(api, pipeline, sparkContext, streamingContext))
+    } catch {
+      case e: Exception => {
+        val errorMessage = s"Failed to initialize pipeline ${pipeline.pipeline_id}: $e"
+        Console.println(errorMessage)
+        e.printStackTrace
+        Failure(e)
+      }
+    }
+  }
+
+  private[superapp] def cleanupPipelineMonitors(pipelines: List[Pipeline]): Unit = {
+    val currentPipelineIds = pipelines.map(_.pipeline_id).toSet
+    val deletedPipelineIds = pipelineMonitors.flatMap((p: (String, PipelineMonitor)) => {
+      val pipeline_id = p._1
+      currentPipelineIds.contains(pipeline_id) match {
+        case false => {
           val pipelineMonitor = p._2
           pipelineMonitor.stop
+          Some(pipeline_id)
         }
-      })
-      pipelineMonitors = pipelineMonitors -- currentPipelineIds
+        case true => None
+      }
+    })
 
-      Thread.sleep(5000)
-    }
+    pipelineMonitors = pipelineMonitors -- deletedPipelineIds
   }
 }
