@@ -67,7 +67,7 @@ class ApiActor(config: Config) extends Actor {
       }
     }
     case PipelinePut(pipeline_id, jar, main_class, config) => {
-      var pipelineConfig = normalizeConfig(config)
+      val pipelineConfig = normalizeConfig(config)
       // Assert that the phase configs, which are stored as JSON blobs, can be
       // deserialized properly.
       try {

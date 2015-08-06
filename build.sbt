@@ -76,7 +76,8 @@ lazy val superapp = (project in file("superapp")).
         "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
         "org.scalatest" %% "scalatest" % "2.2.5" % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
-        "org.scalamock" %% "scalamock-scalatest-support" % "3.2" % "test"
+        "org.scalamock" %% "scalamock-scalatest-support" % "3.2" % "test",
+        "io.spray" %% "spray-testkit" % sprayVersion % "test" exclude("org.scalamacros", "quasiquotes_2.10.3")
       )
     }
   )

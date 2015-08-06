@@ -17,13 +17,13 @@ abstract class TestKitSpec(name: String)
   with ScalaFutures
   with MockFactory {
 
-  override def beforeAll() {
+  override protected def beforeAll() {
     "rm -rf test_root" !!
 
     Paths.initialize("test_root")
   }
 
-  override def afterAll() {
+  override protected def afterAll() {
     system.shutdown()
   }
 }
