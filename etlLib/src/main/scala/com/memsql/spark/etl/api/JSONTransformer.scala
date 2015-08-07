@@ -18,12 +18,11 @@ object JSONTransformer extends Serializable {
    * Function `preprocess` is called on each row
    *
    * NOTE: The resulting dataframe is suitable for loading to a target table that has additional columns with defaults (including `TIMESTAMP default CURRENT_TIME` and computed columns).
-   * NOTE: For ingest into a MemSQL table without an `INDEX USING CLUSTERED COLUMNSTORE`, consider using a `FlattenedJSONExtractor`.    
    *
    * @param jsonColumnName the name of the StringType column.
    * @param preprocess a function to turn the input RDD into a JSON string
    */
-  def makeSimpleJSONExtractor[S](
+  def makeSimpleJSONTransformer[S](
     jsonColumnName: String,
     preprocess: S => String = ((s : S) => s.toString)
   )
@@ -42,7 +41,6 @@ object JSONTransformer extends Serializable {
    * This is suitable, for instance, for processing a KafkaStream of JSON blobs.
    *
    * NOTE: The resulting dataframe is suitable for loading to a target table that has additional columns with defaults (including `TIMESTAMP default CURRENT_TIME` and computed columns).
-   * NOTE: For ingest into a MemSQL table without an `INDEX USING CLUSTERED COLUMNSTORE`, consider using a `FlattenedJSONExtractor`.    
    * 
    * @param jsonColumnName the name of the StringType column.
    * @param keyColumnName the name of the key column.  If null or ommited, the key is stripped.  
@@ -50,7 +48,7 @@ object JSONTransformer extends Serializable {
    * @param preprocessValue a function to turn the input RDD's values into a JSON string
    * @param preprocessKey a function to turn the input RDD's key into a Key
    */
-  def makeSimpleJSONKeyValueExtractor[K,V](
+  def makeSimpleJSONKeyValueTransformer[K,V](
     jsonColumnName: String,
     keyColumnName: String = null,
     keyColumnType: DataType = StringType,

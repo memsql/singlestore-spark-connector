@@ -89,7 +89,6 @@ object JSONUtils {
    * to a DataFrame of flattened JSON from a provided array of paths.
    *
    * NOTE: The resulting dataframe is suitable for loading to a target table that has additional columns with defaults (including `TIMESTAMP default CURRENT_TIME` and computed columns).
-   * NOTE: For ingest into a MemSQL table with an `INDEX USING CLUSTERED COLUMNSTORE`, consider using a `SimpleJSONExtractor`.
    *
    * For instance, given JSON blobs of the form
    *    { "a" : value1,
