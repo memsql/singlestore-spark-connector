@@ -1,17 +1,23 @@
 package com.memsql.spark
 
 import com.memsql.spark.context.MemSQLSparkContext
-import java.sql.{DriverManager, ResultSet}
+import java.sql.{DriverManager, ResultSet, SQLException, Connection, Statement}
 
+import org.apache.spark.sql.catalyst.expressions.RowOrdering
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.Row
+import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.DataFrame
+
+import com.memsql.spark.connector.dataframe.MemSQLDataFrame
 import com.memsql.spark.connector.dataframe._
 import com.memsql.spark.connector.rdd.MemSQLRDD
 import com.memsql.spark.connector._
+import com.memsql.spark.connector
 
 object MemSQLTestSetup {
   def SetupBasic() {
