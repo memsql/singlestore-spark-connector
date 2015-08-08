@@ -49,7 +49,7 @@ RUN sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/* /tmp/*
 # download spark distribution and update superapp jar
 RUN sudo mkdir -p /storage/testroot/memsql-spark
 RUN sudo wget -q -O /storage/testroot/memsql-spark/memsql-spark.tar.gz \
-    http://download.memsql.com/memsql-spark-1.4.1-distribution-0.0.1/memsql-spark-1.4.1-distribution-0.0.1.tar.gz && \
+    http://download.memsql.com/memsql-spark-1.4.1-distribution-0.1.3/memsql-spark-1.4.1-distribution-0.1.3.tar.gz && \
     sudo tar zxvf /storage/testroot/memsql-spark/memsql-spark.tar.gz -C /storage/testroot/memsql-spark && \
     sudo rm /storage/testroot/memsql-spark/memsql-spark.tar.gz
 ADD target/scala-2.10/MemSQL-assembly-0.1.3.jar /storage/testroot/memsql-spark/super_app/super_app.jar
