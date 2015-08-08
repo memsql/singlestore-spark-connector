@@ -21,6 +21,8 @@ abstract class TestKitSpec(name: String)
     "rm -rf test_root" !!
 
     Paths.initialize("test_root")
+
+    Class.forName("com.mysql.jdbc.Driver")
   }
 
   override protected def afterAll() {

@@ -1,23 +1,16 @@
 package com.memsql.superapp
 
 import java.io.File
-import java.util.Calendar
 
 import akka.pattern.ask
 import akka.actor.Props
 import akka.util.Timeout
 import com.memsql.spark.context.{MemSQLSQLContext, MemSQLSparkContext}
-import com.memsql.spark.etl.api.{Extractor, Transformer, Loader, ETLPipeline}
 import com.memsql.superapp.api.{ApiActor, PipelineState, Pipeline}
 import ApiActor._
 import com.memsql.superapp.util.Paths
 import org.apache.spark.SparkConf
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{StructType, StringType, StructField}
-import org.apache.spark.sql.{Row, DataFrame, SQLContext}
-import org.apache.spark.streaming.dstream.InputDStream
-import org.apache.spark.streaming.{Time, Duration, StreamingContext}
-import scala.concurrent.ExecutionContext.Implicits.global
+import org.apache.spark.streaming.{Duration, StreamingContext}
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
 

@@ -9,15 +9,16 @@ object KafkaExtractOutputType extends Enumeration {
 }
 import KafkaExtractOutputType._
 
-case class KafkaExtractConfig(kafka_brokers: String,
-                              topics: List[String],
+case class KafkaExtractConfig(host: String,
+                              port: Int,
+                              topic: String,
                               output_type: Option[KafkaExtractOutputType]) extends PhaseConfig
 
 case class UserExtractConfig(value: String) extends PhaseConfig
 
 object ExtractPhase extends JsonEnumProtocol {
   implicit val kafkaExtractOutputTypeFormat = jsonEnum(KafkaExtractOutputType)
-  val kafkaConfigFormat = jsonFormat3(KafkaExtractConfig)
+  val kafkaConfigFormat = jsonFormat4(KafkaExtractConfig)
   val userConfigFormat = jsonFormat1(UserExtractConfig)
 
   def readConfig(kind: ExtractPhaseKind, config: JsValue): PhaseConfig = {

@@ -1,11 +1,9 @@
 package com.memsql.superapp.api
 
 import com.memsql.spark.etl.api.configs._
-import com.memsql.superapp.api._
 import com.memsql.superapp.api.ApiJsonProtocol._
 import com.memsql.superapp.UnitSpec
 import ooyala.common.akka.web.JsonUtils._
-import scala.util.{Success, Failure}
 import spray.json._
 
 import ExtractPhaseKind._
@@ -49,7 +47,7 @@ class PipelineJsonSpec extends UnitSpec {
       Some(Phase[ExtractPhaseKind](
         ExtractPhaseKind.Kafka,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", List("test2"), None)))),
+          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "test2", None)))),
       Some(Phase[TransformPhaseKind](
         TransformPhaseKind.User,
         TransformPhase.writeConfig(
@@ -72,8 +70,9 @@ class PipelineJsonSpec extends UnitSpec {
     val extractConfigMap = configMap("extract").asInstanceOf[Map[String, Any]]
     assert(extractConfigMap("kind") == "Kafka")
     val kafkaConfigMap = extractConfigMap("config").asInstanceOf[Map[String, Any]]
-    assert(kafkaConfigMap("kafka_brokers") == "test1")
-    assert(kafkaConfigMap("topics") == List("test2"))
+    assert(kafkaConfigMap("host") == "test1")
+    assert(kafkaConfigMap("port") == 9092)
+    assert(kafkaConfigMap("topic") == "test2")
     assert(!(kafkaConfigMap contains "output_type"))
     val transformConfigMap = configMap("transform").asInstanceOf[Map[String, Any]]
     assert(transformConfigMap("kind") == "User")
@@ -90,8 +89,9 @@ class PipelineJsonSpec extends UnitSpec {
           "extract": {
               "kind": "Kafka",
               "config": {
-                  "kafka_brokers": "test1",
-                  "topics": [ "test2" ]
+                  "host": "test1",
+                  "port": 9091,
+                  "topic": "test2"
               }
           },
           "transform": {
@@ -128,8 +128,9 @@ class PipelineJsonSpec extends UnitSpec {
     assert(pipeline.config.config_version == 42)
     assert(pipeline.config.extract.get.kind == ExtractPhaseKind.Kafka)
     val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.get.kind, pipeline.config.extract.get.config).asInstanceOf[KafkaExtractConfig]
-    assert(kafkaConfig.kafka_brokers == "test1")
-    assert(kafkaConfig.topics == List("test2"))
+    assert(kafkaConfig.host == "test1")
+    assert(kafkaConfig.port == 9091)
+    assert(kafkaConfig.topic == "test2")
     assert(pipeline.config.transform.get.kind == TransformPhaseKind.User)
     val userTransformConfig = TransformPhase.readConfig(pipeline.config.transform.get.kind, pipeline.config.transform.get.config).asInstanceOf[UserTransformConfig]
     assert(userTransformConfig.value == "Test user data 1")
@@ -143,7 +144,7 @@ class PipelineJsonSpec extends UnitSpec {
       Some(Phase[ExtractPhaseKind](
         ExtractPhaseKind.Kafka,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", List("test2"), None)))),
+          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9090, "test2", None)))),
       Some(Phase[TransformPhaseKind](
         TransformPhaseKind.User,
         TransformPhase.writeConfig(

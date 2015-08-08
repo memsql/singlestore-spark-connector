@@ -288,8 +288,9 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
                                                 ExtractPhase.writeConfig(
                                                   ExtractPhaseKind.Kafka,
                                                   KafkaExtractConfig(
-                                                    "broker",
-                                                    List("topic1", "topic2"),
+                                                    "test1",
+                                                    9092,
+                                                    "topic1",
                                                     Some(KafkaExtractOutputType.String))))))
     val newConfigEntity = HttpEntity(`application/json`, newConfig.toJson.toString)
 
