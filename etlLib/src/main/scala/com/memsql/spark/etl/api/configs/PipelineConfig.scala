@@ -19,7 +19,7 @@ import ExtractPhaseKind._
 
 object TransformPhaseKind extends Enumeration {
   type TransformPhaseKind = Value
-  val User = Value
+  val Json, User = Value
 }
 import TransformPhaseKind._
 

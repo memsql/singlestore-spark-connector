@@ -1,8 +1,6 @@
 package com.memsql.superapp.api
 
 import akka.actor.Props
-import com.memsql.spark.etl.api.configs.LoadPhaseKind.LoadPhaseKind
-import com.memsql.spark.etl.api.configs.TransformPhaseKind.TransformPhaseKind
 import com.memsql.spark.etl.api.configs._
 import com.memsql.superapp.{Config, TestKitSpec}
 import com.memsql.superapp.api.ApiActor._
@@ -12,12 +10,32 @@ import spray.json._
 import scala.util.{Success, Failure}
 
 import ExtractPhaseKind._
+import TransformPhaseKind._
+import LoadPhaseKind._
 
-//XXX remove all the invalid asserts
 class ApiSpec extends TestKitSpec("ApiActorSpec") {
   val apiRef = system.actorOf(Props(classOf[ApiActor], Config()))
 
   "Api actor" should {
+    val config = PipelineConfig(
+      Phase[ExtractPhaseKind](
+        ExtractPhaseKind.Kafka,
+        ExtractPhase.writeConfig(
+          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic", None))),
+      Phase[TransformPhaseKind](
+        TransformPhaseKind.Json,
+        TransformPhase.writeConfig(
+          TransformPhaseKind.Json, JsonTransformConfig())),
+      Phase[LoadPhaseKind](
+        LoadPhaseKind.MemSQL,
+        LoadPhase.writeConfig(
+          LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table"))))
+
+    val config2 = config.copy(extract = Phase[ExtractPhaseKind](
+      ExtractPhaseKind.User,
+      ExtractPhase.writeConfig(
+        ExtractPhaseKind.User, UserExtractConfig("com.user.ExtractClass", "test"))))
+
     "respond to ping" in {
       apiRef ! Ping
       expectMsg("pong")
@@ -41,24 +59,11 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
     }
 
     "accept new pipelines" in {
-      val config = PipelineConfig(
-        Phase[ExtractPhaseKind](
-          ExtractPhaseKind.Kafka,
-          ExtractPhase.writeConfig(
-            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic", None))),
-        Phase[TransformPhaseKind](
-          TransformPhaseKind.User,
-          TransformPhase.writeConfig(
-            TransformPhaseKind.User, UserTransformConfig("com.user.TransformClass", "test1"))),
-        Phase[LoadPhaseKind](
-          LoadPhaseKind.MemSQL,
-          LoadPhase.writeConfig(
-            LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table"))))
-
-      apiRef ! PipelinePut("pipeline1", jar="site.com/foo.jar", batchInterval=10, config=config)
+      apiRef ! PipelinePut("pipeline1", jar="site.com/foo.jar", batch_interval=10, config=config)
       expectMsg(Success(true))
 
-      apiRef ! PipelinePut("pipeline1", jar="site.com/foo.jar", batchInterval=10, config=config)
+      // error if pipeline id already exists
+      apiRef ! PipelinePut("pipeline1", jar="site.com/foo.jar", batch_interval=10, config=config)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
@@ -83,18 +88,22 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(kafkaConfig.host == "test1")
           assert(kafkaConfig.port == 9092)
           assert(kafkaConfig.topic == "topic")
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      apiRef ! PipelinePut("pipeline2", jar="site.com/bar.jar", batch_interval=10, config=config2)
+      expectMsg(Success(true))
+
+      // error if config is invalid
+      val badConfig = config.copy(extract = Phase[ExtractPhaseKind](ExtractPhaseKind.Kafka, """{ "bad_kafka_config": 42 }""".parseJson))
+      apiRef ! PipelinePut("pipeline3", jar="site.com/bar.jar", batch_interval=10, config=badConfig)
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
-      val config2 = config.copy(extract = Phase[ExtractPhaseKind](
-          ExtractPhaseKind.User,
-          ExtractPhase.writeConfig(
-            ExtractPhaseKind.User, UserExtractConfig("com.user.ExtractClass", "test"))))
-      apiRef ! PipelinePut("pipeline2", jar="site.com/bar.jar", batchInterval=10, config=config2)
-      expectMsg(Success(true))
-
-      val badConfig = config.copy(extract = Phase[ExtractPhaseKind](ExtractPhaseKind.Kafka, """{ "bad_kafka_config": 42 }""".parseJson))
-      apiRef ! PipelinePut("pipeline3", jar="site.com/bar.jar", batchInterval=10, config=badConfig)
+      // error if batch_interval is invalid
+      apiRef ! PipelinePut("pipeline3", jar="site.com/bar.jar", batch_interval= -10, config=config)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
@@ -116,7 +125,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.config == config2)
           val userConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config).asInstanceOf[UserExtractConfig]
           assert(userConfig.value == "test")
-        case Failure(err) => assert(err.isInstanceOf[ApiException])
+        case Failure(err) => fail(s"unexpected response $err")
       }
     }
 
@@ -128,7 +137,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.state == PipelineState.STOPPED)
-        case Failure(err) => assert(err.isInstanceOf[ApiException])
+        case Failure(err) => fail(s"unexpected response $err")
       }
 
       //no-op updates return false
@@ -139,7 +148,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.state == PipelineState.STOPPED)
-        case Failure(err) => assert(err.isInstanceOf[ApiException])
+        case Failure(err) => fail(s"unexpected response $err")
       }
 
       apiRef ! PipelineUpdate("pipeline1", state=PipelineState.ERROR, error=Some("something crashed"))
@@ -150,26 +159,13 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.state == PipelineState.ERROR)
           assert(pipeline.error == Some("something crashed"))
-        case Failure(err) => assert(err.isInstanceOf[ApiException])
+        case Failure(err) => fail(s"unexpected response $err")
       }
 
 
       // updates to batch interval should only be accepted if interval is positive and non-zero
-      apiRef ! PipelineUpdate("pipeline1", batchInterval = 1234)
+      apiRef ! PipelineUpdate("pipeline1", batch_interval = 1234)
       expectMsg(Success(true))
-      apiRef ! PipelineGet("pipeline1")
-      receiveOne(1.second) match {
-        case resp: Success[_] =>
-          val pipeline = resp.get.asInstanceOf[Pipeline]
-          assert(pipeline.batch_interval == 1234)
-        case Failure(err) => assert(err.isInstanceOf[ApiException])
-      }
-
-      apiRef ! PipelineUpdate("pipeline1", batchInterval = -1234)
-      receiveOne(1.second) match {
-        case resp: Success[_] => assert(!resp.get.asInstanceOf[Boolean])
-        case Failure(err) => assert(err.isInstanceOf[ApiException])
-      }
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
         case resp: Success[_] =>
@@ -178,16 +174,34 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case Failure(err) => fail(s"unexpected response $err")
       }
 
-      //an update request from the api must be validate and cannot perform all updates
+      // updates should be transactional
+      apiRef ! PipelineUpdate("pipeline1", batch_interval = -1234, config = config2)
+      receiveOne(1.second) match {
+        case resp: Success[_] => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
+      apiRef ! PipelineGet("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val pipeline = resp.get.asInstanceOf[Pipeline]
+          assert(pipeline.batch_interval == 1234)
+          assert(pipeline.config == config)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      //an update request from the api must be validated and cannot perform all updates
       apiRef ! PipelineUpdate("pipeline1", state=PipelineState.RUNNING, _validate=true)
-      expectMsg(Success(false))
+      receiveOne(1.second) match {
+        case resp: Success[_] => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.state == PipelineState.ERROR)
           assert(pipeline.error == Some("something crashed"))
-        case Failure(err) => assert(err.isInstanceOf[ApiException])
+        case Failure(err) => fail(s"unexpected response $err")
       }
 
       // Updating configs should be allowed
@@ -210,7 +224,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.config != newConfig)
-        case Failure(err) => assert(err.isInstanceOf[ApiException])
+        case Failure(err) => fail(s"unexpected response $err")
       }
 
       apiRef ! PipelineUpdate("pipeline1", config=newConfig)
@@ -225,7 +239,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(kafkaConfig.host == "test1")
           assert(kafkaConfig.port == 9092)
           assert(kafkaConfig.topic == "test2")
-        case Failure(err) => assert(err.isInstanceOf[ApiException])
+        case Failure(err) => fail(s"unexpected response $err")
       }
 
       //no-op updates to configs should return false
@@ -236,7 +250,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.config == newConfig)
-        case Failure(err) => assert(err.isInstanceOf[ApiException])
+        case Failure(err) => fail(s"unexpected response $err")
       }
 
       // Configs that do not deserialize should be rejected.

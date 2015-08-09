@@ -60,10 +60,10 @@ trait WebService extends HttpService {
       }
     } ~
     path("pipeline" / "put") {
-      parameter('pipeline_id.as[String], 'jar.as[String], 'batch_interval.as[Long]) { (pipeline_id, jar, batchInterval) =>
+      parameter('pipeline_id.as[String], 'jar.as[String], 'batch_interval.as[Long]) { (pipeline_id, jar, batch_interval) =>
         entity(as[PipelineConfig]) { config =>
           post { ctx =>
-            val future = (api ? PipelinePut(pipeline_id, jar, batchInterval, config)).mapTo[Try[Boolean]]
+            val future = (api ? PipelinePut(pipeline_id, jar, batch_interval, config)).mapTo[Try[Boolean]]
             future.map {
               case Success(resp) => ctx.complete(Map[String, Boolean]("success" -> resp).toJson.toString)
               case Failure(error) => ctx.complete(StatusCodes.BadRequest, error.toString)
@@ -73,12 +73,12 @@ trait WebService extends HttpService {
       }
     } ~
     path("pipeline" / "update") {
-      parameter('pipeline_id.as[String], 'active.as[Boolean], 'batch_interval.as[Long] ? 0) { (pipeline_id, active, batchInterval) =>
+      parameter('pipeline_id.as[String], 'active.as[Boolean], 'batch_interval.as[Long] ? 0) { (pipeline_id, active, batch_interval) =>
         entity(as[Option[PipelineConfig]]) { configMaybe =>
           val config = configMaybe.orNull
           patch { ctx =>
             val state = if (active) PipelineState.RUNNING else PipelineState.STOPPED
-            val future = (api ? PipelineUpdate(pipeline_id, state, batchInterval, config, _validate = true)).mapTo[Try[Boolean]]
+            val future = (api ? PipelineUpdate(pipeline_id, state, batch_interval, config, _validate = true)).mapTo[Try[Boolean]]
             future.map {
               case Success(resp) => ctx.complete(Map[String, Boolean]("success" -> resp).toJson.toString)
               case Failure(error) => ctx.complete(StatusCodes.NotFound, error.toString)

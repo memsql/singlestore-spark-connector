@@ -12,9 +12,6 @@ import scala.collection.mutable
 import scala.util.{Failure, Success}
 
 import PipelineState._
-import ExtractPhaseKind._
-import TransformPhaseKind._
-import LoadPhaseKind._
 
 case class ApiException(message: String) extends BaseException(message: String)
 
@@ -22,8 +19,8 @@ object ApiActor {
   case object Ping
   case object PipelineQuery
   case class PipelineGet(pipeline_id: String)
-  case class PipelinePut(pipeline_id: String, jar: String, batchInterval: Long, config: PipelineConfig)
-  case class PipelineUpdate(pipeline_id: String, state: PipelineState = null, batchInterval: Long = 0,
+  case class PipelinePut(pipeline_id: String, jar: String, batch_interval: Long, config: PipelineConfig)
+  case class PipelineUpdate(pipeline_id: String, state: PipelineState = null, batch_interval: Long = Long.MinValue,
                             config: PipelineConfig = null, error: Option[String] = None, _validate: Boolean = false)
   case class PipelineDelete(pipeline_id: String)
   implicit val timeout = Timeout(5.seconds)
@@ -43,62 +40,78 @@ class ApiActor(config: Config) extends Actor {
         case None => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }
     }
-    case PipelinePut(pipeline_id, jar, batchInterval, config) => {
+    case PipelinePut(pipeline_id, jar, batch_interval, config) => {
       // Assert that the phase configs, which are stored as JSON blobs, can be
       // deserialized properly.
       try {
+        if (batch_interval <= 0) {
+          throw new ApiException("batch_interval must be positive")
+        }
+
         ExtractPhase.readConfig(config.extract.kind, config.extract.config)
         TransformPhase.readConfig(config.transform.kind, config.transform.config)
         LoadPhase.readConfig(config.load.kind, config.load.config)
         pipelines.find(_.pipeline_id == pipeline_id) match {
           case p: Some[Pipeline] => sender ! Failure(ApiException(s"pipeline with id $pipeline_id already exists"))
           case _ => {
-            pipelines += Pipeline(pipeline_id, RUNNING, jar, batchInterval, config)
+            pipelines += Pipeline(pipeline_id, RUNNING, jar, batch_interval, config)
             sender ! Success(true)
           }
         }
       } catch {
+        case e: ApiException => sender ! Failure(e)
         case e: DeserializationException => sender ! Failure(ApiException(s"config does not validate: $e"))
       }
     }
-    case PipelineUpdate(pipeline_id, state, batchInterval, config, error, _validate) => {
+    case PipelineUpdate(pipeline_id, state, batch_interval, config, error, _validate) => {
       pipelines.find(_.pipeline_id == pipeline_id) match {
         case p: Some[Pipeline] => {
           val pipeline = p.get
-          val oldState = pipeline.state
-          val oldConfig = pipeline.config
           var updated = false
-
-          if (state != null) {
-            pipeline.state = (pipeline.state, state, _validate) match {
-              case (_, _, false) => state
-              case (RUNNING, STOPPED, _) => state
-              case (STOPPED, RUNNING, _) => state
-              case default => pipeline.state
-            }
-            if (oldState != pipeline.state) {
-              pipeline.error = error
-              updated = true
-            }
-          }
-
-          if (batchInterval > 0) {
-            pipeline.batch_interval = batchInterval
-            updated = true
-          }
+          var newPipeline = pipeline.copy()
 
           try {
+            if (state != null) {
+              newPipeline.state = (pipeline.state, state, _validate) match {
+                case (_, _, false) => state
+                case (RUNNING, STOPPED, _) => state
+                case (STOPPED, RUNNING, _) => state
+                case (prev, next, true) => throw new ApiException(s"cannot update state from $prev to $next")
+              }
+
+              updated |= newPipeline.state != pipeline.state
+            }
+
+            if (batch_interval > 0) {
+              newPipeline.batch_interval = batch_interval
+              updated |= true
+            } else if (batch_interval != Long.MinValue) {
+              throw new ApiException("batch_interval must be positive")
+            }
+
             if (config != null) {
               // Assert that the phase configs, which are stored as JSON blobs,
               // can be deserialized properly.
               ExtractPhase.readConfig(config.extract.kind, config.extract.config)
               TransformPhase.readConfig(config.transform.kind, config.transform.config)
               LoadPhase.readConfig(config.load.kind, config.load.config)
-              pipeline.config = config
-              updated = oldConfig != pipeline.config
+              newPipeline.config = config
+              updated |= pipeline.config != newPipeline.config
             }
+
+            if (error.isDefined) {
+              newPipeline.error = error
+              updated |= true
+            }
+
+            // update all fields in the pipeline and respond with success
+            pipeline.state = newPipeline.state
+            pipeline.batch_interval = newPipeline.batch_interval
+            pipeline.config = newPipeline.config
+            pipeline.error = newPipeline.error
             sender ! Success(updated)
           } catch {
+            case e: ApiException => sender ! Failure(e)
             case e: DeserializationException => sender ! Failure(ApiException(s"config does not validate: $e"))
           }
         }

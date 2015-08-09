@@ -48,7 +48,7 @@ object PipelineMonitor {
 
 case class PipelineMonitor(api: ActorRef,
                            pipeline_id: String,
-                           batchInterval: Long,
+                           batch_interval: Long,
                            pipelineConfig: PipelineConfig,
                            pipelineInstance: ETLPipeline[Any],
                            streamingContext: StreamingContext,
@@ -123,7 +123,7 @@ case class PipelineMonitor(api: ActorRef,
         case None =>
       }
 
-      Thread.sleep(Math.max(batchInterval - (System.currentTimeMillis - time), 0))
+      Thread.sleep(Math.max(batch_interval - (System.currentTimeMillis - time), 0))
     }
   }
 

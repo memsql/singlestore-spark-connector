@@ -48,7 +48,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalM
   "PipelineMonitor" should {
     "create a monitor if the class can be properly loaded" in {
       val jarPath = Paths.join(new File(".").getCanonicalPath, "target/scala-2.10/MemSQL-assembly-0.1.2.jar")
-      apiRef ? PipelinePut("pipeline2", jar=jarPath, batchInterval=10, config=config)
+      apiRef ? PipelinePut("pipeline2", jar=jarPath, batch_interval=10, config=config)
       whenReady((apiRef ? PipelineGet("pipeline2")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
           val maybePipelineMonitor = PipelineMonitor.of(apiRef, pipeline, sc, sqlContext, streamingContext)
@@ -64,7 +64,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalM
 
     "fail to create a monitor if the class cannot be loaded" in {
       //create pipeline and try to load in a PipelineMonitor
-      apiRef ! PipelinePut("pipeline1", jar="file://doesnt_exist.jar", batchInterval=100, config=config)
+      apiRef ! PipelinePut("pipeline1", jar="file://doesnt_exist.jar", batch_interval=100, config=config)
       whenReady((apiRef ? PipelineGet("pipeline1")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
           PipelineMonitor.of(apiRef, pipeline, sc, sqlContext, streamingContext) shouldBe None
