@@ -25,7 +25,6 @@ object PipelineMonitor {
     try {
       var loadJar = false
 
-      // XXX what
       val pipelineInstance = new ETLPipeline[Any] {
         val extractConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config)
         val transformConfig = TransformPhase.readConfig(pipeline.config.transform.kind, pipeline.config.transform.config)
@@ -36,15 +35,15 @@ object PipelineMonitor {
           case ExtractPhaseKind.User => {
             loadJar = true
             val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
-            JarLoader.loadClass(pipeline.jar, className).asInstanceOf[Extractor[Any]]
+            JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Extractor[Any]]
           }
         }
         override val transformer: Transformer[Any] = pipeline.config.transform.kind match {
-          case TransformPhaseKind.Json => JSONTransformer.makeSimpleJSONTransformer("XXX_fix_me")
+          case TransformPhaseKind.Json => JSONTransformer.makeSimpleJSONTransformer("json")
           case TransformPhaseKind.User => {
             loadJar = true
             val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
-            JarLoader.loadClass(pipeline.jar, className).asInstanceOf[Transformer[Any]]
+            JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Transformer[Any]]
           }
         }
         override val loader: Loader = pipeline.config.load.kind match {
@@ -52,7 +51,7 @@ object PipelineMonitor {
           case LoadPhaseKind.User => {
             loadJar = true
             val className = loadConfig.asInstanceOf[UserLoadConfig].class_name
-            JarLoader.loadClass(pipeline.jar, className).asInstanceOf[Loader]
+            JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Loader]
           }
         }
       }
