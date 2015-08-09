@@ -5,7 +5,7 @@ import akka.actor.ActorRef
 import com.memsql.spark.context.{MemSQLSQLContext, MemSQLSparkContext}
 import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.configs._
-import com.memsql.superapp.api.{ApiActor, PipelineState, Pipeline}
+import com.memsql.superapp.api.{PipelineInstance, ApiActor, PipelineState, Pipeline}
 import ApiActor._
 import com.memsql.superapp.util.{BaseException, JarLoader}
 import org.apache.spark.rdd.RDD
@@ -25,36 +25,38 @@ object PipelineMonitor {
     try {
       var loadJar = false
 
-      val pipelineInstance = new ETLPipeline[Any] {
-        val extractConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config)
-        val transformConfig = TransformPhase.readConfig(pipeline.config.transform.kind, pipeline.config.transform.config)
-        val loadConfig = LoadPhase.readConfig(pipeline.config.load.kind, pipeline.config.load.config)
+      val extractConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config)
+      val transformConfig = TransformPhase.readConfig(pipeline.config.transform.kind, pipeline.config.transform.config)
+      val loadConfig = LoadPhase.readConfig(pipeline.config.load.kind, pipeline.config.load.config)
 
-        override val extractor: Extractor[Any] = pipeline.config.extract.kind match {
-          case ExtractPhaseKind.Kafka => new KafkaExtractor().asInstanceOf[Extractor[Any]]
-          case ExtractPhaseKind.User => {
-            loadJar = true
-            val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
-            JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Extractor[Any]]
-          }
-        }
-        override val transformer: Transformer[Any] = pipeline.config.transform.kind match {
-          case TransformPhaseKind.Json => JSONTransformer.makeSimpleJSONTransformer("json")
-          case TransformPhaseKind.User => {
-            loadJar = true
-            val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
-            JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Transformer[Any]]
-          }
-        }
-        override val loader: Loader = pipeline.config.load.kind match {
-          case LoadPhaseKind.MemSQL => new MemSQLLoader
-          case LoadPhaseKind.User => {
-            loadJar = true
-            val className = loadConfig.asInstanceOf[UserLoadConfig].class_name
-            JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Loader]
-          }
+      val extractor: Extractor[Any] = pipeline.config.extract.kind match {
+        case ExtractPhaseKind.Kafka => new KafkaExtractor().asInstanceOf[Extractor[Any]]
+        case ExtractPhaseKind.User => {
+          loadJar = true
+          val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
+          JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Extractor[Any]]
         }
       }
+      val transformer: Transformer[Any] = pipeline.config.transform.kind match {
+        case TransformPhaseKind.Json => JSONTransformer.makeSimpleJSONTransformer("json")
+        case TransformPhaseKind.User => {
+          loadJar = true
+          val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
+          JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Transformer[Any]]
+        }
+      }
+      val loader: Loader = pipeline.config.load.kind match {
+        case LoadPhaseKind.MemSQL => new MemSQLLoader
+        case LoadPhaseKind.User => {
+          loadJar = true
+          val className = loadConfig.asInstanceOf[UserLoadConfig].class_name
+          JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Loader]
+        }
+      }
+
+      val pipelineInstance = PipelineInstance(extractor, extractConfig,
+                                              transformer, transformConfig,
+                                              loader, loadConfig)
 
       if (loadJar) {
         //TODO does this pollute the classpath for the lifetime of the superapp?
@@ -84,7 +86,7 @@ case class PipelineMonitor(api: ActorRef,
                            pipeline_id: String,
                            batch_interval: Long,
                            pipelineConfig: PipelineConfig,
-                           pipelineInstance: ETLPipeline[Any],
+                           pipelineInstance: PipelineInstance[Any],
                            streamingContext: StreamingContext,
                            sqlContext: MemSQLSQLContext) {
   private var exception: Exception = null
@@ -114,18 +116,7 @@ case class PipelineMonitor(api: ActorRef,
   })
 
   def runPipeline(): Unit = {
-    var extractConfig: PhaseConfig = null
-    var transformConfig: PhaseConfig = null
-    var loadConfig: PhaseConfig = null
-    try {
-      extractConfig = ExtractPhase.readConfig(pipelineConfig.extract.kind, pipelineConfig.extract.config)
-      transformConfig = TransformPhase.readConfig(pipelineConfig.transform.kind, pipelineConfig.transform.config)
-      loadConfig = LoadPhase.readConfig(pipelineConfig.load.kind, pipelineConfig.load.config)
-    } catch {
-      case e: DeserializationException => throw new PipelineConfigException(s"config does not validate: $e")
-    }
-
-    val inputDStream = pipelineInstance.extractor.extract(streamingContext, extractConfig)
+    val inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig)
     var time: Long = 0
 
     // manually compute the next RDD in the DStream so that we can sidestep issues with
@@ -135,8 +126,8 @@ case class PipelineMonitor(api: ActorRef,
 
       inputDStream.compute(Time(time)) match {
         case Some(rdd) => {
-          val df = pipelineInstance.transformer.transform(sqlContext, rdd.asInstanceOf[RDD[Any]], transformConfig)
-          pipelineInstance.loader.load(df, loadConfig)
+          val df = pipelineInstance.transformer.transform(sqlContext, rdd.asInstanceOf[RDD[Any]], pipelineInstance.transformConfig)
+          pipelineInstance.loader.load(df, pipelineInstance.loadConfig)
 
           Console.println(s"${inputDStream.count()} rows after extract")
           Console.println(s"${df.count()} rows after transform")
