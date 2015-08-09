@@ -19,7 +19,7 @@ import ExtractPhaseKind._
 
 object TransformPhaseKind extends Enumeration {
   type TransformPhaseKind = Value
-  val Json, User = Value
+  val User = Value
 }
 import TransformPhaseKind._
 
@@ -31,7 +31,7 @@ import LoadPhaseKind._
 
 // The PipelineConfig object contains configuration for all phases of an
 // ETL pipeline.
-case class PipelineConfig(var extract: Option[Phase[ExtractPhaseKind]],
-                          var transform: Option[Phase[TransformPhaseKind]],
-                          var load: Option[Phase[LoadPhaseKind]],
+case class PipelineConfig(var extract: Phase[ExtractPhaseKind],
+                          var transform: Phase[TransformPhaseKind],
+                          var load: Phase[LoadPhaseKind],
                           var config_version: Int = PipelineConfigVersion.CurrentPipelineConfigVersion)

@@ -14,12 +14,12 @@ case class KafkaExtractConfig(host: String,
                               topic: String,
                               output_type: Option[KafkaExtractOutputType]) extends PhaseConfig
 
-case class UserExtractConfig(value: String) extends PhaseConfig
+case class UserExtractConfig(class_name: String, value: String) extends PhaseConfig
 
 object ExtractPhase extends JsonEnumProtocol {
   implicit val kafkaExtractOutputTypeFormat = jsonEnum(KafkaExtractOutputType)
   val kafkaConfigFormat = jsonFormat4(KafkaExtractConfig)
-  val userConfigFormat = jsonFormat1(UserExtractConfig)
+  val userConfigFormat = jsonFormat2(UserExtractConfig)
 
   def readConfig(kind: ExtractPhaseKind, config: JsValue): PhaseConfig = {
     kind match {

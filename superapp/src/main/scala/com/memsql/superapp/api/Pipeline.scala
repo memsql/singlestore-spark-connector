@@ -13,6 +13,6 @@ import PipelineState._
 case class Pipeline(pipeline_id: String,
                     var state: PipelineState,
                     jar: String,
-                    main_class: String,
+                    var batch_interval: Long,
                     var config: PipelineConfig,
                     var error: Option[String] = None)

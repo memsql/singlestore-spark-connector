@@ -3,10 +3,10 @@ package com.memsql.spark.etl.api.configs
 import spray.json._
 import TransformPhaseKind._
 
-case class UserTransformConfig(value: String) extends PhaseConfig
+case class UserTransformConfig(class_name:String, value: String) extends PhaseConfig
 
 object TransformPhase extends DefaultJsonProtocol {
-  val userConfigFormat = jsonFormat1(UserTransformConfig)
+  val userConfigFormat = jsonFormat2(UserTransformConfig)
 
   def readConfig(kind: TransformPhaseKind, config: JsValue): PhaseConfig = {
     kind match {

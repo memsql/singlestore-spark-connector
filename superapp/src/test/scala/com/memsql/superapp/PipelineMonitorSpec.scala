@@ -6,6 +6,10 @@ import akka.pattern.ask
 import akka.actor.Props
 import akka.util.Timeout
 import com.memsql.spark.context.{MemSQLSQLContext, MemSQLSparkContext}
+import com.memsql.spark.etl.api.configs._
+import ExtractPhaseKind._
+import TransformPhaseKind._
+import LoadPhaseKind._
 import com.memsql.superapp.api.{ApiActor, PipelineState, Pipeline}
 import ApiActor._
 import com.memsql.superapp.util.Paths
@@ -27,10 +31,24 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalM
     streamingContext = new StreamingContext(sc, new Duration(5000))
   }
 
+  val config = PipelineConfig(
+    Phase[ExtractPhaseKind](
+      ExtractPhaseKind.User,
+      ExtractPhase.writeConfig(
+        ExtractPhaseKind.User, UserExtractConfig("com.test.ExtractClass", ""))),
+    Phase[TransformPhaseKind](
+      TransformPhaseKind.User,
+      TransformPhase.writeConfig(
+        TransformPhaseKind.User, UserTransformConfig("com.test.Transform", "test1"))),
+    Phase[LoadPhaseKind](
+      LoadPhaseKind.MemSQL,
+      LoadPhase.writeConfig(
+        LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table"))))
+
   "PipelineMonitor" should {
     "create a monitor if the class can be properly loaded" in {
       val jarPath = Paths.join(new File(".").getCanonicalPath, "target/scala-2.10/MemSQL-assembly-0.1.2.jar")
-      apiRef ? PipelinePut("pipeline2", jarPath, "com.memsql.spark.examples.MemSQLETLApp")
+      apiRef ? PipelinePut("pipeline2", jar=jarPath, batchInterval=10, config=config)
       whenReady((apiRef ? PipelineGet("pipeline2")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
           val maybePipelineMonitor = PipelineMonitor.of(apiRef, pipeline, sc, sqlContext, streamingContext)
@@ -46,7 +64,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalM
 
     "fail to create a monitor if the class cannot be loaded" in {
       //create pipeline and try to load in a PipelineMonitor
-      apiRef ! PipelinePut("pipeline1", "file://doesnt_exist.jar", "com.memsql.SomethingETL")
+      apiRef ! PipelinePut("pipeline1", jar="file://doesnt_exist.jar", batchInterval=100, config=config)
       whenReady((apiRef ? PipelineGet("pipeline1")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
           PipelineMonitor.of(apiRef, pipeline, sc, sqlContext, streamingContext) shouldBe None

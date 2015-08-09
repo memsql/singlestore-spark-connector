@@ -20,36 +20,29 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   def actorRefFactory = system
   val apiRef = system.actorOf(Props(classOf[ApiActor], Config()), "api")
 
-  val emptyConfig = PipelineConfig(Some(Phase[ExtractPhaseKind](ExtractPhaseKind.User,
+  val kafkaConfig = PipelineConfig(Phase[ExtractPhaseKind](
+                                    ExtractPhaseKind.Kafka,
                                     ExtractPhase.writeConfig(
-                                      ExtractPhaseKind.User, UserExtractConfig("")))),
-                                    Some(Phase[TransformPhaseKind](
-                                      TransformPhaseKind.User,
-                                      TransformPhase.writeConfig(
-                                        TransformPhaseKind.User, UserTransformConfig("")))),
-                                    Some(Phase[LoadPhaseKind](
-                                      LoadPhaseKind.User,
-                                      LoadPhase.writeConfig(
-                                        LoadPhaseKind.User, UserLoadConfig("")))),
-                                    config_version=CurrentPipelineConfigVersion)
-  val emptyConfigEntity = HttpEntity(`application/json`, emptyConfig.toJson.toString)
-  val basicConfig = PipelineConfig(Some(Phase[ExtractPhaseKind](ExtractPhaseKind.User,
-                                    ExtractPhase.writeConfig(
-                                    ExtractPhaseKind.User, UserExtractConfig("extract")))),
-                                   Some(Phase[TransformPhaseKind](
+                                      ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic", None))),
+                                   Phase[TransformPhaseKind](
                                     TransformPhaseKind.User,
                                     TransformPhase.writeConfig(
-                                    TransformPhaseKind.User, UserTransformConfig("transform")))),
-                                  Some(Phase[LoadPhaseKind](
+                                      TransformPhaseKind.User, UserTransformConfig("com.user.Transform", "loltransform"))),
+                                  Phase[LoadPhaseKind](
                                     LoadPhaseKind.User,
                                     LoadPhase.writeConfig(
-                                    LoadPhaseKind.User, UserLoadConfig("load")))),
+                                      LoadPhaseKind.User, UserLoadConfig("com.user.Load", "load"))),
                                   config_version=CurrentPipelineConfigVersion)
-  val basicConfigEntity = HttpEntity(`application/json`, basicConfig.toJson.toString)
-  val basicPipeline = Pipeline("asdf", PipelineState.RUNNING, "asdf.jar", "com.asdf.Asdf", basicConfig)
-  def putPipeline(useEmptyConfig: Boolean = false): Unit = {
-    val entity = if (useEmptyConfig) emptyConfigEntity else basicConfigEntity
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", entity) ~> route ~> check {
+
+  val userConfig = kafkaConfig.copy(extract = Phase[ExtractPhaseKind](
+                                                ExtractPhaseKind.User,
+                                                ExtractPhase.writeConfig(
+                                                  ExtractPhaseKind.User, UserExtractConfig("com.user.Extract", ""))))
+  val kafkaConfigEntity = HttpEntity(`application/json`, kafkaConfig.toJson.toString)
+  val basicPipeline = Pipeline("asdf", PipelineState.RUNNING, "asdf.jar", 100, kafkaConfig)
+  def putPipeline(pipeline: Pipeline): Unit = {
+    val configEntity = HttpEntity(`application/json`, pipeline.config.toJson.toString)
+    Post(s"/pipeline/put?pipeline_id=${pipeline.pipeline_id}&jar=${pipeline.jar}&batch_interval=${pipeline.batch_interval}", configEntity) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
@@ -70,16 +63,16 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   }
 
   "WebServer /pipeline/put" should "respond to a valid POST" in {
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", basicConfigEntity) ~> route ~> check {
+    Post("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", kafkaConfigEntity) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
   }
 
   it should "reject POST if the pipeline id already exists" in {
-    putPipeline()
+    putPipeline(basicPipeline)
 
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar&main_class=com.asdf.Asdf2", basicConfigEntity) ~> route ~> check {
+    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar&main_class=com.asdf.Asdf2", kafkaConfigEntity) ~> route ~> check {
       assert(responseAs[String] == "pipeline with id asdf already exists")
       assert(status == BadRequest)
     }
@@ -91,17 +84,17 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == NotFound)
     }
 
-    Post("/pipeline/put?jar=asdf&main_class=asdf2", basicConfigEntity) ~> sealRoute(route) ~> check {
+    Post("/pipeline/put?jar=asdf&main_class=asdf2", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(responseAs[String].contains("missing required query parameter 'pipeline_id'"))
       assert(status == NotFound)
     }
 
-    Post("/pipeline/put?pipeline_id=asdf&main_class=asdf2", basicConfigEntity) ~> sealRoute(route) ~> check {
+    Post("/pipeline/put?pipeline_id=asdf&main_class=asdf2", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(responseAs[String].contains("missing required query parameter 'jar'"))
       assert(status == NotFound)
     }
 
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar", basicConfigEntity) ~> sealRoute(route) ~> check {
+    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(responseAs[String].contains("missing required query parameter 'main_class'"))
       assert(status == NotFound)
     }
@@ -118,22 +111,22 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Patch("/pipeline/put") ~> sealRoute(route) ~> check { assert(status == NotFound) }
     Delete("/pipeline/put") ~> sealRoute(route) ~> check { assert(status == NotFound) }
 
-    Get("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", basicConfigEntity) ~> sealRoute(route) ~> check {
+    Get("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
-    Put("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", basicConfigEntity) ~> sealRoute(route) ~> check {
+    Put("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
-    Patch("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", basicConfigEntity) ~> sealRoute(route) ~> check {
+    Patch("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
-    Delete("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", basicConfigEntity) ~> sealRoute(route) ~> check {
+    Delete("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
   }
 
   "WebServer /pipeline/get" should "respond to a valid GET" in {
-    putPipeline()
+    putPipeline(basicPipeline)
 
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       assert(responseAs[String] == basicPipeline.toJson.toString)
@@ -176,7 +169,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   }
 
   "WebServer /pipeline/delete" should "respond to a valid DELETE" in {
-    putPipeline()
+    putPipeline(basicPipeline)
 
     Delete("/pipeline/delete?pipeline_id=asdf") ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
@@ -224,7 +217,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   }
 
   "WebServer /pipeline/update" should "respond to a valid PATCH" in {
-    putPipeline(useEmptyConfig = true)
+    putPipeline(basicPipeline.copy(config = userConfig))
 
     // changing pipeline's active state should return true
     Patch("/pipeline/update?pipeline_id=asdf&active=false") ~> route ~> check {
@@ -232,16 +225,16 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == OK)
     }
 
-    // pipeline should now be stopped and should still have an empty pipeline config
+    // pipeline should now be stopped and should still have the same pipeline config
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.STOPPED)
-      assert(pipeline.config == emptyConfig)
+      assert(pipeline.config == userConfig)
       assert(status == OK)
     }
 
     // updating config and active state should return true
-    Patch("/pipeline/update?pipeline_id=asdf&active=true", basicConfigEntity) ~> route ~> check {
+    Patch("/pipeline/update?pipeline_id=asdf&active=true", kafkaConfigEntity) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
@@ -250,7 +243,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
-      assert(pipeline.config == basicConfig)
+      assert(pipeline.config == kafkaConfig)
       assert(status == OK)
     }
 
@@ -264,12 +257,12 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
-      assert(pipeline.config == basicConfig)
+      assert(pipeline.config == kafkaConfig)
       assert(status == OK)
     }
 
     // no-op updates with an identical config entity should also return false
-    Patch("/pipeline/update?pipeline_id=asdf&active=true", basicConfigEntity) ~> route ~> check {
+    Patch("/pipeline/update?pipeline_id=asdf&active=true", kafkaConfigEntity) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(false)).toString)
       assert(status == OK)
     }
@@ -278,20 +271,17 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
-      assert(pipeline.config == basicConfig)
+      assert(pipeline.config == kafkaConfig)
       assert(status == OK)
     }
 
     // updating only the config should return true
-    val newConfig = basicConfig.copy(extract = Some(Phase[ExtractPhaseKind](
+    val newConfig = kafkaConfig.copy(extract = Phase[ExtractPhaseKind](
                                                 ExtractPhaseKind.Kafka,
                                                 ExtractPhase.writeConfig(
                                                   ExtractPhaseKind.Kafka,
-                                                  KafkaExtractConfig(
-                                                    "test1",
-                                                    9092,
-                                                    "topic1",
-                                                    Some(KafkaExtractOutputType.String))))))
+                                                  KafkaExtractConfig("test1", 9092, "topic1",
+                                                    Some(KafkaExtractOutputType.String)))))
     val newConfigEntity = HttpEntity(`application/json`, newConfig.toJson.toString)
 
     Patch("/pipeline/update?pipeline_id=asdf&active=true", newConfigEntity) ~> route ~> check {
@@ -358,7 +348,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == OK)
     }
 
-    putPipeline()
+    putPipeline(basicPipeline)
 
     Get("/pipeline/query") ~> route ~> check {
       assert(responseAs[String] == JsArray(basicPipeline.toJson).toString)

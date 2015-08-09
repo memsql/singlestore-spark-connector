@@ -23,13 +23,13 @@ object PipelineMonitor {
          sqlContext: MemSQLSQLContext,
          streamingContext: StreamingContext): Option[PipelineMonitor] = {
     try {
-      val clazz = JarLoader.loadClass(pipeline.jar, pipeline.main_class)
+      val clazz = JarLoader.loadClass(pipeline.jar, "XXX FIX ME")
       //TODO does this pollute the classpath for the lifetime of the superapp?
       //TODO if an updated jar is appended to the classpath the superapp will always run the old version
       //distribute jar to all tasks run by this spark context
       sparkContext.addJar(pipeline.jar)
       val pipelineInstance = clazz.newInstance.asInstanceOf[ETLPipeline[Any]]
-      Some(PipelineMonitor(api, pipeline.pipeline_id, pipeline.config, pipelineInstance, streamingContext, sqlContext))
+      Some(PipelineMonitor(api, pipeline.pipeline_id, pipeline.batch_interval, pipeline.config, pipelineInstance, streamingContext, sqlContext))
     } catch {
       case e: Exception => {
         val errorMessage = Some(s"Failed to load class for pipeline ${pipeline.pipeline_id}: $e")
@@ -48,12 +48,12 @@ object PipelineMonitor {
 
 case class PipelineMonitor(api: ActorRef,
                            pipeline_id: String,
+                           batchInterval: Long,
                            pipelineConfig: PipelineConfig,
                            pipelineInstance: ETLPipeline[Any],
                            streamingContext: StreamingContext,
                            sqlContext: MemSQLSQLContext) {
   private var exception: Exception = null
-  val BATCH_DURATION = 5000
 
   private val thread = new Thread(new Runnable {
     override def run(): Unit = {
@@ -80,14 +80,15 @@ case class PipelineMonitor(api: ActorRef,
   })
 
   def runPipeline(): Unit = {
-    val extractor = pipelineConfig.extract.get.kind match {
+    // XXX FIX ME
+    val extractor = pipelineConfig.extract.kind match {
       case ExtractPhaseKind.Kafka => new KafkaExtractor
       case ExtractPhaseKind.User => pipelineInstance.extractor
     }
-    val transformer = pipelineConfig.transform.get.kind match {
+    val transformer = pipelineConfig.transform.kind match {
       case TransformPhaseKind.User => pipelineInstance.transformer
     }
-    val loader = pipelineConfig.load.get.kind match {
+    val loader = pipelineConfig.load.kind match {
       case LoadPhaseKind.MemSQL => new MemSQLLoader
       case LoadPhaseKind.User => pipelineInstance.loader
     }
@@ -96,9 +97,9 @@ case class PipelineMonitor(api: ActorRef,
     var transformConfig: PhaseConfig = null
     var loadConfig: PhaseConfig = null
     try {
-      extractConfig = ExtractPhase.readConfig(pipelineConfig.extract.get.kind, pipelineConfig.extract.get.config)
-      transformConfig = TransformPhase.readConfig(pipelineConfig.transform.get.kind, pipelineConfig.transform.get.config)
-      loadConfig = LoadPhase.readConfig(pipelineConfig.load.get.kind, pipelineConfig.load.get.config)
+      extractConfig = ExtractPhase.readConfig(pipelineConfig.extract.kind, pipelineConfig.extract.config)
+      transformConfig = TransformPhase.readConfig(pipelineConfig.transform.kind, pipelineConfig.transform.config)
+      loadConfig = LoadPhase.readConfig(pipelineConfig.load.kind, pipelineConfig.load.config)
     } catch {
       case e: DeserializationException => throw new PipelineConfigException(s"config does not validate: $e")
     }
@@ -122,7 +123,7 @@ case class PipelineMonitor(api: ActorRef,
         case None =>
       }
 
-      Thread.sleep(Math.max(BATCH_DURATION - (System.currentTimeMillis - time), 0))
+      Thread.sleep(Math.max(batchInterval - (System.currentTimeMillis - time), 0))
     }
   }
 

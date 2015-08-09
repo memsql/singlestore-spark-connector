@@ -5,10 +5,10 @@ import LoadPhaseKind._
 
 case class MemSQLLoadConfig(db_name: String, table_name: String) extends PhaseConfig
 
-case class UserLoadConfig(value: String) extends PhaseConfig
+case class UserLoadConfig(class_name: String, value: String) extends PhaseConfig
 
 object LoadPhase extends DefaultJsonProtocol {
-  val userConfigFormat = jsonFormat1(UserLoadConfig)
+  val userConfigFormat = jsonFormat2(UserLoadConfig)
   val memSQLConfigFormat = jsonFormat2(MemSQLLoadConfig)
 
   def readConfig(kind: LoadPhaseKind, config: JsValue): PhaseConfig = {
