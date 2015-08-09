@@ -27,16 +27,9 @@ object PipelineMonitor {
 
       // XXX what
       val pipelineInstance = new ETLPipeline[Any] {
-        var extractConfig: PhaseConfig = null
-        var transformConfig: PhaseConfig = null
-        var loadConfig: PhaseConfig = null
-        try {
-          extractConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config)
-          transformConfig = TransformPhase.readConfig(pipeline.config.transform.kind, pipeline.config.transform.config)
-          loadConfig = LoadPhase.readConfig(pipeline.config.load.kind, pipeline.config.load.config)
-        } catch {
-          case e: DeserializationException => throw new PipelineConfigException(s"config does not validate: $e")
-        }
+        val extractConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config)
+        val transformConfig = TransformPhase.readConfig(pipeline.config.transform.kind, pipeline.config.transform.config)
+        val loadConfig = LoadPhase.readConfig(pipeline.config.load.kind, pipeline.config.load.config)
 
         override val extractor: Extractor[Any] = pipeline.config.extract.kind match {
           case ExtractPhaseKind.Kafka => new KafkaExtractor().asInstanceOf[Extractor[Any]]
@@ -47,7 +40,7 @@ object PipelineMonitor {
           }
         }
         override val transformer: Transformer[Any] = pipeline.config.transform.kind match {
-          //case TransformPhaseKind.Json => XXX we need a JSONTransformer class that takes no args
+          case TransformPhaseKind.Json => JSONTransformer.makeSimpleJSONTransformer("XXX_fix_me")
           case TransformPhaseKind.User => {
             loadJar = true
             val className = transformConfig.asInstanceOf[UserTransformConfig].class_name

@@ -40,7 +40,7 @@ class PipelineJsonSpec extends UnitSpec {
     assert(jsonMap("state") == "RUNNING")
     assert(jsonMap("jar") == "site.com/foo.jar")
     assert(jsonMap("batch_interval") == 100)
-    assert(jsonMap("config") == Map("config_version" -> 42))
+    assert(jsonMap("config").asInstanceOf[Map[String, Any]]("config_version") == 42)
     assert(!(jsonMap contains "error"))
 
     // Errors should be included.

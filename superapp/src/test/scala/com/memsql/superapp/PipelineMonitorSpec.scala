@@ -33,13 +33,13 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalM
 
   val config = PipelineConfig(
     Phase[ExtractPhaseKind](
-      ExtractPhaseKind.User,
+      ExtractPhaseKind.Kafka,
       ExtractPhase.writeConfig(
-        ExtractPhaseKind.User, UserExtractConfig("com.test.ExtractClass", ""))),
+        ExtractPhaseKind.Kafka, KafkaExtractConfig("test", 9092, "topic", None))),
     Phase[TransformPhaseKind](
-      TransformPhaseKind.User,
+      TransformPhaseKind.Json,
       TransformPhase.writeConfig(
-        TransformPhaseKind.User, UserTransformConfig("com.test.Transform", "test1"))),
+        TransformPhaseKind.Json, JsonTransformConfig())),
     Phase[LoadPhaseKind](
       LoadPhaseKind.MemSQL,
       LoadPhase.writeConfig(
@@ -63,8 +63,13 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalM
     }
 
     "fail to create a monitor if the class cannot be loaded" in {
-      //create pipeline and try to load in a PipelineMonitor
-      apiRef ! PipelinePut("pipeline1", jar="file://doesnt_exist.jar", batch_interval=100, config=config)
+      val config2 = config.copy(extract = Phase[ExtractPhaseKind](
+        ExtractPhaseKind.User,
+        ExtractPhase.writeConfig(
+          ExtractPhaseKind.User, UserExtractConfig("com.test.Extract", ""))))
+
+      //create pipeline which requires loading a class from the jar and try to load in a PipelineMonitor
+      apiRef ! PipelinePut("pipeline1", jar="file://doesnt_exist.jar", batch_interval=100, config=config2)
       whenReady((apiRef ? PipelineGet("pipeline1")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
           PipelineMonitor.of(apiRef, pipeline, sc, sqlContext, streamingContext) shouldBe None
