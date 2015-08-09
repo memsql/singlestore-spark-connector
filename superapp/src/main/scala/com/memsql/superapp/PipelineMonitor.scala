@@ -26,29 +26,40 @@ object PipelineMonitor {
       var loadJar = false
 
       // XXX what
-      val pipelineInstance = new ETLPipeline[(String, Any)] {
-        override val extractor: Extractor[(String, Any)] = pipeline.config.extract.kind match {
-          case ExtractPhaseKind.Kafka => new KafkaExtractor
+      val pipelineInstance = new ETLPipeline[Any] {
+        var extractConfig: PhaseConfig = null
+        var transformConfig: PhaseConfig = null
+        var loadConfig: PhaseConfig = null
+        try {
+          extractConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config)
+          transformConfig = TransformPhase.readConfig(pipeline.config.transform.kind, pipeline.config.transform.config)
+          loadConfig = LoadPhase.readConfig(pipeline.config.load.kind, pipeline.config.load.config)
+        } catch {
+          case e: DeserializationException => throw new PipelineConfigException(s"config does not validate: $e")
+        }
+
+        override val extractor: Extractor[Any] = pipeline.config.extract.kind match {
+          case ExtractPhaseKind.Kafka => new KafkaExtractor().asInstanceOf[Extractor[Any]]
           case ExtractPhaseKind.User => {
             loadJar = true
-            val extractConfig = pipeline.config.extract.config.asInstanceOf[UserExtractConfig]
-            JarLoader.loadClass(pipeline.jar, extractConfig.class_name).asInstanceOf[Extractor[(String, Any)]]
+            val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
+            JarLoader.loadClass(pipeline.jar, className).asInstanceOf[Extractor[Any]]
           }
         }
-        override val transformer: Transformer[(String, Any)] = pipeline.config.transform.kind match {
+        override val transformer: Transformer[Any] = pipeline.config.transform.kind match {
           //case TransformPhaseKind.Json => XXX we need a JSONTransformer class that takes no args
           case TransformPhaseKind.User => {
             loadJar = true
-            val transformConfig = pipeline.config.transform.config.asInstanceOf[UserTransformConfig]
-            JarLoader.loadClass(pipeline.jar, transformConfig.class_name).asInstanceOf[Transformer[(String, Any)]]
+            val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
+            JarLoader.loadClass(pipeline.jar, className).asInstanceOf[Transformer[Any]]
           }
         }
         override val loader: Loader = pipeline.config.load.kind match {
           case LoadPhaseKind.MemSQL => new MemSQLLoader
           case LoadPhaseKind.User => {
             loadJar = true
-            val loadConfig = pipeline.config.load.config.asInstanceOf[UserLoadConfig]
-            JarLoader.loadClass(pipeline.jar, loadConfig.class_name).asInstanceOf[Loader]
+            val className = loadConfig.asInstanceOf[UserLoadConfig].class_name
+            JarLoader.loadClass(pipeline.jar, className).asInstanceOf[Loader]
           }
         }
       }
@@ -81,7 +92,7 @@ case class PipelineMonitor(api: ActorRef,
                            pipeline_id: String,
                            batch_interval: Long,
                            pipelineConfig: PipelineConfig,
-                           pipelineInstance: ETLPipeline[(String, Any)],
+                           pipelineInstance: ETLPipeline[Any],
                            streamingContext: StreamingContext,
                            sqlContext: MemSQLSQLContext) {
   private var exception: Exception = null
@@ -111,19 +122,6 @@ case class PipelineMonitor(api: ActorRef,
   })
 
   def runPipeline(): Unit = {
-    // XXX FIX ME
-    val extractor = pipelineConfig.extract.kind match {
-      case ExtractPhaseKind.Kafka => new KafkaExtractor
-      case ExtractPhaseKind.User => pipelineInstance.extractor
-    }
-    val transformer = pipelineConfig.transform.kind match {
-      case TransformPhaseKind.User => pipelineInstance.transformer
-    }
-    val loader = pipelineConfig.load.kind match {
-      case LoadPhaseKind.MemSQL => new MemSQLLoader
-      case LoadPhaseKind.User => pipelineInstance.loader
-    }
-
     var extractConfig: PhaseConfig = null
     var transformConfig: PhaseConfig = null
     var loadConfig: PhaseConfig = null
@@ -135,7 +133,7 @@ case class PipelineMonitor(api: ActorRef,
       case e: DeserializationException => throw new PipelineConfigException(s"config does not validate: $e")
     }
 
-    val inputDStream = extractor.extract(streamingContext, extractConfig)
+    val inputDStream = pipelineInstance.extractor.extract(streamingContext, extractConfig)
     var time: Long = 0
 
     // manually compute the next RDD in the DStream so that we can sidestep issues with
@@ -145,8 +143,8 @@ case class PipelineMonitor(api: ActorRef,
 
       inputDStream.compute(Time(time)) match {
         case Some(rdd) => {
-          val df = transformer.transform(sqlContext, rdd.asInstanceOf[RDD[(String, Any)]], transformConfig)
-          loader.load(df, loadConfig)
+          val df = pipelineInstance.transformer.transform(sqlContext, rdd.asInstanceOf[RDD[Any]], transformConfig)
+          pipelineInstance.loader.load(df, loadConfig)
 
           Console.println(s"${inputDStream.count()} rows after extract")
           Console.println(s"${df.count()} rows after transform")
