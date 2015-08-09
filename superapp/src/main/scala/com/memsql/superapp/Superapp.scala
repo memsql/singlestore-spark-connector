@@ -24,11 +24,13 @@ case class Config(port:Int = 10001,
                   dbName:String = "memsql_spark")
 
 object SuperApp {
+  val VERSION = "0.1.3"
+
   def main(args: Array[String]): Unit = {
     val parser = new scopt.OptionParser[Config]("superapp") {
       override def showUsageOnError = true
 
-      head("superapp", "0.1.2")
+      head("superapp", VERSION)
       opt[Int]('P', "port") action { (x, c) => c.copy(port = x) } text "Superapp port"
       opt[String]('D', "dataDir") required() action { (x, c) => c.copy(dataDir = x) } text "Superapp data directory"
 

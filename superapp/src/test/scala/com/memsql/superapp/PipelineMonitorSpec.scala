@@ -44,10 +44,11 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalM
       LoadPhaseKind.MemSQL,
       LoadPhase.writeConfig(
         LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table"))))
+  val localJarFile = s"target/scala-2.10/MemSQL-assembly-${SuperApp.VERSION}.jar"
 
   "PipelineMonitor" should {
     "create a monitor if the class can be properly loaded" in {
-      val jarPath = Paths.join(new File(".").getCanonicalPath, "target/scala-2.10/MemSQL-assembly-0.1.2.jar")
+      val jarPath = Paths.join(new File(".").getCanonicalPath, localJarFile)
       apiRef ? PipelinePut("pipeline2", jar=jarPath, batch_interval=10, config=config)
       whenReady((apiRef ? PipelineGet("pipeline2")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
