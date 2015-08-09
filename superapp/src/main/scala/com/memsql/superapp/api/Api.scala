@@ -20,8 +20,8 @@ object ApiActor {
   case object PipelineQuery
   case class PipelineGet(pipeline_id: String)
   case class PipelinePut(pipeline_id: String, jar: String, batch_interval: Long, config: PipelineConfig)
-  case class PipelineUpdate(pipeline_id: String, state: PipelineState = null, batch_interval: Long = Long.MinValue,
-                            config: PipelineConfig = null, error: Option[String] = None, _validate: Boolean = false)
+  case class PipelineUpdate(pipeline_id: String, state: PipelineState = null, batch_interval: Option[Long] = None,
+                            config: Option[PipelineConfig] = None, error: Option[String] = None, _validate: Boolean = false)
   case class PipelineDelete(pipeline_id: String)
   implicit val timeout = Timeout(5.seconds)
 }
@@ -76,32 +76,34 @@ class ApiActor(config: Config) extends Actor {
                 case (_, _, false) => state
                 case (RUNNING, STOPPED, _) => state
                 case (STOPPED, RUNNING, _) => state
-                case (prev, next, true) => throw new ApiException(s"cannot update state from $prev to $next")
+                case (prev, next, _) if prev == next => state
+                case (prev, next, _) => throw new ApiException(s"cannot update state from $prev to $next")
               }
 
               updated |= newPipeline.state != pipeline.state
             }
 
-            if (batch_interval > 0) {
-              newPipeline.batch_interval = batch_interval
-              updated |= true
-            } else if (batch_interval != Long.MinValue) {
-              throw new ApiException("batch_interval must be positive")
+            if (batch_interval.isDefined) {
+              if (batch_interval.get <= 0) {
+                throw new ApiException("batch_interval must be positive")
+              }
+              newPipeline.batch_interval = batch_interval.get
+              updated |= newPipeline.batch_interval != pipeline.batch_interval
             }
 
-            if (config != null) {
+            if (config.isDefined) {
               // Assert that the phase configs, which are stored as JSON blobs,
               // can be deserialized properly.
-              ExtractPhase.readConfig(config.extract.kind, config.extract.config)
-              TransformPhase.readConfig(config.transform.kind, config.transform.config)
-              LoadPhase.readConfig(config.load.kind, config.load.config)
-              newPipeline.config = config
+              ExtractPhase.readConfig(config.get.extract.kind, config.get.extract.config)
+              TransformPhase.readConfig(config.get.transform.kind, config.get.transform.config)
+              LoadPhase.readConfig(config.get.load.kind, config.get.load.config)
+              newPipeline.config = config.get
               updated |= pipeline.config != newPipeline.config
             }
 
             if (error.isDefined) {
               newPipeline.error = error
-              updated |= true
+              updated |= newPipeline.error != pipeline.error
             }
 
             // update all fields in the pipeline and respond with success

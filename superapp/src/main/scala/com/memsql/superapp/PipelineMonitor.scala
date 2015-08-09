@@ -3,7 +3,7 @@ package com.memsql.superapp
 import akka.pattern.ask
 import akka.actor.ActorRef
 import com.memsql.spark.context.{MemSQLSQLContext, MemSQLSparkContext}
-import com.memsql.spark.etl.api.{ETLPipeline, KafkaExtractor, MemSQLLoader}
+import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.configs._
 import com.memsql.superapp.api.{ApiActor, PipelineState, Pipeline}
 import ApiActor._
@@ -23,12 +23,43 @@ object PipelineMonitor {
          sqlContext: MemSQLSQLContext,
          streamingContext: StreamingContext): Option[PipelineMonitor] = {
     try {
-      val clazz = JarLoader.loadClass(pipeline.jar, "XXX FIX ME")
-      //TODO does this pollute the classpath for the lifetime of the superapp?
-      //TODO if an updated jar is appended to the classpath the superapp will always run the old version
-      //distribute jar to all tasks run by this spark context
-      sparkContext.addJar(pipeline.jar)
-      val pipelineInstance = clazz.newInstance.asInstanceOf[ETLPipeline[Any]]
+      var loadJar = false
+
+      // XXX what
+      val pipelineInstance = new ETLPipeline[(String, Any)] {
+        override val extractor: Extractor[(String, Any)] = pipeline.config.extract.kind match {
+          case ExtractPhaseKind.Kafka => new KafkaExtractor
+          case ExtractPhaseKind.User => {
+            loadJar = true
+            val extractConfig = pipeline.config.extract.config.asInstanceOf[UserExtractConfig]
+            JarLoader.loadClass(pipeline.jar, extractConfig.class_name).asInstanceOf[Extractor[(String, Any)]]
+          }
+        }
+        override val transformer: Transformer[(String, Any)] = pipeline.config.transform.kind match {
+          //case TransformPhaseKind.Json => XXX we need a JSONTransformer class that takes no args
+          case TransformPhaseKind.User => {
+            loadJar = true
+            val transformConfig = pipeline.config.transform.config.asInstanceOf[UserTransformConfig]
+            JarLoader.loadClass(pipeline.jar, transformConfig.class_name).asInstanceOf[Transformer[(String, Any)]]
+          }
+        }
+        override val loader: Loader = pipeline.config.load.kind match {
+          case LoadPhaseKind.MemSQL => new MemSQLLoader
+          case LoadPhaseKind.User => {
+            loadJar = true
+            val loadConfig = pipeline.config.load.config.asInstanceOf[UserLoadConfig]
+            JarLoader.loadClass(pipeline.jar, loadConfig.class_name).asInstanceOf[Loader]
+          }
+        }
+      }
+
+      if (loadJar) {
+        //TODO does this pollute the classpath for the lifetime of the superapp?
+        //TODO if an updated jar is appended to the classpath the superapp will always run the old version
+        //distribute jar to all tasks run by this spark context
+        sparkContext.addJar(pipeline.jar)
+      }
+
       Some(PipelineMonitor(api, pipeline.pipeline_id, pipeline.batch_interval, pipeline.config, pipelineInstance, streamingContext, sqlContext))
     } catch {
       case e: Exception => {
@@ -50,7 +81,7 @@ case class PipelineMonitor(api: ActorRef,
                            pipeline_id: String,
                            batch_interval: Long,
                            pipelineConfig: PipelineConfig,
-                           pipelineInstance: ETLPipeline[Any],
+                           pipelineInstance: ETLPipeline[(String, Any)],
                            streamingContext: StreamingContext,
                            sqlContext: MemSQLSQLContext) {
   private var exception: Exception = null
@@ -114,7 +145,7 @@ case class PipelineMonitor(api: ActorRef,
 
       inputDStream.compute(Time(time)) match {
         case Some(rdd) => {
-          val df = transformer.transform(sqlContext, rdd.asInstanceOf[RDD[Any]], transformConfig)
+          val df = transformer.transform(sqlContext, rdd.asInstanceOf[RDD[(String, Any)]], transformConfig)
           loader.load(df, loadConfig)
 
           Console.println(s"${inputDStream.count()} rows after extract")

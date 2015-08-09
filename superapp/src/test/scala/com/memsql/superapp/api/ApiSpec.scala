@@ -164,7 +164,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
 
 
       // updates to batch interval should only be accepted if interval is positive and non-zero
-      apiRef ! PipelineUpdate("pipeline1", batch_interval = 1234)
+      apiRef ! PipelineUpdate("pipeline1", batch_interval = Some(1234))
       expectMsg(Success(true))
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
@@ -175,7 +175,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       }
 
       // updates should be transactional
-      apiRef ! PipelineUpdate("pipeline1", batch_interval = -1234, config = config2)
+      apiRef ! PipelineUpdate("pipeline1", batch_interval = Some(-1234), config = Some(config2))
       receiveOne(1.second) match {
         case resp: Success[_] => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
@@ -227,7 +227,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case Failure(err) => fail(s"unexpected response $err")
       }
 
-      apiRef ! PipelineUpdate("pipeline1", config=newConfig)
+      apiRef ! PipelineUpdate("pipeline1", config=Some(newConfig))
       expectMsg(Success(true))
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
@@ -243,7 +243,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       }
 
       //no-op updates to configs should return false
-      apiRef ! PipelineUpdate("pipeline1", config=newConfig)
+      apiRef ! PipelineUpdate("pipeline1", config=Some(newConfig))
       expectMsg(Success(false))
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
@@ -256,7 +256,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       // Configs that do not deserialize should be rejected.
       val badConfig = newConfig.copy(extract = Phase[ExtractPhaseKind](
           ExtractPhaseKind.Kafka, """{ "bad_kafka_config": 42 }""".parseJson))
-      apiRef ! PipelineUpdate("pipeline1", config=badConfig)
+      apiRef ! PipelineUpdate("pipeline1", config=Some(badConfig))
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])

@@ -63,7 +63,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   }
 
   "WebServer /pipeline/put" should "respond to a valid POST" in {
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", kafkaConfigEntity) ~> route ~> check {
+    Post("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&batch_interval=10", kafkaConfigEntity) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
@@ -72,13 +72,13 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   it should "reject POST if the pipeline id already exists" in {
     putPipeline(basicPipeline)
 
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar&main_class=com.asdf.Asdf2", kafkaConfigEntity) ~> route ~> check {
+    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar&batch_interval=12", kafkaConfigEntity) ~> route ~> check {
       assert(responseAs[String] == "pipeline with id asdf already exists")
       assert(status == BadRequest)
     }
   }
 
-  it should "reject POST if parameters are missing" in {
+  it should "reject POST if parameters are missing or invalid" in {
     Post("/pipeline/put") ~> sealRoute(route) ~> check {
       assert(responseAs[String].contains("missing required query parameter 'pipeline_id'"))
       assert(status == NotFound)
@@ -95,12 +95,17 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     }
 
     Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar", kafkaConfigEntity) ~> sealRoute(route) ~> check {
-      assert(responseAs[String].contains("missing required query parameter 'main_class'"))
+      assert(responseAs[String].contains("missing required query parameter 'batch_interval'"))
       assert(status == NotFound)
     }
 
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar&main_class=com.asdf.Asdf2") ~> sealRoute(route) ~> check {
+    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar&batch_interval=1234") ~> sealRoute(route) ~> check {
       assert(responseAs[String].contains("entity expected"))
+      assert(status == BadRequest)
+    }
+
+    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar&batch_interval=-1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+      assert(responseAs[String].contains("batch_interval must be positive"))
       assert(status == BadRequest)
     }
   }
@@ -111,16 +116,16 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Patch("/pipeline/put") ~> sealRoute(route) ~> check { assert(status == NotFound) }
     Delete("/pipeline/put") ~> sealRoute(route) ~> check { assert(status == NotFound) }
 
-    Get("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+    Get("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
-    Put("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+    Put("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
-    Patch("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+    Patch("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
-    Delete("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&main_class=com.asdf.Asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+    Delete("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
   }
@@ -258,6 +263,36 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
       assert(pipeline.config == kafkaConfig)
+      assert(status == OK)
+    }
+
+    // updates to batch_interval should return true
+    Patch("/pipeline/update?pipeline_id=asdf&active=true&batch_interval=999") ~> route ~> check {
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
+      assert(status == OK)
+    }
+
+    // pipeline should still be running with the same config
+    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
+      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
+      assert(pipeline.state == PipelineState.RUNNING)
+      assert(pipeline.config == kafkaConfig)
+      assert(pipeline.batch_interval == 999)
+      assert(status == OK)
+    }
+
+    // no-op updates to batch_interval should return false
+    Patch("/pipeline/update?pipeline_id=asdf&active=true&batch_interval=999") ~> route ~> check {
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(false)).toString)
+      assert(status == OK)
+    }
+
+    // pipeline should still be running with the same config
+    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
+      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
+      assert(pipeline.state == PipelineState.RUNNING)
+      assert(pipeline.config == kafkaConfig)
+      assert(pipeline.batch_interval == 999)
       assert(status == OK)
     }
 
