@@ -143,6 +143,14 @@ case class PipelineMonitor(api: ActorRef,
     thread.start
   }
 
+  def ensureStarted() = {
+    try {
+      thread.start
+    } catch {
+      case e: IllegalThreadStateException => {}
+    }
+  }
+
   def isAlive(): Boolean = {
     thread.isAlive
   }
