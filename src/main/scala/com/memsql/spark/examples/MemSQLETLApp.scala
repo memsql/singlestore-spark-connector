@@ -37,3 +37,10 @@ class MemSQLTransformer extends Transformer[Long] {
     sqlContext.createDataFrame(transformed, StructType(Array(StructField("val_datetime", TimestampType, false))))
   }
 }
+
+class KafkaValueTransformer extends Transformer[(String, String)] {
+  override def transform(sqlContext: SQLContext, from: RDD[(String, String)], config: PhaseConfig): DataFrame = {
+    val transformed = from.map { x => Row(x._2) }
+    sqlContext.createDataFrame(transformed, StructType(Array(StructField("val_string", StringType, false))))
+  }
+}
