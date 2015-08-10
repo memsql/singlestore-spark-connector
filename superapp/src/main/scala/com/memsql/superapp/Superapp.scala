@@ -87,29 +87,26 @@ object SuperApp {
     }
 
     while(true) {
-      Await.ready((api ? PipelineQuery).mapTo[List[Pipeline]], 5.seconds).map { pipelines =>
-        pipelines.foreach { pipeline =>
-          (pipeline.state, pipelineMonitors.get(pipeline.pipeline_id)) match {
-            case (PipelineState.RUNNING, None) => {
-              PipelineMonitor.of(api, pipeline, sparkContext, sqlContext, sparkStreamingContext) match {
-                case Some(pipelineMonitor)  => {
-                  pipelineMonitor.start
-                  pipelineMonitors += (pipeline.pipeline_id -> pipelineMonitor)
-                }
-                case None => //failed to start pipeline, state is now ERROR
+      var pipelines = Await.result[List[Pipeline]]((api ? PipelineQuery).mapTo[List[Pipeline]], 5.seconds)
+      pipelines.foreach { pipeline =>
+        (pipeline.state, pipelineMonitors.get(pipeline.pipeline_id)) match {
+          case (PipelineState.RUNNING, None) => {
+            PipelineMonitor.of(api, pipeline, sparkContext, sqlContext, sparkStreamingContext) match {
+              case Some(pipelineMonitor)  => {
+                pipelineMonitor.ensureStarted
+                pipelineMonitors += (pipeline.pipeline_id -> pipelineMonitor)
               }
+              case None => //failed to start pipeline, state is now ERROR
             }
-            case (PipelineState.RUNNING, Some(pipelineMonitor)) => {
-              pipelineMonitor.ensureStarted
-            }
-            case (PipelineState.STOPPED, Some(pipelineMonitor)) => {
-              if (pipelineMonitor.isAlive) {
-                pipelineMonitor.stop
-              }
-              pipelineMonitors = pipelineMonitors.filterKeys(_ == pipeline.pipeline_id)
-            }
-            case (_, _) => //do nothing
           }
+          case (PipelineState.RUNNING, Some(pipelineMonitor)) => {
+            pipelineMonitor.ensureStarted
+          }
+          case (PipelineState.STOPPED, Some(pipelineMonitor)) => {
+            pipelineMonitor.stop
+            pipelineMonitors = pipelineMonitors.filterKeys(_ != pipeline.pipeline_id)
+          }
+          case (_, _) => //do nothing
         }
       }
 

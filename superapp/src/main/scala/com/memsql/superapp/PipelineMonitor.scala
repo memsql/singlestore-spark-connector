@@ -6,6 +6,7 @@ import com.memsql.spark.context.{MemSQLSQLContext, MemSQLSparkContext}
 import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.configs._
 import com.memsql.superapp.api.{PipelineInstance, ApiActor, PipelineState, Pipeline}
+import java.util.concurrent.atomic.AtomicBoolean
 import ApiActor._
 import com.memsql.superapp.util.{BaseException, JarLoader}
 import org.apache.spark.rdd.RDD
@@ -90,6 +91,7 @@ case class PipelineMonitor(api: ActorRef,
                            streamingContext: StreamingContext,
                            sqlContext: MemSQLSQLContext) {
   private var exception: Exception = null
+  val isStopping = new AtomicBoolean()
 
   private val thread = new Thread(new Runnable {
     override def run(): Unit = {
@@ -121,7 +123,7 @@ case class PipelineMonitor(api: ActorRef,
 
     // manually compute the next RDD in the DStream so that we can sidestep issues with
     // adding inputs to the streaming context at runtime
-    while (true) {
+    while (!isStopping.get) {
       time = System.currentTimeMillis
 
       inputDStream.compute(Time(time)) match {
@@ -139,10 +141,6 @@ case class PipelineMonitor(api: ActorRef,
     }
   }
 
-  def start(): Unit = {
-    thread.start
-  }
-
   def ensureStarted() = {
     try {
       thread.start
@@ -156,6 +154,7 @@ case class PipelineMonitor(api: ActorRef,
   }
 
   def stop() = {
+    isStopping.set(true)
     thread.interrupt
     thread.join
   }
