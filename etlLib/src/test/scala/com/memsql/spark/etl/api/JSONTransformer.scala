@@ -1,5 +1,7 @@
 package com.memsql.spark.etl.api
 
+import com.memsql.spark.etl.utils._
+
 import com.fasterxml.jackson.databind._
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -24,7 +26,7 @@ class TestJSONPath extends FlatSpec {
     assert(testPathExtract(JSONPath("a"),"""{"a":1}""") == "1")
     assert(testPathExtract(JSONPath("a"),"""{"a":"gbop"}""") == "gbop")
     assert(testPathExtract(JSONPath("a"),"""{"a":[1,2,3,4]}""") == "[1,2,3,4]")
-    assert(testPathExtract(JSONPath("a"),"""{"a":[1,2,3,{"a":1}]}""") == "[1,2,3,{"a":1}]")
+    assert(testPathExtract(JSONPath("a"),"""{"a":[1,2,3,{"a":1}]}""") == """[1,2,3,{"a":1}]""")
     assert(testPathExtract(JSONPath("a","1"),"""{"a":[1,2,3,4]}""") == null)
     assert(testPathExtract(JSONPath("a","b"),"""{"a":[1,2,3,4]}""") == null)
 
