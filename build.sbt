@@ -36,7 +36,6 @@ lazy val etlLib = (project in file("etlLib")).
     libraryDependencies  ++= Seq(
       "io.spray" %% "spray-json" % "1.3.2",
       "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
-      "org.apache.spark" %% "spark-streaming-kafka" % "1.4.1" % "provided",
       "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
       "org.apache.kafka" %% "kafka" % "0.8.2.1",
       "org.scalatest" %% "scalatest" % "2.2.5" % "test"
@@ -75,7 +74,6 @@ lazy val superapp = (project in file("superapp")).
         "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
         "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
         "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
-        "org.apache.spark" %% "spark-streaming-kafka" % "1.4.1" exclude("org.spark-project.spark", "unused"),
         "org.scalatest" %% "scalatest" % "2.2.5" % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
         "org.scalamock" %% "scalamock-scalatest-support" % "3.2" % "test",

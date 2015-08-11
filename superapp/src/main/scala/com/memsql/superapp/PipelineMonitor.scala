@@ -12,9 +12,7 @@ import com.memsql.superapp.util.{BaseException, JarLoader}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.{Time, StreamingContext}
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
-import spray.json._
 
 case class PipelineConfigException(message: String) extends BaseException(message: String)
 
@@ -124,7 +122,7 @@ case class PipelineMonitor(api: ActorRef,
   })
 
   def runPipeline(): Unit = {
-    val inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig)
+    val inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig, batch_interval)
     inputDStream.start()
 
     try {
@@ -140,7 +138,7 @@ case class PipelineMonitor(api: ActorRef,
             val df = pipelineInstance.transformer.transform(sqlContext, rdd.asInstanceOf[RDD[Any]], pipelineInstance.transformConfig)
             pipelineInstance.loader.load(df, pipelineInstance.loadConfig)
 
-            Console.println(s"${inputDStream.count()} rows after extract")
+            Console.println(s"${rdd.count()} rows after extract")
             Console.println(s"${df.count()} rows after transform")
           }
           case None =>

@@ -5,5 +5,5 @@ import org.apache.spark.streaming.StreamingContext
 import com.memsql.spark.etl.api.configs.PhaseConfig
 
 trait Extractor[S] extends Serializable {
-  def extract(ssc: StreamingContext, extractConfig: PhaseConfig): InputDStream[S]
+  def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchInterval: Long): InputDStream[S]
 }

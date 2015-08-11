@@ -15,7 +15,7 @@ import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.types._
 
 class MemSQLExtractor extends Extractor[Long] {
-  override def extract(ssc: StreamingContext, config: PhaseConfig): InputDStream[Long] = {
+  override def extract(ssc: StreamingContext, config: PhaseConfig, batchInterval: Long): InputDStream[Long] = {
     new InputDStream[Long](ssc) {
       override def stop(): Unit = {}
 
@@ -38,9 +38,9 @@ class MemSQLTransformer extends Transformer[Long] {
   }
 }
 
-class KafkaValueTransformer extends Transformer[(String, String)] {
-  override def transform(sqlContext: SQLContext, from: RDD[(String, String)], config: PhaseConfig): DataFrame = {
-    val transformed = from.map { x => Row(x._2) }
+class KafkaValueTransformer extends Transformer[(String, Any)] {
+  override def transform(sqlContext: SQLContext, from: RDD[(String, Any)], config: PhaseConfig): DataFrame = {
+    val transformed = from.map { x => Row(new String(x._2.asInstanceOf[Array[Byte]].map(_.toChar))) }
     sqlContext.createDataFrame(transformed, StructType(Array(StructField("val_string", StringType, false))))
   }
 }
