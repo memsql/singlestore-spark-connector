@@ -43,7 +43,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalM
     Phase[LoadPhaseKind](
       LoadPhaseKind.MemSQL,
       LoadPhase.writeConfig(
-        LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table"))))
+        LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None))))
   val localJarFile = s"target/scala-2.10/MemSQL-assembly-${SuperApp.VERSION}.jar"
 
   "PipelineMonitor" should {
