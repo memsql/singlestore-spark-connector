@@ -12,6 +12,7 @@ import com.memsql.superapp.util.{BaseException, JarLoader}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.{Time, StreamingContext}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 import spray.json._
 
@@ -119,25 +120,31 @@ case class PipelineMonitor(api: ActorRef,
 
   def runPipeline(): Unit = {
     val inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig)
-    var time: Long = 0
+    inputDStream.start()
 
-    // manually compute the next RDD in the DStream so that we can sidestep issues with
-    // adding inputs to the streaming context at runtime
-    while (!isStopping.get) {
-      time = System.currentTimeMillis
+    try {
+      var time: Long = 0
 
-      inputDStream.compute(Time(time)) match {
-        case Some(rdd) => {
-          val df = pipelineInstance.transformer.transform(sqlContext, rdd.asInstanceOf[RDD[Any]], pipelineInstance.transformConfig)
-          pipelineInstance.loader.load(df, pipelineInstance.loadConfig)
+      // manually compute the next RDD in the DStream so that we can sidestep issues with
+      // adding inputs to the streaming context at runtime
+      while (!isStopping.get) {
+        time = System.currentTimeMillis
 
-          Console.println(s"${inputDStream.count()} rows after extract")
-          Console.println(s"${df.count()} rows after transform")
+        inputDStream.compute(Time(time)) match {
+          case Some(rdd) => {
+            val df = pipelineInstance.transformer.transform(sqlContext, rdd.asInstanceOf[RDD[Any]], pipelineInstance.transformConfig)
+            pipelineInstance.loader.load(df, pipelineInstance.loadConfig)
+
+            Console.println(s"${inputDStream.count()} rows after extract")
+            Console.println(s"${df.count()} rows after transform")
+          }
+          case None =>
         }
-        case None =>
-      }
 
-      Thread.sleep(Math.max(batch_interval - (System.currentTimeMillis - time), 0))
+        Thread.sleep(Math.max(batch_interval - (System.currentTimeMillis - time), 0))
+      }
+    } finally {
+      inputDStream.stop()
     }
   }
 

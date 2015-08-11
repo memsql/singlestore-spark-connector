@@ -39,20 +39,19 @@ class KafkaExtractor extends Extractor[(String, Any)] {
     new InputDStream[(String, Any)](ssc) {
       private var consumerThread: Thread = null
       private val messageQueue = new ConcurrentLinkedQueue[(String, Array[Byte])]()
-      private var started = false
+
+      private val connector = Consumer.create(new ConsumerConfig(props))
+      private val streams = connector.createMessageStreams(Map(kafkaConfig.topic -> 1))
+      private val topicStream = streams(kafkaConfig.topic)
+      private val stream = topicStream(0)
 
       override def stop(): Unit = {
+        connector.shutdown
         consumerThread.interrupt
         consumerThread.join
       }
 
       override def start(): Unit = {
-        started = true
-        val connector = Consumer.create(new ConsumerConfig(props))
-        val streams = connector.createMessageStreams(Map(kafkaConfig.topic -> 1))
-        val topicStream = streams(kafkaConfig.topic)
-        val stream = topicStream(0)
-
         consumerThread = new Thread(new Runnable(){
           override def run(): Unit = {
             while (!Thread.currentThread.isInterrupted && stream.iterator.hasNext) {
@@ -66,8 +65,6 @@ class KafkaExtractor extends Extractor[(String, Any)] {
       }
 
       override def compute(validTime: Time): Option[RDD[(String, Any)]] = {
-        if (!started) start()
-
         messageQueue.size() match {
           case numMessages if numMessages > 0 => {
             var data = ListBuffer[(String, Any)]()
