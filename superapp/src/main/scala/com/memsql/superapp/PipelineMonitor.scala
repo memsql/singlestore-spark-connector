@@ -40,7 +40,12 @@ object PipelineMonitor {
         }
       }
       val transformer: Transformer[Any] = pipeline.config.transform.kind match {
-        case TransformPhaseKind.Json => JSONTransformer.makeSimpleJSONTransformer("json")
+        case TransformPhaseKind.Json => {
+          pipeline.config.extract.kind match {
+            case ExtractPhaseKind.Kafka => JSONTransformer.makeSimpleJSONKeyValueTransformer("json").asInstanceOf[Transformer[Any]]
+            case default => JSONTransformer.makeSimpleJSONTransformer("json")
+          }
+        }
         case TransformPhaseKind.User => {
           loadJar = true
           val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
