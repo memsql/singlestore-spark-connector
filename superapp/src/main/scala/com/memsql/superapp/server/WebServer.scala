@@ -1,13 +1,15 @@
 package com.memsql.superapp.server
 
 import akka.actor.Actor
+import akka.event.Logging._
 import akka.pattern.ask
 import com.memsql.superapp.api._
 import com.memsql.spark.etl.api.configs.PipelineConfig
-import spray.http.StatusCodes
+import spray.http.{HttpRequest, HttpResponse, StatusCodes}
 import spray.httpx.SprayJsonSupport._
 import spray.routing.HttpService
 import spray.json._
+import spray.routing.directives.LogEntry
 import scala.concurrent.duration._
 import akka.util.Timeout
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -15,7 +17,7 @@ import scala.util.{Success, Failure, Try}
 
 class WebServer extends Actor with WebService {
   def actorRefFactory = context
-  def receive = runRoute(route)
+  def receive = runRoute(routeWithLogging)
 }
 
 trait WebService extends HttpService {
@@ -25,6 +27,14 @@ trait WebService extends HttpService {
 
   val api = actorRefFactory.actorSelection("/user/api")
   implicit val timeout = Timeout(5.seconds)
+
+  // logs just the request method and response status at info level
+  def requestMethodAndResponseStatusAsInfo(req: HttpRequest): Any => Option[LogEntry] = {
+    case res: HttpResponse => Some(LogEntry(req.method + ":" + req.uri + "," + req.entity + " - " + res.message.status + ":" + res.message.message, InfoLevel))
+    case _ => None // other kind of responses
+  }
+
+  def routeWithLogging = logRequestResponse(requestMethodAndResponseStatusAsInfo _)(route)
 
   val route = {
     pathSingleSlash{
