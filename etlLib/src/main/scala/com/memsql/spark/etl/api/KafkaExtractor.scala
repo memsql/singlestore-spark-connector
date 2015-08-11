@@ -12,7 +12,7 @@ import org.apache.spark.streaming.{Time, StreamingContext}
 import org.apache.spark.streaming.kafka.KafkaUtils
 import org.apache.spark.streaming.dstream.InputDStream
 
-class KafkaExtractor extends Extractor[(String, Any)] {
+class KafkaExtractor(consumerId: String) extends Extractor[(String, Any)] {
   private def bytesToString(in: Array[Byte]): String = {
     in match {
       case null => null
@@ -31,7 +31,7 @@ class KafkaExtractor extends Extractor[(String, Any)] {
 
     val props = new Properties()
     props.put("zookeeper.connect", s"${kafkaConfig.host}:${kafkaConfig.port}")
-    props.put("group.id", "1")
+    props.put("group.id", consumerId)
     props.put("zookeeper.session.timeout.ms", "400")
     props.put("zookeeper.sync.time.ms", "200")
     props.put("auto.commit.interval.ms", "1000")

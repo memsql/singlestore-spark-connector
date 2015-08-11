@@ -32,7 +32,7 @@ object PipelineMonitor {
       val loadConfig = LoadPhase.readConfig(pipeline.config.load.kind, pipeline.config.load.config)
 
       val extractor: Extractor[Any] = pipeline.config.extract.kind match {
-        case ExtractPhaseKind.Kafka => new KafkaExtractor().asInstanceOf[Extractor[Any]]
+        case ExtractPhaseKind.Kafka => new KafkaExtractor(pipeline.pipeline_id).asInstanceOf[Extractor[Any]]
         case ExtractPhaseKind.User => {
           loadJar = true
           val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
