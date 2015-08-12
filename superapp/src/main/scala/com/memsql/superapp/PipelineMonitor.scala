@@ -164,6 +164,7 @@ case class PipelineMonitor(api: ActorRef,
   }
 
   def stop() = {
+    Console.println(s"Stopping pipeline $pipeline_id")
     isStopping.set(true)
     thread.interrupt
     thread.join

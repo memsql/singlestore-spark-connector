@@ -87,7 +87,7 @@ object SuperApp {
     }
 
     while(true) {
-      var pipelines = Await.result[List[Pipeline]]((api ? PipelineQuery).mapTo[List[Pipeline]], 5.seconds)
+      val pipelines = Await.result[List[Pipeline]]((api ? PipelineQuery).mapTo[List[Pipeline]], 5.seconds)
       pipelines.foreach { pipeline =>
         (pipeline.state, pipelineMonitors.get(pipeline.pipeline_id)) match {
           case (PipelineState.RUNNING, None) => {
@@ -109,6 +109,17 @@ object SuperApp {
           case (_, _) => //do nothing
         }
       }
+
+      // remove pipelines which have been deleted via the API
+      val currentPipelineIds = pipelines.map(_.pipeline_id).toSet
+      pipelineMonitors.foreach((p: (String, PipelineMonitor)) => {
+        val pipeline_id = p._1
+        if (!currentPipelineIds.contains(pipeline_id)) {
+          val pipelineMonitor = p._2
+          pipelineMonitor.stop
+        }
+      })
+      pipelineMonitors = pipelineMonitors -- currentPipelineIds
 
       Thread.sleep(5000)
     }
