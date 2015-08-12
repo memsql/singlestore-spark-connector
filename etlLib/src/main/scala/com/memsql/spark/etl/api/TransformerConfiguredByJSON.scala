@@ -16,7 +16,7 @@ import com.memsql.spark.etl.api.configs.UserTransformConfig
 
 
 trait TransformerConfiguredByJSON[S] extends Transformer[S] {
-  def transform(rdd: RDD[S], sqlContext: SQLContext, config: PhaseConfig): DataFrame = {
+  override def transform(sqlContext: SQLContext, rdd: RDD[S], config: PhaseConfig): DataFrame = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
     val configMap: Map[String,String] = mapper.readValue(config.asInstanceOf[UserTransformConfig].value, classOf[Map[String,String]])
