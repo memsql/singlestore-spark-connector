@@ -15,7 +15,7 @@ import com.memsql.spark.etl.api.configs.PhaseConfig
 import com.memsql.spark.etl.api.configs.UserTransformConfig
 
 
-trait TransformerConfiguredBJSON[S] extends Transformer[S] {
+trait TransformerConfiguredByJSON[S] extends Transformer[S] {
   def transform(rdd: RDD[S], sqlContext: SQLContext, config: PhaseConfig): DataFrame = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
