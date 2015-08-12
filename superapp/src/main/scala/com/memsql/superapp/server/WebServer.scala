@@ -3,6 +3,7 @@ package com.memsql.superapp.server
 import akka.actor.Actor
 import akka.event.Logging._
 import akka.pattern.ask
+import com.memsql.superapp.SuperApp
 import com.memsql.superapp.api._
 import com.memsql.spark.etl.api.configs.PipelineConfig
 import spray.http.{HttpRequest, HttpResponse, StatusCodes}
@@ -37,9 +38,9 @@ trait WebService extends HttpService {
   def routeWithLogging = logRequestResponse(requestMethodAndResponseStatusAsInfo _)(route)
 
   val route = {
-    pathSingleSlash{
+    path("version") {
       get {
-        complete("superapp")
+        complete(JsObject("name" -> JsString("MemSQL SuperApp"), "version" -> JsString(SuperApp.VERSION)))
       }
     } ~
     path("ping") {

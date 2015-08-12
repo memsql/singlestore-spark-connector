@@ -5,7 +5,7 @@ import com.memsql.spark.etl.api.configs._
 import ExtractPhaseKind._
 import TransformPhaseKind._
 import LoadPhaseKind._
-import com.memsql.superapp.{Config, UnitSpec}
+import com.memsql.superapp.{SuperApp, Config, UnitSpec}
 import spray.http.HttpEntity
 import spray.http.ContentTypes._
 import spray.json._
@@ -46,6 +46,22 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
+  }
+
+  "WebServer /version" should "respond to GET with info" in {
+    Get("/version") ~> route ~> check {
+      val resp = responseAs[String].parseJson.asJsObject
+      assert(resp.getFields("name")(0) == JsString("MemSQL SuperApp"))
+      assert(resp.getFields("version")(0) == JsString(SuperApp.VERSION))
+      assert(status == OK)
+    }
+  }
+
+  it should "reject other methods" in {
+    Post("/version") ~> sealRoute(route) ~> check { assert(status == MethodNotAllowed) }
+    Put("/version") ~> sealRoute(route) ~> check { assert(status == MethodNotAllowed) }
+    Patch("/version") ~> sealRoute(route) ~> check { assert(status == MethodNotAllowed) }
+    Delete("/version") ~> sealRoute(route) ~> check { assert(status == MethodNotAllowed) }
   }
 
   "WebServer /ping" should "respond to GET with 'pong'" in {
