@@ -254,13 +254,6 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       }
     } finally {
       try {
-        if (rs != null && rs.isClosed()) {
-          rs.close()
-        }
-      } catch {
-        case e: Exception => logWarning("Exception closing result set", e)
-      }
-      try {
         if (stmt != null && !stmt.isClosed()) {
           stmt.close()
         }
