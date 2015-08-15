@@ -1,7 +1,8 @@
 lazy val commonSettings = Seq(
   organization := "com.memsql",
   version := "0.1.3",
-  scalaVersion := "2.10.5"
+  scalaVersion := "2.10.5",
+  publishTo := Some(Resolver.file("file",  new File(Path.userHome.absolutePath+"/.m2/repository")))
 )
 
 lazy val connectorLib = (project in file("connectorLib")).
