@@ -6,6 +6,7 @@ import com.memsql.spark.context.{MemSQLSparkContext, MemSQLSQLContext}
 import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.{KafkaExtractor, MemSQLLoader}
 import com.memsql.spark.etl.api.configs._
+import com.memsql.spark.etl.utils.Logging
 import com.memsql.superapp.api.{PipelineInstance, ApiActor, PipelineState, Pipeline}
 import java.util.concurrent.atomic.AtomicBoolean
 import ApiActor._
@@ -13,8 +14,10 @@ import com.memsql.superapp.util.JarLoader
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.{Time, StreamingContext}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
 
 trait PipelineMonitor {
@@ -37,7 +40,7 @@ trait PipelineMonitor {
 class DefaultPipelineMonitor(override val api: ActorRef,
                                       val pipeline: Pipeline,
                              override val sparkContext: SparkContext,
-                             override val streamingContext: StreamingContext) extends PipelineMonitor {
+                             override val streamingContext: StreamingContext) extends PipelineMonitor with Logging {
 
   override val pipeline_id = pipeline.pipeline_id
 
@@ -64,6 +67,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   }
   private[superapp] val transformer: Transformer[Any] = pipeline.config.transform.kind match {
     case TransformPhaseKind.Json => {
+      //TODO instead of matching on the extract kind, we should match on the type of the produced RDD
       pipeline.config.extract.kind match {
         case ExtractPhaseKind.Kafka => JSONTransformer.makeSimpleJSONKeyValueTransformer("json").asInstanceOf[Transformer[Any]]
         case default => JSONTransformer.makeSimpleJSONTransformer("json")
@@ -103,20 +107,20 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   private[superapp] val thread = new Thread(new Runnable {
     override def run(): Unit = {
       try {
-        Console.println(s"Starting pipeline $pipeline_id")
+        logInfo(s"Starting pipeline $pipeline_id")
         val future = (api ? PipelineUpdate(pipeline_id, PipelineState.RUNNING)).mapTo[Try[Boolean]]
         future.map {
           case Success(resp) => runPipeline
-          case Failure(error) => Console.println(s"Failed to update pipeline $pipeline_id state to RUNNING: $error")
+          case Failure(error) => logError(s"Failed to update pipeline $pipeline_id state to RUNNING", error)
         }
       } catch {
         case e: InterruptedException => //exit
         case e: Exception => {
-          Console.println(s"Unexpected exception: $e")
+          logError(s"Unexpected exception: $e")
           val future = (api ? PipelineUpdate(pipeline_id, PipelineState.ERROR, error = Some(e.toString))).mapTo[Try[Boolean]]
           future.map {
             case Success(resp) => //exit
-            case Failure(error) => Console.println(s"Failed to update pipeline $pipeline_id state to ERROR: $error")
+            case Failure(error) => logError(s"Failed to update pipeline $pipeline_id state to ERROR", error)
           }
         }
       }
@@ -124,10 +128,15 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   })
 
   def runPipeline(): Unit = {
-    val inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig, batchInterval)
-    inputDStream.start()
+    var exception: Option[Throwable] = None
+    var inputDStream: InputDStream[Any] = null
 
     try {
+      logDebug("Initializing extractor")
+      inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig, batchInterval)
+      logDebug("Starting InputDStream")
+      inputDStream.start()
+
       var time: Long = 0
 
       // manually compute the next RDD in the DStream so that we can sidestep issues with
@@ -135,21 +144,35 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       while (!isStopping.get) {
         time = System.currentTimeMillis
 
+        logDebug(s"Computing next RDD from InputDStream: $time")
         inputDStream.compute(Time(time)) match {
           case Some(rdd) => {
+            logDebug("Transforming RDD")
             val df = pipelineInstance.transformer.transform(sqlContext, rdd.asInstanceOf[RDD[Any]], pipelineInstance.transformConfig)
+            logDebug("Loading RDD")
             pipelineInstance.loader.load(df, pipelineInstance.loadConfig)
-
-            Console.println(s"${rdd.count()} rows after extract")
-            Console.println(s"${df.count()} rows after transform")
           }
-          case None =>
+          case None => logDebug("No RDD from InputDStream")
         }
 
-        Thread.sleep(Math.max(batchInterval - (System.currentTimeMillis - time), 0))
+        val sleepTimeMillis = Math.max(batchInterval - (System.currentTimeMillis - time), 0)
+        logDebug(s"Sleeping for $sleepTimeMillis milliseconds")
+        Thread.sleep(sleepTimeMillis)
+      }
+    } catch {
+      case NonFatal(e) => {
+        logError(s"Unexpected error in pipeline $pipeline_id", e)
+        exception = Some(e)
       }
     } finally {
-      inputDStream.stop()
+      logInfo(s"Stopping pipeline $pipeline_id")
+      try {
+        if (inputDStream != null) inputDStream.stop()
+      } catch {
+        case NonFatal(e) => {
+          logError(s"Exception in pipeline $pipeline_id while stopping extractor", e)
+        }
+      }
     }
   }
 
@@ -166,7 +189,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   }
 
   def stop() = {
-    Console.println(s"Stopping pipeline $pipeline_id")
+    logDebug(s"Stopping pipeline thread $pipeline_id")
     isStopping.set(true)
     thread.interrupt
     thread.join

@@ -47,3 +47,10 @@ package: docs build
 .PHONY: psytest
 psytest: build-test
 	psy dockertest .psyduck
+
+.PHONY: publish
+publish:
+	sbt "project connectorLib" publish \
+	"project etlLib" publish \
+	"project superapp" publish \
+	"project root" publish

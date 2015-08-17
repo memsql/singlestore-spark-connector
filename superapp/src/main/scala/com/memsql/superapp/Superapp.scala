@@ -1,5 +1,6 @@
 package com.memsql.superapp
 
+import com.memsql.spark.etl.utils.Logging
 import com.memsql.superapp.server.WebServer
 
 import akka.actor.{ActorRef, ActorSystem, Props}
@@ -69,16 +70,16 @@ class SuperApp(val providedConfig: Config) extends Application {
   }
 
   IO(Http) ? Http.Bind(web, interface = "0.0.0.0", port = config.port) onComplete {
-    case Success(Http.Bound(endpoint)) => Console.println("Listening")
+    case Success(Http.Bound(endpoint)) => logInfo(s"Listening on 0.0.0.0:${config.port}")
     case _ => {
-      Console.println(s"Failed to bind to 0.0.0.0:${config.port}")
+      logError(s"Failed to bind to 0.0.0.0:${config.port}")
       system.shutdown()
       sys.exit(1)
     }
   }
 }
 
-trait Application {
+trait Application extends Logging {
   private[superapp] lazy val config: Config = Config()
   Paths.initialize(config.dataDir)
 
@@ -141,7 +142,7 @@ trait Application {
         val future = (api ? PipelineUpdate(pipeline.pipeline_id, PipelineState.ERROR, error = Some(error.toString))).mapTo[Try[Boolean]]
         future.map {
           case Success(resp) => //exit
-          case Failure(error) => Console.println(s"Failed to update pipeline ${pipeline.pipeline_id} state to ERROR: $error")
+          case Failure(error) => logError(s"Failed to update pipeline ${pipeline.pipeline_id} state to ERROR", error)
         }
       }
     }
@@ -157,9 +158,8 @@ trait Application {
       Success(new DefaultPipelineMonitor(api, pipeline, sparkContext, streamingContext))
     } catch {
       case e: Exception => {
-        val errorMessage = s"Failed to initialize pipeline ${pipeline.pipeline_id}: $e"
-        Console.println(errorMessage)
-        e.printStackTrace
+        val errorMessage = s"Failed to initialize pipeline ${pipeline.pipeline_id}"
+        logError(errorMessage, e)
         Failure(e)
       }
     }
