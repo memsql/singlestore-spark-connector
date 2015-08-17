@@ -72,13 +72,14 @@ class SuperAppSpec extends TestKitSpec("SuperAppSpec") {
     override val web = null
 
     override val sparkConf = new SparkConf().setAppName("test").setMaster("local")
+    override lazy val sparkContext: SparkContext = new SparkContext(sparkConf)
 
     override def newPipelineMonitor(pipeline: Pipeline) = {
       try {
         if (pipeline.pipeline_id == "fail") {
           throw new TestException("Pipeline monitor instantiation failed")
         }
-        Success(new MockPipelineMonitor(api, pipeline, null, sparkContext, streamingContext, new MemSQLSQLContext(sparkContext)))
+        Success(new MockPipelineMonitor(api, pipeline, null, sparkContext, streamingContext, new SQLContext(sparkContext)))
       } catch {
         case e: Exception => {
           {

@@ -7,7 +7,7 @@ import akka.io.IO
 import com.memsql.superapp.util.Paths
 import com.memsql.superapp.api._
 import ApiActor._
-import org.apache.spark.SparkConf
+import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.streaming.{Duration, StreamingContext}
 import com.memsql.spark.context.MemSQLSparkContext
 import spray.can.Http
@@ -87,7 +87,7 @@ trait Application {
   private[superapp] val web: ActorRef
 
   private[superapp] val sparkConf: SparkConf
-  private[superapp] lazy val sparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
+  private[superapp] lazy val sparkContext: SparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
   private[superapp] lazy val streamingContext = new StreamingContext(sparkContext, new Duration(5000))
 
   private[superapp] var pipelineMonitors = Map[String, PipelineMonitor]()
