@@ -13,7 +13,7 @@ case class Phase[T](kind: T, config: JsValue)
 
 object ExtractPhaseKind extends Enumeration {
   type ExtractPhaseKind = Value
-  val Kafka, User = Value
+  val Kafka, TestString, TestJson, User = Value
 }
 import ExtractPhaseKind._
 

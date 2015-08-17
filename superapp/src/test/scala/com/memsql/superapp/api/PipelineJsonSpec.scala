@@ -29,11 +29,11 @@ class PipelineJsonSpec extends UnitSpec {
 
     val pipeline1 = Pipeline(
       "pipeline1",
-      state=PipelineState.RUNNING,
-      jar="site.com/foo.jar",
-      batch_interval=100,
-      config=config,
-      last_updated=1)
+      state = PipelineState.RUNNING,
+      jar = "site.com/foo.jar",
+      batch_interval = 100,
+      config = config,
+      last_updated = 1)
 
     var jsonString = pipeline1.toJson.toString
     var jsonMap = mapFromJson(jsonString)
@@ -47,20 +47,31 @@ class PipelineJsonSpec extends UnitSpec {
     // Errors should be included.
     val pipeline2 = Pipeline(
       "pipeline1",
-      state=PipelineState.RUNNING,
-      jar="site.com/foo.jar",
-      batch_interval=12,
-      config=config,
-      last_updated=15,
-      error=Some("Test error"))
+      state = PipelineState.RUNNING,
+      jar = "site.com/foo.jar",
+      batch_interval = 12,
+      config = config.copy(extract = Phase[ExtractPhaseKind](
+        ExtractPhaseKind.TestJson,
+        ExtractPhase.writeConfig(
+          ExtractPhaseKind.TestJson,
+          TestJsonExtractConfig(JsObject("test" -> JsString("bar")))
+        )
+      )),
+      last_updated = 15,
+      error = Some("Test error"))
 
     jsonString = pipeline2.toJson.toString
     jsonMap = mapFromJson(jsonString)
     assert(jsonMap("error") == "Test error")
+    val configMap = jsonMap("config").asInstanceOf[Map[String, Any]]
+    val extractMap = configMap("extract").asInstanceOf[Map[String, Any]]
+    assert(extractMap("kind") == "TestJson")
+    val extractConfigMap = extractMap("config").asInstanceOf[Map[String, Any]]
+    assert(extractConfigMap("value").asInstanceOf[Map[String, Any]]("test") == "bar")
   }
 
   it should "serialize to JSON with configs" in {
-    val config = PipelineConfig(
+    var config = PipelineConfig(
       Phase[ExtractPhaseKind](
         ExtractPhaseKind.Kafka,
         ExtractPhase.writeConfig(
@@ -75,17 +86,17 @@ class PipelineJsonSpec extends UnitSpec {
           LoadPhaseKind.User, UserLoadConfig("com.user.Load", "Test user data 2"))),
       config_version=42)
 
-    val pipeline = Pipeline(
+    var pipeline = Pipeline(
       "pipeline1",
       state=PipelineState.RUNNING,
       jar="site.com/foo.jar",
       batch_interval=100,
       last_updated=145,
       config=config)
-    val jsonString = pipeline.toJson.toString
-    val jsonMap = mapFromJson(jsonString)
-    val configMap = jsonMap("config").asInstanceOf[Map[String, Any]]
-    val extractConfigMap = configMap("extract").asInstanceOf[Map[String, Any]]
+    var jsonString = pipeline.toJson.toString
+    var jsonMap = mapFromJson(jsonString)
+    var configMap = jsonMap("config").asInstanceOf[Map[String, Any]]
+    var extractConfigMap = configMap("extract").asInstanceOf[Map[String, Any]]
     assert(extractConfigMap("kind") == "Kafka")
     val kafkaConfigMap = extractConfigMap("config").asInstanceOf[Map[String, Any]]
     assert(kafkaConfigMap("host") == "test1")
@@ -102,10 +113,33 @@ class PipelineJsonSpec extends UnitSpec {
     val loadUserConfigMap = loadConfigMap("config").asInstanceOf[Map[String, Any]]
     assert(loadUserConfigMap("class_name") == "com.user.Load")
     assert(loadUserConfigMap("value") == "Test user data 2")
+
+    config=config.copy(extract = Phase[ExtractPhaseKind](
+      ExtractPhaseKind.TestString,
+      ExtractPhase.writeConfig(
+        ExtractPhaseKind.TestString,
+        TestStringExtractConfig("test")
+      )
+    ))
+
+    pipeline = Pipeline(
+      "pipeline2",
+      state=PipelineState.RUNNING,
+      jar="site.com/foo.jar",
+      batch_interval=100,
+      last_updated=145,
+      config=config)
+    jsonString = pipeline.toJson.toString
+    jsonMap = mapFromJson(jsonString)
+    configMap = jsonMap("config").asInstanceOf[Map[String, Any]]
+    extractConfigMap = configMap("extract").asInstanceOf[Map[String, Any]]
+    assert(extractConfigMap("kind") == "TestString")
+    val testJsonConfigMap = extractConfigMap("config").asInstanceOf[Map[String, Any]]
+    assert(testJsonConfigMap("value") == "test")
   }
 
   it should "deserialize from JSON" in {
-    val config_json = """{
+    var config_json = """{
           "extract": {
               "kind": "Kafka",
               "config": {
@@ -132,7 +166,7 @@ class PipelineJsonSpec extends UnitSpec {
       }
       """
 
-    val jsonString = s"""{
+    var jsonString = s"""{
         "pipeline_id": "pipeline1",
         "state": "RUNNING",
         "config": $config_json,
@@ -142,7 +176,7 @@ class PipelineJsonSpec extends UnitSpec {
         "jar": "site.com/foo.jar",
         "active": true
       }"""
-    val pipeline = jsonString.parseJson.convertTo[Pipeline]
+    var pipeline = jsonString.parseJson.convertTo[Pipeline]
     assert(pipeline.pipeline_id == "pipeline1")
     assert(pipeline.state == PipelineState.RUNNING)
     assert(pipeline.jar == "site.com/foo.jar")
@@ -163,10 +197,61 @@ class PipelineJsonSpec extends UnitSpec {
     val userLoadConfig = LoadPhase.readConfig(pipeline.config.load.kind, pipeline.config.load.config).asInstanceOf[UserLoadConfig]
     assert(userLoadConfig.class_name == "com.user.Load")
     assert(userLoadConfig.value == "Test user data 2")
+
+    config_json = """{
+          "extract": {
+              "kind": "TestJson",
+              "config": {
+                  "value": {
+                      "nested": {
+                          "values": [1,2,"43", false]
+                      }
+                  }
+              }
+          },
+          "transform": {
+              "kind": "User",
+              "config": {
+                  "class_name": "com.user.Transform",
+                  "value": "Test user data 1"
+              }
+          },
+          "load": {
+              "kind": "User",
+              "config": {
+                  "class_name": "com.user.Load",
+                  "value": "Test user data 2"
+              }
+          },
+          "config_version": 42
+      }
+                      """
+
+    jsonString = s"""{
+        "pipeline_id": "pipeline1",
+        "state": "RUNNING",
+        "config": $config_json,
+        "batch_interval": 100,
+        "last_updated": 145,
+        "error": "test error",
+        "jar": "site.com/foo.jar",
+        "active": true
+      }"""
+    pipeline = jsonString.parseJson.convertTo[Pipeline]
+    assert(pipeline.pipeline_id == "pipeline1")
+    assert(pipeline.state == PipelineState.RUNNING)
+    assert(pipeline.jar == "site.com/foo.jar")
+    assert(pipeline.batch_interval == 100)
+    assert(pipeline.last_updated == 145)
+    assert(pipeline.error == Some("test error"))
+    assert(pipeline.config.config_version == 42)
+    assert(pipeline.config.extract.kind == ExtractPhaseKind.TestJson)
+    val jsonExtractConfig = ExtractPhase.readConfig(ExtractPhaseKind.TestJson, pipeline.config.extract.config).asInstanceOf[TestJsonExtractConfig]
+    assert(jsonExtractConfig.value.asJsObject.fields("nested").asJsObject.fields("values").toString == "[1,2,\"43\",false]")
   }
 
   it should "be preserved through a round trip" in {
-    val config = PipelineConfig(
+    var config = PipelineConfig(
       Phase[ExtractPhaseKind](
         ExtractPhaseKind.Kafka,
         ExtractPhase.writeConfig(
@@ -181,7 +266,7 @@ class PipelineJsonSpec extends UnitSpec {
           LoadPhaseKind.User, UserLoadConfig("com.user.Load", "Test user data 2"))),
       config_version=42)
 
-    val pipeline1 = Pipeline(
+    var pipeline1 = Pipeline(
       "pipeline1",
       state=PipelineState.RUNNING,
       jar="site.com/foo.jar",
@@ -189,7 +274,26 @@ class PipelineJsonSpec extends UnitSpec {
       last_updated=12,
       config=config)
 
-    val pipeline2 = pipeline1.toJson.toString.parseJson.convertTo[Pipeline]
+    var pipeline2 = pipeline1.toJson.toString.parseJson.convertTo[Pipeline]
+    assert(pipeline1 == pipeline2)
+
+    config=config.copy(extract = Phase[ExtractPhaseKind](
+      ExtractPhaseKind.TestJson,
+      ExtractPhase.writeConfig(
+        ExtractPhaseKind.TestJson,
+        TestJsonExtractConfig(JsObject("test" -> JsString("bar")))
+      )
+    ))
+
+    pipeline1 = Pipeline(
+      "pipeline1",
+      state=PipelineState.RUNNING,
+      jar="site.com/foo.jar",
+      batch_interval=1234,
+      last_updated=12,
+      config=config)
+
+    pipeline2 = pipeline1.toJson.toString.parseJson.convertTo[Pipeline]
     assert(pipeline1 == pipeline2)
   }
 }

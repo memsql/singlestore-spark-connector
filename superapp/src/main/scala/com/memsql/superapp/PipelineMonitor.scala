@@ -55,6 +55,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   private[superapp] val extractor: Extractor[Any] = pipeline.config.extract.kind match {
     case ExtractPhaseKind.Kafka => new KafkaExtractor(pipeline.pipeline_id).asInstanceOf[Extractor[Any]]
+    case ExtractPhaseKind.TestString | ExtractPhaseKind.TestJson => new ConstantStringExtractor().asInstanceOf[Extractor[Any]]
     case ExtractPhaseKind.User => {
       loadJar = true
       val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
