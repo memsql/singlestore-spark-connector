@@ -304,6 +304,45 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       }
     }
 
+    "return metrics when available" in {
+      apiRef ! PipelineMetrics("pipeline1", None)
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val l = resp.get.asInstanceOf[List[PipelineMetricRecord]]
+          assert(l.size == 0)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      val record1 = PipelineMetricRecord(pipeline_id = "pipeline1", timestamp = 100, success = true, extract = None, transform = None, load = None)
+      val record2 = PipelineMetricRecord(pipeline_id = "pipeline1", timestamp = 110, success = false, extract = None, transform = None, load = None)
+
+      apiRef ! PipelineGet("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val pipeline = resp.get.asInstanceOf[Pipeline]
+          // Add some fake metrics.
+          pipeline.enqueueMetricRecord(record1)
+          pipeline.enqueueMetricRecord(record2)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      apiRef ! PipelineMetrics("pipeline1", None)
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val l = resp.get.asInstanceOf[List[PipelineMetricRecord]]
+          assert(l == List(record1, record2))
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      apiRef ! PipelineMetrics("pipeline1", last_timestamp = Some(105))
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val l = resp.get.asInstanceOf[List[PipelineMetricRecord]]
+          assert(l == List(record2))
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+    }
+
     "allow deleting pipelines" in {
       apiRef ! PipelineDelete("pipeline2")
       expectMsg(Success(true))

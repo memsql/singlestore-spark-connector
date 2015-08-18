@@ -7,13 +7,13 @@ import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.{KafkaExtractor, MemSQLLoader}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.Logging
-import com.memsql.spark.interface.api.{PipelineInstance, Pipeline, PipelineState, ApiActor}
+import com.memsql.spark.interface.api.{PipelineInstance, Pipeline, PipelineState, ApiActor, PipelineMetricRecord, PhaseMetricRecord}
 import java.util.concurrent.atomic.AtomicBoolean
 import ApiActor._
 import com.memsql.spark.interface.util.JarLoader
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.{Time, StreamingContext}
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -41,7 +41,6 @@ class DefaultPipelineMonitor(override val api: ActorRef,
                                       val pipeline: Pipeline,
                              override val sparkContext: SparkContext,
                              override val streamingContext: StreamingContext) extends PipelineMonitor with Logging {
-
   override val pipeline_id = pipeline.pipeline_id
 
   // keep a copy of the pipeline info so we can determine when the pipeline has been updated
@@ -151,16 +150,48 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       while (!isStopping.get) {
         time = System.currentTimeMillis
 
+        var success = false
+        var extractRecord: Option[PhaseMetricRecord] = None
+        var transformRecord: Option[PhaseMetricRecord] = None
+        var loadRecord: Option[PhaseMetricRecord] = None
+
         logDebug(s"Computing next RDD for pipeline $pipeline_id: $time")
-        inputDStream.compute(Time(time)) match {
-          case Some(rdd) => {
+
+        var extractedRdd: RDD[Any] = null
+        extractRecord = runPhase(() => {
+          inputDStream.compute(Time(time)) match {
+            case Some(rdd) => extractedRdd = rdd
+            case None => logDebug(s"No RDD from pipeline $pipeline_id")
+          }
+        })
+
+        var df: DataFrame = null
+        if (extractedRdd != null) {
+          transformRecord = runPhase(() => {
             logDebug(s"Transforming RDD for pipeline $pipeline_id")
-            val df = pipelineInstance.transformer.transform(sqlContext, rdd.asInstanceOf[RDD[Any]], pipelineInstance.transformConfig)
+            df = pipelineInstance.transformer.transform(
+              sqlContext,
+              extractedRdd.asInstanceOf[RDD[Any]],
+              pipelineInstance.transformConfig)
+          })
+        }
+
+        if (df != null) {
+          loadRecord = runPhase(() => {
             logDebug(s"Loading RDD for pipeline $pipeline_id")
             pipelineInstance.loader.load(df, pipelineInstance.loadConfig)
-          }
-          case None => logDebug(s"No RDD from pipeline $pipeline_id")
+            success = true
+          })
         }
+
+        val metric = PipelineMetricRecord(
+          pipeline_id = pipeline_id,
+          timestamp = time,
+          success = success,
+          extract = extractRecord,
+          transform = transformRecord,
+          load = loadRecord)
+        pipeline.enqueueMetricRecord(metric)
 
         val sleepTimeMillis = Math.max(batchInterval - (System.currentTimeMillis - time), 0)
         logDebug(s"Sleeping for $sleepTimeMillis milliseconds for pipeline $pipeline_id")
@@ -181,6 +212,28 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         }
       }
     }
+  }
+
+  def runPhase(fn: () => Unit): Option[PhaseMetricRecord] = {
+    var error: Option[String] = None
+    val startTime = System.currentTimeMillis
+    try {
+      fn()
+    } catch {
+      case NonFatal(e) => {
+        logError(s"Phase error in pipeline $pipeline_id", e)
+        error = Some(e.toString)
+      }
+    }
+    val stopTime = System.currentTimeMillis
+    Some(PhaseMetricRecord(
+      start = startTime,
+      stop = stopTime,
+      count = None,
+      error = error,
+      records = None,
+      logs = None
+    ))
   }
 
   override def ensureStarted() = {

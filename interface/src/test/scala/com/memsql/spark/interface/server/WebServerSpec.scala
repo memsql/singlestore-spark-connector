@@ -198,6 +198,39 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     }
   }
 
+  "WebServer /pipeline/metrics" should "respond to a valid GET" in {
+    putPipeline(basicPipeline)
+
+    Get("/pipeline/metrics?pipeline_id=fake") ~> sealRoute(route) ~> check {
+      assert(status == NotFound)
+    }
+
+    Get("/pipeline/metrics?pipeline_id=asdf") ~> route ~> check {
+      val resp = responseAs[String].parseJson.asInstanceOf[JsArray]
+      assert(resp.elements.length == 0)
+    }
+
+    Get("/pipeline/metrics?pipeline_id=asdf&last_timestamp=105") ~> route ~> check {
+      val resp = responseAs[String].parseJson.asInstanceOf[JsArray]
+      assert(resp.elements.length == 0)
+    }
+  }
+
+  it should "reject other methods" in {
+    Post("/pipeline/metrics?pipeline_id=asdf") ~> sealRoute(route) ~> check {
+      assert(status == MethodNotAllowed)
+    }
+    Put("/pipeline/metrics?pipeline_id=asdf") ~> sealRoute(route) ~> check {
+      assert(status == MethodNotAllowed)
+    }
+    Patch("/pipeline/metrics?pipeline_id=asdf") ~> sealRoute(route) ~> check {
+      assert(status == MethodNotAllowed)
+    }
+    Delete("/pipeline/metrics?pipeline_id=asdf") ~> sealRoute(route) ~> check {
+      assert(status == MethodNotAllowed)
+    }
+  }
+
   "WebServer /pipeline/delete" should "respond to a valid DELETE" in {
     putPipeline(basicPipeline)
 

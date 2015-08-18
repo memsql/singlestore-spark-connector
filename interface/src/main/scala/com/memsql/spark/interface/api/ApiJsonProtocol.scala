@@ -12,6 +12,11 @@ object ApiJsonProtocol extends JsonEnumProtocol {
 
   implicit val pipelineConfigFormat = jsonFormat4(PipelineConfig)
 
+  implicit val phaseMetricRecordFormat = jsonFormat6(PhaseMetricRecord)
+  implicit val pipelineMetricRecordFormat = jsonFormat6(PipelineMetricRecord)
+
   implicit val pipelineStateFormat = jsonEnum(PipelineState)
-  implicit val pipelineFormat = jsonFormat7(Pipeline)
+  // We explicitly specify the fields we want in pipelines because we don't
+  // want to include metric records.
+  implicit val pipelineFormat = jsonFormat(Pipeline.apply, "pipeline_id", "state", "jar", "batch_interval", "config", "last_updated", "error")
 }

@@ -22,6 +22,7 @@ object ApiActor {
   case class PipelineUpdate(pipeline_id: String, state: PipelineState = null, jar: Option[String] = None,
                             batch_interval: Option[Long] = None, config: Option[PipelineConfig] = None,
                             error: Option[String] = None, _validate: Boolean = false)
+  case class PipelineMetrics(pipeline_id: String, last_timestamp: Option[Long])
   case class PipelineDelete(pipeline_id: String)
   implicit val timeout = Timeout(5.seconds)
 }
@@ -126,6 +127,7 @@ trait ApiService {
             if (updated) {
               val newLastUpdated = clock.currentTimeMillis
               val newPipeline = Pipeline(pipeline_id, state=newState, jar=newJar, batch_interval=newBatchInterval, last_updated=newLastUpdated, config=newConfig, error=newError)
+              newPipeline.metricsQueue = pipeline.metricsQueue
               pipelines = pipelines + (pipeline_id -> newPipeline)
             }
             sender ! Success(updated)
@@ -133,6 +135,19 @@ trait ApiService {
             case e: ApiException => sender ! Failure(e)
             case e: DeserializationException => sender ! Failure(ApiException(s"config does not validate: $e"))
           }
+        }
+        case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
+      }
+    }
+    case PipelineMetrics(pipeline_id, last_timestamp) => {
+      pipelines.get(pipeline_id) match {
+        case Some(pipeline) => {
+          val lastTimestamp = last_timestamp match {
+            case Some(t) => t
+            case None => 0
+          }
+          val metricRecords = pipeline.metricsQueue.filter(_.timestamp >= lastTimestamp).toList
+          sender ! Success(metricRecords)
         }
         case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }
