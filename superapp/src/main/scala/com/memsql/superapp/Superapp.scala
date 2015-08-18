@@ -8,6 +8,7 @@ import akka.io.IO
 import com.memsql.superapp.util.Paths
 import com.memsql.superapp.api._
 import ApiActor._
+import org.apache.log4j.PropertyConfigurator
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.streaming.{Duration, StreamingContext}
 import com.memsql.spark.context.MemSQLSparkContext
@@ -23,7 +24,8 @@ case class Config(port:Int = 10001,
                   dbHost:String = "127.0.0.1",
                   dbPort:Int = 3306,
                   dbUser:String = "root",
-                  dbPassword:String = "")
+                  dbPassword:String = "",
+                  debug:Boolean = false)
 
 object SuperApp {
   val VERSION = "0.1.3"
@@ -42,6 +44,8 @@ object SuperApp {
       opt[Int]("dbPort") action { (x, c) => c.copy(dbPort = x) } text "MemSQL Master port"
       opt[String]("dbUser") action { (x, c) => c.copy(dbUser = x) } text "MemSQL Master user"
       opt[String]("dbPassword") action { (x, c) => c.copy(dbPassword = x) } text "MemSQL Master password"
+
+      opt[Unit]("debug") action { (_, c) => c.copy(debug = true) } text "Enable debug logging for Superapp"
     }
 
     parser.parse(args, Config()) match {
@@ -82,6 +86,10 @@ class SuperApp(val providedConfig: Config) extends Application {
 trait Application extends Logging {
   private[superapp] lazy val config: Config = Config()
   Paths.initialize(config.dataDir)
+
+  val loggingProperties = Logging.defaultProps
+  loggingProperties.setProperty("log4j.logger.com.memsql", if (config.debug) "DEBUG" else "INFO")
+  PropertyConfigurator.configure(loggingProperties)
 
   implicit private[superapp] val system: ActorSystem
   private[superapp] val api: ActorRef
