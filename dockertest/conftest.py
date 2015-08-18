@@ -13,7 +13,7 @@ REAL_ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(_
 ROOT_PATH = '/storage/testroot'
 MEMSQL_OPS_ROOT = "/var/lib/memsql-ops"
 SPARK_ROOT = os.path.join(MEMSQL_OPS_ROOT, "data/spark/install")
-MEMSQL_JAR_PATH = os.path.join(ROOT_PATH, "memsql-spark/super_app/super_app.jar")
+MEMSQL_JAR_PATH = os.path.join(ROOT_PATH, "memsql-spark/interface/interface.jar")
 
 def is_psyduck():
     return "SWITCHMAN_IP" in os.environ or pytest.config.getoption("is_psyduck", default=False)
@@ -228,8 +228,8 @@ class LocalContext:
         self._shell.sudo(["memsql-ops", "file-add", "-t", "spark", "/tmp/memsql-spark.tar.gz"], None)
         return self._shell.run(["memsql-ops", "spark-deploy"])
 
-    def kill_superapp(self):
-        return self._shell.sudo(["pkill", "-f", "SuperApp"], None)
+    def kill_spark_interface(self):
+        return self._shell.sudo(["pkill", "-f", "com.memsql.spark.interface.Main"], None)
 
     def deploy_memsql_cluster(self, num_aggs, num_leaves, port = 3306):        
         print "Deploying MemSQL master to %d" % port

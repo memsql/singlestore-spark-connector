@@ -1,6 +1,6 @@
 connectorLib
 etlLib
-superapp
+interface
 test_root
 distribution
 target/streams

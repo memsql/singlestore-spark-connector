@@ -11,9 +11,9 @@ def do_test_spark_submit(local_context, test_name, num_aggs=0, num_leaves=1, arg
     print "sleep(30)"
     # wait for spark to be deployed
     time.sleep(30)
-    # and then kill the superapp so that we have spark resources to run a job
+    # and then kill the spark interface so that we have spark resources to run a job
     ctx.stop_ops()
-    ctx.kill_superapp()
+    ctx.kill_spark_interface()
 
     print "Running the job"
     resp = ctx.spark_submit(test_name, extra_args=args)

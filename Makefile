@@ -16,11 +16,11 @@ version:
 
 .PHONY: clean
 clean:
-	sbt clean
-	sbt "project connectorLib" clean
-	sbt "project etlLib" clean
-	sbt "project superapp" clean
-	sbt "project tests" clean
+	sbt clean \
+	"project connectorLib" clean \
+	"project etlLib" clean \
+	"project interface" clean \
+	"project tests" clean \
 	rm -rf distribution/
 
 .PHONY: build
@@ -52,5 +52,5 @@ psytest: build-test
 publish-local:
 	sbt "project connectorLib" publish \
 	"project etlLib" publish \
-	"project superapp" publish \
+	"project interface" publish \
 	"project root" publish

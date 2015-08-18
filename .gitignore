@@ -7,7 +7,7 @@ tests/target/*
 connectorLib/target/*
 connectorLib/src/main/scala/com/memsql/spark/connector/target/*
 etlLib/target/*
-superapp/target/*
+interface/target/*
 target/*
 test_root/*
 *.pyc

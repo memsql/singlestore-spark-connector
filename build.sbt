@@ -1,6 +1,6 @@
 lazy val commonSettings = Seq(
   organization := "com.memsql",
-  version := "0.1.3",
+  version := "0.1.4",
   scalaVersion := "2.10.5",
   publishTo := Some(Resolver.file("file",  new File(Path.userHome.absolutePath+"/.m2/repository")))
 )
@@ -56,12 +56,12 @@ lazy val etlLib = (project in file("etlLib")).
     }
   )
 
-lazy val superapp = (project in file("superapp")).
+lazy val interface = (project in file("interface")).
   dependsOn(connectorLib).
   dependsOn(etlLib).
   settings(commonSettings: _*).
   settings(
-    name := "superapp",
+    name := "MemSQLSparkInterface",
     parallelExecution in Test := false,
     libraryDependencies ++= {
       val akkaVersion = "2.3.9"
@@ -85,7 +85,7 @@ lazy val superapp = (project in file("superapp")).
 
 lazy val tests = (project in file("tests")).
   dependsOn(connectorLib).
-  dependsOn(superapp).
+  dependsOn(interface).
   settings(commonSettings: _*).
   settings(
     name := "tests",
@@ -104,7 +104,7 @@ lazy val tests = (project in file("tests")).
 lazy val root = (project in file(".")).
   dependsOn(connectorLib).
   dependsOn(etlLib).
-  dependsOn(superapp).
+  dependsOn(interface).
   settings(commonSettings: _*).
   settings(unidocSettings: _*).
   settings(
