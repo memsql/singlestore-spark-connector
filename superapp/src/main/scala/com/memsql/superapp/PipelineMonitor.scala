@@ -50,11 +50,13 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   override val lastUpdated = pipeline.last_updated
   override val jar = pipeline.jar
 
+  private[superapp] var jarLoaded = false
   private[superapp] var jarClassLoader: ClassLoader = null
 
   private def loadClass(path: String, clazz: String): Class[_] = {
-    if (jarClassLoader == null) {
+    if (!jarLoaded) {
       jarClassLoader = JarLoader.getClassLoader(path)
+      jarLoaded = true
     }
 
     JarLoader.loadClass(jarClassLoader, clazz)
@@ -95,7 +97,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   override val pipelineInstance = PipelineInstance(extractor, extractConfig, transformer, transformConfig, loader, loadConfig)
 
-  if (jarClassLoader != null) {
+  if (jarLoaded) {
     //TODO does this pollute the classpath for the lifetime of the superapp?
     //TODO if an updated jar is appended to the classpath the superapp will always run the old version
     //distribute jar to all tasks run by this spark context
@@ -121,7 +123,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       } catch {
         case e: InterruptedException => //exit
         case e: Exception => {
-          logError(s"Unexpected exception: $e")
+          logError(s"Unexpected exception for pipeline $pipeline_id", e)
           val future = (api ? PipelineUpdate(pipeline_id, PipelineState.ERROR, error = Some(e.toString))).mapTo[Try[Boolean]]
           future.map {
             case Success(resp) => //exit
@@ -137,9 +139,9 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     var inputDStream: InputDStream[Any] = null
 
     try {
-      logDebug("Initializing extractor")
+      logDebug(s"Initializing extractor for pipeline $pipeline_id")
       inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig, batchInterval)
-      logDebug("Starting InputDStream")
+      logDebug(s"Starting InputDStream for pipeline $pipeline_id")
       inputDStream.start()
 
       var time: Long = 0
@@ -149,19 +151,19 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       while (!isStopping.get) {
         time = System.currentTimeMillis
 
-        logDebug(s"Computing next RDD from InputDStream: $time")
+        logDebug(s"Computing next RDD for pipeline $pipeline_id: $time")
         inputDStream.compute(Time(time)) match {
           case Some(rdd) => {
-            logDebug("Transforming RDD")
+            logDebug(s"Transforming RDD for pipeline $pipeline_id")
             val df = pipelineInstance.transformer.transform(sqlContext, rdd.asInstanceOf[RDD[Any]], pipelineInstance.transformConfig)
-            logDebug("Loading RDD")
+            logDebug(s"Loading RDD for pipeline $pipeline_id")
             pipelineInstance.loader.load(df, pipelineInstance.loadConfig)
           }
-          case None => logDebug("No RDD from InputDStream")
+          case None => logDebug(s"No RDD from pipeline $pipeline_id")
         }
 
         val sleepTimeMillis = Math.max(batchInterval - (System.currentTimeMillis - time), 0)
-        logDebug(s"Sleeping for $sleepTimeMillis milliseconds")
+        logDebug(s"Sleeping for $sleepTimeMillis milliseconds for pipeline $pipeline_id")
         Thread.sleep(sleepTimeMillis)
       }
     } catch {

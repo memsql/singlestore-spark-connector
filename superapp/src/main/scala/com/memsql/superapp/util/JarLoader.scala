@@ -51,13 +51,7 @@ object JarLoader extends Logging {
 
   def loadClass(path:String, clazz:String): Class[_] = {
     val classLoader = getClassLoader(path)
-
-    try {
-      classLoader.loadClass(clazz)
-    } catch {
-      case e: ClassNotFoundException => throw new ClassLoadException(s"Class `$clazz` not found", e)
-      case e: Exception => throw new JarLoaderException("Unexpected error", e)
-    }
+    loadClass(classLoader, clazz)
   }
 
   def loadClass(classLoader: ClassLoader, clazz:String): Class[_] = {

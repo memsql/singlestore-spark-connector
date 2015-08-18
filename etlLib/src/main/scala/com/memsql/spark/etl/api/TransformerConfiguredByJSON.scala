@@ -11,18 +11,22 @@ import com.memsql.spark.etl.api.configs.PhaseConfig
 import com.memsql.spark.etl.api.configs.UserTransformConfig
 
 trait TransformerConfiguredByJSON[S] extends Transformer[S] with Logging {
+  private var configMap: Map[String, String] = null
+
   override def transform(sqlContext: SQLContext, rdd: RDD[S], config: PhaseConfig): DataFrame = {
-    val mapper = new ObjectMapper()
-    mapper.registerModule(DefaultScalaModule)
+    if (configMap == null) {
+      val configMapString = config.asInstanceOf[UserTransformConfig].value
 
-    val configMapString = config.asInstanceOf[UserTransformConfig].value
-    var configMap: Map[String, String] = Map[String, String]()
+      val mapper = new ObjectMapper()
+      mapper.registerModule(DefaultScalaModule)
 
-    try {
-      configMap = mapper.readValue(configMapString, classOf[Map[String, String]])
-    } catch {
-      case e: JsonMappingException => {
-        logWarn(s"Couldn't parse JSON config, using empty Map: $configMapString", e)
+      configMap = Map[String, String]()
+      try {
+        configMap = mapper.readValue(configMapString, classOf[Map[String, String]])
+      } catch {
+        case e: JsonMappingException => {
+          logWarn(s"Couldn't parse JSON config, using empty config: $configMapString", e)
+        }
       }
     }
 

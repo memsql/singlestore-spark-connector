@@ -48,8 +48,8 @@ package: docs build
 psytest: build-test
 	psy dockertest .psyduck
 
-.PHONY: publish
-publish:
+.PHONY: publish-local
+publish-local:
 	sbt "project connectorLib" publish \
 	"project etlLib" publish \
 	"project superapp" publish \
