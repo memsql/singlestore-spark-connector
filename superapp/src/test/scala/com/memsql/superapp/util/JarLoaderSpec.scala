@@ -16,29 +16,31 @@ class JarLoaderSpec extends UnitSpec {
     clazz = JarLoader.loadClass(Paths.join(new File(".").getCanonicalPath, localJarFile),
       "com.memsql.spark.etl.api.Loader")
     assert(clazz.getPackage.getName == "com.memsql.spark.etl.api")
+    assert(clazz.getCanonicalName == "com.memsql.spark.etl.api.Loader")
   }
 
   it should "error if jar doesn't exist" in {
     intercept[FileDownloadException] {
-      JarLoader.loadClass("http://notawebsite/jars/foo1.jar", "com.memsql.foo.bar")
+      JarLoader.getClassLoader("http://notawebsite/jars/foo1.jar")
     }
     assert(!Paths.exists(Paths.join(Paths.JAR_DIR, "foo1.jar")))
 
     intercept[FileDownloadException] {
-      JarLoader.loadClass("http://coreos-10.memcompute.com:8080/not_a_directory/foo2.jar", "com.memsql.foo.bar")
+      JarLoader.getClassLoader("http://coreos-10.memcompute.com:8080/not_a_directory/foo2.jar")
     }
     assert(!Paths.exists(Paths.join(Paths.JAR_DIR, "foo2.jar")))
 
     intercept[FileDownloadException] {
-      JarLoader.loadClass("file:///do_not_put_jars_in_this_directory_or_test_will_fail/foo3.jar", "com.memsql.foo.bar")
+      JarLoader.getClassLoader("file:///do_not_put_jars_in_this_directory_or_test_will_fail/foo3.jar")
     }
     assert(!Paths.exists(Paths.join(Paths.JAR_DIR, "foo3.jar")))
   }
 
   it should "error if class doesn't exist" in {
+    val classLoader = JarLoader.getClassLoader("http://coreos-10.memcompute.com:8080/repository/internal/com/memsql/memsql/0.1.2/memsql-0.1.2.jar")
+
     intercept[ClassLoadException] {
-      JarLoader.loadClass("http://coreos-10.memcompute.com:8080/repository/internal/com/memsql/memsql/0.1.2/memsql-0.1.2.jar",
-        "com.memsql.class_does_not_exist.foo")
+      JarLoader.loadClass(classLoader, "com.memsql.class_does_not_exist.foo")
     }
   }
 }

@@ -50,7 +50,15 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   override val lastUpdated = pipeline.last_updated
   override val jar = pipeline.jar
 
-  private[superapp] var loadJar = false
+  private[superapp] var jarClassLoader: ClassLoader = null
+
+  private def loadClass(path: String, clazz: String): Class[_] = {
+    if (jarClassLoader == null) {
+      jarClassLoader = JarLoader.getClassLoader(path)
+    }
+
+    JarLoader.loadClass(jarClassLoader, clazz)
+  }
 
   private[superapp] val extractConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config)
   private[superapp] val transformConfig = TransformPhase.readConfig(pipeline.config.transform.kind, pipeline.config.transform.config)
@@ -60,9 +68,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     case ExtractPhaseKind.Kafka => new KafkaExtractor(pipeline.pipeline_id).asInstanceOf[Extractor[Any]]
     case ExtractPhaseKind.TestString | ExtractPhaseKind.TestJson => new ConfigStringExtractor().asInstanceOf[Extractor[Any]]
     case ExtractPhaseKind.User => {
-      loadJar = true
       val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
-      JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Extractor[Any]]
+      loadClass(pipeline.jar, className).newInstance.asInstanceOf[Extractor[Any]]
     }
   }
   private[superapp] val transformer: Transformer[Any] = pipeline.config.transform.kind match {
@@ -74,23 +81,21 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       }
     }
     case TransformPhaseKind.User => {
-      loadJar = true
       val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
-      JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Transformer[Any]]
+      loadClass(pipeline.jar, className).newInstance.asInstanceOf[Transformer[Any]]
     }
   }
   private[superapp] val loader: Loader = pipeline.config.load.kind match {
     case LoadPhaseKind.MemSQL => new MemSQLLoader
     case LoadPhaseKind.User => {
-      loadJar = true
       val className = loadConfig.asInstanceOf[UserLoadConfig].class_name
-      JarLoader.loadClass(pipeline.jar, className).newInstance.asInstanceOf[Loader]
+      loadClass(pipeline.jar, className).newInstance.asInstanceOf[Loader]
     }
   }
 
   override val pipelineInstance = PipelineInstance(extractor, extractConfig, transformer, transformConfig, loader, loadConfig)
 
-  if (loadJar) {
+  if (jarClassLoader != null) {
     //TODO does this pollute the classpath for the lifetime of the superapp?
     //TODO if an updated jar is appended to the classpath the superapp will always run the old version
     //distribute jar to all tasks run by this spark context
