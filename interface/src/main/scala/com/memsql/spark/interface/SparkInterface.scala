@@ -43,6 +43,13 @@ class SparkInterface(val providedConfig: Config) extends Application {
       .set("spark.fileserver.port", (config.port + 5).toString)
   }
 
+  // Use the sparkContext to get the master URL. This forces the sparkContext
+  // be evaluated, ensuring that we attempt to connect to the master before
+  // we start the HTTP API so that we don't respond to /ping requests if we
+  // can't connect to the Spark master.
+  val sparkMaster = sparkContext.master
+  logInfo(s"Connected to a Spark master on $sparkMaster")
+
   IO(Http) ? Http.Bind(web, interface = "0.0.0.0", port = config.port) onComplete {
     case Success(Http.Bound(endpoint)) => logInfo(s"Listening on 0.0.0.0:${config.port}")
     case _ => {
@@ -64,12 +71,12 @@ trait Application extends Logging {
   PropertyConfigurator.configure(loggingProperties)
 
   implicit private[interface] val system: ActorSystem
-  private[interface] val api: ActorRef
-  private[interface] val web: ActorRef
+  private[interface] def api: ActorRef
+  private[interface] def web: ActorRef
 
-  private[interface] val sparkConf: SparkConf
-  private[interface] lazy val sparkContext: SparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
-  private[interface] lazy val streamingContext = new StreamingContext(sparkContext, new Duration(5000))
+  private[interface] def sparkConf: SparkConf
+  private[interface] def sparkContext: SparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
+  private[interface] def streamingContext = new StreamingContext(sparkContext, new Duration(5000))
 
   private[interface] var pipelineMonitors = Map[String, PipelineMonitor]()
 

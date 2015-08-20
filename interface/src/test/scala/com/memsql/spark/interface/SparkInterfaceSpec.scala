@@ -13,9 +13,14 @@ import org.apache.spark.streaming.StreamingContext
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
 
-class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") {
+class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSparkContext {
   var mockTime = new MockTime()
   val apiRef = system.actorOf(Props(classOf[TestApiActor], mockTime))
+
+  override def beforeEach(): Unit = {
+    val conf = new SparkConf().setMaster("local").setAppName("Test")
+    sc = new SparkContext(conf)
+  }
 
   val config = PipelineConfig(
     Phase[ExtractPhaseKind](
@@ -67,11 +72,11 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") {
 
     // use the TestKit actors
     override val system = SparkInterfaceSpec.this.system
-    override val api = apiRef
-    override val web = null
+    override def api = apiRef
+    override def web = null
 
-    override val sparkConf = new SparkConf().setAppName("test").setMaster("local")
-    override lazy val sparkContext: SparkContext = new SparkContext(sparkConf)
+    override def sparkConf = new SparkConf().setAppName("test").setMaster("local")
+    override def sparkContext: SparkContext = sc
 
     override def newPipelineMonitor(pipeline: Pipeline) = {
       try {
