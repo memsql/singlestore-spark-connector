@@ -143,7 +143,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     if (myAvailableNodes.size == 0) { // there is no MemSQL node available for colocation
       myAvailableNodes = availableNodes
       ix = (randomIndex + TaskContext.get.partitionId) % myAvailableNodes.size
-    } else { // there is at least one MemSQL node avaiable for colocation
+    } else { // there is at least one MemSQL node available for colocation
       ix = Random.nextInt(myAvailableNodes.size)
       isColocated = true
     }
