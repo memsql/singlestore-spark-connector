@@ -43,6 +43,9 @@ class SparkInterface(val providedConfig: Config) extends Application {
       .set("spark.fileserver.port", (config.port + 5).toString)
   }
 
+  override val sparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
+  override val streamingContext = new StreamingContext(sparkContext, new Duration(5000))
+
   // Use the sparkContext to get the master URL. This forces the sparkContext
   // be evaluated, ensuring that we attempt to connect to the master before
   // we start the HTTP API so that we don't respond to /ping requests if we
@@ -75,8 +78,8 @@ trait Application extends Logging {
   private[interface] def web: ActorRef
 
   private[interface] def sparkConf: SparkConf
-  private[interface] def sparkContext: SparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
-  private[interface] def streamingContext = new StreamingContext(sparkContext, new Duration(5000))
+  private[interface] def sparkContext: SparkContext
+  private[interface] def streamingContext: StreamingContext
 
   private[interface] var pipelineMonitors = Map[String, PipelineMonitor]()
 

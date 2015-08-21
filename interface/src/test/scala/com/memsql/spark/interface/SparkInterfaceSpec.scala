@@ -9,7 +9,7 @@ import com.memsql.spark.interface.api.{PipelineInstance, Pipeline, PipelineState
 import ApiActor._
 import org.apache.spark.{SparkContext, SparkConf}
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.streaming.StreamingContext
+import org.apache.spark.streaming.{StreamingContext, Duration}
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
 
@@ -77,6 +77,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
 
     override def sparkConf = new SparkConf().setAppName("test").setMaster("local")
     override def sparkContext: SparkContext = sc
+    override def streamingContext: StreamingContext = new StreamingContext(sc, new Duration(5000))
 
     override def newPipelineMonitor(pipeline: Pipeline) = {
       try {
