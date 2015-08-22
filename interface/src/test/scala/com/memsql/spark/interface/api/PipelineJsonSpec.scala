@@ -24,7 +24,7 @@ class PipelineJsonSpec extends UnitSpec {
       Phase[LoadPhaseKind](
         LoadPhaseKind.MemSQL,
         LoadPhase.writeConfig(
-          LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None))),
+          LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None))),
       config_version = 42)
 
     val pipeline1 = Pipeline(

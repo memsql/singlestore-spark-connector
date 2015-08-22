@@ -19,6 +19,7 @@ class MemSQLLoader extends Loader {
     df.saveToMemSQL(memSQLLoadConfig.db_name, 
                     memSQLLoadConfig.table_name,
                     onDuplicateKeySql = memSQLLoadConfig.on_duplicate_key_sql.getOrElse(""),
-                    upsertBatchSize = memSQLLoadConfig.upsert_batch_size.getOrElse(DefaultUpsertBatchSize))
+                    upsertBatchSize = memSQLLoadConfig.upsert_batch_size.getOrElse(DefaultUpsertBatchSize),
+                    useKeylessShardedOptimization = memSQLLoadConfig.use_keyless_sharding_optimization.getOrElse(false))
   }
 }

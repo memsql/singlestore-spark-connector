@@ -30,7 +30,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       Phase[LoadPhaseKind](
         LoadPhaseKind.MemSQL,
         LoadPhase.writeConfig(
-          LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None))))
+          LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None))))
 
     val config2 = config.copy(extract = Phase[ExtractPhaseKind](
       ExtractPhaseKind.User,
@@ -233,7 +233,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         Phase[LoadPhaseKind](
           LoadPhaseKind.MemSQL,
           LoadPhase.writeConfig(
-            LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None))))
+            LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None))))
 
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {

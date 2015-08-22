@@ -25,7 +25,8 @@ case class MemSQLLoadConfig(db_name: String,
                             table_name: String,
                             on_duplicate_key_sql: Option[String],
                             upsert_batch_size: Option[Int],
-                            table_keys: Option[List[MemSQLKeyConfig]]
+                            table_keys: Option[List[MemSQLKeyConfig]],
+                            use_keyless_sharding_optimization: Option[Boolean]
                           ) extends PhaseConfig 
 
 case class UserLoadConfig(class_name: String, value: String) extends PhaseConfig
@@ -38,7 +39,7 @@ import KeyTypeJsonProtocol._
 
 object LoadPhase extends DefaultJsonProtocol {
   val userConfigFormat = jsonFormat2(UserLoadConfig)
-  val memSQLConfigFormat = jsonFormat5(MemSQLLoadConfig)
+  val memSQLConfigFormat = jsonFormat6(MemSQLLoadConfig)
 
   def readConfig(kind: LoadPhaseKind, config: JsValue): PhaseConfig = {
     kind match {

@@ -31,7 +31,7 @@ case class JSONExtractObject(objName: String, pathTail: JSONPath) extends JSONPa
     getName(name).toString
   }
   override def getName(name: StringBuilder): StringBuilder = {
-    name.append("_").append(objName)
+    name.append(objName).append("_")
     pathTail.getName(name)
   }
   override def getType: DataType = pathTail.getType
