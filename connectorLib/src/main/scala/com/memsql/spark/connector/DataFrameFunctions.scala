@@ -17,7 +17,7 @@ import com.memsql.spark.context.MemSQLSparkContext
 
 import com.memsql.spark.connector.dataframe._
 
-class DataFrameFunctions(df: DataFrame) extends Serializable with Logging 
+class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
 {
     /*
      * Saves a Spark dataframe to a memsql table with the same column names.
@@ -30,11 +30,11 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
                      dbHost: String = null,
                      dbPort: Int = -1,
                      user: String = null,
-                     password: String = null,                     
+                     password: String = null,
                      onDuplicateKeySql: String = "",
                      useInsertIgnore: Boolean = false,
                      upsertBatchSize: Int = 10000,
-                     useKeylessShardedOptimization: Boolean = false)
+                     useKeylessShardedOptimization: Boolean = false): Long =
   {
         val insertTable = new StringBuilder()
         insertTable.append(tableName).append("(")
@@ -66,7 +66,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
                             password: String = null,
                             ifNotExists: Boolean = false,
                             keys: Array[MemSQLKey] = Array(),
-                            useKeylessShardedOptimization: Boolean = false) : DataFrame = 
+                            useKeylessShardedOptimization: Boolean = false) : DataFrame =
     {
         val resultDf = df.createMemSQLTableFromSchema(dbName, tableName, dbHost, dbPort, user, password, ifNotExists, keys)
         df.saveToMemSQL(dbName, tableName, dbHost, dbPort, user, password, useKeylessShardedOptimization=useKeylessShardedOptimization)
@@ -80,7 +80,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
                                     user: String = null,
                                     password: String = null,
                                     ifNotExists: Boolean = false,
-                                    keys: Array[MemSQLKey] = Array()) : DataFrame = 
+                                    keys: Array[MemSQLKey] = Array()) : DataFrame =
     {
         val sql = new StringBuilder()
         sql.append("CREATE ")
@@ -114,27 +114,27 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
         var thePort: Int = dbPort
         var theUser: String = user
         var thePassword: String = password
-        if (dbHost == null || dbPort == -1 || user == null || password == null) 
+        if (dbHost == null || dbPort == -1 || user == null || password == null)
         {
-            df.rdd.sparkContext match 
+            df.rdd.sparkContext match
             {
-                case _: MemSQLSparkContext => 
+                case _: MemSQLSparkContext =>
                 {
                     val msc = df.rdd.sparkContext.asInstanceOf[MemSQLSparkContext]
-                    theHost = msc.GetMemSQLMasterAggregator._1 // note: it's fine for this to be the MA, since its gaurenteed to be a fully pushed down query.  
+                    theHost = msc.GetMemSQLMasterAggregator._1 // note: it's fine for this to be the MA, since its gaurenteed to be a fully pushed down query.
                     thePort = msc.GetMemSQLMasterAggregator._2
                     theUser = msc.GetUserName
                     thePassword = msc.GetPassword
                 }
-                case _ => 
+                case _ =>
                 {
                     throw new SparkException("saveToMemSQL requires initializing Spark with MemSQLSparkContext or explicitly setting dbName, dbHost, user and password")
                 }
             }
         }
-        var conn: Connection = null 
-        var stmt: Statement = null 
-        try 
+        var conn: Connection = null
+        var stmt: Statement = null
+        try
         {
             conn = MemSQLRDD.getConnection(theHost, thePort, theUser, thePassword)
             stmt = conn.createStatement
@@ -154,4 +154,3 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
         return MemSQLDataFrame.MakeMemSQLDF(df.sqlContext, theHost, thePort, theUser, thePassword, dbName, "SELECT * FROM " + tableName)
     }
 }
-

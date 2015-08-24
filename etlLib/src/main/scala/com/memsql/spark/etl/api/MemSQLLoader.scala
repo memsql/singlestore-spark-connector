@@ -5,9 +5,9 @@ import com.memsql.spark.connector._
 import com.memsql.spark.etl.api.configs.{PhaseConfig, MemSQLLoadConfig, MemSQLKeyConfig}
 
 class MemSQLLoader extends Loader {
-  val DefaultUpsertBatchSize = 1000  
+  val DefaultUpsertBatchSize = 1000
   var hasInserted: Boolean = false
-  override def load(df: DataFrame, loadConfig: PhaseConfig): Unit = {
+  override def load(df: DataFrame, loadConfig: PhaseConfig): Long = {
     val memSQLLoadConfig = loadConfig.asInstanceOf[MemSQLLoadConfig]
     if (!hasInserted) {
       df.createMemSQLTableFromSchema(memSQLLoadConfig.db_name,
@@ -16,7 +16,7 @@ class MemSQLLoader extends Loader {
                                      ifNotExists = true)
       hasInserted = true
     }
-    df.saveToMemSQL(memSQLLoadConfig.db_name, 
+    df.saveToMemSQL(memSQLLoadConfig.db_name,
                     memSQLLoadConfig.table_name,
                     onDuplicateKeySql = memSQLLoadConfig.on_duplicate_key_sql.getOrElse(""),
                     upsertBatchSize = memSQLLoadConfig.upsert_batch_size.getOrElse(DefaultUpsertBatchSize),

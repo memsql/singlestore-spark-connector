@@ -12,6 +12,7 @@ import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api.{PipelineInstance, Pipeline, PipelineState, ApiActor, PipelineMetricRecord, PhaseMetricRecord, PipelineBatchType}
 import com.memsql.spark.interface.api.PipelineBatchType._
+import com.memsql.spark.interface.api.ApiJsonProtocol._
 import ApiActor._
 import com.memsql.spark.interface.util.JarLoader
 import org.apache.spark.SparkContext
@@ -22,6 +23,12 @@ import org.apache.spark.streaming.{Time, StreamingContext}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
+import spray.json._
+
+case class PhaseResult(count: Option[Long] = None,
+                       columns: Option[List[(String, String)]] = None,
+                       records: Option[List[List[String]]] = None,
+                       logs: Option[List[String]] = None)
 
 trait PipelineMonitor {
   def api: ActorRef
@@ -51,6 +58,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   override val config = pipeline.config
   override val lastUpdated = pipeline.last_updated
   override val jar = config.jar.orNull
+
+  val TRACED_RECORDS_PER_BATCH = 10
 
   private[interface] var jarLoaded = false
   private[interface] var jarClassLoader: ClassLoader = null
@@ -147,6 +156,16 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       while (!isStopping.get) {
         time = System.currentTimeMillis
 
+        var trace = false
+        if (pipeline.traceBatchCount > 0) {
+          trace = true
+          val future = (api ? PipelineTraceBatchDecrement(pipeline_id)).mapTo[Try[Boolean]]
+          future.map {
+            case Success(resp) =>
+            case Failure(error) => logError(s"Failed to decrement pipeline $pipeline_id trace batch count", error)
+          }
+        }
+
         var success = false
         var extractRecord: Option[PhaseMetricRecord] = None
         var transformRecord: Option[PhaseMetricRecord] = None
@@ -154,34 +173,74 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
         logDebug(s"Computing next RDD for pipeline $pipeline_id: $time")
 
+        var tracedRdd: RDD[Array[Byte]] = null
         var extractedRdd: RDD[Array[Byte]] = null
         extractRecord = runPhase(() => {
           inputDStream.compute(Time(time)) match {
-            case Some(rdd) => extractedRdd = rdd
-            case None => logDebug(s"No RDD from pipeline $pipeline_id")
+            case Some(rdd) => {
+              if (trace) {
+                val count = Some(rdd.count)
+                val weight = math.min(TRACED_RECORDS_PER_BATCH.toFloat / count.get, 1.0)
+                val rdds = rdd.randomSplit(Array(weight, 1.0 - weight))
+                tracedRdd = rdds(0)
+                extractedRdd = rdds(1)
+                val (columns, records) = getExtractRecords(tracedRdd)
+                val logs = None
+                PhaseResult(count = count, columns = columns, records = records, logs = logs)
+              } else {
+                extractedRdd = rdd
+                PhaseResult()
+              }
+            }
+            case None => {
+              logDebug(s"No RDD from pipeline $pipeline_id")
+              PhaseResult()
+            }
           }
         })
 
+        var tracedDf: DataFrame = null
         var df: DataFrame = null
         if (extractedRdd != null) {
           transformRecord = runPhase(() => {
             logDebug(s"Transforming RDD for pipeline $pipeline_id")
-            df = pipelineInstance.transformer.transform(sqlContext, extractedRdd, pipelineInstance.transformConfig)
+            if (tracedRdd != null) {
+              tracedDf = pipelineInstance.transformer.transform(
+                sqlContext, tracedRdd, pipelineInstance.transformConfig)
+            }
+            df = pipelineInstance.transformer.transform(
+              sqlContext, extractedRdd, pipelineInstance.transformConfig)
+            if (trace && tracedDf != null) {
+              val count = Some(tracedDf.count + df.count)
+              val (columns, records) = getTransformRecords(tracedDf)
+              val logs = None
+              PhaseResult(count = count, columns = columns, records = records, logs = logs)
+            } else {
+              PhaseResult()
+            }
           })
         }
 
         if (df != null) {
+          if (tracedDf != null) {
+            df = df.unionAll(tracedDf)
+          }
           loadRecord = runPhase(() => {
             logDebug(s"Loading RDD for pipeline $pipeline_id")
-            pipelineInstance.loader.load(df, pipelineInstance.loadConfig)
+            val count = Some(pipelineInstance.loader.load(df, pipelineInstance.loadConfig))
             success = true
+            PhaseResult(count = count)
           })
         }
 
         val batch_id = UUID.randomUUID.toString
+        var batch_type = PipelineBatchType.Normal
+        if (trace) {
+          batch_type = PipelineBatchType.Traced
+        }
         val metric = PipelineMetricRecord(
           batch_id = batch_id,
-          batch_type = PipelineBatchType.Normal,
+          batch_type = batch_type,
           pipeline_id = pipeline_id,
           timestamp = time,
           success = success,
@@ -211,11 +270,12 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     }
   }
 
-  def runPhase(fn: () => Unit): Option[PhaseMetricRecord] = {
+  def runPhase(fn: () => PhaseResult): Option[PhaseMetricRecord] = {
     var error: Option[String] = None
+    var phaseResult = PhaseResult()
     val startTime = System.currentTimeMillis
     try {
-      fn()
+      phaseResult = fn()
     } catch {
       case NonFatal(e) => {
         logError(s"Phase error in pipeline $pipeline_id", e)
@@ -226,11 +286,54 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     Some(PhaseMetricRecord(
       start = startTime,
       stop = stopTime,
-      count = None,
+      count = phaseResult.count,
       error = error,
-      records = None,
-      logs = None
+      columns = phaseResult.columns,
+      records = phaseResult.records,
+      logs = phaseResult.logs
     ))
+  }
+
+  private[interface] def getExtractRecords(rdd: RDD[Array[Byte]]): (Option[List[(String, String)]], Option[List[List[String]]]) = {
+    val fields = List(("value", "string"))
+    val values: List[List[String]] = rdd.map(record => {
+      try {
+        // Build up a string with hex encoding such that printable ASCII
+        // characters get added as-is but other characters are added as an
+        // escape sequence (e.g. \x7f).
+        val sb = new StringBuilder()
+        record.foreach(b => {
+          if (b >= 0x20 && b <= 0x7e) {
+            sb.append(b.toChar)
+          } else {
+            sb.append("\\x%02x".format(b))
+          }
+        })
+        List(sb.toString)
+      } catch {
+        case e: Exception => List(s"Could not get string representation of record: $e")
+      }
+    }).collect.toList
+    (Some(fields), Some(values))
+  }
+
+  private[interface] def getTransformRecords(df: DataFrame): (Option[List[(String, String)]], Option[List[List[String]]]) = {
+    val fields = df.schema.fields.map(field => (field.name, field.dataType.typeName)).toList
+    // Create a list of lists, where each inner list represents the values of
+    // each column in fieldNames for a given row.
+    val values: List[List[String]] = df.map(row => {
+      try {
+        fields.map(field => {
+          row.getAs[Any](field._1) match {
+            case null => "null"
+            case default => default.toString
+          }
+        }).toList
+      } catch {
+        case e: Exception => List(s"Could not get string representation of row: $e")
+      }
+    }).collect.toList
+    (Some(fields), Some(values))
   }
 
   override def ensureStarted() = {

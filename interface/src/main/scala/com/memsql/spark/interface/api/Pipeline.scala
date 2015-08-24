@@ -20,7 +20,8 @@ case class Pipeline(pipeline_id: String,
   Pipeline.validate(batch_interval, config)
 
   val MAX_METRICS_QUEUE_SIZE = 1000
-  private[interface] var metricsQueue = new BoundedQueue[PipelineMetricRecord](MAX_METRICS_QUEUE_SIZE)
+  @volatile private[interface] var metricsQueue = new BoundedQueue[PipelineMetricRecord](MAX_METRICS_QUEUE_SIZE)
+  @volatile private[interface] var traceBatchCount = 0
 
   private[interface] def enqueueMetricRecord(records: PipelineMetricRecord*) = {
     metricsQueue.enqueue(records: _*)

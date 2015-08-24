@@ -60,7 +60,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     onDuplicateKeySql: String = "",
     useInsertIgnore: Boolean = false,
     upsertBatchSize: Int = 10000,
-    useKeylessShardedOptimization: Boolean = false) {
+    useKeylessShardedOptimization: Boolean = false): Long = {
 
     var theUser = user
     var thePassword = password
@@ -102,22 +102,26 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     }
 
     val randomIndex = Random.nextInt(availableNodes.size)
+    val numRowsAccumulator = rdd.sparkContext.accumulator[Long](0, "saveToMemSQL accumulator")
     rdd.foreachPartition{ part =>
       val node = chooseMemSQLTarget(availableNodes, randomIndex)
       if (node.isColocated) {
         compression = "tsv"
       }
 
+      var numRowsAffected = 0
       if (onDuplicateKeySql.isEmpty) {
-        loadPartitionInMemSQL(
+        numRowsAffected = loadPartitionInMemSQL(
           node.targetHost, node.targetPort, theUser, thePassword, node.targetDb, tableName,
           useInsertIgnore, part, compression=compression)
       } else { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
-        insertPartitionInMemSQL(
+        numRowsAffected = insertPartitionInMemSQL(
           node.targetHost, node.targetPort, theUser, thePassword, node.targetDb, tableName, onDuplicateKeySql,
           upsertBatchSize, useInsertIgnore, part)
       }
+      numRowsAccumulator += numRowsAffected
     }
+    numRowsAccumulator.value
   }
 
   /*
@@ -175,11 +179,13 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
                                        onDuplicateKeySql: String,
                                        upsertBatchSize: Int,
                                        useInsertIgnore: Boolean,
-                                       iter: Iterator[Row]) {
+                                       iter: Iterator[Row]): Int = {
     var conn: Connection = null
     var stmt: PreparedStatement = null
     var numOutputColumns = -1
     var numOutputRows = -1
+
+    var numRowsAffected = 0
 
     try {
       conn = getMemSQLConnection(dbHost, dbPort, user, password, dbName)
@@ -188,7 +194,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       for (group <- groupedPartitionContents) {
         val rowGroup = group.toArray
         if (rowGroup.isEmpty) {
-          return
+          return 0
         }
         if (numOutputColumns != rowGroup(0).length || numOutputRows != rowGroup.length) {
           try {
@@ -242,9 +248,10 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
             i = i + 1
           }
         }
-        val numRowsAffected = stmt.executeUpdate()
+        numRowsAffected = stmt.executeUpdate()
       }
       conn.commit()
+      numRowsAffected
     } catch {
       case e: Exception => {
         if (conn != null) {
@@ -278,13 +285,15 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
                                     tableName: String,
                                     useInsertIgnore: Boolean,
                                     iter: Iterator[Row],
-                                    compression:String = "gzip") {
+                                    compression:String = "gzip"): Int = {
 
     val basestream = new PipedOutputStream
     val input = new PipedInputStream(basestream)
 
     var outstream: OutputStream = basestream
     var ext = "tsv"
+
+    var numRowsAffected = 0
 
     compression match {
       case "gzip" => {
@@ -339,7 +348,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       conn = getMemSQLConnection(dbHost, dbPort, user, password, dbName)
       stmt = conn.createStatement.asInstanceOf[com.mysql.jdbc.Statement]
       stmt.setLocalInfileInputStream(input)
-      stmt.executeQuery(q)
+      numRowsAffected = stmt.executeUpdate(q)
     } finally {
       if (stmt != null && !stmt.isClosed()) {
         stmt.close()
@@ -348,6 +357,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
         conn.close()
       }
     }
+    numRowsAffected
   }
 
   private def getMemSQLConnection(

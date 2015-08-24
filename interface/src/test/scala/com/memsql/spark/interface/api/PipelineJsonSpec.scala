@@ -317,7 +317,8 @@ class PipelineJsonSpec extends UnitSpec {
         stop = 2,
         count = Some(100),
         error = Some("extract error"),
-        records = Some(List("extract record 1")),
+        columns = Some(List(("column1", "string"))),
+        records = Some(List(List("extract record 1"))),
         logs = Some(List("extract log 1"))
       )),
       transform = Some(PhaseMetricRecord(
@@ -325,7 +326,8 @@ class PipelineJsonSpec extends UnitSpec {
         stop = 2,
         count = Some(100),
         error = Some("transform error"),
-        records = Some(List("transform record 1")),
+        columns = Some(List(("column1", "string"), ("column2", "string"))),
+        records = Some(List(List("transform record 1", "transform record 2"))),
         logs = Some(List("transform log 1"))
       )),
       load = Some(PhaseMetricRecord(
@@ -333,7 +335,8 @@ class PipelineJsonSpec extends UnitSpec {
         stop = 2,
         count = Some(100),
         error = Some("load error"),
-        records = Some(List("load record 1")),
+        columns = Some(List(("column1", "string"), ("column2", "string"))),
+        records = Some(List(List("load record 1", "load record 2"))),
         logs = Some(List("load log 1"))
       ))
     )
@@ -350,7 +353,8 @@ class PipelineJsonSpec extends UnitSpec {
         "stop" -> 2,
         "count" -> 100,
         "error" -> "extract error",
-        "records" -> List("extract record 1"),
+        "columns" -> List(List("column1", "string")),
+        "records" -> List(List("extract record 1")),
         "logs" -> List("extract log 1")
       ),
       "transform" -> Map(
@@ -358,7 +362,8 @@ class PipelineJsonSpec extends UnitSpec {
         "stop" -> 2,
         "count" -> 100,
         "error" -> "transform error",
-        "records" -> List("transform record 1"),
+        "columns" -> List(List("column1", "string"), List("column2", "string")),
+        "records" -> List(List("transform record 1", "transform record 2")),
         "logs" -> List("transform log 1")
       ),
       "load" -> Map(
@@ -366,7 +371,8 @@ class PipelineJsonSpec extends UnitSpec {
         "stop" -> 2,
         "count" -> 100,
         "error" -> "load error",
-        "records" -> List("load record 1"),
+        "columns" -> List(List("column1", "string"), List("column2", "string")),
+        "records" -> List(List("load record 1", "load record 2")),
         "logs" -> List("load log 1")
       )
     )
@@ -408,7 +414,8 @@ class PipelineJsonSpec extends UnitSpec {
         stop = 2,
         count = Some(100),
         error = Some("extract error"),
-        records = Some(List("extract record 1")),
+        columns = Some(List(("column1", "string"))),
+        records = Some(List(List("extract record 1"))),
         logs = Some(List("extract log 1"))
       )),
       transform = Some(PhaseMetricRecord(
@@ -416,7 +423,8 @@ class PipelineJsonSpec extends UnitSpec {
         stop = 2,
         count = Some(100),
         error = Some("transform error"),
-        records = Some(List("transform record 1")),
+        columns = Some(List(("column1", "string"), ("column2", "string"))),
+        records = Some(List(List("transform record 1", "transform record 2"))),
         logs = Some(List("transform log 1"))
       )),
       load = Some(PhaseMetricRecord(
@@ -424,7 +432,8 @@ class PipelineJsonSpec extends UnitSpec {
         stop = 2,
         count = Some(100),
         error = Some("load error"),
-        records = Some(List("load record 1")),
+        columns = Some(List(("column1", "string"), ("column2", "string"))),
+        records = Some(List(List("load record 1", "load record 2"))),
         logs = Some(List("load log 1"))
       ))
     )
@@ -435,16 +444,17 @@ class PipelineJsonSpec extends UnitSpec {
         "pipeline_id": "pipeline1",
         "timestamp": 42,
         "success": true,
-        "load": {
+        "extract": {
             "start": 1,
             "stop": 2,
             "count": 100,
-            "error": "load error",
+            "error": "extract error",
+            "columns": [ [ "column1", "string" ] ],
             "records": [
-                "load record 1"
+                [ "extract record 1" ]
             ],
             "logs": [
-                "load log 1"
+                "extract log 1"
             ]
         },
         "transform": {
@@ -452,23 +462,25 @@ class PipelineJsonSpec extends UnitSpec {
             "stop": 2,
             "count": 100,
             "error": "transform error",
+            "columns": [ [ "column1", "string" ], [ "column2", "string" ] ],
             "records": [
-                "transform record 1"
+                [ "transform record 1", "transform record 2" ]
             ],
             "logs": [
                 "transform log 1"
             ]
         },
-        "extract": {
+        "load": {
             "start": 1,
             "stop": 2,
             "count": 100,
-            "error": "extract error",
+            "error": "load error",
+            "columns": [ [ "column1", "string" ], [ "column2", "string" ] ],
             "records": [
-                "extract record 1"
+                [ "load record 1", "load record 2" ]
             ],
             "logs": [
-                "extract log 1"
+                "load log 1"
             ]
         }
     }"""
@@ -488,7 +500,8 @@ class PipelineJsonSpec extends UnitSpec {
         stop = 2,
         count = Some(100),
         error = Some("extract error"),
-        records = Some(List("extract record 1")),
+        columns = Some(List(("column1", "string"))),
+        records = Some(List(List("extract record 1"))),
         logs = Some(List("extract log 1"))
       )),
       transform = Some(PhaseMetricRecord(
@@ -496,7 +509,8 @@ class PipelineJsonSpec extends UnitSpec {
         stop = 2,
         count = Some(100),
         error = Some("transform error"),
-        records = Some(List("transform record 1")),
+        columns = Some(List(("column1", "string"), ("column2", "string"))),
+        records = Some(List(List("transform record 1", "transform record 2"))),
         logs = Some(List("transform log 1"))
       )),
       load = Some(PhaseMetricRecord(
@@ -504,7 +518,8 @@ class PipelineJsonSpec extends UnitSpec {
         stop = 2,
         count = Some(100),
         error = Some("load error"),
-        records = Some(List("load record 1")),
+        columns = Some(List(("column1", "string"), ("column2", "string"))),
+        records = Some(List(List("load record 1", "load record 2"))),
         logs = Some(List("load log 1"))
       ))
     )

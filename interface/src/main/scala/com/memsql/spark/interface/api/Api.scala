@@ -20,9 +20,13 @@ object ApiActor {
   case object PipelineQuery
   case class PipelineGet(pipeline_id: String)
   case class PipelinePut(pipeline_id: String, batch_interval: Long, config: PipelineConfig)
-  case class PipelineUpdate(pipeline_id: String, state: PipelineState = null, batch_interval: Option[Long] = None,
-                            config: Option[PipelineConfig] = None, error: Option[String] = None, _validate: Boolean = false)
+  case class PipelineUpdate(pipeline_id: String, state: PipelineState = null,
+                            batch_interval: Option[Long] = None,
+                            config: Option[PipelineConfig] = None,
+                            trace_batch_count: Option[Int] = None,
+                            error: Option[String] = None, _validate: Boolean = false)
   case class PipelineMetrics(pipeline_id: String, last_timestamp: Option[Long])
+  case class PipelineTraceBatchDecrement(pipeline_id: String)
   case class PipelineDelete(pipeline_id: String)
   implicit val timeout = Timeout(5.seconds)
 }
@@ -62,7 +66,7 @@ trait ApiService {
         case NonFatal(e) => sender ! Failure(ApiException(s"unexpected exception: $e"))
       }
     }
-    case PipelineUpdate(pipeline_id, state, batch_interval, config, error, _validate) => {
+    case PipelineUpdate(pipeline_id, state, batch_interval, config, trace_batch_count, error, _validate) => {
       pipelines.get(pipeline_id) match {
         case Some(pipeline) => {
           var updated = false
@@ -70,6 +74,7 @@ trait ApiService {
           var newBatchInterval = pipeline.batch_interval
           var newConfig = pipeline.config
           var newError = pipeline.error
+          var newTraceBatchCount = pipeline.traceBatchCount
 
           try {
             if (state != null) {
@@ -100,10 +105,16 @@ trait ApiService {
               updated |= newError != pipeline.error
             }
 
+            if (trace_batch_count.isDefined) {
+              newTraceBatchCount = trace_batch_count.get
+              updated |= newTraceBatchCount != pipeline.traceBatchCount
+            }
+
             // update all fields in the pipeline and respond with success
             if (updated) {
               val newLastUpdated = clock.currentTimeMillis
               val newPipeline = Pipeline(pipeline_id, state=newState, batch_interval=newBatchInterval, last_updated=newLastUpdated, config=newConfig, error=newError)
+              newPipeline.traceBatchCount = newTraceBatchCount
               newPipeline.metricsQueue = pipeline.metricsQueue
               pipelines = pipelines + (pipeline_id -> newPipeline)
             }
@@ -112,6 +123,20 @@ trait ApiService {
             case e: ApiException => sender ! Failure(e)
             case NonFatal(e) => sender ! Failure(ApiException(s"unexpected exception: $e"))
           }
+        }
+        case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
+      }
+    }
+    case PipelineTraceBatchDecrement(pipeline_id) => {
+      pipelines.get(pipeline_id) match {
+        case Some(pipeline) => {
+          var updated = false
+          var newTraceBatchCount = pipeline.traceBatchCount
+          if (pipeline.traceBatchCount > 0) {
+            pipeline.traceBatchCount = pipeline.traceBatchCount - 1
+            updated = true
+          }
+          sender ! Success(updated)
         }
         case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }
