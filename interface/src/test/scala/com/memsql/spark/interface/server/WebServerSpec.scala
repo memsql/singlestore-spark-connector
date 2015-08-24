@@ -25,24 +25,25 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
                                     ExtractPhase.writeConfig(
                                       ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic", None))),
                                    Phase[TransformPhaseKind](
-                                    TransformPhaseKind.User,
+                                    TransformPhaseKind.Json,
                                     TransformPhase.writeConfig(
-                                      TransformPhaseKind.User, UserTransformConfig("com.user.Transform", "loltransform"))),
+                                      TransformPhaseKind.Json, JsonTransformConfig())),
                                   Phase[LoadPhaseKind](
-                                    LoadPhaseKind.User,
+                                    LoadPhaseKind.MemSQL,
                                     LoadPhase.writeConfig(
-                                      LoadPhaseKind.User, UserLoadConfig("com.user.Load", "load"))),
+                                      LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None))),
                                   config_version=CurrentPipelineConfigVersion)
 
   val userConfig = kafkaConfig.copy(extract = Phase[ExtractPhaseKind](
                                                 ExtractPhaseKind.User,
                                                 ExtractPhase.writeConfig(
-                                                  ExtractPhaseKind.User, UserExtractConfig("com.user.Extract", ""))))
+                                                  ExtractPhaseKind.User, UserExtractConfig("com.user.Extract", ""))),
+                                    jar = Some("site.com/foo.jar"))
   val kafkaConfigEntity = HttpEntity(`application/json`, kafkaConfig.toJson.toString)
-  val basicPipeline = Pipeline("asdf", state=PipelineState.RUNNING, jar="asdf.jar", batch_interval=100, config=kafkaConfig, last_updated=0)
+  val basicPipeline = Pipeline("asdf", state=PipelineState.RUNNING, batch_interval=100, config=kafkaConfig, last_updated=0)
   def putPipeline(pipeline: Pipeline): Unit = {
     val configEntity = HttpEntity(`application/json`, pipeline.config.toJson.toString)
-    Post(s"/pipeline/put?pipeline_id=${pipeline.pipeline_id}&jar=${pipeline.jar}&batch_interval=${pipeline.batch_interval}", configEntity) ~> route ~> check {
+    Post(s"/pipeline/put?pipeline_id=${pipeline.pipeline_id}&batch_interval=${pipeline.batch_interval}", configEntity) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
@@ -79,7 +80,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   }
 
   "WebServer /pipeline/put" should "respond to a valid POST" in {
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&batch_interval=10", kafkaConfigEntity) ~> route ~> check {
+    Post("/pipeline/put?pipeline_id=asdf&batch_interval=10", kafkaConfigEntity) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
@@ -88,7 +89,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   it should "reject POST if the pipeline id already exists" in {
     putPipeline(basicPipeline)
 
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar&batch_interval=12", kafkaConfigEntity) ~> route ~> check {
+    Post("/pipeline/put?pipeline_id=asdf&batch_interval=12", kafkaConfigEntity) ~> route ~> check {
       assert(responseAs[String] == "pipeline with id asdf already exists")
       assert(status == BadRequest)
     }
@@ -100,28 +101,30 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == NotFound)
     }
 
-    Post("/pipeline/put?jar=asdf&main_class=asdf2", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+    Post("/pipeline/put?main_class=asdf2", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(responseAs[String].contains("missing required query parameter 'pipeline_id'"))
       assert(status == NotFound)
     }
 
-    Post("/pipeline/put?pipeline_id=asdf&main_class=asdf2", kafkaConfigEntity) ~> sealRoute(route) ~> check {
-      assert(responseAs[String].contains("missing required query parameter 'jar'"))
-      assert(status == NotFound)
-    }
-
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+    Post("/pipeline/put?pipeline_id=asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(responseAs[String].contains("missing required query parameter 'batch_interval'"))
       assert(status == NotFound)
     }
 
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar&batch_interval=1234") ~> sealRoute(route) ~> check {
+    Post("/pipeline/put?pipeline_id=asdf&batch_interval=1234") ~> sealRoute(route) ~> check {
       assert(responseAs[String].contains("entity expected"))
       assert(status == BadRequest)
     }
 
-    Post("/pipeline/put?pipeline_id=asdf&jar=asdf2.jar&batch_interval=-1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+    Post("/pipeline/put?pipeline_id=asdf&batch_interval=-1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(responseAs[String].contains("batch_interval must be positive"))
+      assert(status == BadRequest)
+    }
+
+    val missingJarConfig = userConfig.copy(jar = None)
+    val missingJarConfigEntity = HttpEntity(`application/json`, missingJarConfig.toJson.toString)
+    Post("/pipeline/put?pipeline_id=asdf&main_class=asdf2&batch_interval=1234", missingJarConfigEntity) ~> sealRoute(route) ~> check {
+      assert(responseAs[String].contains("jar is required for user defined phases"))
       assert(status == BadRequest)
     }
   }
@@ -132,16 +135,16 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Patch("/pipeline/put") ~> sealRoute(route) ~> check { assert(status == NotFound) }
     Delete("/pipeline/put") ~> sealRoute(route) ~> check { assert(status == NotFound) }
 
-    Get("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+    Get("/pipeline/put?pipeline_id=asdf&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
-    Put("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+    Put("/pipeline/put?pipeline_id=asdf&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
-    Patch("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+    Patch("/pipeline/put?pipeline_id=asdf&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
-    Delete("/pipeline/put?pipeline_id=asdf&jar=asdf.jar&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+    Delete("/pipeline/put?pipeline_id=asdf&batch_interval=1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(status == MethodNotAllowed)
     }
   }
@@ -330,8 +333,8 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == OK)
     }
 
-    // updates to jar should always return true
-    Patch("/pipeline/update?pipeline_id=asdf&active=true&jar=asdf.jar") ~> route ~> check {
+    // updates to config should always return true
+    Patch("/pipeline/update?pipeline_id=asdf&active=true", kafkaConfigEntity) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
@@ -340,13 +343,29 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
-      assert(pipeline.jar == basicPipeline.jar)
       assert(pipeline.config == kafkaConfig)
       assert(pipeline.batch_interval == 999)
       assert(status == OK)
     }
 
-    Patch("/pipeline/update?pipeline_id=asdf&active=true&jar=asdf2.jar") ~> route ~> check {
+    val userConfigEntity = HttpEntity(`application/json`, userConfig.toJson.toString)
+    Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigEntity) ~> route ~> check {
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
+      assert(status == OK)
+    }
+
+    // pipeline should be running with a new config
+    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
+      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
+      assert(pipeline.state == PipelineState.RUNNING)
+      assert(pipeline.config == userConfig)
+      assert(pipeline.batch_interval == 999)
+      assert(status == OK)
+    }
+
+    val userConfig2 = userConfig.copy(jar = Some("site.com/test2.jar"))
+    val userConfigEntity2 = HttpEntity(`application/json`, userConfig2.toJson.toString)
+    Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigEntity2) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
@@ -355,13 +374,12 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
-      assert(pipeline.jar == "asdf2.jar")
-      assert(pipeline.config == kafkaConfig)
+      assert(pipeline.config == userConfig2)
       assert(pipeline.batch_interval == 999)
       assert(status == OK)
     }
 
-    Patch("/pipeline/update?pipeline_id=asdf&active=true&jar=asdf.jar") ~> route ~> check {
+    Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigEntity) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
@@ -370,8 +388,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
-      assert(pipeline.jar == basicPipeline.jar)
-      assert(pipeline.config == kafkaConfig)
+      assert(pipeline.config == userConfig)
       assert(pipeline.batch_interval == 999)
       assert(status == OK)
     }
@@ -386,14 +403,14 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
-      assert(pipeline.config == kafkaConfig)
+      assert(pipeline.config == userConfig)
       assert(pipeline.batch_interval == 999)
       assert(status == OK)
     }
 
-    // no-op updates with an identical config entity should also return false
-    Patch("/pipeline/update?pipeline_id=asdf&active=true", kafkaConfigEntity) ~> route ~> check {
-      assert(responseAs[String] == JsObject("success" -> JsBoolean(false)).toString)
+    // updates with an identical config entity should also return true
+    Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigEntity) ~> route ~> check {
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
 
@@ -401,7 +418,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
-      assert(pipeline.config == kafkaConfig)
+      assert(pipeline.config == userConfig)
       assert(status == OK)
     }
 

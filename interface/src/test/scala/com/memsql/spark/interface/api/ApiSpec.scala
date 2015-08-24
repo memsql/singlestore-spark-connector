@@ -35,7 +35,8 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
     val config2 = config.copy(extract = Phase[ExtractPhaseKind](
       ExtractPhaseKind.User,
       ExtractPhase.writeConfig(
-        ExtractPhaseKind.User, UserExtractConfig("com.user.ExtractClass", "test"))))
+        ExtractPhaseKind.User, UserExtractConfig("com.user.ExtractClass", "test"))),
+      jar = Some("site.com/bar.jar"))
 
     "respond to ping" in {
       apiRef ! Ping
@@ -60,12 +61,12 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
     }
 
     "accept new pipelines" in {
-      apiRef ! PipelinePut("pipeline1", jar="site.com/foo.jar", batch_interval=10, config=config)
+      apiRef ! PipelinePut("pipeline1", batch_interval=10, config=config)
       expectMsg(Success(true))
 
       // update time for new pipeline should be greater than this
       // error if pipeline id already exists
-      apiRef ! PipelinePut("pipeline1", jar="site.com/foo.jar", batch_interval=10, config=config)
+      apiRef ! PipelinePut("pipeline1", batch_interval=10, config=config)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
@@ -83,7 +84,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.pipeline_id == "pipeline1")
           assert(pipeline.state == PipelineState.RUNNING)
-          assert(pipeline.jar == "site.com/foo.jar")
+          assert(pipeline.config.jar.isEmpty)
           assert(pipeline.batch_interval == 10)
           assert(pipeline.config == config)
           assert(pipeline.last_updated == 0)
@@ -95,19 +96,26 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       }
 
       mockTime.tick
-      apiRef ! PipelinePut("pipeline2", jar="site.com/bar.jar", batch_interval=10, config=config2)
+      apiRef ! PipelinePut("pipeline2", batch_interval=10, config=config2)
       expectMsg(Success(true))
+
+      // error if jar is not provided
+      apiRef ! PipelinePut("pipeline3", batch_interval=10, config=config2.copy(jar = None))
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
 
       // error if config is invalid
       val badConfig = config.copy(extract = Phase[ExtractPhaseKind](ExtractPhaseKind.Kafka, """{ "bad_kafka_config": 42 }""".parseJson))
-      apiRef ! PipelinePut("pipeline3", jar="site.com/bar.jar", batch_interval=10, config=badConfig)
+      apiRef ! PipelinePut("pipeline3", batch_interval=10, config=badConfig)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
       // error if batch_interval is invalid
-      apiRef ! PipelinePut("pipeline3", jar="site.com/bar.jar", batch_interval= -10, config=config)
+      apiRef ! PipelinePut("pipeline3", batch_interval= -10, config=config)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
@@ -125,7 +133,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.pipeline_id == "pipeline2")
           assert(pipeline.state == PipelineState.RUNNING)
-          assert(pipeline.jar == "site.com/bar.jar")
+          assert(pipeline.config.jar.get == "site.com/bar.jar")
           assert(pipeline.config == config2)
           assert(pipeline.last_updated == 1)
           val userConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config).asInstanceOf[UserExtractConfig]
@@ -168,7 +176,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.state == PipelineState.ERROR)
-          assert(pipeline.error == Some("something crashed"))
+          assert(pipeline.error.get == "something crashed")
           assert(pipeline.last_updated == 4)
         case Failure(err) => fail(s"unexpected response $err")
       }
@@ -215,7 +223,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.state == PipelineState.ERROR)
-          assert(pipeline.error == Some("something crashed"))
+          assert(pipeline.error.get == "something crashed")
           assert(pipeline.last_updated == 5)
         case Failure(err) => fail(s"unexpected response $err")
       }
@@ -233,17 +241,18 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         Phase[LoadPhaseKind](
           LoadPhaseKind.MemSQL,
           LoadPhase.writeConfig(
-            LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None))))
-
-      apiRef ! PipelineGet("pipeline1")
-      receiveOne(1.second) match {
-        case resp: Success[_] =>
-          val pipeline = resp.get.asInstanceOf[Pipeline]
-          assert(pipeline.config != newConfig)
-        case Failure(err) => fail(s"unexpected response $err")
-      }
+            LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None))),
+        jar = Some("site.com/foo.jar"))
 
       mockTime.tick
+      // user config without a jar should raise an exception
+      apiRef ! PipelineUpdate("pipeline1", config=Some(newConfig.copy(jar = None)))
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
+
+      // user config with jar should succeed
       apiRef ! PipelineUpdate("pipeline1", config=Some(newConfig))
       expectMsg(Success(true))
       apiRef ! PipelineGet("pipeline1")
@@ -256,19 +265,6 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(kafkaConfig.host == "test1")
           assert(kafkaConfig.port == 9092)
           assert(kafkaConfig.topic == "test2")
-          assert(pipeline.last_updated == 8)
-        case Failure(err) => fail(s"unexpected response $err")
-      }
-
-      //no-op updates to configs should return false
-      mockTime.tick
-      apiRef ! PipelineUpdate("pipeline1", config=Some(newConfig))
-      expectMsg(Success(false))
-      apiRef ! PipelineGet("pipeline1")
-      receiveOne(1.second) match {
-        case resp: Success[_] =>
-          val pipeline = resp.get.asInstanceOf[Pipeline]
-          assert(pipeline.config == newConfig)
           assert(pipeline.last_updated == 8)
         case Failure(err) => fail(s"unexpected response $err")
       }
@@ -291,15 +287,16 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case Failure(err) => fail(s"unexpected response $err")
       }
 
-      //updating jars with the same file is not a no-op
+      //updating config with the same value always counts as an update
       mockTime.tick
-      apiRef ! PipelineUpdate("pipeline1", jar=Some("site.com/foo.jar"))
+      apiRef ! PipelineUpdate("pipeline1", config=Some(newConfig))
       expectMsg(Success(true))
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
-          assert(pipeline.last_updated == 11)
+          assert(pipeline.last_updated == 10)
+          assert(pipeline.config == newConfig)
         case Failure(err) => fail(s"unexpected response $err")
       }
     }

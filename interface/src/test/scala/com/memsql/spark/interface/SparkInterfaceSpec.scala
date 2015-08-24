@@ -45,7 +45,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
 
     override def pipeline_id = pipeline.pipeline_id
     override def batchInterval = pipeline.batch_interval
-    override def jar = pipeline.jar
+    override def jar = pipeline.config.jar.orNull
     override def config = pipeline.config
     override def lastUpdated = pipeline.last_updated
 
@@ -103,8 +103,8 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     }
   }
 
-  def putPipeline(pipeline_id: String, jar: String, batch_interval: Long, config: PipelineConfig): Unit = {
-    apiRef ! PipelinePut(pipeline_id, jar = jar, batch_interval = batch_interval, config = config)
+  def putPipeline(pipeline_id: String, batch_interval: Long, config: PipelineConfig): Unit = {
+    apiRef ! PipelinePut(pipeline_id, batch_interval = batch_interval, config = config)
     receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
       case Success(resp) => assert(resp)
       case Failure(err) => fail(s"unexpected response $err")
@@ -127,7 +127,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
 
   "SparkInterface" should {
     "start a monitor for a new pipeline" in {
-      putPipeline("pipeline1", jar = "site.com/buh.jar", batch_interval = 12000, config = config)
+      putPipeline("pipeline1", batch_interval = 12000, config = config)
 
       var pipeline = getPipeline("pipeline1")
       assert(pipeline.pipeline_id == "pipeline1")
@@ -144,7 +144,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     }
 
     "set pipeline to ERROR state if monitor failed on instantiation" in {
-      putPipeline("fail", jar = "site.com/buh.jar", batch_interval = 10000, config = config)
+      putPipeline("fail", batch_interval = 10000, config = config)
 
       var pipeline = getPipeline("fail")
       assert(!sparkInterface.pipelineMonitors.contains("fail"))
@@ -176,7 +176,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     }
 
     "restart monitors when they crash" in {
-      apiRef ! PipelinePut("pipeline2", jar = "site.com/foo.jar", batch_interval = 1000, config = config)
+      apiRef ! PipelinePut("pipeline2", batch_interval = 1000, config = config)
       receiveOne(1.second) match {
         case Success(resp) =>
         case Failure(err) => fail(s"unexpected response $err")
@@ -222,7 +222,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     }
 
     "restart monitors when pipelines are updated" in {
-      putPipeline("pipeline3", jar = "site.com/jar.jar", batch_interval = 1000, config = config)
+      putPipeline("pipeline3", batch_interval = 1000, config = config)
       var pipeline = getPipeline("pipeline3")
 
       sparkInterface.update
@@ -230,7 +230,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       var oldPipelineMonitor = sparkInterface.pipelineMonitors.get("pipeline3").get
       assert(pipeline.pipeline_id == oldPipelineMonitor.pipeline_id)
       assert(oldPipelineMonitor.isAlive)
-      assert(pipeline.jar == oldPipelineMonitor.jar)
+      assert(pipeline.config.jar.orNull == oldPipelineMonitor.jar)
       assert(pipeline.batch_interval == oldPipelineMonitor.batchInterval)
       assert(pipeline.config == oldPipelineMonitor.config)
 
@@ -248,7 +248,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       assert(pipeline.pipeline_id == newPipelineMonitor.pipeline_id)
       assert(!oldPipelineMonitor.isAlive)
       assert(newPipelineMonitor.isAlive)
-      assert(pipeline.jar == newPipelineMonitor.jar)
+      assert(pipeline.config.jar.orNull == newPipelineMonitor.jar)
       assert(pipeline.batch_interval == newPipelineMonitor.batchInterval)
       assert(pipeline.config == newPipelineMonitor.config)
 
@@ -257,7 +257,8 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
         ExtractPhaseKind.User,
         ExtractPhase.writeConfig(
           ExtractPhaseKind.User,
-          UserExtractConfig("com.foobar.Extract", ""))))
+          UserExtractConfig("com.foobar.Extract", ""))),
+        jar = Some("site.com/jar.jar"))
 
       apiRef ! PipelineUpdate("pipeline3", config = Some(newConfig))
       receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
@@ -273,12 +274,12 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       assert(pipeline.pipeline_id == newPipelineMonitor.pipeline_id)
       assert(!oldPipelineMonitor.isAlive)
       assert(newPipelineMonitor.isAlive)
-      assert(pipeline.jar == newPipelineMonitor.jar)
+      assert(pipeline.config.jar.get == newPipelineMonitor.jar)
       assert(pipeline.batch_interval == newPipelineMonitor.batchInterval)
       assert(pipeline.config == newPipelineMonitor.config)
 
-      // updating the jar should always restart the pipeline monitor
-      apiRef ! PipelineUpdate("pipeline3", jar = Some("site.com/jar.jar"))
+      // updating the config should always restart the pipeline monitor
+      apiRef ! PipelineUpdate("pipeline3", config = Some(newConfig))
       receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
         case Success(resp) => assert(resp)
         case Failure(err) => fail(s"unexpected response $err")
@@ -293,8 +294,8 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       assert(!oldPipelineMonitor.isAlive)
       assert(newPipelineMonitor.isAlive)
       // the jar is the same path as before, but we always restart
-      assert(pipeline.jar == newPipelineMonitor.jar)
-      assert(pipeline.jar == oldPipelineMonitor.jar)
+      assert(pipeline.config.jar.get == newPipelineMonitor.jar)
+      assert(pipeline.config.jar.get == oldPipelineMonitor.jar)
       assert(pipeline.batch_interval == newPipelineMonitor.batchInterval)
       assert(pipeline.config == newPipelineMonitor.config)
     }

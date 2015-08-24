@@ -31,6 +31,8 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
     streamingContext = new StreamingContext(sc, new Duration(5000))
   }
 
+  val localJarFile = Paths.join(new File(".").getCanonicalPath, s"target/scala-2.10/MemSQL-assembly-${Main.VERSION}.jar")
+
   val config = PipelineConfig(
     Phase[ExtractPhaseKind](
       ExtractPhaseKind.Kafka,
@@ -44,12 +46,10 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
       LoadPhaseKind.MemSQL,
       LoadPhase.writeConfig(
         LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None))))
-  val localJarFile = s"target/scala-2.10/MemSQL-assembly-${Main.VERSION}.jar"
 
   "PipelineMonitor" should {
     "create a monitor if the class can be properly loaded" in {
-      val jarPath = Paths.join(new File(".").getCanonicalPath, localJarFile)
-      apiRef ? PipelinePut("pipeline2", jar=jarPath, batch_interval=10, config=config)
+      apiRef ? PipelinePut("pipeline2", batch_interval=10, config=config)
       whenReady((apiRef ? PipelineGet("pipeline2")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
           val pm = new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
@@ -65,10 +65,11 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
       val config2 = config.copy(extract = Phase[ExtractPhaseKind](
         ExtractPhaseKind.User,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.User, UserExtractConfig("com.test.Extract", ""))))
+          ExtractPhaseKind.User, UserExtractConfig("com.test.Extract", ""))),
+        jar = Some("/doesnt_exist/test.jar"))
 
       //create pipeline which requires loading a class from the jar and try to load in a PipelineMonitor
-      apiRef ! PipelinePut("pipeline1", jar="file://doesnt_exist.jar", batch_interval=100, config=config2)
+      apiRef ! PipelinePut("pipeline1", batch_interval=100, config=config2)
       whenReady((apiRef ? PipelineGet("pipeline1")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
           intercept[JarLoaderException] {
