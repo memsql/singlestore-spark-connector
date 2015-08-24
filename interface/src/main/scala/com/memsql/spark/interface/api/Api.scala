@@ -123,7 +123,7 @@ trait ApiService {
             case Some(t) => t
             case None => 0
           }
-          val metricRecords = pipeline.metricsQueue.filter(_.timestamp >= lastTimestamp).toList
+          val metricRecords = pipeline.metricsQueue.filter(_.timestamp > lastTimestamp).toList
           sender ! Success(metricRecords)
         }
         case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
