@@ -89,7 +89,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
         {
             sql.append("IF NOT EXISTS ")
         }
-        sql.append(tableName).append(" (")
+        sql.append(s"`$tableName`").append(" (")
         for (col <- df.schema)
         {
             sql.append(col.name).append(" ")
@@ -120,7 +120,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
             {
                 case _: MemSQLSparkContext => 
                 {
-                    var msc = df.rdd.sparkContext.asInstanceOf[MemSQLSparkContext]
+                    val msc = df.rdd.sparkContext.asInstanceOf[MemSQLSparkContext]
                     theHost = msc.GetMemSQLMasterAggregator._1 // note: it's fine for this to be the MA, since its gaurenteed to be a fully pushed down query.  
                     thePort = msc.GetMemSQLMasterAggregator._2
                     theUser = msc.GetUserName
@@ -128,7 +128,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
                 }
                 case _ => 
                 {
-                    throw new SparkException("saveToMemSQL requires intializing Spark with MemSQLSparkContext or explicitly setting dbName, dbHost, user and password")
+                    throw new SparkException("saveToMemSQL requires initializing Spark with MemSQLSparkContext or explicitly setting dbName, dbHost, user and password")
                 }
             }
         }
@@ -136,8 +136,10 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
         var stmt: Statement = null 
         try 
         {
-            conn = MemSQLRDD.getConnection(theHost, thePort, theUser, thePassword, dbName)
+            conn = MemSQLRDD.getConnection(theHost, thePort, theUser, thePassword)
             stmt = conn.createStatement
+            stmt.execute(s"CREATE DATABASE IF NOT EXISTS `$dbName`")
+            stmt.execute(s"USE `$dbName`")
             stmt.executeUpdate(sql.toString) // TODO: should I be handling errors, or just expect the caller to catch them...
         }
         finally

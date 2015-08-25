@@ -194,7 +194,7 @@ object MemSQLRDD {
     port: Int,
     user: String,
     password: String,
-    dbName: String): Connection = {
+    dbName: String = "information_schema"): Connection = {
     val dbAddress = "jdbc:mysql://" + host + ":" + port + "/" + dbName
     DriverManager.getConnection(dbAddress, user, password)
   }

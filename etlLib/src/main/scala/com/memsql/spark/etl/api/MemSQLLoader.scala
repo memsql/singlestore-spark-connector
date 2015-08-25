@@ -10,11 +10,11 @@ class MemSQLLoader extends Loader {
   override def load(df: DataFrame, loadConfig: PhaseConfig): Unit = {
     val memSQLLoadConfig = loadConfig.asInstanceOf[MemSQLLoadConfig]
     if (!hasInserted) {
-      hasInserted = true      
-      df.createMemSQLTableFromSchema(memSQLLoadConfig.db_name, 
+      df.createMemSQLTableFromSchema(memSQLLoadConfig.db_name,
                                      memSQLLoadConfig.table_name,
                                      keys = memSQLLoadConfig.table_keys.getOrElse(List[MemSQLKeyConfig]()).map((k: MemSQLKeyConfig) => k.toMemSQLKey).toArray,
                                      ifNotExists = true)
+      hasInserted = true
     }
     df.saveToMemSQL(memSQLLoadConfig.db_name, 
                     memSQLLoadConfig.table_name,
