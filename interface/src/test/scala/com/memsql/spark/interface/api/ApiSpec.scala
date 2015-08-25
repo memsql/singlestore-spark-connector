@@ -22,11 +22,11 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       Phase[ExtractPhaseKind](
         ExtractPhaseKind.Kafka,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic", None))),
+          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic"))),
       Phase[TransformPhaseKind](
         TransformPhaseKind.Json,
         TransformPhase.writeConfig(
-          TransformPhaseKind.Json, JsonTransformConfig())),
+          TransformPhaseKind.Json, JsonTransformConfig("data"))),
       Phase[LoadPhaseKind](
         LoadPhaseKind.MemSQL,
         LoadPhase.writeConfig(
@@ -233,7 +233,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         Phase[ExtractPhaseKind](
           ExtractPhaseKind.Kafka,
           ExtractPhase.writeConfig(
-            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "test2", None))),
+            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "test2"))),
         Phase[TransformPhaseKind](
           TransformPhaseKind.User,
           TransformPhase.writeConfig(

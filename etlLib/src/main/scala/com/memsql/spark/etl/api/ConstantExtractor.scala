@@ -16,18 +16,18 @@ class ConstantStream[T: ClassTag](ssc: StreamingContext, rdd: RDD[T]) extends In
 /*
  * A simple Extractor for testing.  Produces the same fixed RDD every interval.
  */
-class ConstantExtractor[T: ClassTag](rdd: RDD[T]) extends Extractor[T] {
-  override def extract(ssc: StreamingContext, config: PhaseConfig, batchInterval: Long): InputDStream[T] = new ConstantStream(ssc, rdd)
+class ConstantExtractor(rdd: RDD[Array[Byte]]) extends ByteArrayExtractor {
+  override def extract(ssc: StreamingContext, config: PhaseConfig, batchInterval: Long): InputDStream[Array[Byte]] = new ConstantStream(ssc, rdd)
 }
 
-class ConfigStringExtractor extends Extractor[String] {
-  override def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchInterval: Long): InputDStream[String] = {
+class ConfigStringExtractor extends ByteArrayExtractor {
+  override def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchInterval: Long): InputDStream[Array[Byte]] = {
     val str = extractConfig match {
       case strConfig: TestStringExtractConfig => extractConfig.asInstanceOf[TestStringExtractConfig].value
       case jsonConfig: TestJsonExtractConfig => extractConfig.asInstanceOf[TestJsonExtractConfig].value.toString
     }
 
-    val rdd = ssc.sparkContext.parallelize(Seq(str))
+    val rdd = ssc.sparkContext.parallelize(Seq(stringToBytes(str)))
     new ConstantStream(ssc, rdd)
   }
 }

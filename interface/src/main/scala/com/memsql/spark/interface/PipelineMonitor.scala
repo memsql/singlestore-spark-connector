@@ -27,7 +27,7 @@ trait PipelineMonitor {
   def lastUpdated: Long
   def jar: String
   def config: PipelineConfig
-  def pipelineInstance: PipelineInstance[Any]
+  def pipelineInstance: PipelineInstance
   def sparkContext: SparkContext
   def streamingContext: StreamingContext
   def sqlContext: SQLContext
@@ -65,25 +65,19 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   private[interface] val transformConfig = TransformPhase.readConfig(config.transform.kind, config.transform.config)
   private[interface] val loadConfig = LoadPhase.readConfig(config.load.kind, config.load.config)
 
-  private[interface] val extractor: Extractor[Any] = config.extract.kind match {
-    case ExtractPhaseKind.Kafka => new KafkaExtractor(pipeline_id).asInstanceOf[Extractor[Any]]
-    case ExtractPhaseKind.TestString | ExtractPhaseKind.TestJson => new ConfigStringExtractor().asInstanceOf[Extractor[Any]]
+  private[interface] val extractor: ByteArrayExtractor = config.extract.kind match {
+    case ExtractPhaseKind.Kafka => new KafkaExtractor(pipeline_id)
+    case ExtractPhaseKind.TestString | ExtractPhaseKind.TestJson => new ConfigStringExtractor()
     case ExtractPhaseKind.User => {
       val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
-      loadClass(jar, className).newInstance.asInstanceOf[Extractor[Any]]
+      loadClass(jar, className).newInstance.asInstanceOf[ByteArrayExtractor]
     }
   }
-  private[interface] val transformer: Transformer[Any] = config.transform.kind match {
-    case TransformPhaseKind.Json => {
-      //TODO instead of matching on the extract kind, we should match on the type of the produced RDD
-      config.extract.kind match {
-        case ExtractPhaseKind.Kafka => JSONTransformer.makeSimpleJSONKeyValueTransformer("json").asInstanceOf[Transformer[Any]]
-        case default => JSONTransformer.makeSimpleJSONTransformer("json")
-      }
-    }
+  private[interface] val transformer: ByteArrayTransformer = config.transform.kind match {
+    case TransformPhaseKind.Json => new JSONTransformer()
     case TransformPhaseKind.User => {
       val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
-      loadClass(jar, className).newInstance.asInstanceOf[Transformer[Any]]
+      loadClass(jar, className).newInstance.asInstanceOf[ByteArrayTransformer]
     }
   }
   private[interface] val loader: Loader = config.load.kind match {
@@ -135,7 +129,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   def runPipeline(): Unit = {
     var exception: Option[Throwable] = None
-    var inputDStream: InputDStream[Any] = null
+    var inputDStream: InputDStream[Array[Byte]] = null
 
     try {
       logDebug(s"Initializing extractor for pipeline $pipeline_id")
@@ -157,7 +151,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
         logDebug(s"Computing next RDD for pipeline $pipeline_id: $time")
 
-        var extractedRdd: RDD[Any] = null
+        var extractedRdd: RDD[Array[Byte]] = null
         extractRecord = runPhase(() => {
           inputDStream.compute(Time(time)) match {
             case Some(rdd) => extractedRdd = rdd
@@ -169,10 +163,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         if (extractedRdd != null) {
           transformRecord = runPhase(() => {
             logDebug(s"Transforming RDD for pipeline $pipeline_id")
-            df = pipelineInstance.transformer.transform(
-              sqlContext,
-              extractedRdd.asInstanceOf[RDD[Any]],
-              pipelineInstance.transformConfig)
+            df = pipelineInstance.transformer.transform(sqlContext, extractedRdd, pipelineInstance.transformConfig)
           })
         }
 

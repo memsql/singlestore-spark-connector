@@ -61,7 +61,7 @@ object KafkaUtils {
    * @param batchDuration Batch duration for this pipeline (NOTE: Added to support pipelines with different intervals)
    */
   @Experimental
-  def createDirectStream[
+  def createDirectValueStream[
     K: ClassTag,
     V: ClassTag,
     KD <: Decoder[K]: ClassTag,
@@ -70,8 +70,8 @@ object KafkaUtils {
       kafkaParams: Map[String, String],
       topics: Set[String],
       batchDuration: Long
-  ): InputDStream[(K, V)] = {
-    val messageHandler = (mmd: MessageAndMetadata[K, V]) => (mmd.key, mmd.message)
+  ): InputDStream[V] = {
+    val messageHandler = (mmd: MessageAndMetadata[K, V]) => mmd.message
     val kc = new KafkaCluster(kafkaParams)
     val reset = kafkaParams.get("auto.offset.reset").map(_.toLowerCase)
 
@@ -86,7 +86,7 @@ object KafkaUtils {
       val fromOffsets = leaderOffsets.map { case (tp, lo) =>
           (tp, lo.offset)
       }
-      new DirectKafkaInputDStream[K, V, KD, VD, (K, V)](
+      new DirectKafkaInputDStream[K, V, KD, VD, V](
         ssc, kafkaParams, fromOffsets, messageHandler, batchDuration)
     }).fold(
       errs => throw new SparkException(errs.mkString("\n")),

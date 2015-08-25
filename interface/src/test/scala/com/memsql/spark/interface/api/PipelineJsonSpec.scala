@@ -57,7 +57,7 @@ class PipelineJsonSpec extends UnitSpec {
         )),
         transform = Phase[TransformPhaseKind](
           TransformPhaseKind.Json,
-          TransformPhase.writeConfig(TransformPhaseKind.Json, JsonTransformConfig())
+          TransformPhase.writeConfig(TransformPhaseKind.Json, JsonTransformConfig("data"))
         ),
         jar = None
       ),
@@ -73,6 +73,10 @@ class PipelineJsonSpec extends UnitSpec {
     assert(extractMap("kind") == "TestJson")
     val extractConfigMap = extractMap("config").asInstanceOf[Map[String, Any]]
     assert(extractConfigMap("value").asInstanceOf[Map[String, Any]]("test") == "bar")
+    val transformMap = configMap("transform").asInstanceOf[Map[String, Any]]
+    assert(transformMap("kind") == "Json")
+    val transformConfigMap = transformMap("config").asInstanceOf[Map[String, Any]]
+    assert(transformConfigMap("column_name") == "data")
   }
 
   it should "serialize to JSON with configs" in {
@@ -80,7 +84,7 @@ class PipelineJsonSpec extends UnitSpec {
       Phase[ExtractPhaseKind](
         ExtractPhaseKind.Kafka,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "test2", None))),
+          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "test2"))),
       Phase[TransformPhaseKind](
         TransformPhaseKind.User,
         TransformPhase.writeConfig(
@@ -108,7 +112,6 @@ class PipelineJsonSpec extends UnitSpec {
     assert(kafkaConfigMap("host") == "test1")
     assert(kafkaConfigMap("port") == 9092)
     assert(kafkaConfigMap("topic") == "test2")
-    assert(!(kafkaConfigMap contains "output_type"))
     val transformConfigMap = configMap("transform").asInstanceOf[Map[String, Any]]
     assert(transformConfigMap("kind") == "User")
     val transformUserConfigMap = transformConfigMap("config").asInstanceOf[Map[String, Any]]
@@ -260,7 +263,7 @@ class PipelineJsonSpec extends UnitSpec {
       Phase[ExtractPhaseKind](
         ExtractPhaseKind.Kafka,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9090, "test2", None))),
+          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9090, "test2"))),
       Phase[TransformPhaseKind](
         TransformPhaseKind.User,
         TransformPhase.writeConfig(

@@ -10,10 +10,10 @@ import org.apache.spark.rdd.RDD
 import com.memsql.spark.etl.api.configs.PhaseConfig
 import com.memsql.spark.etl.api.configs.UserTransformConfig
 
-trait TransformerConfiguredByJSON[S] extends Transformer[S] with Logging {
+trait TransformerConfiguredByJSON extends ByteArrayTransformer with Logging {
   private var configMap: Map[String, String] = null
 
-  override def transform(sqlContext: SQLContext, rdd: RDD[S], config: PhaseConfig): DataFrame = {
+  override def transform(sqlContext: SQLContext, rdd: RDD[Array[Byte]], config: PhaseConfig): DataFrame = {
     if (configMap == null) {
       val configMapString = config.asInstanceOf[UserTransformConfig].value
 
@@ -33,5 +33,5 @@ trait TransformerConfiguredByJSON[S] extends Transformer[S] with Logging {
     transform(rdd, sqlContext, configMap)
   }
   
-  def transform(rdd: RDD[S], sqlContext: SQLContext, config: Map[String,String]): DataFrame
+  def transform(rdd: RDD[Array[Byte]], sqlContext: SQLContext, config: Map[String,String]): DataFrame
 }

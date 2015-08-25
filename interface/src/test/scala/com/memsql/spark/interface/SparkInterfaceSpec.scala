@@ -26,11 +26,11 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     Phase[ExtractPhaseKind](
       ExtractPhaseKind.Kafka,
       ExtractPhase.writeConfig(
-        ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic", None))),
+        ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic"))),
     Phase[TransformPhaseKind](
       TransformPhaseKind.Json,
       TransformPhase.writeConfig(
-        TransformPhaseKind.Json, JsonTransformConfig())),
+        TransformPhaseKind.Json, JsonTransformConfig("data"))),
     Phase[LoadPhaseKind](
       LoadPhaseKind.MemSQL,
       LoadPhase.writeConfig(
@@ -38,7 +38,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
 
   class MockPipelineMonitor(override val api: ActorRef,
                                          pipeline: Pipeline,
-                            override val pipelineInstance: PipelineInstance[Any],
+                            override val pipelineInstance: PipelineInstance,
                             override val sparkContext: SparkContext,
                             override val streamingContext: StreamingContext,
                             override val sqlContext: SQLContext) extends PipelineMonitor {

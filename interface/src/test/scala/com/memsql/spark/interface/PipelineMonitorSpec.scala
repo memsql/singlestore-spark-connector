@@ -37,11 +37,11 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
     Phase[ExtractPhaseKind](
       ExtractPhaseKind.Kafka,
       ExtractPhase.writeConfig(
-        ExtractPhaseKind.Kafka, KafkaExtractConfig("test", 9092, "topic", None))),
+        ExtractPhaseKind.Kafka, KafkaExtractConfig("test", 9092, "topic"))),
     Phase[TransformPhaseKind](
       TransformPhaseKind.Json,
       TransformPhase.writeConfig(
-        TransformPhaseKind.Json, JsonTransformConfig())),
+        TransformPhaseKind.Json, JsonTransformConfig("data"))),
     Phase[LoadPhaseKind](
       LoadPhaseKind.MemSQL,
       LoadPhase.writeConfig(

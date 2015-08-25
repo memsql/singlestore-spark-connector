@@ -23,11 +23,11 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   val kafkaConfig = PipelineConfig(Phase[ExtractPhaseKind](
                                     ExtractPhaseKind.Kafka,
                                     ExtractPhase.writeConfig(
-                                      ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic", None))),
+                                      ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic"))),
                                    Phase[TransformPhaseKind](
                                     TransformPhaseKind.Json,
                                     TransformPhase.writeConfig(
-                                      TransformPhaseKind.Json, JsonTransformConfig())),
+                                      TransformPhaseKind.Json, JsonTransformConfig("data"))),
                                   Phase[LoadPhaseKind](
                                     LoadPhaseKind.MemSQL,
                                     LoadPhase.writeConfig(
@@ -427,8 +427,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
                                                 ExtractPhaseKind.Kafka,
                                                 ExtractPhase.writeConfig(
                                                   ExtractPhaseKind.Kafka,
-                                                  KafkaExtractConfig("test1", 9092, "topic1",
-                                                    Some(KafkaExtractOutputType.String)))))
+                                                  KafkaExtractConfig("test1", 9092, "topic1"))))
     val newConfigEntity = HttpEntity(`application/json`, newConfig.toJson.toString)
 
     Patch("/pipeline/update?pipeline_id=asdf&active=true", newConfigEntity) ~> route ~> check {
