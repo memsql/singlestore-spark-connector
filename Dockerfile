@@ -51,10 +51,10 @@ RUN sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/* /tmp/*
 # download spark distribution and update spark interface jar
 RUN sudo mkdir -p /storage/testroot/memsql-spark
 RUN sudo wget -q -O /storage/testroot/memsql-spark/memsql-spark.tar.gz \
-    http://download.memsql.com/memsql-spark-1.4.1-distribution-0.1.4/memsql-spark-1.4.1-distribution-0.1.4.tar.gz && \
+    http://download.memsql.com/memsql-spark-1.4.1-distribution-0.1.5/memsql-spark-1.4.1-distribution-0.1.5.tar.gz && \
     sudo tar zxvf /storage/testroot/memsql-spark/memsql-spark.tar.gz -C /storage/testroot/memsql-spark && \
     sudo rm /storage/testroot/memsql-spark/memsql-spark.tar.gz
-ADD tests/target/scala-2.10/tests-assembly-0.1.4.jar /storage/testroot/memsql-spark/interface/interface.jar
+ADD tests/target/scala-2.10/tests-assembly-0.1.5.jar /storage/testroot/memsql-spark/interface/interface.jar
 
 # prepare java for tests
 RUN sudo ln -sf /var/lib/memsql-ops/data/spark/install/jdk/bin/java /usr/bin/java
