@@ -1,5 +1,8 @@
 package com.memsql.spark.interface
 
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.UUID
+
 import akka.pattern.ask
 import akka.actor.ActorRef
 import com.memsql.spark.context.{MemSQLSparkContext, MemSQLSQLContext}
@@ -7,8 +10,8 @@ import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.{KafkaExtractor, MemSQLLoader}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.Logging
-import com.memsql.spark.interface.api.{PipelineInstance, Pipeline, PipelineState, ApiActor, PipelineMetricRecord, PhaseMetricRecord}
-import java.util.concurrent.atomic.AtomicBoolean
+import com.memsql.spark.interface.api.{PipelineInstance, Pipeline, PipelineState, ApiActor, PipelineMetricRecord, PhaseMetricRecord, PipelineBatchType}
+import com.memsql.spark.interface.api.PipelineBatchType._
 import ApiActor._
 import com.memsql.spark.interface.util.JarLoader
 import org.apache.spark.SparkContext
@@ -175,7 +178,10 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           })
         }
 
+        val batch_id = UUID.randomUUID.toString
         val metric = PipelineMetricRecord(
+          batch_id = batch_id,
+          batch_type = PipelineBatchType.Normal,
           pipeline_id = pipeline_id,
           timestamp = time,
           success = success,

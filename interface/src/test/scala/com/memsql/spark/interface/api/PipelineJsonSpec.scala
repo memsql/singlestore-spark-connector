@@ -2,6 +2,7 @@ package com.memsql.spark.interface.api
 
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.interface._
+import com.memsql.spark.interface.api.PipelineBatchType._
 import com.memsql.spark.interface.api.ApiJsonProtocol._
 import ooyala.common.akka.web.JsonUtils._
 import spray.json._
@@ -306,6 +307,8 @@ class PipelineJsonSpec extends UnitSpec {
 
   "PipelineMetricRecord" should "serialize to JSON" in {
     val metricRecord = PipelineMetricRecord(
+      batch_id = "batch1",
+      batch_type = PipelineBatchType.Normal,
       pipeline_id = "pipeline1",
       timestamp = 42,
       success = true,
@@ -337,6 +340,8 @@ class PipelineJsonSpec extends UnitSpec {
     val jsonString = metricRecord.toJson.toString
     val jsonMap = mapFromJson(jsonString)
     val expectedMap = Map(
+      "batch_id" -> "batch1",
+      "batch_type" -> "Normal",
       "pipeline_id" -> "pipeline1",
       "timestamp" -> 42,
       "success" -> true,
@@ -370,6 +375,8 @@ class PipelineJsonSpec extends UnitSpec {
 
   "PipelineMetricRecord" should "serialize with no phases" in {
     val metricRecord = PipelineMetricRecord(
+      batch_id = "batch1",
+      batch_type = PipelineBatchType.Normal,
       pipeline_id = "pipeline1",
       timestamp = 42,
       success = true,
@@ -380,6 +387,8 @@ class PipelineJsonSpec extends UnitSpec {
     val jsonString = metricRecord.toJson.toString
     val jsonMap = mapFromJson(jsonString)
     val expectedMap = Map(
+      "batch_id" -> "batch1",
+      "batch_type" -> "Normal",
       "pipeline_id" -> "pipeline1",
       "timestamp" -> 42,
       "success" -> true
@@ -389,6 +398,8 @@ class PipelineJsonSpec extends UnitSpec {
 
   it should "deserialize from JSON" in {
     val metricRecord = PipelineMetricRecord(
+      batch_id = "batch1",
+      batch_type = PipelineBatchType.Normal,
       pipeline_id = "pipeline1",
       timestamp = 42,
       success = true,
@@ -419,6 +430,8 @@ class PipelineJsonSpec extends UnitSpec {
     )
 
     val jsonString = """{
+        "batch_id": "batch1",
+        "batch_type": "Normal",
         "pipeline_id": "pipeline1",
         "timestamp": 42,
         "success": true,
@@ -465,6 +478,8 @@ class PipelineJsonSpec extends UnitSpec {
 
   it should "be preserved through a round trip" in {
     val metricRecord1 = PipelineMetricRecord(
+      batch_id = "batch1",
+      batch_type = PipelineBatchType.Normal,
       pipeline_id = "pipeline1",
       timestamp = 42,
       success = true,

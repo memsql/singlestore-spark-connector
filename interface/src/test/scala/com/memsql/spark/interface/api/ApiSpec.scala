@@ -3,6 +3,7 @@ package com.memsql.spark.interface.api
 import akka.actor.Props
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.interface._
+import com.memsql.spark.interface.api.PipelineBatchType._
 import ApiActor._
 import scala.concurrent.duration._
 import spray.json._
@@ -310,8 +311,8 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case Failure(err) => fail(s"unexpected response $err")
       }
 
-      val record1 = PipelineMetricRecord(pipeline_id = "pipeline1", timestamp = 100, success = true, extract = None, transform = None, load = None)
-      val record2 = PipelineMetricRecord(pipeline_id = "pipeline1", timestamp = 110, success = false, extract = None, transform = None, load = None)
+      val record1 = PipelineMetricRecord(batch_id = "batch1", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1", timestamp = 100, success = true, extract = None, transform = None, load = None)
+      val record2 = PipelineMetricRecord(batch_id = "batch2", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1", timestamp = 110, success = false, extract = None, transform = None, load = None)
 
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
