@@ -1,7 +1,7 @@
 package com.memsql.spark.examples
 
-import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.sql.Timestamp
 
 import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.configs._
@@ -30,10 +30,7 @@ class MemSQLExtractor extends ByteArrayExtractor {
 
 class MemSQLTransformer extends ByteArrayTransformer {
   override def transform(sqlContext: SQLContext, from: RDD[Array[Byte]], config: PhaseConfig): DataFrame = {
-    val dateFormat = new SimpleDateFormat()
-    val transformed = from.map(bytesToLong).map { x =>
-      Row(dateFormat.format(x))
-    }
+    val transformed = from.map(bytesToLong).map { x => Row(new Timestamp(x)) }
     sqlContext.createDataFrame(transformed, StructType(Array(StructField("val_datetime", TimestampType, false))))
   }
 }
