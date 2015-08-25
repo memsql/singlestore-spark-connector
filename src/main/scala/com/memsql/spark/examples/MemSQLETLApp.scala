@@ -5,6 +5,7 @@ import java.util.Calendar
 
 import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.configs._
+import com.memsql.spark.etl.utils.ByteUtils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.streaming.dstream.InputDStream
@@ -39,7 +40,7 @@ class MemSQLTransformer extends ByteArrayTransformer {
 
 class KafkaValueTransformer extends ByteArrayTransformer {
   override def transform(sqlContext: SQLContext, from: RDD[Array[Byte]], config: PhaseConfig): DataFrame = {
-    val transformed = from.map { x => Row(bytesToString(x)) }
+    val transformed = from.map { x => Row(bytesToUTF8String(x)) }
     sqlContext.createDataFrame(transformed, StructType(Array(StructField("val_string", StringType, false))))
   }
 }

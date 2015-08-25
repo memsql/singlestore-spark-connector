@@ -5,6 +5,7 @@ import org.apache.spark.streaming.dstream._
 import scala.reflect.ClassTag
 import org.apache.spark.streaming._
 import com.memsql.spark.etl.api.configs.{TestJsonExtractConfig, TestStringExtractConfig, PhaseConfig}
+import com.memsql.spark.etl.utils.ByteUtils._
 
 class ConstantStream[T: ClassTag](ssc: StreamingContext, rdd: RDD[T]) extends InputDStream[T](ssc) {
   override def compute(validTime: Time): Option[RDD[T]] = Some(rdd)
@@ -27,7 +28,7 @@ class ConfigStringExtractor extends ByteArrayExtractor {
       case jsonConfig: TestJsonExtractConfig => extractConfig.asInstanceOf[TestJsonExtractConfig].value.toString
     }
 
-    val rdd = ssc.sparkContext.parallelize(Seq(stringToBytes(str)))
+    val rdd = ssc.sparkContext.parallelize(Seq(utf8StringToBytes(str)))
     new ConstantStream(ssc, rdd)
   }
 }
