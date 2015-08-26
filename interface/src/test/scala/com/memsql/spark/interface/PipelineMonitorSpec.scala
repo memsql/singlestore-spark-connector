@@ -123,7 +123,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
 
           val schema = StructType(Array(
             StructField("val_int", IntegerType, false),
-            StructField("val_string", StringType, false),
+            StructField("val_string", StringType, true),
             StructField("val_datetime", TimestampType, false),
             StructField("val_bool", BooleanType, false)
           ))

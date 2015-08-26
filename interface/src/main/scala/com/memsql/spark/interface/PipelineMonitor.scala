@@ -234,8 +234,12 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           loadRecord = runPhase(() => {
             logDebug(s"Loading RDD for pipeline $pipeline_id")
             val count = Some(pipelineInstance.loader.load(df, pipelineInstance.loadConfig))
+            var columns: Option[List[(String, String)]] = None
+            if (trace) {
+              columns = getLoadColumns()
+            }
             success = true
-            PhaseResult(count = count)
+            PhaseResult(count = count, columns = columns)
           })
         }
 
@@ -341,6 +345,18 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       }
     }).collect.toList
     (Some(fields), Some(values))
+  }
+
+  private[interface] def getLoadColumns(): Option[List[(String, String)]] = {
+    if (sqlContext.isInstanceOf[MemSQLSQLContext] && pipelineInstance.loadConfig.isInstanceOf[MemSQLLoadConfig]) {
+      val memSQLSQLContext = sqlContext.asInstanceOf[MemSQLSQLContext]
+      val memSQLLoadConfig = pipelineInstance.loadConfig.asInstanceOf[MemSQLLoadConfig]
+      val columnsSchema = memSQLSQLContext.getTableSchema(
+        memSQLLoadConfig.db_name, memSQLLoadConfig.table_name)
+      Some(columnsSchema.fields.map(field => (field.name, field.dataType.typeName)).toList)
+    } else {
+      None
+    }
   }
 
   private[interface] def getTaskErrors(batch_id: String): Option[List[TaskErrorRecord]] = {
