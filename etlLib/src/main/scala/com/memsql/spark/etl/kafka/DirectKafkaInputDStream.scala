@@ -30,7 +30,7 @@ import org.apache.spark.streaming.dstream._
 import com.memsql.spark.etl.kafka.KafkaCluster.LeaderOffset
 
 /**
- *  A stream of {@link org.apache.spark.streaming.kafka.KafkaRDD} where
+ *  A stream of {@link com.memsql.spark.etl.api.kafka.KafkaRDD} where
  * each given Kafka topic/partition corresponds to an RDD partition.
  * The spark configuration spark.streaming.kafka.maxRatePerPartition gives the maximum number
  *  of messages
@@ -39,7 +39,7 @@ import com.memsql.spark.etl.kafka.KafkaCluster.LeaderOffset
  * and this DStream is not responsible for committing offsets,
  * so that you can control exactly-once semantics.
  * For an easy interface to Kafka-managed offsets,
- *  see {@link org.apache.spark.streaming.kafka.KafkaCluster}
+ *  see {@link com.memsql.spark.etl.api.kafka.KafkaCluster}
  * @param kafkaParams Kafka <a href="http://kafka.apache.org/documentation.html#configuration">
  * configuration parameters</a>.
  *   Requires "metadata.broker.list" or "bootstrap.servers" to be set with Kafka broker(s),
@@ -122,6 +122,7 @@ class DirectKafkaInputDStream[
 
     val prevOffsets = currentOffsets
     currentOffsets = untilOffsets.map(kv => kv._1 -> kv._2.offset)
+
     prevOffsets == currentOffsets match {
       case false => Some(rdd)
       case true => None

@@ -1,7 +1,5 @@
 package com.memsql.spark.etl.api
 
-import java.nio.ByteBuffer
-
 import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.StreamingContext
 import com.memsql.spark.etl.api.configs.PhaseConfig
