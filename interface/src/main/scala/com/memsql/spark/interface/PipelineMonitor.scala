@@ -393,7 +393,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
                   stageData.taskData.filter { case (taskId, taskData) =>
                     taskData.errorMessage match {
                       case Some(error) => !error.contains("ExecutorLostFailure")
-                      case None => true
+                      case None => false
                     }
                   }.map { case (taskId, taskData) =>
                     TaskErrorRecord(jobId.toInt, stageId, taskId, taskData.taskInfo.finishTime, taskData.errorMessage)
