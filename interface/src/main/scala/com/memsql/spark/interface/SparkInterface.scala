@@ -9,6 +9,7 @@ import com.memsql.spark.interface.server.WebServer
 import ApiActor._
 import com.memsql.spark.interface.util.Paths
 import org.apache.log4j.PropertyConfigurator
+import org.apache.spark.ui.jobs.JobProgressListener
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.streaming.{Duration, StreamingContext}
 import com.memsql.spark.context.MemSQLSparkContext
@@ -45,6 +46,8 @@ class SparkInterface(val providedConfig: Config) extends Application {
 
   override val sparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
   override val streamingContext = new StreamingContext(sparkContext, new Duration(5000))
+  override val jobProgressListener = new JobProgressListener(sparkConf)
+  sparkContext.addSparkListener(jobProgressListener)
 
   // Use the sparkContext to get the master URL. This forces the sparkContext
   // be evaluated, ensuring that we attempt to connect to the master before
@@ -80,6 +83,7 @@ trait Application extends Logging {
   private[interface] def sparkConf: SparkConf
   private[interface] def sparkContext: SparkContext
   private[interface] def streamingContext: StreamingContext
+  private[interface] def jobProgressListener: JobProgressListener = null
 
   private[interface] var pipelineMonitors = Map[String, PipelineMonitor]()
 
@@ -145,7 +149,7 @@ trait Application extends Logging {
 
   private[interface] def newPipelineMonitor(pipeline: Pipeline): Try[PipelineMonitor] = {
     try {
-      Success(new DefaultPipelineMonitor(api, pipeline, sparkContext, streamingContext))
+      Success(new DefaultPipelineMonitor(api, pipeline, sparkContext, streamingContext, jobProgressListener))
     } catch {
       case e: Exception => {
         val errorMessage = s"Failed to initialize pipeline ${pipeline.pipeline_id}"

@@ -312,6 +312,7 @@ class PipelineJsonSpec extends UnitSpec {
       pipeline_id = "pipeline1",
       timestamp = 42,
       success = true,
+      task_errors = Some(List(TaskErrorRecord(0, 0, 0, 0, Some("error")))),
       extract = Some(PhaseMetricRecord(
         start = 1,
         stop = 2,
@@ -348,6 +349,15 @@ class PipelineJsonSpec extends UnitSpec {
       "pipeline_id" -> "pipeline1",
       "timestamp" -> 42,
       "success" -> true,
+      "task_errors" -> List(
+        Map(
+          "job_id" -> 0,
+          "stage_id" -> 0,
+          "task_id" -> 0,
+          "finish_time" -> 0,
+          "error" -> "error"
+        )
+      ),
       "extract" -> Map(
         "start" -> 1,
         "stop" -> 2,
@@ -386,6 +396,7 @@ class PipelineJsonSpec extends UnitSpec {
       pipeline_id = "pipeline1",
       timestamp = 42,
       success = true,
+      task_errors = None,
       extract = None,
       transform = None,
       load = None
@@ -409,6 +420,7 @@ class PipelineJsonSpec extends UnitSpec {
       pipeline_id = "pipeline1",
       timestamp = 42,
       success = true,
+      task_errors = None,
       extract = Some(PhaseMetricRecord(
         start = 1,
         stop = 2,
@@ -495,6 +507,7 @@ class PipelineJsonSpec extends UnitSpec {
       pipeline_id = "pipeline1",
       timestamp = 42,
       success = true,
+      task_errors = Some(List(TaskErrorRecord(0,1,2,3,Some("error")))),
       extract = Some(PhaseMetricRecord(
         start = 1,
         stop = 2,

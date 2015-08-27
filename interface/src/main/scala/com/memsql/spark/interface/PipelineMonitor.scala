@@ -10,16 +10,19 @@ import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.{KafkaExtractor, MemSQLLoader}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.Logging
-import com.memsql.spark.interface.api.{PipelineInstance, Pipeline, PipelineState, ApiActor, PipelineMetricRecord, PhaseMetricRecord, PipelineBatchType}
+import com.memsql.spark.interface.api.PipelineBatchType
+import com.memsql.spark.interface.api._
 import com.memsql.spark.interface.api.PipelineBatchType._
 import com.memsql.spark.interface.api.ApiJsonProtocol._
 import ApiActor._
 import com.memsql.spark.interface.util.JarLoader
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.scheduler._
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.{Time, StreamingContext}
+import org.apache.spark.ui.jobs.JobProgressListener
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
@@ -50,7 +53,8 @@ trait PipelineMonitor {
 class DefaultPipelineMonitor(override val api: ActorRef,
                                       val pipeline: Pipeline,
                              override val sparkContext: SparkContext,
-                             override val streamingContext: StreamingContext) extends PipelineMonitor with Logging {
+                             override val streamingContext: StreamingContext,
+                                      val jobProgressListener: JobProgressListener = null) extends PipelineMonitor with Logging {
   override val pipeline_id = pipeline.pipeline_id
 
   // keep a copy of the pipeline info so we can determine when the pipeline has been updated
@@ -173,6 +177,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
         logDebug(s"Computing next RDD for pipeline $pipeline_id: $time")
 
+        val batch_id = UUID.randomUUID.toString
+        sparkContext.setJobGroup(batch_id, s"Batch for MemSQL Pipeline $pipeline_id", true)
         var tracedRdd: RDD[Array[Byte]] = null
         var extractedRdd: RDD[Array[Byte]] = null
         extractRecord = runPhase(() => {
@@ -233,17 +239,18 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           })
         }
 
-        val batch_id = UUID.randomUUID.toString
         var batch_type = PipelineBatchType.Normal
         if (trace) {
           batch_type = PipelineBatchType.Traced
         }
+
         val metric = PipelineMetricRecord(
           batch_id = batch_id,
           batch_type = batch_type,
           pipeline_id = pipeline_id,
           timestamp = time,
           success = success,
+          task_errors = getTaskErrors(batch_id),
           extract = extractRecord,
           transform = transformRecord,
           load = loadRecord)
@@ -334,6 +341,63 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       }
     }).collect.toList
     (Some(fields), Some(values))
+  }
+
+  private[interface] def getTaskErrors(batch_id: String): Option[List[TaskErrorRecord]] = {
+    if (jobProgressListener == null) {
+      return None
+    }
+
+    val maybeJobAndStageIds = jobProgressListener.jobGroupToJobIds.get(batch_id) match {
+      case Some(jobIds) => {
+        Some(jobIds.toList.flatMap { jobId =>
+          jobProgressListener.jobIdToData.get(jobId) match {
+            case Some(jobData) => jobData.stageIds.map(x => (jobId, x))
+            case None => {
+              logDebug(s"Could not find information for job $jobId in pipeline $pipeline_id")
+              Seq()
+            }
+          }
+        })
+      }
+      case None => {
+        logDebug(s"Could not find information for batch $batch_id in pipeline $pipeline_id")
+        None
+      }
+    }
+
+    maybeJobAndStageIds match {
+      case Some(jobAndStageIds) => {
+        Some(jobAndStageIds.flatMap { case (jobId, stageId) =>
+          jobProgressListener.stageIdToInfo.get(stageId) match {
+            case Some(stageInfo) => {
+              val attemptId = stageInfo.attemptId
+              jobProgressListener.stageIdToData.get((stageId, attemptId)) match {
+                case Some(stageData) => {
+                  stageData.taskData.filter { case (taskId, taskData) =>
+                    taskData.errorMessage match {
+                      case Some(error) => !error.contains("ExecutorLostFailure")
+                      case None => true
+                    }
+                  }.map { case (taskId, taskData) =>
+                    TaskErrorRecord(jobId.toInt, stageId, taskId, taskData.taskInfo.finishTime, taskData.errorMessage)
+                  }
+                }
+                case None => {
+                  logDebug(s"Could not find data for stage $stageId in pipeline $pipeline_id")
+                  None
+                }
+              }
+            }
+            case None => {
+              logDebug(s"Could not find information for stage $stageId in pipeline $pipeline_id")
+              None
+            }
+          }
+        })
+      }
+      case None => None
+    }
   }
 
   override def ensureStarted() = {

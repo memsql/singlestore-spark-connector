@@ -7,6 +7,8 @@ object PipelineBatchType extends Enumeration {
 
 import PipelineBatchType._
 
+case class TaskErrorRecord(job_id: Int, stage_id: Int, task_id: Long, finish_time: Long, error: Option[String])
+
 case class PhaseMetricRecord(start: Long,
                              stop: Long,
                              count: Option[Long],
@@ -20,6 +22,7 @@ case class PipelineMetricRecord(batch_id: String,
                                 pipeline_id: String,
                                 timestamp: Long,
                                 success: Boolean,
+                                task_errors: Option[List[TaskErrorRecord]],
                                 extract: Option[PhaseMetricRecord],
                                 transform: Option[PhaseMetricRecord],
                                 load: Option[PhaseMetricRecord])
