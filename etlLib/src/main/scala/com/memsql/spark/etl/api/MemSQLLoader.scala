@@ -1,5 +1,6 @@
 package com.memsql.spark.etl.api
 
+import org.apache.log4j.Logger
 import org.apache.spark.sql.DataFrame
 import com.memsql.spark.connector._
 import com.memsql.spark.etl.api.configs.{PhaseConfig, MemSQLLoadConfig, MemSQLKeyConfig}
@@ -7,7 +8,7 @@ import com.memsql.spark.etl.api.configs.{PhaseConfig, MemSQLLoadConfig, MemSQLKe
 class MemSQLLoader extends Loader {
   val DefaultUpsertBatchSize = 1000
   var hasInserted: Boolean = false
-  override def load(df: DataFrame, loadConfig: PhaseConfig): Long = {
+  override def load(df: DataFrame, loadConfig: PhaseConfig, logger: Logger): Long = {
     val memSQLLoadConfig = loadConfig.asInstanceOf[MemSQLLoadConfig]
     if (!hasInserted) {
       df.createMemSQLTableFromSchema(memSQLLoadConfig.db_name,

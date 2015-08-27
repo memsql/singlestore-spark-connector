@@ -15,7 +15,8 @@ import com.memsql.spark.interface.api._
 import com.memsql.spark.interface.api.PipelineBatchType._
 import com.memsql.spark.interface.api.ApiJsonProtocol._
 import ApiActor._
-import com.memsql.spark.interface.util.JarLoader
+import com.memsql.spark.interface.util.{ArrayLogAppender, JarLoader}
+import org.apache.log4j.{Logger, Level}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler._
@@ -148,8 +149,9 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     var inputDStream: InputDStream[Array[Byte]] = null
 
     try {
+      val (extractLogger, extractAppender) = getPhaseLogger("extract")
       logDebug(s"Initializing extractor for pipeline $pipeline_id")
-      inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig, batchInterval)
+      inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig, batchInterval, extractLogger)
       logDebug(s"Starting InputDStream for pipeline $pipeline_id")
       inputDStream.start()
 
@@ -191,7 +193,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
                 tracedRdd = rdds(0)
                 extractedRdd = rdds(1)
                 val (columns, records) = getExtractRecords(tracedRdd)
-                val logs = None
+                val logs = Some(extractAppender.getLogEntries)
                 PhaseResult(count = count, columns = columns, records = records, logs = logs)
               } else {
                 extractedRdd = rdd
@@ -207,19 +209,22 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
         var tracedDf: DataFrame = null
         var df: DataFrame = null
+        val (transformLogger, transformAppender) = getPhaseLogger("transform")
         if (extractedRdd != null) {
           transformRecord = runPhase(() => {
             logDebug(s"Transforming RDD for pipeline $pipeline_id")
             if (tracedRdd != null) {
               tracedDf = pipelineInstance.transformer.transform(
-                sqlContext, tracedRdd, pipelineInstance.transformConfig)
+                sqlContext, tracedRdd, pipelineInstance.transformConfig,
+                transformLogger)
             }
             df = pipelineInstance.transformer.transform(
-              sqlContext, extractedRdd, pipelineInstance.transformConfig)
+              sqlContext, extractedRdd, pipelineInstance.transformConfig,
+              transformLogger)
             if (trace && tracedDf != null) {
               val count = Some(tracedDf.count + df.count)
               val (columns, records) = getTransformRecords(tracedDf)
-              val logs = None
+              val logs = Some(transformAppender.getLogEntries)
               PhaseResult(count = count, columns = columns, records = records, logs = logs)
             } else {
               PhaseResult()
@@ -227,19 +232,22 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           })
         }
 
+        val (loadLogger, loadAppender) = getPhaseLogger("load")
         if (df != null) {
           if (tracedDf != null) {
             df = df.unionAll(tracedDf)
           }
           loadRecord = runPhase(() => {
             logDebug(s"Loading RDD for pipeline $pipeline_id")
-            val count = Some(pipelineInstance.loader.load(df, pipelineInstance.loadConfig))
+            val count = Some(pipelineInstance.loader.load(df, pipelineInstance.loadConfig, loadLogger))
             var columns: Option[List[(String, String)]] = None
+            var logs: Option[List[String]] = None
             if (trace) {
               columns = getLoadColumns()
+              logs = Some(loadAppender.getLogEntries)
             }
             success = true
-            PhaseResult(count = count, columns = columns)
+            PhaseResult(count = count, columns = columns, logs = logs)
           })
         }
 
@@ -303,6 +311,14 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       records = phaseResult.records,
       logs = phaseResult.logs
     ))
+  }
+
+  private[interface] def getPhaseLogger(phaseName: String): (Logger, ArrayLogAppender) = {
+    val logger = Logger.getLogger(s"Pipeline $pipeline_id $phaseName")
+    logger.setLevel(Level.DEBUG)
+    val appender = new ArrayLogAppender()
+    logger.addAppender(appender)
+    (logger, appender)
   }
 
   private[interface] def getExtractRecords(rdd: RDD[Array[Byte]]): (Option[List[(String, String)]], Option[List[List[String]]]) = {

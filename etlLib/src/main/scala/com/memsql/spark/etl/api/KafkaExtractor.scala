@@ -1,5 +1,6 @@
 package com.memsql.spark.etl.api
 
+import org.apache.log4j.Logger
 import kafka.serializer.{DefaultDecoder, StringDecoder}
 import com.memsql.spark.etl.api.configs.{PhaseConfig, KafkaExtractConfig}
 import org.apache.spark.streaming.StreamingContext
@@ -7,7 +8,7 @@ import com.memsql.spark.etl.kafka.KafkaUtils
 import org.apache.spark.streaming.dstream.InputDStream
 
 class KafkaExtractor(consumerId: String) extends ByteArrayExtractor {
-  def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchDuration: Long): InputDStream[Array[Byte]] = {
+  def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchDuration: Long, logger: Logger): InputDStream[Array[Byte]] = {
     val kafkaConfig  = extractConfig.asInstanceOf[KafkaExtractConfig]
     val kafkaParams = Map(
       "metadata.broker.list" -> s"${kafkaConfig.host}:${kafkaConfig.port}"
