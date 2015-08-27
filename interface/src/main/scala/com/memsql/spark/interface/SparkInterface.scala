@@ -42,6 +42,7 @@ class SparkInterface(val providedConfig: Config) extends Application {
       .set("spark.driver.port", (config.port + 3).toString)
       .set("spark.executor.port", (config.port + 4).toString)
       .set("spark.fileserver.port", (config.port + 5).toString)
+      .set("spark.ui.port", (config.port + 6).toString)
   }
 
   override val sparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
