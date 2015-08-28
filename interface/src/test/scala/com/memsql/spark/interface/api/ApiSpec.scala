@@ -226,7 +226,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
 
       //an update request from the api must be validated and cannot perform all updates
       mockTime.tick
-      apiRef ! PipelineUpdate("pipeline1", state=Some(PipelineState.RUNNING), _validate=true)
+      apiRef ! PipelineUpdate("pipeline1", state=Some(PipelineState.STOPPED), _validate=true)
       receiveOne(1.second) match {
         case resp: Success[_] => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])

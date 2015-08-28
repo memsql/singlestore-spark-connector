@@ -81,7 +81,7 @@ trait ApiService {
               newState = (pipeline.state, state.get, _validate) match {
                 case (_, _, false) => state.get
                 case (RUNNING, STOPPED, _) => state.get
-                case (STOPPED, RUNNING, _) => state.get
+                case (STOPPED | ERROR, RUNNING, _) => state.get
                 case (prev, next, _) if prev == next => state.get
                 case (prev, next, _) => throw new ApiException(s"cannot update state from $prev to $next")
               }
