@@ -398,7 +398,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       }
     }
 
-    maybeJobAndStageIds match {
+    val errorRecords = maybeJobAndStageIds match {
       case Some(jobAndStageIds) => {
         Some(jobAndStageIds.flatMap { case (jobId, stageId) =>
           jobProgressListener.stageIdToInfo.get(stageId) match {
@@ -429,6 +429,12 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         })
       }
       case None => None
+    }
+
+    errorRecords match {
+      case None => None
+      case Some(Nil) => None
+      case default => default
     }
   }
 
