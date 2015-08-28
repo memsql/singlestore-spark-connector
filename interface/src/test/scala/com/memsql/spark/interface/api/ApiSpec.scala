@@ -54,7 +54,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
-      apiRef ! PipelineUpdate("pipelinenotthere", PipelineState.STOPPED)
+      apiRef ! PipelineUpdate("pipelinenotthere", Some(PipelineState.STOPPED))
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
@@ -145,7 +145,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
 
     "allow updates to pipelines" in {
       mockTime.tick
-      apiRef ! PipelineUpdate("pipeline1", state=PipelineState.STOPPED)
+      apiRef ! PipelineUpdate("pipeline1", state=Some(PipelineState.STOPPED))
       expectMsg(Success(true))
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
@@ -158,7 +158,19 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
 
       //no-op updates return false and update time should not be changed
       mockTime.tick
-      apiRef ! PipelineUpdate("pipeline1", state=PipelineState.STOPPED)
+      apiRef ! PipelineUpdate("pipeline1", state=Some(PipelineState.STOPPED))
+      expectMsg(Success(false))
+      apiRef ! PipelineGet("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val pipeline = resp.get.asInstanceOf[Pipeline]
+          assert(pipeline.state == PipelineState.STOPPED)
+          assert(pipeline.last_updated == 2)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      // All parameters are optional for PipelineUpdate except pipeline_id
+      apiRef ! PipelineUpdate("pipeline1")
       expectMsg(Success(false))
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
@@ -170,7 +182,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       }
 
       mockTime.tick
-      apiRef ! PipelineUpdate("pipeline1", state=PipelineState.ERROR, error=Some("something crashed"))
+      apiRef ! PipelineUpdate("pipeline1", state=Some(PipelineState.ERROR), error=Some("something crashed"))
       expectMsg(Success(true))
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
@@ -214,7 +226,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
 
       //an update request from the api must be validated and cannot perform all updates
       mockTime.tick
-      apiRef ! PipelineUpdate("pipeline1", state=PipelineState.RUNNING, _validate=true)
+      apiRef ! PipelineUpdate("pipeline1", state=Some(PipelineState.RUNNING), _validate=true)
       receiveOne(1.second) match {
         case resp: Success[_] => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])

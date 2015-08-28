@@ -162,7 +162,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       assert(pipeline.pipeline_id == "pipeline1")
       assert(pipeline.state == PipelineState.RUNNING)
 
-      apiRef ! PipelineUpdate("pipeline1", state = PipelineState.STOPPED)
+      apiRef ! PipelineUpdate("pipeline1", state = Some(PipelineState.STOPPED))
       receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
         case Success(resp) => assert(resp)
         case Failure(err) => fail(s"unexpected response $err")

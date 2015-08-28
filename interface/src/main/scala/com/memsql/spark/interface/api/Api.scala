@@ -20,7 +20,7 @@ object ApiActor {
   case object PipelineQuery
   case class PipelineGet(pipeline_id: String)
   case class PipelinePut(pipeline_id: String, batch_interval: Long, config: PipelineConfig)
-  case class PipelineUpdate(pipeline_id: String, state: PipelineState = null,
+  case class PipelineUpdate(pipeline_id: String, state: Option[PipelineState] = None,
                             batch_interval: Option[Long] = None,
                             config: Option[PipelineConfig] = None,
                             trace_batch_count: Option[Int] = None,
@@ -77,12 +77,12 @@ trait ApiService {
           var newTraceBatchCount = pipeline.traceBatchCount
 
           try {
-            if (state != null) {
-              newState = (pipeline.state, state, _validate) match {
-                case (_, _, false) => state
-                case (RUNNING, STOPPED, _) => state
-                case (STOPPED, RUNNING, _) => state
-                case (prev, next, _) if prev == next => state
+            if (state.isDefined) {
+              newState = (pipeline.state, state.get, _validate) match {
+                case (_, _, false) => state.get
+                case (RUNNING, STOPPED, _) => state.get
+                case (STOPPED, RUNNING, _) => state.get
+                case (prev, next, _) if prev == next => state.get
                 case (prev, next, _) => throw new ApiException(s"cannot update state from $prev to $next")
               }
 

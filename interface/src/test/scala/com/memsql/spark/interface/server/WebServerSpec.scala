@@ -328,8 +328,28 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     }
 
     // updates to batch_interval should return true
-    Patch("/pipeline/update?pipeline_id=asdf&active=true&batch_interval=999") ~> route ~> check {
+    Patch("/pipeline/update?pipeline_id=asdf&active=true&batch_interval=998") ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
+      assert(status == OK)
+    }
+
+    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
+      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
+      assert(pipeline.state == PipelineState.RUNNING)
+      assert(pipeline.batch_interval == 998)
+      assert(status == OK)
+    }
+
+    // if active is not specified, thet pipeline's state should not change
+    Patch("/pipeline/update?pipeline_id=asdf&batch_interval=999") ~> route ~> check {
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
+      assert(status == OK)
+    }
+
+    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
+      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
+      assert(pipeline.state == PipelineState.RUNNING)
+      assert(pipeline.batch_interval == 999)
       assert(status == OK)
     }
 
@@ -454,11 +474,6 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   it should "reject PATCH if parameters are missing" in {
     Patch("/pipeline/update") ~> sealRoute(route) ~> check {
       assert(responseAs[String].contains("missing required query parameter 'pipeline_id'"))
-      assert(status == NotFound)
-    }
-
-    Patch("/pipeline/update?pipeline_id=asdf") ~> sealRoute(route) ~> check {
-      assert(responseAs[String].contains("missing required query parameter 'active'"))
       assert(status == NotFound)
     }
 

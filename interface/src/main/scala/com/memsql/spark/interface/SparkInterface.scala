@@ -134,7 +134,7 @@ trait Application extends Logging {
         pipelineMonitors = pipelineMonitors + (pipeline.pipeline_id -> pipelineMonitor)
       }
       case Failure(error) => {
-        val future = (api ? PipelineUpdate(pipeline.pipeline_id, PipelineState.ERROR, error = Some(error.toString))).mapTo[Try[Boolean]]
+        val future = (api ? PipelineUpdate(pipeline.pipeline_id, Some(PipelineState.ERROR), error = Some(error.toString))).mapTo[Try[Boolean]]
         future.map {
           case Success(resp) => //exit
           case Failure(error) => logError(s"Failed to update pipeline ${pipeline.pipeline_id} state to ERROR", error)
