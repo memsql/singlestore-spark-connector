@@ -184,7 +184,15 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         var tracedRdd: RDD[Array[Byte]] = null
         var extractedRdd: RDD[Array[Byte]] = null
         extractRecord = runPhase(() => {
-          inputDStream.compute(Time(time)) match {
+          val maybeRdd = inputDStream.compute(Time(time))
+          var logs: Option[List[String]] = None
+          if (trace) {
+            logs = Some(extractAppender.getLogEntries)
+          }
+          // We clear the extract appender's log entries because we use one
+          // appender for all batches, unlike the transform and load appenders.
+          extractAppender.clearLogEntries
+          maybeRdd match {
             case Some(rdd) => {
               if (trace) {
                 val count = Some(rdd.count)
@@ -193,38 +201,56 @@ class DefaultPipelineMonitor(override val api: ActorRef,
                 tracedRdd = rdds(0)
                 extractedRdd = rdds(1)
                 val (columns, records) = getExtractRecords(tracedRdd)
-                val logs = Some(extractAppender.getLogEntries)
                 PhaseResult(count = count, columns = columns, records = records, logs = logs)
               } else {
                 extractedRdd = rdd
-                PhaseResult()
+                PhaseResult(logs = logs)
               }
             }
             case None => {
               logDebug(s"No RDD from pipeline $pipeline_id")
-              PhaseResult()
+              PhaseResult(logs = logs)
             }
           }
         })
 
         var tracedDf: DataFrame = null
         var df: DataFrame = null
+        // We use two loggers and appenders in the transform phase because
+        // we want to only get logs from the ArrayLogAppenders for traced
+        // records, but we still need to pass in a logger object to both
+        // transform() calls.
         val (transformLogger, transformAppender) = getPhaseLogger("transform")
+        var tracedTransformLogger: Logger = null
+        var tracedTransformAppender: ArrayLogAppender = null
         if (extractedRdd != null) {
           transformRecord = runPhase(() => {
             logDebug(s"Transforming RDD for pipeline $pipeline_id")
             if (tracedRdd != null) {
+              val loggerAndAppender = getPhaseLogger("transform")
+              tracedTransformLogger = loggerAndAppender._1
+              tracedTransformAppender = loggerAndAppender._2
               tracedDf = pipelineInstance.transformer.transform(
                 sqlContext, tracedRdd, pipelineInstance.transformConfig,
-                transformLogger)
+                tracedTransformLogger)
             }
             df = pipelineInstance.transformer.transform(
               sqlContext, extractedRdd, pipelineInstance.transformConfig,
               transformLogger)
-            if (trace && tracedDf != null) {
-              val count = Some(tracedDf.count + df.count)
-              val (columns, records) = getTransformRecords(tracedDf)
-              val logs = Some(transformAppender.getLogEntries)
+            if (trace) {
+              var count: Option[Long] = None
+              var columns: Option[List[(String, String)]] = None
+              var records: Option[List[List[String]]] = None
+              var logs: Option[List[String]] = None
+              if (tracedDf != null) {
+                count = Some(tracedDf.count + df.count)
+                val columnsAndRecords = getTransformRecords(tracedDf)
+                columns = columnsAndRecords._1
+                records = columnsAndRecords._2
+              }
+              if (tracedTransformAppender != null) {
+                logs = Some(tracedTransformAppender.getLogEntries)
+              }
               PhaseResult(count = count, columns = columns, records = records, logs = logs)
             } else {
               PhaseResult()

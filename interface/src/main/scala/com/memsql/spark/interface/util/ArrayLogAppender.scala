@@ -17,6 +17,8 @@ class ArrayLogAppender extends AppenderSkeleton {
 
   def getLogEntries(): List[String] = logEntries.toList
 
+  def clearLogEntries() = logEntries.clear
+
   override def append(event: LoggingEvent) = {
     logEntries.enqueue(patternLayout.format(event))
   }
