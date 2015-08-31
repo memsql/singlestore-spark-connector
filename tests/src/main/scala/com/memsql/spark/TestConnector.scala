@@ -13,7 +13,7 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.DataFrame
 
-import com.memsql.spark.connector.dataframe.MemSQLDataFrame
+import com.memsql.spark.connector.dataframe.{JsonType, JsonValue, MemSQLDataFrame}
 import com.memsql.spark.connector.dataframe._
 import com.memsql.spark.connector.rdd.MemSQLRDD
 import com.memsql.spark.connector._
@@ -332,11 +332,9 @@ object TestSaveToMemSQLVeryBasic {
     // and expressions and column renaming
     df1.where(df1("a") < 5).select(df1("a") + 1 as "b",df1("a")).saveToMemSQL(dbName, "t", host, port, user, password)
     assert (df_t.filter(df_t("b") === "3").count == 1)
-
-
-
   }
 }
+
 object TestMemSQLTypes {
   def main(args: Array[String]) {
     Class.forName("com.mysql.jdbc.Driver")
@@ -622,6 +620,45 @@ object TestSaveToMemSQLWithRDDErrors {
         assert(e.getMessage.contains("Test exception 123"))
       }
     }
+  }
+}
+
+object TestSaveToMemSQLJSONColumn {
+  def main(args : Array[String]) {
+    val conf = new SparkConf().setAppName("MemSQLRDD Application")
+    val sc = new SparkContext(conf)
+    val sqlContext = new SQLContext(sc)
+
+    val host = "127.0.0.1"
+    val port = 10000
+    val user = "root"
+    val password = ""
+    val dbName = "x_testsave"
+
+    TestUtils.DropAndCreate(dbName)
+
+    val rdd = sc.parallelize(
+      Array(Row(new JsonValue("{ \"foo\": \"bar\" }"))))
+
+    val schema = StructType(Array(StructField("a", JsonType, true)))
+    val df1 = sqlContext.createDataFrame(rdd, schema)
+
+    df1.createMemSQLTableAs(dbName, "t", host, port, user, password)
+
+    val df_t = TestUtils.MemSQLDF(sqlContext,dbName, "t")
+    assert(df_t.count == 1)
+    val result = df_t.select(df_t("a")).collect()(0).getAs[String]("a")
+    println(result)
+    assert(result == "{\"foo\":\"bar\"}")
+
+    val dbAddress = "jdbc:mysql://" + host + ":" + port
+    val conn = DriverManager.getConnection(dbAddress, user, password)
+    val stmt = conn.createStatement
+    val query = "select * from information_schema.columns where table_name='t' and column_name='a'"
+    val columnTypes = MemSQLRDD.resultSetToIterator(stmt.executeQuery(query)).map((r: ResultSet) => r.getString("COLUMN_TYPE")).toArray
+    val columnType = columnTypes(0)
+    println(columnType)
+    assert(columnType == "JSON")
   }
 }
 

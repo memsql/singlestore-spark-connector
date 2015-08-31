@@ -8,3 +8,4 @@
  -s dockertest/spark_submit_test.py::test_leaked_conns --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_save_errors --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_save_rdd_errors --psyduck-time-limit=16
+ -s dockertest/spark_submit_test.py::test_save_json_column --psyduck-time-limit=16

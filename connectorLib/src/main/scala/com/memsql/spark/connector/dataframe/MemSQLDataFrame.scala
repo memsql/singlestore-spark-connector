@@ -32,16 +32,16 @@ object MemSQLDataFrameUtils {
 
   def JDBCTypeToDataFrameType(rsmd: ResultSetMetaData, ix: Int) : DataType = {
     rsmd.getColumnType(ix) match {
-      case java.sql.Types.INTEGER => IntegerType 
-      case java.sql.Types.TINYINT => ShortType 
+      case java.sql.Types.INTEGER => IntegerType
+      case java.sql.Types.TINYINT => ShortType
       case java.sql.Types.BIGINT => LongType  // TODO: This will prevent inequalities for some dumb reason
-      case java.sql.Types.DOUBLE => DoubleType 
-      case java.sql.Types.REAL => FloatType 
-      case java.sql.Types.BIT => BooleanType 
-      case java.sql.Types.CLOB => StringType 
-      case java.sql.Types.BLOB => BinaryType 
-      case java.sql.Types.TIMESTAMP => TimestampType 
-      case java.sql.Types.DATE => DateType 
+      case java.sql.Types.DOUBLE => DoubleType
+      case java.sql.Types.REAL => FloatType
+      case java.sql.Types.BIT => BooleanType
+      case java.sql.Types.CLOB => StringType
+      case java.sql.Types.BLOB => BinaryType
+      case java.sql.Types.TIMESTAMP => TimestampType
+      case java.sql.Types.DATE => DateType
       case java.sql.Types.TIME => TimestampType  //srsly?
       case java.sql.Types.DECIMAL => DecimalType(rsmd.getPrecision(ix), rsmd.getScale(ix))
       case java.sql.Types.LONGNVARCHAR => StringType
@@ -53,27 +53,27 @@ object MemSQLDataFrameUtils {
       case _ => throw new IllegalArgumentException("Can't translate type " + rsmd.getColumnTypeName(ix))
     }
   }
-  
+
   def GetJDBCValue(dataType : Int, ix : Int, row : ResultSet) : Any = {
     val result = dataType match {
       case java.sql.Types.INTEGER => row.getInt(ix)
       case java.sql.Types.BIGINT => row.getLong(ix)
       case java.sql.Types.TINYINT => row.getShort(ix)
-      case java.sql.Types.DOUBLE => row.getDouble(ix) 
-      case java.sql.Types.REAL => row.getDouble(ix) 
-      case java.sql.Types.BIT => row.getBoolean(ix) 
-      case java.sql.Types.CLOB => row.getString(ix)  
-      case java.sql.Types.BLOB => row.getClob(ix) 
-      case java.sql.Types.TIMESTAMP => row.getString(ix) 
-      case java.sql.Types.DATE => row.getDate(ix) 
-      case java.sql.Types.TIME => row.getTime(ix) 
-      case java.sql.Types.DECIMAL => row.getBigDecimal(ix) 
-      case java.sql.Types.LONGNVARCHAR => row.getString(ix) 
-      case java.sql.Types.LONGVARCHAR => row.getString(ix) 
-      case java.sql.Types.VARCHAR => row.getString(ix) 
-      case java.sql.Types.NVARCHAR => row.getString(ix) 
-      case java.sql.Types.LONGVARBINARY => row.getString(ix) 
-      case java.sql.Types.VARBINARY => row.getString(ix) 
+      case java.sql.Types.DOUBLE => row.getDouble(ix)
+      case java.sql.Types.REAL => row.getDouble(ix)
+      case java.sql.Types.BIT => row.getBoolean(ix)
+      case java.sql.Types.CLOB => row.getString(ix)
+      case java.sql.Types.BLOB => row.getClob(ix)
+      case java.sql.Types.TIMESTAMP => row.getString(ix)
+      case java.sql.Types.DATE => row.getDate(ix)
+      case java.sql.Types.TIME => row.getTime(ix)
+      case java.sql.Types.DECIMAL => row.getBigDecimal(ix)
+      case java.sql.Types.LONGNVARCHAR => row.getString(ix)
+      case java.sql.Types.LONGVARCHAR => row.getString(ix)
+      case java.sql.Types.VARCHAR => row.getString(ix)
+      case java.sql.Types.NVARCHAR => row.getString(ix)
+      case java.sql.Types.LONGVARBINARY => row.getString(ix)
+      case java.sql.Types.VARBINARY => row.getString(ix)
       case _ => throw new IllegalArgumentException("Can't translate type " + dataType.toString)
     }
     if (row.wasNull) null else result
@@ -89,18 +89,18 @@ object MemSQLDataFrame {
     password: String,
     dbName: String,
     query: String) : MemSQLRDD[Row] = {
-    
+
     return new MemSQLRDD(sc,
-			 dbHost, 
-			 dbPort, 
-			 user, 
-			 password, 
-			 dbName, 
-			 query, 
+			 dbHost,
+			 dbPort,
+			 user,
+			 password,
+			 dbName,
+			 query,
   			 (r:ResultSet) => {
   			   val count = r.getMetaData.getColumnCount
   			   Row.fromSeq(Range(0,count)
-                                       .map(i => MemSQLDataFrameUtils.GetJDBCValue(r.getMetaData.getColumnType(i+1), i+1, r)))			  
+                                       .map(i => MemSQLDataFrameUtils.GetJDBCValue(r.getMetaData.getColumnType(i+1), i+1, r)))
   			 })
   }
 
@@ -132,12 +132,12 @@ object MemSQLDataFrame {
     var conn: Connection = null
     var schemaStmt: Statement = null
     try {
-      conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)  
+      conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)
       schemaStmt = conn.createStatement
       val metadata = schemaStmt.executeQuery(limitZero(query)).getMetaData
       val count = metadata.getColumnCount
-      val schema = StructType(Range(0,count).map(i => StructField(metadata.getColumnName(i+1), 
-                                                                  MemSQLDataFrameUtils.JDBCTypeToDataFrameType(metadata, i+1), 
+      val schema = StructType(Range(0,count).map(i => StructField(metadata.getColumnName(i+1),
+                                                                  MemSQLDataFrameUtils.JDBCTypeToDataFrameType(metadata, i+1),
                                                                   metadata.isNullable(i+1) == ResultSetMetaData.columnNullable)))
       return schema
     } finally {
@@ -156,7 +156,7 @@ object MemSQLDataFrame {
 
 }
 
-case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlContext: SQLContext) 
+case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlContext: SQLContext)
    extends BaseRelation with PrunedFilteredScan
 {
   val schema : StructType = MemSQLDataFrame.getQuerySchema(rdd.dbHost, rdd.dbPort, rdd.user, rdd.password, rdd.dbName, rdd.sql)
@@ -195,11 +195,11 @@ case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlCont
   private def getProject(requiredColumns: Array[String]): String = {
     if (requiredColumns.size == 0) // for df.count, df.is_empty
     {
-      return "1" 
+      return "1"
     }
     return requiredColumns.mkString(",")
   }
-  
+
   def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     var sql = "SELECT " + getProject(requiredColumns) + " FROM (" + rdd.sql + ") tab_alias"
     if (filters.size != 0)
