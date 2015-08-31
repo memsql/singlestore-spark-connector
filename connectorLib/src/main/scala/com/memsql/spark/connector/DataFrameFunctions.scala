@@ -80,7 +80,8 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
                                     user: String = null,
                                     password: String = null,
                                     ifNotExists: Boolean = false,
-                                    keys: Array[MemSQLKey] = Array()) : DataFrame =
+                                    keys: Array[MemSQLKey] = Array(),
+                                    extraCols: Array[MemSQLExtraColumn] = Array()) : DataFrame =
     {
         val sql = new StringBuilder()
         sql.append("CREATE ")
@@ -108,6 +109,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
         val hasShardKey = keys.exists(_.canBeUsedAsShardKey)
         val theKeys = if (hasShardKey) keys else keys :+ Shard()
         sql.append(theKeys.map((k : MemSQLKey) => k.toSQL).mkString(","))
+        sql.append(extraCols.map((k : MemSQLExtraColumn) => k.toSQL).mkString(","))
         sql.append(")")
 
         var theHost: String = dbHost

@@ -3,7 +3,7 @@ package com.memsql.spark.etl.api
 import org.apache.log4j.Logger
 import org.apache.spark.sql.DataFrame
 import com.memsql.spark.connector._
-import com.memsql.spark.etl.api.configs.{PhaseConfig, MemSQLLoadConfig, MemSQLKeyConfig}
+import com.memsql.spark.etl.api.configs.{PhaseConfig, MemSQLLoadConfig, MemSQLKeyConfig, MemSQLExtraColumnConfig}
 
 class MemSQLLoader extends Loader {
   val DefaultUpsertBatchSize = 1000
@@ -14,6 +14,7 @@ class MemSQLLoader extends Loader {
       df.createMemSQLTableFromSchema(memSQLLoadConfig.db_name,
                                      memSQLLoadConfig.table_name,
                                      keys = memSQLLoadConfig.table_keys.getOrElse(List[MemSQLKeyConfig]()).map((k: MemSQLKeyConfig) => k.toMemSQLKey).toArray,
+                                     extraCols = memSQLLoadConfig.table_extra_columns.getOrElse(List[MemSQLExtraColumnConfig]()).map((k: MemSQLExtraColumnConfig) => k.toMemSQLExtraColumn).toArray,
                                      ifNotExists = true)
       hasInserted = true
     }

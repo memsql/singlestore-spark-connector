@@ -21,11 +21,23 @@ case class MemSQLKeyConfig(key_type: MemSQLKeyType, column_names: List[String]) 
     }
   }
 }
+
+case class MemSQLExtraColumnConfig(name: String, 
+                                   col_type: String, 
+                                   nullable: Option[Boolean], 
+                                   default_value: Option[String], 
+                                   persisted: Option[String]) {
+  def toMemSQLExtraColumn: MemSQLExtraColumn = {
+    MemSQLExtraColumn(name, col_type, nullable.getOrElse(true), default_value.getOrElse(null), persisted.getOrElse(null))
+  }
+}
+
 case class MemSQLLoadConfig(db_name: String, 
                             table_name: String,
                             on_duplicate_key_sql: Option[String],
                             upsert_batch_size: Option[Int],
                             table_keys: Option[List[MemSQLKeyConfig]],
+                            table_extra_columns: Option[List[MemSQLExtraColumnConfig]],
                             use_keyless_sharding_optimization: Option[Boolean]
                           ) extends PhaseConfig 
 
@@ -34,12 +46,14 @@ case class UserLoadConfig(class_name: String, value: String) extends PhaseConfig
 object KeyTypeJsonProtocol extends JsonEnumProtocol {
   implicit val memSQLKeyTypeTypeFormat = jsonEnum(MemSQLKeyType)
   implicit val memSQLkeyConfigFormat = jsonFormat2(MemSQLKeyConfig)
+  implicit val memSQLextraColumnConfigFormat = jsonFormat5(MemSQLExtraColumnConfig)
 }
 import KeyTypeJsonProtocol._
 
 object LoadPhase extends DefaultJsonProtocol {
   val userConfigFormat = jsonFormat2(UserLoadConfig)
-  val memSQLConfigFormat = jsonFormat6(MemSQLLoadConfig)
+  val memSQLConfigFormat = jsonFormat7(MemSQLLoadConfig)
+  
 
   def readConfig(kind: LoadPhaseKind, config: JsValue): PhaseConfig = {
     kind match {
