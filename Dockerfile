@@ -1,5 +1,8 @@
 FROM psy3.memcompute.com/dockertest:memsql-32
 
+RUN sudo apt-get update && \
+    sudo apt-get install -y python-dev
+
 # configure locale
 RUN sudo locale-gen en_US.UTF-8 && sudo update-locale LANG=en_US.UTF-8
 ENV LANG en_US.UTF-8
@@ -39,11 +42,11 @@ RUN sudo /tmp/memsql-ops-4.0.33-spark/install.sh -n
 # prepare memsql
 ENV MEMSQL_LICENSE_KEY 636df1618e694d2bb785fe0093e6f486
 RUN wget -q -O /tmp/memsqlbin_amd64.tar.gz http://download.memsql.com/$MEMSQL_LICENSE_KEY/memsqlbin_amd64.tar.gz
-RUN sudo rm /var/lib/memsql-ops/data/memsql-ops.pid && \
+RUN sudo rm -f /var/lib/memsql-ops/data/memsql-ops.pid && \
     sudo memsql-ops start && \
     sudo memsql-ops file-add -t memsql /tmp/memsqlbin_amd64.tar.gz && \
     sudo memsql-ops stop && \
-    sudo rm /var/lib/memsql-ops/data/memsql-ops.pid
+    sudo rm -f /var/lib/memsql-ops/data/memsql-ops.pid
 
 # clean up
 RUN sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/* /tmp/*

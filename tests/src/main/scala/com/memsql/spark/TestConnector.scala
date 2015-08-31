@@ -33,11 +33,11 @@ object MemSQLTestSetup {
     stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName)
     stmt.execute("USE " + dbName)
     stmt.execute("""
-       CREATE TABLE t 
+       CREATE TABLE t
        (id INT PRIMARY KEY, data VARCHAR(200), key(data))
     """)
     stmt.execute("""
-       CREATE TABLE s 
+       CREATE TABLE s
        (id INT , data VARCHAR(200), key(id), key(data), shard())
     """)
     stmt.execute("""
@@ -76,7 +76,7 @@ object MemSQLTestSetup {
     val create = "create table " + tbname + " (" + Types.MemSQLTypes.map(_._1).map((t:String) => Types.ToCol(t)
                                                                                    + " " + t + (if (!nullable) " not null" else " null default null")).mkString(",") + ",shard())"
     stmt.execute(create)
-    
+
     var insertQuery = "insert into " + tbname + " values"
     for (i <- 0 until 3)
     {
@@ -93,7 +93,7 @@ object MemSQLTestSetup {
     stmt.execute(insertQuery)
     return TestUtils.MemSQLDF(sqlContext, dbName, tbname)
   }
-  
+
 }
 object TestUtils {
   def DropAndCreate(dbName: String) {
@@ -102,7 +102,7 @@ object TestUtils {
     val user = "root"
     val password = ""
     val dbAddress = "jdbc:mysql://" + host + ":" + port
-    
+
     val conn = DriverManager.getConnection(dbAddress, user, password)
     val stmt = conn.createStatement
     stmt.execute("DROP DATABASE IF EXISTS " + dbName)
@@ -142,7 +142,7 @@ object TestUtils {
         }
         for (r <- 0 until df1_sorted(i).size)
         {
-          if ((df1_sorted(i)(r) == null) != (df2_sorted(i)(r) == null) 
+          if ((df1_sorted(i)(r) == null) != (df2_sorted(i)(r) == null)
             || ((df1_sorted(i)(r) != null)  && !df1_sorted(i)(r).equals(df2_sorted(i)(r))))
           {
             println("difference : " + df1_sorted(i)(r) + " vs " + df2_sorted(i)(r))
@@ -165,9 +165,9 @@ object TestUtils {
   }
 }
 object Types {
-  // We intentionally don't include memsql specific types (spatial+json), 
+  // We intentionally don't include memsql specific types (spatial+json),
   // and times that don't map to sparksql (time, unsigned)...
-  val MemSQLTypes: Array[(String,Array[String])] = Array( 
+  val MemSQLTypes: Array[(String,Array[String])] = Array(
     ("int", Array("1","2","3")),
     ("bigint",Array("4","5","6")),
     ("tinyint",Array("7","8","9")),
@@ -208,7 +208,7 @@ object TestMemSQLDataFrameVeryBasic {
     val user = "root"
     val password = ""
     val dbName = "x_db"
-    
+
     MemSQLTestSetup.SetupBasic()
 
     val df_t = MemSQLDataFrame.MakeMemSQLDF(
@@ -241,13 +241,13 @@ object TestMemSQLDataFrameVeryBasic {
     assert (df_s.rdd.partitions.size > 1)
     assert (df_r.rdd.partitions.size == 1)
 
-    val dfs = Array(df_t, df_s, df_r) 
+    val dfs = Array(df_t, df_s, df_r)
     for (i <- 0 until dfs.size)
     {
 
         // TODO: We dont automatically test that anything is actually pushed down
         // but you can see them being pushed down by reading the memsql tracelog
-      
+
         println(dfs(i).schema)
         println(dfs(i).rdd.toDebugString)
         var results = dfs(i).collect()
@@ -255,30 +255,30 @@ object TestMemSQLDataFrameVeryBasic {
         println(dfs(i).rdd.partitions.size)
         assert(results.size == 1000)
         assert(dfs(i).count() == 1000)
-    
+
         assert(dfs(i).filter(dfs(i)("id") === 1).collect().size == 1)
         assert(dfs(i).filter(dfs(i)("id") === 1).count == 1)
-        
+
         assert(dfs(i).filter(dfs(i)("id") <= 1).collect().size == 2)
         assert(dfs(i).filter(dfs(i)("id") <= 1).count == 2)
-    
+
         assert(dfs(i).filter(dfs(i)("id") < 1).collect().size == 1)
         assert(dfs(i).filter(dfs(i)("id") < 1).count == 1)
-    
+
         assert(dfs(i).filter(dfs(i)("id") > 1).collect().size == 998)
         assert(dfs(i).filter(dfs(i)("id") > 1).count == 998)
-    
+
         assert(dfs(i).filter(dfs(i)("id") >= 1).collect().size == 999)
         assert(dfs(i).filter(dfs(i)("id") >= 1).count == 999)
-    
+
         assert(dfs(i).filter(dfs(i)("id").in(dfs(i)("id"))).collect().size == 1000)
       // TODO: Get inlists to work
       //        assert(dfs(i).filter(dfs(i)("id").in(1,2,3,-1)).collect().size == 3)
       //        assert(dfs(i).filter(dfs(i)("id").in(1,2,3,-1)).count == 3)
-    
+
         assert(dfs(i).filter(dfs(i)("data") === "test_data_0000").collect().size == 1)
         assert(dfs(i).filter(dfs(i)("data") === "test_data_0000").count() == 1)
-    
+
         // assert(dfs(i).filter(dfs(i)("data").in("test_data_0000","test_data_0000","not_present")).collect().size == 2)
         // assert(dfs(i).filter(dfs(i)("data").in("test_data_0000","test_data_0000","not_present")).count() == 2)
 
@@ -297,9 +297,9 @@ object TestSaveToMemSQLVeryBasic {
     val user = "root"
     val password = ""
     val dbName = "x_testsave"
-    
+
     TestUtils.DropAndCreate(dbName)
-    
+
     val rdd = sc.parallelize(
       Array(Row(1,"pieguy"),
             Row(2,"gbop"),
@@ -324,16 +324,16 @@ object TestSaveToMemSQLVeryBasic {
     df1.saveToMemSQL(dbName, "t", host, port, user, password)
 
     assert(TestUtils.EqualDFs(df_t, df1.unionAll(df1)))
-    
+
     // the column name matching should work
     df1.select("b","a").saveToMemSQL(dbName, "t", host, port, user, password)
     assert(TestUtils.EqualDFs(df_t, df1.unionAll(df1).unionAll(df1)))
 
     // and expressions and column renaming
-    df1.where(df1("a") < 5).select(df1("a") + 1 as "b",df1("a")).saveToMemSQL(dbName, "t", host, port, user, password)    
+    df1.where(df1("a") < 5).select(df1("a") + 1 as "b",df1("a")).saveToMemSQL(dbName, "t", host, port, user, password)
     assert (df_t.filter(df_t("b") === "3").count == 1)
 
-    
+
 
   }
 }
@@ -356,16 +356,16 @@ object TestMemSQLTypes {
     val dbAddress = "jdbc:mysql://" + host + ":" + port
     val conn = DriverManager.getConnection(dbAddress, user, password)
     val stmt = conn.createStatement
-    stmt.executeQuery("set global plan_expiration_minutes = 0") // this way we can look in the plancache to see what queries were issued after the fact.  
+    stmt.executeQuery("set global plan_expiration_minutes = 0") // this way we can look in the plancache to see what queries were issued after the fact.
     println("waiting for plans to flush")
     Thread sleep 60000
-    stmt.executeQuery("set global plan_expiration_minutes = default") // this way we can look in the plancache to see what queries were issued after the fact.  
+    stmt.executeQuery("set global plan_expiration_minutes = default") // this way we can look in the plancache to see what queries were issued after the fact.
 
     TestUtils.DropAndCreate(dbName)
-    
+
     val df_not_null = MemSQLTestSetup.SetupAllMemSQLTypes(sqlContext, false)
     val df_nullable = MemSQLTestSetup.SetupAllMemSQLTypes(sqlContext, true)
-    
+
     assert(df_not_null.count == 3)
     assert(df_nullable.count == 4)
     assert(df_not_null.schema.size == Types.MemSQLTypes.size)
@@ -400,7 +400,7 @@ object TestMemSQLTypes {
       }
       assert(cd_na.indexOf(null) != -1)
       assert(cd_nn.indexOf(null) == -1)
-      
+
       assert(cd_na.filter(_ != null).map(_.toString).indexOf(Types.MemSQLTypes(i)._2(0)) != -1)
       assert(cd_na.filter(_ != null).map(_.toString).indexOf(Types.MemSQLTypes(i)._2(1)) != -1)
       assert(cd_na.filter(_ != null).map(_.toString).indexOf(Types.MemSQLTypes(i)._2(2)) != -1)
@@ -418,13 +418,13 @@ object TestMemSQLTypes {
     assert(TestUtils.EqualDFs(df_not_null, df_not_null2))
     println("df_nullable2")
     assert(TestUtils.EqualDFs(df_nullable, df_nullable2))
-    
+
     // its too much to hope that the schema will be the same from an arbitrary table to one created with createMemSQLTableAs
     // but it shouldn't change on subsequent calls to createMemSQLTableAs
     //
     val df_not_null3 = df_not_null2.createMemSQLTableAs(dbName, "alltypes_not_null3", host, port, user, password, useKeylessShardedOptimization=keyless)
     val df_nullable3 = df_nullable2.createMemSQLTableAs(dbName, "alltypes_nullable3", host, port, user, password, useKeylessShardedOptimization=keyless)
-    
+
     println(df_not_null3.schema)
     println(df_not_null2.schema)
 
@@ -433,7 +433,7 @@ object TestMemSQLTypes {
 
     assert(df_not_null3.schema.equals(df_not_null2.schema))
     assert(df_nullable3.schema.equals(df_nullable2.schema))
-    
+
     // If we are in keyless mode, the agg should have received no load data queries, since the loads should happen directly on the leaves.
     // Conversely, if we are not in keyless mode, the loads should happen on the agg.
     //
@@ -442,15 +442,15 @@ object TestMemSQLTypes {
   }
 }
 
-object TestCreateWithKeys 
+object TestCreateWithKeys
 {
-    def main(args: Array[String]) 
+    def main(args: Array[String])
     {
         val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")
         val sc = new MemSQLSparkContext(conf, "127.0.0.1", 10000, "root", "")
         val sqlContext = new SQLContext(sc)
         TestUtils.DropAndCreate("db")
-      
+
         val rdd = sc.parallelize(Array[Row]())
         val schema = StructType(Array(StructField("a",IntegerType,true),
                                       StructField("b",StringType,false)))
@@ -466,7 +466,7 @@ object TestCreateWithKeys
 
         val conn = sc.GetMAConnection
         var stmt = conn.createStatement
-       
+
         assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t1'")).toArray.size==0)
 
         assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t2'")).toArray.size==1)
@@ -494,19 +494,19 @@ object TestCreateWithKeys
     }
 }
 
-object TestMemSQLContextVeryBasic 
+object TestMemSQLContextVeryBasic
 {
-    def main(args: Array[String]) 
+    def main(args: Array[String])
     {
         val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")
         val sc = new MemSQLSparkContext(conf, "127.0.0.1", 10000, "root", "")
         val sqlContext = new SQLContext(sc)
         TestUtils.DropAndCreate("db")
-      
+
         assert(sc.GetMemSQLNodesAvailableForIngest.size == 2)
         assert(sc.GetMemSQLNodesAvailableForIngest(0)._2 == 10003)
         assert(sc.GetMemSQLNodesAvailableForIngest(1)._2 == 10004)
-    
+
         assert(sc.GetMemSQLLeaves.size == 2)
         assert(sc.GetMemSQLLeaves(0)._2 == 10001)
         assert(sc.GetMemSQLLeaves(1)._2 == 10002)
@@ -521,7 +521,7 @@ object TestMemSQLContextVeryBasic
         val schema = StructType(Array(StructField("a",IntegerType,true),
                                       StructField("b",StringType,false)))
         val df = sqlContext.createDataFrame(rdd, schema)
-      
+
         val memdf =  df.createMemSQLTableAs("db","t")
         assert(TestUtils.EqualDFs(df, memdf))
         val memdf2 = df.createMemSQLTableAs("db","t2","127.0.0.1",10000,"root","")
@@ -531,11 +531,11 @@ object TestMemSQLContextVeryBasic
         val targets = df.rdd.saveToMemSQLDryRun
         assert (targets.exists(_.targetPort == 10003))
         assert (targets.exists(_.targetPort == 10004))
-        for (t <- targets) 
+        for (t <- targets)
         {
             assert (t.isColocated)
             assert (t.targetPort == 10004 || t.targetPort == 10003)
-        }          
+        }
     }
 }
 
@@ -575,7 +575,7 @@ object TestSaveToMemSQLErrors {
           case e: SparkException => {
             assert(e.getMessage.contains("Unknown column 'c' in 'field list'"))
           }
-        }      
+        }
         try {
           df.select(df("a"), df("b"), df("a")).saveToMemSQL("x_db", "t", onDuplicateKeySql = dupKeySql)
         } catch {
@@ -583,9 +583,46 @@ object TestSaveToMemSQLErrors {
             assert(e.getMessage.contains("Column 'a' specified twice"))
           }
         }
-      }      
+      }
     }
-  } 
+  }
+}
+
+object TestSaveToMemSQLWithRDDErrors {
+  def main(args : Array[String]) {
+    val conf = new SparkConf().setAppName("MemSQLRDD Application")
+    val sc = new SparkContext(conf)
+    val sqlContext = new SQLContext(sc)
+
+    val host = "127.0.0.1"
+    val port = 10000
+    val user = "root"
+    val password = ""
+    val dbName = "x_testsave"
+
+    TestUtils.DropAndCreate(dbName)
+
+    val rdd = sc.parallelize(
+      Array(Row(1,"pieguy")))
+      .map(x => {
+        throw new Exception("Test exception 123")
+        x
+      })
+
+    val schema = StructType(Array(StructField("a",IntegerType,true),
+                                  StructField("b",StringType,false)))
+    val df1 = sqlContext.createDataFrame(rdd, schema)
+
+    try {
+      df1.createMemSQLTableAs(dbName, "t", host, port, user, password)
+      assert(false, "We should have raised an exception when saving to MemSQL")
+    } catch {
+      case e: SparkException => {
+        println(e.getMessage)
+        assert(e.getMessage.contains("Test exception 123"))
+      }
+    }
+  }
 }
 
 object TestLeakedConns {
@@ -593,15 +630,15 @@ object TestLeakedConns {
     val conn = TestUtils.connectToMA
     TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
     println("sleeping for ten seconds while we let memsql set up the reference db")
-    Thread.sleep(10000) 
+    Thread.sleep(10000)
     val baseConns = numConns(conn)
     println ("base number connections = " + baseConns)
     val conf = new SparkConf().setAppName("TestSaveToMemLeakedConns")
     val sc = new MemSQLSparkContext(conf, "127.0.0.1", 10000, "root", "")
     assert (baseConns == numConns(conn)) // creating the MemSQLSparkContext shouldn't leak a connection
-    
+
     TestUtils.doDDL(conn, "CREATE TABLE x_db.t(a bigint primary key, b bigint)")
-    
+
     val rdd1 = sc.parallelize(Array(Row(1,1), Row(2,2), Row(3,3)))
     rdd1.saveToMemSQL("x_db","t")
     assert (baseConns == numConns(conn)) // successful saveToMemSQL shouldn't leak a connection
@@ -620,7 +657,7 @@ object TestLeakedConns {
         }
       }
       assert (baseConns == numConns(conn)) // failed saveToMemSQL shouldn't leak a connection
-    }    
+    }
 
     val memrdd = sc.CreateRDDFromMemSQLQuery("x_db","SELECT * FROM t")
     println(memrdd.collect()(0))
@@ -637,7 +674,7 @@ object TestLeakedConns {
       case e: SparkException => {
         println("in catch")
         assert(e.getMessage.contains("Subquery returns more than 1 row"))
-      }     
+      }
     }
     assert (baseConns == numConns(conn)) // failed reading from MemSQLRDD shouldn't leak a connection
 
@@ -647,18 +684,18 @@ object TestLeakedConns {
 
     df.createMemSQLTableFromSchema("x_db","s")
     assert (baseConns == numConns(conn)) // creating a table shouldn't leak a connection
-    
+
     try {
       df.createMemSQLTableFromSchema("x_db","r",keys=Array(PrimaryKey("a"), PrimaryKey("b")))
-      assert(false)      
+      assert(false)
     } catch {
       case e: Exception => {
         assert(e.getMessage.contains("Multiple primary key defined"))
-      }     
+      }
     }
     assert (baseConns == numConns(conn)) // failing to create a table shouldn't leak a connection
   }
-  
+
   def numConns(conn: Connection) : Int = {
     val q = "SHOW STATUS LIKE 'THREADS_CONNECTED'"
     val stmt = conn.createStatement

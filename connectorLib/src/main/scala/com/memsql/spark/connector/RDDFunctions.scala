@@ -315,6 +315,8 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
 
     val q = "LOAD DATA LOCAL INFILE '###." + ext + "' " + (if (useInsertIgnore) "IGNORE " else "") + "INTO TABLE " + tableName
 
+    @volatile var writerException: Exception = null
+
     new Thread(new Runnable {
       override def run(): Unit = {
         try {
@@ -336,8 +338,9 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
               outstream.write(if (i== row.size - 1) '\n' else '\t')
             }
           }
-        }
-        finally {
+        } catch {
+          case e: Exception => writerException = e
+        } finally {
           outstream.close()
         }
       }
@@ -349,6 +352,9 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       stmt = conn.createStatement.asInstanceOf[com.mysql.jdbc.Statement]
       stmt.setLocalInfileInputStream(input)
       numRowsAffected = stmt.executeUpdate(q)
+      if (writerException != null) {
+        throw writerException
+      }
     } finally {
       if (stmt != null && !stmt.isClosed()) {
         stmt.close()
