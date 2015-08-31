@@ -51,10 +51,10 @@ class PipelineJsonSpec extends UnitSpec {
       state = PipelineState.RUNNING,
       batch_interval = 12,
       config = config.copy(extract = Phase[ExtractPhaseKind](
-        ExtractPhaseKind.TestJson,
+        ExtractPhaseKind.TestLines,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.TestJson,
-          TestJsonExtractConfig(JsObject("test" -> JsString("bar")))
+          ExtractPhaseKind.TestLines,
+          TestLinesExtractConfig("test")
         )),
         transform = Phase[TransformPhaseKind](
           TransformPhaseKind.Json,
@@ -71,9 +71,9 @@ class PipelineJsonSpec extends UnitSpec {
     val configMap = jsonMap("config").asInstanceOf[Map[String, Any]]
     assert(!configMap.contains("jar"))
     val extractMap = configMap("extract").asInstanceOf[Map[String, Any]]
-    assert(extractMap("kind") == "TestJson")
+    assert(extractMap("kind") == "TestLines")
     val extractConfigMap = extractMap("config").asInstanceOf[Map[String, Any]]
-    assert(extractConfigMap("value").asInstanceOf[Map[String, Any]]("test") == "bar")
+    assert(extractConfigMap("value").asInstanceOf[String] == "test")
     val transformMap = configMap("transform").asInstanceOf[Map[String, Any]]
     assert(transformMap("kind") == "Json")
     val transformConfigMap = transformMap("config").asInstanceOf[Map[String, Any]]
@@ -125,10 +125,10 @@ class PipelineJsonSpec extends UnitSpec {
     assert(loadUserConfigMap("value") == "Test user data 2")
 
     config=config.copy(extract = Phase[ExtractPhaseKind](
-      ExtractPhaseKind.TestString,
+      ExtractPhaseKind.TestLines,
       ExtractPhase.writeConfig(
-        ExtractPhaseKind.TestString,
-        TestStringExtractConfig("test")
+        ExtractPhaseKind.TestLines,
+        TestLinesExtractConfig("test")
       )
     ))
 
@@ -142,9 +142,9 @@ class PipelineJsonSpec extends UnitSpec {
     jsonMap = mapFromJson(jsonString)
     configMap = jsonMap("config").asInstanceOf[Map[String, Any]]
     extractConfigMap = configMap("extract").asInstanceOf[Map[String, Any]]
-    assert(extractConfigMap("kind") == "TestString")
-    val testJsonConfigMap = extractConfigMap("config").asInstanceOf[Map[String, Any]]
-    assert(testJsonConfigMap("value") == "test")
+    assert(extractConfigMap("kind") == "TestLines")
+    val testLinesConfigMap = extractConfigMap("config").asInstanceOf[Map[String, Any]]
+    assert(testLinesConfigMap("value") == "test")
   }
 
   it should "deserialize from JSON" in {
@@ -209,13 +209,9 @@ class PipelineJsonSpec extends UnitSpec {
 
     config_json = """{
           "extract": {
-              "kind": "TestJson",
+              "kind": "TestLines",
               "config": {
-                  "value": {
-                      "nested": {
-                          "values": [1,2,"43", false]
-                      }
-                  }
+                  "value": "test"
               }
           },
           "transform": {
@@ -254,9 +250,9 @@ class PipelineJsonSpec extends UnitSpec {
     assert(pipeline.error.get  == "test error")
     assert(pipeline.config.jar.get == "site.com/foo.jar")
     assert(pipeline.config.config_version == 42)
-    assert(pipeline.config.extract.kind == ExtractPhaseKind.TestJson)
-    val jsonExtractConfig = ExtractPhase.readConfig(ExtractPhaseKind.TestJson, pipeline.config.extract.config).asInstanceOf[TestJsonExtractConfig]
-    assert(jsonExtractConfig.value.asJsObject.fields("nested").asJsObject.fields("values").toString == "[1,2,\"43\",false]")
+    assert(pipeline.config.extract.kind == ExtractPhaseKind.TestLines)
+    val testLinesConfig = ExtractPhase.readConfig(ExtractPhaseKind.TestLines, pipeline.config.extract.config).asInstanceOf[TestLinesExtractConfig]
+    assert(testLinesConfig.value == "test")
   }
 
   it should "be preserved through a round trip" in {
@@ -287,10 +283,10 @@ class PipelineJsonSpec extends UnitSpec {
     assert(pipeline1 == pipeline2)
 
     config=config.copy(extract = Phase[ExtractPhaseKind](
-      ExtractPhaseKind.TestJson,
+      ExtractPhaseKind.TestLines,
       ExtractPhase.writeConfig(
-        ExtractPhaseKind.TestJson,
-        TestJsonExtractConfig(JsObject("test" -> JsString("bar")))
+        ExtractPhaseKind.TestLines,
+        TestLinesExtractConfig("test")
       )
     ))
 

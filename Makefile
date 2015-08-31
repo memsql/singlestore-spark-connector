@@ -17,10 +17,10 @@ version:
 .PHONY: clean
 clean:
 	sbt clean \
-	"project connectorLib" clean \
-	"project etlLib" clean \
-	"project interface" clean \
-	"project tests" clean \
+		"project connectorLib" clean \
+		"project etlLib" clean \
+		"project interface" clean \
+		"project tests" clean
 	rm -rf distribution/
 
 .PHONY: build

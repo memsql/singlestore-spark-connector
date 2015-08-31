@@ -85,7 +85,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   private[interface] val extractor: ByteArrayExtractor = config.extract.kind match {
     case ExtractPhaseKind.Kafka => new KafkaExtractor(pipeline_id)
-    case ExtractPhaseKind.TestString | ExtractPhaseKind.TestJson => new ConfigStringExtractor()
+    case ExtractPhaseKind.TestLines => new TestLinesExtractor()
     case ExtractPhaseKind.User => {
       val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
       loadClass(jar, className).newInstance.asInstanceOf[ByteArrayExtractor]
