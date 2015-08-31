@@ -24,6 +24,7 @@ import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.{Time, StreamingContext}
 import org.apache.spark.ui.jobs.JobProgressListener
+import scala.collection.mutable.HashSet
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
@@ -424,6 +425,11 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       }
     }
 
+    // Keep track of the first lines of error messages we've seen thus far and
+    // don't include error messages with the same first line as a message
+    // we've already seen; for instance, we will not include two
+    // ClassCastException error messages in the same batch.
+    val errorMessages = HashSet[String]()
     val errorRecords = maybeJobAndStageIds match {
       case Some(jobAndStageIds) => {
         Some(jobAndStageIds.flatMap { case (jobId, stageId) =>
@@ -434,7 +440,16 @@ class DefaultPipelineMonitor(override val api: ActorRef,
                 case Some(stageData) => {
                   stageData.taskData.filter { case (taskId, taskData) =>
                     taskData.errorMessage match {
-                      case Some(error) => !error.contains("ExecutorLostFailure")
+                      case Some(error) => {
+                        val firstLine = error.split("\n")(0)
+                        if (!error.contains("ExecutorLostFailure") && !errorMessages.contains(firstLine)) {
+
+                          errorMessages.add(firstLine)
+                          true
+                        } else {
+                          false
+                        }
+                      }
                       case None => false
                     }
                   }.map { case (taskId, taskData) =>
