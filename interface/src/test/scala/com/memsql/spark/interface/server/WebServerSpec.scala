@@ -31,7 +31,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
                                   Phase[LoadPhaseKind](
                                     LoadPhaseKind.MemSQL,
                                     LoadPhase.writeConfig(
-                                      LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None))),
+                                      LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None, None))),
                                   config_version=CurrentPipelineConfigVersion)
 
   val userConfig = kafkaConfig.copy(extract = Phase[ExtractPhaseKind](

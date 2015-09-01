@@ -25,7 +25,7 @@ class PipelineJsonSpec extends UnitSpec {
       Phase[LoadPhaseKind](
         LoadPhaseKind.MemSQL,
         LoadPhase.writeConfig(
-          LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None))),
+          LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None, None))),
       jar = Some("site.com/foo.jar"),
       config_version = 42)
 
