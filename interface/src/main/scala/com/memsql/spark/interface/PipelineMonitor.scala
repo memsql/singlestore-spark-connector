@@ -224,6 +224,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         val (transformLogger, transformAppender) = getPhaseLogger("transform")
         var tracedTransformLogger: Logger = null
         var tracedTransformAppender: ArrayLogAppender = null
+        var tracedCount: Long = 0
         if (extractedRdd != null) {
           transformRecord = runPhase(() => {
             logDebug(s"Transforming RDD for pipeline $pipeline_id")
@@ -234,6 +235,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
               tracedDf = pipelineInstance.transformer.transform(
                 sqlContext, tracedRdd, pipelineInstance.transformConfig,
                 tracedTransformLogger)
+              tracedCount = tracedDf.count
             }
             df = pipelineInstance.transformer.transform(
               sqlContext, extractedRdd, pipelineInstance.transformConfig,
@@ -244,7 +246,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
               var records: Option[List[List[String]]] = None
               var logs: Option[List[String]] = None
               if (tracedDf != null) {
-                count = Some(tracedDf.count + df.count)
+                count = Some(tracedCount + df.count)
                 val columnsAndRecords = getTransformRecords(tracedDf)
                 columns = columnsAndRecords._1
                 records = columnsAndRecords._2
