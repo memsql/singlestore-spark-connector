@@ -13,7 +13,7 @@ case class ClassLoadException(message:String, nestedException:Exception)
   extends JarLoaderException(message:String, nestedException:Exception)
 
 object JarLoader extends Logging {
-  def getClassLoader(path: String): ClassLoader = {
+  def getClassLoader(path: String): URLClassLoader = {
     var url: URL = null
 
     var file = new File(path)
@@ -54,7 +54,7 @@ object JarLoader extends Logging {
     loadClass(classLoader, clazz)
   }
 
-  def loadClass(classLoader: ClassLoader, clazz:String): Class[_] = {
+  def loadClass(classLoader: URLClassLoader, clazz:String): Class[_] = {
     try {
       classLoader.loadClass(clazz)
     } catch {

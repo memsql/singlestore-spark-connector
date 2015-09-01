@@ -2,6 +2,7 @@ package com.memsql.spark.interface
 
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.UUID
+import java.net.URLClassLoader
 
 import akka.pattern.ask
 import akka.actor.ActorRef
@@ -69,7 +70,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   val TRACED_RECORDS_PER_BATCH = 10
 
   private[interface] var jarLoaded = false
-  private[interface] var jarClassLoader: ClassLoader = null
+  private[interface] var jarClassLoader: URLClassLoader = null
 
   private def loadClass(path: String, clazz: String): Class[_] = {
     if (!jarLoaded) {
@@ -499,5 +500,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     isStopping.set(true)
     thread.interrupt
     thread.join
+    if (jarClassLoader != null) {
+      jarClassLoader.close()
+    }
   }
 }
