@@ -1,5 +1,7 @@
 package com.memsql.spark.interface.util
 
+import java.io.{PrintWriter, StringWriter}
+
 class BaseException(message:String, nestedException:Exception) extends Exception(message, nestedException) {
   def this() = this("", null)
   def this(message:String) = this(message, null)
@@ -9,22 +11,8 @@ class BaseException(message:String, nestedException:Exception) extends Exception
 
 object ErrorUtils {
   def getStackTraceAsString(e: Throwable): String = {
-    val sb = new StringBuilder()
-    getStackTraceAsString(e, sb)
-  }
-
-  private def getStackTraceAsString(e: Throwable, sb: StringBuilder): String = {
-    e.synchronized {
-      sb.append(e.toString)
-      for (trace <- e.getStackTrace) {
-        //print each trace line preceded by "    at "
-        sb.append(s"\n\tat $trace")
-      }
-
-      e.getCause match {
-        case null => sb.toString
-        case default => getStackTraceAsString(default, sb)
-      }
-    }
+    val sw = new StringWriter()
+    e.printStackTrace(new PrintWriter(sw))
+    sw.toString
   }
 }
