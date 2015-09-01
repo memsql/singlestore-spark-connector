@@ -12,6 +12,7 @@ import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api.PipelineBatchType
 import com.memsql.spark.interface.api._
+import com.memsql.spark.interface.util.ErrorUtils._
 import com.memsql.spark.interface.api.PipelineBatchType._
 import com.memsql.spark.interface.api.ApiJsonProtocol._
 import ApiActor._
@@ -327,7 +328,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     } catch {
       case NonFatal(e) => {
         logError(s"Phase error in pipeline $pipeline_id", e)
-        error = Some(e.toString)
+        error = Some(getStackTraceAsString(e))
       }
     }
     val stopTime = System.currentTimeMillis
