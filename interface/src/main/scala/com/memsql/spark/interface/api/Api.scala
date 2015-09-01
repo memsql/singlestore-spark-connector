@@ -101,7 +101,12 @@ trait ApiService {
             }
 
             if (error.isDefined) {
-              newError = error
+              if (error.get.isEmpty) {
+                // We treat empty string errors as equivalent to no errors.
+                newError = None
+              } else {
+                newError = error
+              }
               updated |= newError != pipeline.error
             }
 

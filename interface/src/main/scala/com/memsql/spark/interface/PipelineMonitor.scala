@@ -127,7 +127,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     override def run(): Unit = {
       try {
         logInfo(s"Starting pipeline $pipeline_id")
-        val future = (api ? PipelineUpdate(pipeline_id, Some(PipelineState.RUNNING))).mapTo[Try[Boolean]]
+        val future = (api ? PipelineUpdate(pipeline_id, Some(PipelineState.RUNNING), error = Some(""))).mapTo[Try[Boolean]]
         future.map {
           case Success(resp) => runPipeline
           case Failure(error) => logError(s"Failed to update pipeline $pipeline_id state to RUNNING", error)
