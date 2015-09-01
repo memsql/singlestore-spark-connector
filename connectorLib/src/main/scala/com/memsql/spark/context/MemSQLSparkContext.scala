@@ -49,6 +49,10 @@ class MemSQLSparkContext(conf: SparkConf,
                 if (agg.getInt("Master_Aggregator") == 0 && agg.getString("State").equals("online"))
                 {
                     newAggs = newAggs :+ (agg.getString("Host"), agg.getInt("Port"))
+                    if (masterAggHost == "127.0.0.1" && agg.getString("Host") != "127.0.0.1")
+                    {
+                        throw new SparkException("Please create MemSQLSparkContext with masterAggHost set to a cluster-visible IP (not 127.0.0.1)")
+                    }
                 }
             }
             for (leaf <- MemSQLRDD.resultSetToIterator(stmt.executeQuery("SHOW LEAVES")))
@@ -56,6 +60,10 @@ class MemSQLSparkContext(conf: SparkConf,
                 if (leaf.getString("State").equals("online"))
                 {
                     newLeaves = newLeaves :+ (leaf.getString("Host"), leaf.getInt("Port"))
+                    if (masterAggHost == "127.0.0.1" && leaf.getString("Host") != "127.0.0.1")
+                    {
+                        throw new SparkException("Please create MemSQLSparkContext with masterAggHost set to a cluster-visible IP (not 127.0.0.1)")
+                    }
                 }
             }            
             lock.writeLock.lock
