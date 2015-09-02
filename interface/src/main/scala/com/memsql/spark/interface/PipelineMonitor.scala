@@ -175,7 +175,6 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           }
         }
 
-        var success = false
         var extractRecord: Option[PhaseMetricRecord] = None
         var transformRecord: Option[PhaseMetricRecord] = None
         var loadRecord: Option[PhaseMetricRecord] = None
@@ -277,7 +276,6 @@ class DefaultPipelineMonitor(override val api: ActorRef,
               columns = getLoadColumns()
               logs = Some(loadAppender.getLogEntries)
             }
-            success = true
             PhaseResult(count = count, columns = columns, logs = logs)
           })
         }
@@ -287,13 +285,22 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           batch_type = PipelineBatchType.Traced
         }
 
+        val task_errors = getTaskErrors(batch_id)
+
+        val success = (
+          (extractRecord.isEmpty || extractRecord.get.error.isEmpty) &&
+          (transformRecord.isEmpty || transformRecord.get.error.isEmpty) &&
+          (loadRecord.isEmpty || loadRecord.get.error.isEmpty) &&
+          task_errors.isEmpty
+        )
+
         val metric = PipelineMetricRecord(
           batch_id = batch_id,
           batch_type = batch_type,
           pipeline_id = pipeline_id,
           timestamp = time,
           success = success,
-          task_errors = getTaskErrors(batch_id),
+          task_errors = task_errors,
           extract = extractRecord,
           transform = transformRecord,
           load = loadRecord)
