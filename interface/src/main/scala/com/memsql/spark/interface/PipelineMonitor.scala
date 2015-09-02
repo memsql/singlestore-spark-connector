@@ -52,6 +52,8 @@ trait PipelineMonitor {
   def runPipeline: Unit
   def ensureStarted: Unit
   def isAlive: Boolean
+  def hasError: Boolean
+  var error: Throwable
   def stop: Unit
 }
 class DefaultPipelineMonitor(override val api: ActorRef,
@@ -66,6 +68,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   override val config = pipeline.config
   override val lastUpdated = pipeline.last_updated
   override val jar = config.jar.orNull
+  override var error: Throwable = null
 
   val TRACED_RECORDS_PER_BATCH = 10
 
@@ -135,20 +138,11 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         }
       } catch {
         case e: InterruptedException => //exit
-        case e: Exception => {
-          logError(s"Unexpected exception for pipeline $pipeline_id", e)
-          val future = (api ? PipelineUpdate(pipeline_id, Some(PipelineState.ERROR), error = Some(e.toString))).mapTo[Try[Boolean]]
-          future.map {
-            case Success(resp) => //exit
-            case Failure(error) => logError(s"Failed to update pipeline $pipeline_id state to ERROR", error)
-          }
-        }
       }
     }
   })
 
   def runPipeline(): Unit = {
-    var exception: Option[Throwable] = None
     var inputDStream: InputDStream[Array[Byte]] = null
 
     try {
@@ -312,8 +306,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       }
     } catch {
       case NonFatal(e) => {
-        logError(s"Unexpected error in pipeline $pipeline_id", e)
-        exception = Some(e)
+        logError(s"Exception in pipeline $pipeline_id", e)
+        error = e
       }
     } finally {
       logInfo(s"Stopping pipeline $pipeline_id")
@@ -500,6 +494,10 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   def isAlive(): Boolean = {
     thread.isAlive
+  }
+
+  def hasError(): Boolean = {
+    error != null
   }
 
   def stop() = {

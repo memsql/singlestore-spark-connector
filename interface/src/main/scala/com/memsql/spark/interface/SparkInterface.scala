@@ -8,6 +8,7 @@ import akka.io.IO
 import com.memsql.spark.interface.server.WebServer
 import ApiActor._
 import com.memsql.spark.interface.util.Paths
+import com.memsql.spark.interface.util.ErrorUtils._
 import org.apache.log4j.PropertyConfigurator
 import org.apache.spark.ui.jobs.JobProgressListener
 import org.apache.spark.{SparkConf, SparkContext}
@@ -117,7 +118,7 @@ trait Application extends Logging {
             stopPipeline(pipelineMonitor)
             startPipeline(pipeline)
           }
-          case false => pipelineMonitor.ensureStarted
+          case false => checkPipeline(pipelineMonitor)
         }
       }
       //stop and remove the pipeline monitor if the user requested it
@@ -147,6 +148,22 @@ trait Application extends Logging {
   private[interface] def stopPipeline(pipelineMonitor: PipelineMonitor): Unit = {
     pipelineMonitor.stop
     pipelineMonitors = pipelineMonitors.filterKeys(_ != pipelineMonitor.pipeline_id)
+  }
+
+  private[interface] def checkPipeline(pipelineMonitor: PipelineMonitor): Unit = {
+    pipelineMonitor.ensureStarted
+    pipelineMonitor.hasError match {
+      case true => {
+        val error = getStackTraceAsString(pipelineMonitor.error)
+        val future = (api ? PipelineUpdate(pipelineMonitor.pipeline_id, Some(PipelineState.ERROR), error = Some(error))).mapTo[Try[Boolean]]
+        future.map {
+          case Success(resp) =>
+          case Failure(error) => logError(s"Failed to update pipeline ${pipelineMonitor.pipeline_id} state to ERROR", error)
+        }
+        stopPipeline(pipelineMonitor)
+      }
+      case false =>
+    }
   }
 
   private[interface] def newPipelineMonitor(pipeline: Pipeline): Try[PipelineMonitor] = {

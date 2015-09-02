@@ -48,6 +48,8 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     override def jar = pipeline.config.jar.orNull
     override def config = pipeline.config
     override def lastUpdated = pipeline.last_updated
+    override def hasError: Boolean = error != null
+    override var error: Throwable = null
 
     var running = false
 
@@ -173,6 +175,27 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       assert(!sparkInterface.pipelineMonitors.contains(pipeline.pipeline_id))
       pipeline = getPipeline("pipeline1")
       assert(pipeline.state == PipelineState.STOPPED)
+    }
+
+    "stop and remove the monitor for a pipeline in state ERROR" in {
+      putPipeline("pipeline4", batch_interval = 12000, config = config)
+      var pipeline = getPipeline("pipeline4")
+      assert(pipeline.pipeline_id == "pipeline4")
+      assert(pipeline.state == PipelineState.RUNNING)
+
+      sparkInterface.update
+
+      val pipelineMonitor = sparkInterface.pipelineMonitors.get(pipeline.pipeline_id).get
+      assert(pipelineMonitor.isAlive)
+
+      pipelineMonitor.error = new Exception("could not connect to kafka")
+      sparkInterface.update
+
+      assert(!sparkInterface.pipelineMonitors.contains(pipeline.pipeline_id))
+      assert(!pipelineMonitor.isAlive)
+      pipeline = getPipeline("pipeline4")
+      assert(pipeline.error.get.contains("java.lang.Exception: could not connect to kafka"))
+      assert(pipeline.state == PipelineState.ERROR)
     }
 
     "restart monitors when they crash" in {
