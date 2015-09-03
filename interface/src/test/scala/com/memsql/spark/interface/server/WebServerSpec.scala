@@ -115,8 +115,8 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == BadRequest)
     }
 
-    Post("/pipeline/put?pipeline_id=asdf&batch_interval=-1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
-      assert(responseAs[String].contains("batch_interval must be positive"))
+    Post("/pipeline/put?pipeline_id=asdf&batch_interval=0", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+      assert(responseAs[String].contains("batch_interval must be at least 1 second"))
       assert(status == BadRequest)
     }
   }

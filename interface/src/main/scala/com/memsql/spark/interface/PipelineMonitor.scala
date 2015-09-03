@@ -24,6 +24,7 @@ import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.{Time, StreamingContext}
 import org.apache.spark.ui.jobs.JobProgressListener
 import scala.collection.mutable.HashSet
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
@@ -60,6 +61,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   // keep a copy of the pipeline info so we can determine when the pipeline has been updated
   override val batchInterval = pipeline.batch_interval
+  private val batchIntervalMillis = DurationLong(batchInterval).seconds.toMillis
   override val config = pipeline.config
   override val lastUpdated = pipeline.last_updated
   override var error: Throwable = null
@@ -123,7 +125,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     try {
       val (extractLogger, extractAppender) = getPhaseLogger("extract")
       logDebug(s"Initializing extractor for pipeline $pipeline_id")
-      inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig, batchInterval, extractLogger)
+      inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig, batchIntervalMillis, extractLogger)
       logDebug(s"Starting InputDStream for pipeline $pipeline_id")
       inputDStream.start()
 
@@ -275,7 +277,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           load = loadRecord)
         pipeline.enqueueMetricRecord(metric)
 
-        val sleepTimeMillis = Math.max(batchInterval - (System.currentTimeMillis - time), 0)
+        val sleepTimeMillis = Math.max(batchIntervalMillis  - (System.currentTimeMillis - time), 0)
         logDebug(s"Sleeping for $sleepTimeMillis milliseconds for pipeline $pipeline_id")
         Thread.sleep(sleepTimeMillis)
       }

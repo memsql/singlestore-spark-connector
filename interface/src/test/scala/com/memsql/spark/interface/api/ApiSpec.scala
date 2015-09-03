@@ -199,7 +199,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
 
       // updates should be transactional
       mockTime.tick
-      apiRef ! PipelineUpdate("pipeline1", batch_interval = Some(-1234), config = Some(config2))
+      apiRef ! PipelineUpdate("pipeline1", batch_interval = Some(0), config = Some(config2))
       receiveOne(1.second) match {
         case resp: Success[_] => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])

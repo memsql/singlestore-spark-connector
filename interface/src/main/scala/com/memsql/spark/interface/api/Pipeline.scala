@@ -31,8 +31,8 @@ case class Pipeline(pipeline_id: String,
 object Pipeline {
   def validate(batch_interval: Long, config: PipelineConfig): Unit = {
     try {
-      if (batch_interval <= 0) {
-        throw new ApiException("batch_interval must be positive")
+      if (batch_interval < 1) {
+        throw new ApiException("batch_interval must be at least 1 second")
       }
 
       // Assert that the phase configs, which are stored as JSON blobs, can be
