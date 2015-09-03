@@ -1,8 +1,16 @@
 package com.memsql.jar_inspector
 
-import org.clapper.classutil.{ClassInfo, ClassFinder}
 import java.io.File
+import java.util.Properties
 import spray.json._
+import org.apache.log4j.PropertyConfigurator
+
+import scala.collection.JavaConversions._
+import scala.collection.mutable
+
+import org.reflections.util.{ ConfigurationBuilder, FilterBuilder }
+import org.reflections.Reflections
+import org.reflections.scanners._
 
 case class JarInfo(target: File=null)
 case class InspectionResult(
@@ -17,35 +25,48 @@ object JsonProto extends DefaultJsonProtocol {
 }
 
 object JarInspector {
-  var VERSION = "0.0.1"
+  val MAX_SUBCLASSES = 1024;
+  val VERSION = "0.0.1"
 
-  val EXTRACTOR_CLASSES = List(
-    "com.memsql.spark.etl.api.Extractor",
-    "com.memsql.spark.etl.api.ByteArrayExtractor"
-  )
+  val EXTRACTOR_ROOT_CLASS = "com.memsql.spark.etl.api.Extractor"
+  val TRANSFORMER_ROOT_CLASS = "com.memsql.spark.etl.api.Transformer"
 
-  val TRANSFORMER_CLASSES = List(
-    "com.memsql.spark.etl.api.Transformer",
-    "com.memsql.spark.etl.api.ByteArrayTransformer"
-  )
-
-  val ALL_CLASSES = EXTRACTOR_CLASSES ++ TRANSFORMER_CLASSES
-
-  private def isSubclass(ancestors: List[String], classInfo: ClassInfo): Boolean = {
-    ancestors.contains(classInfo.superClassName)
+  def getAllSubclasses(subTypesMap: Map[String, List[String]], root_class: String) = {
+    var index = 0
+    var result = mutable.ListBuffer[String](root_class)
+    while (index < result.length) {
+      subTypesMap.get(result(index)).foreach(result.appendAll(_))
+      index += 1
+      if (index > MAX_SUBCLASSES) {
+        throw new Exception(s"Jar file contains more than $MAX_SUBCLASS_RECURSION implementations of $root_class")
+      }
+    }
+    result
   }
 
   def inspectJarFile(jarFile: File): InspectionResult = {
-    val classes = ClassFinder(List(jarFile)).getClasses.filter(isSubclass(ALL_CLASSES, _))
+    var config = new ConfigurationBuilder()
+      .setUrls(mutable.ListBuffer(jarFile.toURI.toURL))
+      .setScanners(new SubTypesScanner(false))
+
+    var reflect = new Reflections(config)
+
+    val subTypesMap = mapAsScalaMap(reflect.getStore.get("SubTypesScanner").asMap)
+      .map({ x => (x._1, x._2.toList)}).toMap
 
     InspectionResult(
       success = true,
-      extractors = classes.filter(isSubclass(EXTRACTOR_CLASSES, _)).map(_.name).toList,
-      transformers = classes.filter(isSubclass(TRANSFORMER_CLASSES, _)).map(_.name).toList
+      extractors = getAllSubclasses(subTypesMap, EXTRACTOR_ROOT_CLASS).toList,
+      transformers = getAllSubclasses(subTypesMap, TRANSFORMER_ROOT_CLASS).toList
     )
   }
 
   def main(args: Array[String]): Unit = {
+    val props = new Properties()
+    props.setProperty("log4j.rootCategory", "INFO, console")
+    props.setProperty("log4j.appender.console", "org.apache.log4j.varia.NullAppender")
+    PropertyConfigurator.configure(props)
+
     val parser = new scopt.OptionParser[JarInfo]("jar-inspector") {
       override def showUsageOnError = true
 
