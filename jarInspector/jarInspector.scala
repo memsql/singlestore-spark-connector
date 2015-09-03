@@ -38,7 +38,7 @@ object JarInspector {
       subTypesMap.get(result(index)).foreach(result.appendAll(_))
       index += 1
       if (index > MAX_SUBCLASSES) {
-        throw new Exception(s"Jar file contains more than $MAX_SUBCLASS_RECURSION implementations of $root_class")
+        throw new Exception(s"Jar file contains more than $MAX_SUBCLASSES implementations of $root_class")
       }
     }
     result

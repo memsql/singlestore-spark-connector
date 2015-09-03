@@ -71,6 +71,7 @@ lazy val jarInspector = (project in file("jarInspector")).
 lazy val interface = (project in file("interface")).
   dependsOn(connectorLib).
   dependsOn(etlLib).
+  dependsOn(jarInspector).
   settings(commonSettings: _*).
   settings(
     name := "MemSQLSparkInterface",
