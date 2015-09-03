@@ -102,6 +102,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     case false => new SQLContext(sparkContext)
   }
 
+  private var currentBatchId: String = null
   private[interface] val isStopping = new AtomicBoolean()
 
   private[interface] val thread = new Thread(new Runnable {
@@ -153,7 +154,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         logDebug(s"Computing next RDD for pipeline $pipeline_id: $time")
 
         val batch_id = UUID.randomUUID.toString
-        sparkContext.setJobGroup(batch_id, s"Batch for MemSQL Pipeline $pipeline_id", true)
+        currentBatchId = batch_id
+        sparkContext.setJobGroup(batch_id, s"Batch for MemSQL Pipeline $pipeline_id", interruptOnCancel = true)
         var tracedRdd: RDD[Array[Byte]] = null
         var extractedRdd: RDD[Array[Byte]] = null
         extractRecord = runPhase(() => {
@@ -480,6 +482,9 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   def stop() = {
     logDebug(s"Stopping pipeline thread $pipeline_id")
     isStopping.set(true)
+    if (currentBatchId != null) {
+      sparkContext.cancelJobGroup(currentBatchId)
+    }
     thread.interrupt
     thread.join
   }
