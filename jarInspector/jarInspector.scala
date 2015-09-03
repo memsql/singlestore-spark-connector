@@ -31,7 +31,11 @@ object JarInspector {
   val EXTRACTOR_ROOT_CLASS = "com.memsql.spark.etl.api.Extractor"
   val TRANSFORMER_ROOT_CLASS = "com.memsql.spark.etl.api.Transformer"
 
-  def getAllSubclasses(subTypesMap: Map[String, List[String]], root_class: String) = {
+  // We won't include any extractors or transformers that begin with this
+  // prefix in the output
+  val IGNORE_PREFIX = "com.memsql.spark.etl"
+
+  def getAllSubclasses(subTypesMap: Map[String, List[String]], root_class: String): mutable.ListBuffer[String] = {
     var index = 0
     var result = mutable.ListBuffer[String](root_class)
     while (index < result.length) {
@@ -41,7 +45,7 @@ object JarInspector {
         throw new Exception(s"Jar file contains more than $MAX_SUBCLASSES implementations of $root_class")
       }
     }
-    result
+    result.filterNot(_.startsWith(IGNORE_PREFIX))
   }
 
   def inspectJarFile(jarFile: File): InspectionResult = {
@@ -53,6 +57,13 @@ object JarInspector {
 
     val subTypesMap = mapAsScalaMap(reflect.getStore.get("SubTypesScanner").asMap)
       .map({ x => (x._1, x._2.toList)}).toMap
+
+    val extractors = getAllSubclasses(subTypesMap, EXTRACTOR_ROOT_CLASS).toList
+    val transformers = getAllSubclasses(subTypesMap, TRANSFORMER_ROOT_CLASS).toList
+
+    if (extractors.length == 0 && transformers.length == 0) {
+      throw new Exception(s"Jar file does not contain any valid Extractor or Transformer implementations.")
+    }
 
     InspectionResult(
       success = true,
