@@ -27,6 +27,8 @@ import org.apache.spark.annotation.Experimental
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.InputDStream
 
+class KafkaException(message: String) extends Exception(message)
+
 object KafkaUtils {
   /**
    * :: Experimental ::
@@ -89,7 +91,16 @@ object KafkaUtils {
       new DirectKafkaInputDStream[K, V, KD, VD, V](
         ssc, kafkaParams, fromOffsets, messageHandler, batchDuration)
     }).fold(
-      errs => throw new SparkException(errs.mkString("\n")),
+      errs => {
+        val wrappedErrs = errs.map {
+          case err: java.nio.channels.ClosedChannelException => {
+            val brokerList = kafkaParams("metadata.broker.list")
+            new KafkaException(s"Could not connect to Kafka broker(s) at $brokerList: $err")
+          }
+          case default => default
+        }
+        throw new SparkException(wrappedErrs.mkString("\n"))
+      },
       ok => ok
     )
   }
