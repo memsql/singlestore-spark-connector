@@ -13,17 +13,14 @@ import TransformPhaseKind._
 import LoadPhaseKind._
 import com.memsql.spark.interface.api.{Pipeline, PipelineState, ApiActor}
 import ApiActor._
-import com.memsql.spark.interface.util.{Paths, JarLoaderException}
+import com.memsql.spark.interface.util.Paths
 import org.apache.spark.{SparkContext, SparkConf}
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.types._
 import org.apache.spark.streaming.{Duration, StreamingContext}
-import ooyala.common.akka.web.JsonUtils._
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
-import spray.json._
 
 class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalSparkContext {
   val apiRef = system.actorOf(Props[ApiActor], "api")
@@ -72,14 +69,13 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
       val config2 = config.copy(extract = Phase[ExtractPhaseKind](
         ExtractPhaseKind.User,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.User, UserExtractConfig("com.test.Extract", ""))),
-        jar = Some("/doesnt_exist/test.jar"))
+          ExtractPhaseKind.User, UserExtractConfig("com.test.Extract", ""))))
 
-      //create pipeline which requires loading a class from the jar and try to load in a PipelineMonitor
+      //create pipeline which requires a user defined class and try to load in a PipelineMonitor
       apiRef ! PipelinePut("pipeline1", batch_interval=100, config=config2)
       whenReady((apiRef ? PipelineGet("pipeline1")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
-          intercept[JarLoaderException] {
+          intercept[ClassNotFoundException] {
             new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
           }
         }

@@ -26,7 +26,6 @@ class PipelineJsonSpec extends UnitSpec {
         LoadPhaseKind.MemSQL,
         LoadPhase.writeConfig(
           LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None, None))),
-      jar = Some("site.com/foo.jar"),
       config_version = 42)
 
     val pipeline1 = Pipeline(
@@ -42,7 +41,6 @@ class PipelineJsonSpec extends UnitSpec {
     assert(jsonMap("state") == "RUNNING")
     assert(jsonMap("batch_interval") == 100)
     assert(jsonMap("config").asInstanceOf[Map[String, Any]]("config_version") == 42)
-    assert(jsonMap("config").asInstanceOf[Map[String, Any]]("jar") == "site.com/foo.jar")
     assert(!(jsonMap contains "error"))
 
     // Errors should be included.
@@ -59,8 +57,7 @@ class PipelineJsonSpec extends UnitSpec {
         transform = Phase[TransformPhaseKind](
           TransformPhaseKind.Json,
           TransformPhase.writeConfig(TransformPhaseKind.Json, JsonTransformConfig("data"))
-        ),
-        jar = None
+        )
       ),
       last_updated = 15,
       error = Some("Test error"))
@@ -69,7 +66,6 @@ class PipelineJsonSpec extends UnitSpec {
     jsonMap = mapFromJson(jsonString)
     assert(jsonMap("error") == "Test error")
     val configMap = jsonMap("config").asInstanceOf[Map[String, Any]]
-    assert(!configMap.contains("jar"))
     val extractMap = configMap("extract").asInstanceOf[Map[String, Any]]
     assert(extractMap("kind") == "TestLines")
     val extractConfigMap = extractMap("config").asInstanceOf[Map[String, Any]]
@@ -94,7 +90,6 @@ class PipelineJsonSpec extends UnitSpec {
         LoadPhaseKind.User,
         LoadPhase.writeConfig(
           LoadPhaseKind.User, UserLoadConfig("com.user.Load", "Test user data 2"))),
-      jar = Some("site.com/jar.jar"),
       config_version=42)
 
     var pipeline = Pipeline(
@@ -106,7 +101,6 @@ class PipelineJsonSpec extends UnitSpec {
     var jsonString = pipeline.toJson.toString
     var jsonMap = mapFromJson(jsonString)
     var configMap = jsonMap("config").asInstanceOf[Map[String, Any]]
-    assert(configMap("jar") == "site.com/jar.jar")
     var extractConfigMap = configMap("extract").asInstanceOf[Map[String, Any]]
     assert(extractConfigMap("kind") == "Kafka")
     val kafkaConfigMap = extractConfigMap("config").asInstanceOf[Map[String, Any]]
@@ -171,7 +165,6 @@ class PipelineJsonSpec extends UnitSpec {
                   "value": "Test user data 2"
               }
           },
-          "jar": "site.com/foo.jar",
           "config_version": 42
       }
       """
@@ -192,7 +185,6 @@ class PipelineJsonSpec extends UnitSpec {
     assert(pipeline.last_updated == 145)
     assert(pipeline.error.get == "test error")
     assert(pipeline.config.config_version == 42)
-    assert(pipeline.config.jar.get == "site.com/foo.jar")
     assert(pipeline.config.extract.kind == ExtractPhaseKind.Kafka)
     val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config).asInstanceOf[KafkaExtractConfig]
     assert(kafkaConfig.host == "test1")
@@ -228,7 +220,6 @@ class PipelineJsonSpec extends UnitSpec {
                   "value": "Test user data 2"
               }
           },
-          "jar": "site.com/foo.jar",
           "config_version": 42
       }
                       """
@@ -248,7 +239,6 @@ class PipelineJsonSpec extends UnitSpec {
     assert(pipeline.batch_interval == 100)
     assert(pipeline.last_updated == 145)
     assert(pipeline.error.get  == "test error")
-    assert(pipeline.config.jar.get == "site.com/foo.jar")
     assert(pipeline.config.config_version == 42)
     assert(pipeline.config.extract.kind == ExtractPhaseKind.TestLines)
     val testLinesConfig = ExtractPhase.readConfig(ExtractPhaseKind.TestLines, pipeline.config.extract.config).asInstanceOf[TestLinesExtractConfig]
@@ -269,7 +259,6 @@ class PipelineJsonSpec extends UnitSpec {
         LoadPhaseKind.User,
         LoadPhase.writeConfig(
           LoadPhaseKind.User, UserLoadConfig("com.user.Load", "Test user data 2"))),
-      jar = Some("site.com/jar.jar"),
       config_version=42)
 
     var pipeline1 = Pipeline(

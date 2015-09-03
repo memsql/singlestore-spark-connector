@@ -10,7 +10,7 @@ object ApiJsonProtocol extends JsonEnumProtocol {
 
   implicit def phaseFormat[T :JsonFormat] = jsonFormat2(Phase.apply[T])
 
-  implicit val pipelineConfigFormat = jsonFormat5(PipelineConfig)
+  implicit val pipelineConfigFormat = jsonFormat4(PipelineConfig)
 
   implicit val pipelineBatchTypeFormat = jsonEnum(PipelineBatchType)
   implicit val phaseMetricRecordFormat = jsonFormat7(PhaseMetricRecord)

@@ -96,8 +96,7 @@ trait ApiService {
 
             if (config.isDefined) {
               newConfig = config.get
-              // providing the config always counts as an update since the jar at the url may have changed
-              updated = true
+              updated |= newConfig != pipeline.config
             }
 
             if (error.isDefined) {
@@ -136,7 +135,6 @@ trait ApiService {
       pipelines.get(pipeline_id) match {
         case Some(pipeline) => {
           var updated = false
-          var newTraceBatchCount = pipeline.traceBatchCount
           if (pipeline.traceBatchCount > 0) {
             pipeline.traceBatchCount = pipeline.traceBatchCount - 1
             updated = true

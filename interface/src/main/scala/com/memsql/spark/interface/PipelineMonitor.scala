@@ -14,14 +14,11 @@ import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api.PipelineBatchType
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface.util.ErrorUtils._
-import com.memsql.spark.interface.api.PipelineBatchType._
-import com.memsql.spark.interface.api.ApiJsonProtocol._
 import ApiActor._
-import com.memsql.spark.interface.util.{ArrayLogAppender, JarLoader}
+import com.memsql.spark.interface.util.ArrayLogAppender
 import org.apache.log4j.{Logger, Level}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.scheduler._
 import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.{Time, StreamingContext}
@@ -30,7 +27,6 @@ import scala.collection.mutable.HashSet
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
-import spray.json._
 
 case class PhaseResult(count: Option[Long] = None,
                        columns: Option[List[(String, String)]] = None,
@@ -42,7 +38,6 @@ trait PipelineMonitor {
   def pipeline_id: String
   def batchInterval: Long
   def lastUpdated: Long
-  def jar: String
   def config: PipelineConfig
   def pipelineInstance: PipelineInstance
   def sparkContext: SparkContext
@@ -67,22 +62,9 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   override val batchInterval = pipeline.batch_interval
   override val config = pipeline.config
   override val lastUpdated = pipeline.last_updated
-  override val jar = config.jar.orNull
   override var error: Throwable = null
 
   val TRACED_RECORDS_PER_BATCH = 10
-
-  private[interface] var jarLoaded = false
-  private[interface] var jarClassLoader: URLClassLoader = null
-
-  private def loadClass(path: String, clazz: String): Class[_] = {
-    if (!jarLoaded) {
-      jarClassLoader = JarLoader.getClassLoader(path)
-      jarLoaded = true
-    }
-
-    JarLoader.loadClass(jarClassLoader, clazz)
-  }
 
   private[interface] val extractConfig = ExtractPhase.readConfig(config.extract.kind, config.extract.config)
   private[interface] val transformConfig = TransformPhase.readConfig(config.transform.kind, config.transform.config)
@@ -93,32 +75,25 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     case ExtractPhaseKind.TestLines => new TestLinesExtractor()
     case ExtractPhaseKind.User => {
       val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
-      loadClass(jar, className).newInstance.asInstanceOf[ByteArrayExtractor]
+      Class.forName(className).newInstance.asInstanceOf[ByteArrayExtractor]
     }
   }
   private[interface] val transformer: ByteArrayTransformer = config.transform.kind match {
     case TransformPhaseKind.Json => new JSONTransformer()
     case TransformPhaseKind.User => {
       val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
-      loadClass(jar, className).newInstance.asInstanceOf[ByteArrayTransformer]
+      Class.forName(className).newInstance.asInstanceOf[ByteArrayTransformer]
     }
   }
   private[interface] val loader: Loader = config.load.kind match {
     case LoadPhaseKind.MemSQL => new MemSQLLoader
     case LoadPhaseKind.User => {
       val className = loadConfig.asInstanceOf[UserLoadConfig].class_name
-      loadClass(jar, className).newInstance.asInstanceOf[Loader]
+      Class.forName(className).newInstance.asInstanceOf[Loader]
     }
   }
 
   override val pipelineInstance = PipelineInstance(extractor, extractConfig, transformer, transformConfig, loader, loadConfig)
-
-  if (jarLoaded) {
-    //TODO does this pollute the classpath for the lifetime of the interface?
-    //TODO if an updated jar is appended to the classpath the interface will always run the old version
-    //distribute jar to all tasks run by this spark context
-    sparkContext.addJar(jar)
-  }
 
   override val sqlContext = sparkContext.isInstanceOf[MemSQLSparkContext] match {
     case true => new MemSQLSQLContext(sparkContext.asInstanceOf[MemSQLSparkContext])
@@ -505,8 +480,5 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     isStopping.set(true)
     thread.interrupt
     thread.join
-    if (jarClassLoader != null) {
-      jarClassLoader.close()
-    }
   }
 }

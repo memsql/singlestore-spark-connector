@@ -37,8 +37,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   val userConfig = kafkaConfig.copy(extract = Phase[ExtractPhaseKind](
                                                 ExtractPhaseKind.User,
                                                 ExtractPhase.writeConfig(
-                                                  ExtractPhaseKind.User, UserExtractConfig("com.user.Extract", ""))),
-                                    jar = Some("site.com/foo.jar"))
+                                                  ExtractPhaseKind.User, UserExtractConfig("com.user.Extract", ""))))
   val kafkaConfigEntity = HttpEntity(`application/json`, kafkaConfig.toJson.toString)
   val basicPipeline = Pipeline("asdf", state=PipelineState.RUNNING, batch_interval=100, config=kafkaConfig, last_updated=0)
   def putPipeline(pipeline: Pipeline): Unit = {
@@ -118,13 +117,6 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
 
     Post("/pipeline/put?pipeline_id=asdf&batch_interval=-1234", kafkaConfigEntity) ~> sealRoute(route) ~> check {
       assert(responseAs[String].contains("batch_interval must be positive"))
-      assert(status == BadRequest)
-    }
-
-    val missingJarConfig = userConfig.copy(jar = None)
-    val missingJarConfigEntity = HttpEntity(`application/json`, missingJarConfig.toJson.toString)
-    Post("/pipeline/put?pipeline_id=asdf&main_class=asdf2&batch_interval=1234", missingJarConfigEntity) ~> sealRoute(route) ~> check {
-      assert(responseAs[String].contains("jar is required for user defined phases"))
       assert(status == BadRequest)
     }
   }
@@ -353,13 +345,13 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == OK)
     }
 
-    // updates to config should always return true
+    // no-op updates to config should return false
     Patch("/pipeline/update?pipeline_id=asdf&active=true", kafkaConfigEntity) ~> route ~> check {
-      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(false)).toString)
       assert(status == OK)
     }
 
-    // pipeline should be running with the same config and the same jar
+    // pipeline should be running with the same config
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
@@ -383,36 +375,6 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == OK)
     }
 
-    val userConfig2 = userConfig.copy(jar = Some("site.com/test2.jar"))
-    val userConfigEntity2 = HttpEntity(`application/json`, userConfig2.toJson.toString)
-    Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigEntity2) ~> route ~> check {
-      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
-      assert(status == OK)
-    }
-
-    // pipeline should be running with the same config and the updated jar
-    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
-      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
-      assert(pipeline.state == PipelineState.RUNNING)
-      assert(pipeline.config == userConfig2)
-      assert(pipeline.batch_interval == 999)
-      assert(status == OK)
-    }
-
-    Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigEntity) ~> route ~> check {
-      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
-      assert(status == OK)
-    }
-
-    // pipeline should be running with the same config and the previous jar
-    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
-      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
-      assert(pipeline.state == PipelineState.RUNNING)
-      assert(pipeline.config == userConfig)
-      assert(pipeline.batch_interval == 999)
-      assert(status == OK)
-    }
-
     // no-op updates to batch_interval should return false
     Patch("/pipeline/update?pipeline_id=asdf&active=true&batch_interval=999") ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(false)).toString)
@@ -428,9 +390,9 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == OK)
     }
 
-    // updates with an identical config entity should also return true
+    // no-op updates to config should return false
     Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigEntity) ~> route ~> check {
-      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(false)).toString)
       assert(status == OK)
     }
 

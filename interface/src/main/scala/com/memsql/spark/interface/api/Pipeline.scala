@@ -40,14 +40,6 @@ object Pipeline {
       ExtractPhase.readConfig(config.extract.kind, config.extract.config)
       TransformPhase.readConfig(config.transform.kind, config.transform.config)
       LoadPhase.readConfig(config.load.kind, config.load.config)
-
-      val requiresJar = config.extract.kind == ExtractPhaseKind.User ||
-        config.transform.kind == TransformPhaseKind.User ||
-        config.load.kind == LoadPhaseKind.User
-
-      if (requiresJar && config.jar.isEmpty) {
-        throw new ApiException("jar is required for user defined phases")
-      }
     } catch {
       case e: DeserializationException => throw new ApiException(s"config does not validate: $e")
     }

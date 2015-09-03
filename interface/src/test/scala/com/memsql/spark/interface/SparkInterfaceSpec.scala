@@ -45,7 +45,6 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
 
     override def pipeline_id = pipeline.pipeline_id
     override def batchInterval = pipeline.batch_interval
-    override def jar = pipeline.config.jar.orNull
     override def config = pipeline.config
     override def lastUpdated = pipeline.last_updated
     override def hasError: Boolean = error != null
@@ -253,7 +252,6 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       var oldPipelineMonitor = sparkInterface.pipelineMonitors.get("pipeline3").get
       assert(pipeline.pipeline_id == oldPipelineMonitor.pipeline_id)
       assert(oldPipelineMonitor.isAlive)
-      assert(pipeline.config.jar.orNull == oldPipelineMonitor.jar)
       assert(pipeline.batch_interval == oldPipelineMonitor.batchInterval)
       assert(pipeline.config == oldPipelineMonitor.config)
 
@@ -271,7 +269,6 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       assert(pipeline.pipeline_id == newPipelineMonitor.pipeline_id)
       assert(!oldPipelineMonitor.isAlive)
       assert(newPipelineMonitor.isAlive)
-      assert(pipeline.config.jar.orNull == newPipelineMonitor.jar)
       assert(pipeline.batch_interval == newPipelineMonitor.batchInterval)
       assert(pipeline.config == newPipelineMonitor.config)
 
@@ -280,8 +277,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
         ExtractPhaseKind.User,
         ExtractPhase.writeConfig(
           ExtractPhaseKind.User,
-          UserExtractConfig("com.foobar.Extract", ""))),
-        jar = Some("site.com/jar.jar"))
+          UserExtractConfig("com.foobar.Extract", ""))))
 
       apiRef ! PipelineUpdate("pipeline3", config = Some(newConfig))
       receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
@@ -297,14 +293,13 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       assert(pipeline.pipeline_id == newPipelineMonitor.pipeline_id)
       assert(!oldPipelineMonitor.isAlive)
       assert(newPipelineMonitor.isAlive)
-      assert(pipeline.config.jar.get == newPipelineMonitor.jar)
       assert(pipeline.batch_interval == newPipelineMonitor.batchInterval)
       assert(pipeline.config == newPipelineMonitor.config)
 
-      // updating the config should always restart the pipeline monitor
+      // updating the config with the same blob should not restart the pipeline monitor
       apiRef ! PipelineUpdate("pipeline3", config = Some(newConfig))
       receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
-        case Success(resp) => assert(resp)
+        case Success(resp) => assert(!resp)
         case Failure(err) => fail(s"unexpected response $err")
       }
       pipeline = getPipeline("pipeline3")
@@ -312,15 +307,9 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
 
       oldPipelineMonitor = newPipelineMonitor
       newPipelineMonitor = sparkInterface.pipelineMonitors.get("pipeline3").get
-      assert(newPipelineMonitor != oldPipelineMonitor)
-      assert(pipeline.pipeline_id == newPipelineMonitor.pipeline_id)
-      assert(!oldPipelineMonitor.isAlive)
+      assert(newPipelineMonitor == oldPipelineMonitor)
       assert(newPipelineMonitor.isAlive)
-      // the jar is the same path as before, but we always restart
-      assert(pipeline.config.jar.get == newPipelineMonitor.jar)
-      assert(pipeline.config.jar.get == oldPipelineMonitor.jar)
-      assert(pipeline.batch_interval == newPipelineMonitor.batchInterval)
-      assert(pipeline.config == newPipelineMonitor.config)
+      assert(newPipelineMonitor.config == newConfig)
     }
   }
 }

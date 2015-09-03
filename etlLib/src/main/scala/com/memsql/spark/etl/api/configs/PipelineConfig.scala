@@ -34,5 +34,4 @@ import LoadPhaseKind._
 case class PipelineConfig(var extract: Phase[ExtractPhaseKind],
                           var transform: Phase[TransformPhaseKind],
                           var load: Phase[LoadPhaseKind],
-                          var jar: Option[String] = None,
                           var config_version: Int = PipelineConfigVersion.CurrentPipelineConfigVersion)
