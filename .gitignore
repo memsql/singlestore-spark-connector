@@ -8,6 +8,7 @@ connectorLib/target/*
 connectorLib/src/main/scala/com/memsql/spark/connector/target/*
 etlLib/target/*
 interface/target/*
+jarInspector/target/*
 target/*
 test_root/*
 *.pyc

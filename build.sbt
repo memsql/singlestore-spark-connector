@@ -56,6 +56,18 @@ lazy val etlLib = (project in file("etlLib")).
     }
   )
 
+lazy val jarInspector = (project in file("jarInspector")).
+  settings(commonSettings: _*).
+  settings(
+    name := "jarInspector",
+    libraryDependencies  ++= Seq(
+      "org.clapper" %% "classutil" % "1.0.5",
+      "io.spray" %% "spray-json" % "1.3.2",
+      "com.github.scopt" %% "scopt" % "3.2.0",
+      "org.slf4j" % "slf4j-simple" % "1.7.12"
+    )
+  )
+
 lazy val interface = (project in file("interface")).
   dependsOn(connectorLib).
   dependsOn(etlLib).
