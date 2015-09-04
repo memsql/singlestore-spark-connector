@@ -15,7 +15,7 @@ import com.memsql.spark.interface.api.PipelineBatchType
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface.util.ErrorUtils._
 import ApiActor._
-import com.memsql.spark.interface.util.ArrayLogAppender
+import com.memsql.spark.interface.util.{BaseException, ArrayLogAppender}
 import org.apache.log4j.{Logger, Level}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -28,6 +28,8 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success, Try}
+
+class PipelineMonitorException(message:String) extends BaseException(message)
 
 case class PhaseResult(count: Option[Long] = None,
                        columns: Option[List[(String, String)]] = None,
@@ -168,6 +170,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           // appender for all batches, unlike the transform and load appenders.
           extractAppender.clearLogEntries
           maybeRdd match {
+            case null => throw new PipelineMonitorException(s"Extractor for pipeline $pipeline_id emitted null instead of None or Some(RDD)")
+            case Some(null) => throw new PipelineMonitorException(s"Extractor for pipeline $pipeline_id emitted Some(null) instead of None or Some(RDD)")
             case Some(rdd) => {
               if (trace) {
                 val count = Some(rdd.count)
@@ -209,12 +213,17 @@ class DefaultPipelineMonitor(override val api: ActorRef,
               tracedDf = pipelineInstance.transformer.transform(
                 sqlContext, tracedRdd, pipelineInstance.transformConfig,
                 tracedTransformLogger)
+              if (tracedDf == null) {
+                throw new PipelineMonitorException(s"Transformer for pipeline $pipeline_id returned null instead of a DataFrame")
+              }
               tracedCount = tracedDf.count
             }
             df = pipelineInstance.transformer.transform(
               sqlContext, extractedRdd, pipelineInstance.transformConfig,
               transformLogger)
-            if (trace) {
+            if (df == null) {
+              throw new PipelineMonitorException(s"Transformer for pipeline $pipeline_id returned null instead of a DataFrame")
+            } else if (trace) {
               var count: Option[Long] = None
               var columns: Option[List[(String, String)]] = None
               var records: Option[List[List[String]]] = None
