@@ -1,7 +1,6 @@
 package com.memsql.spark.etl.utils
 
 import org.apache.spark.sql.DataFrame
-import com.memsql.spark.connector._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.SQLContext

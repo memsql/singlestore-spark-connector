@@ -28,7 +28,7 @@ case class MemSQLExtraColumnConfig(name: String,
                                    default_value: Option[String], 
                                    persisted: Option[String]) {
   def toMemSQLExtraColumn: MemSQLExtraColumn = {
-    MemSQLExtraColumn(name, col_type, nullable.getOrElse(true), default_value.getOrElse(null), persisted.getOrElse(null))
+    MemSQLExtraColumn(name, col_type, nullable.getOrElse(true), default_value.orNull, persisted.orNull)
   }
 }
 

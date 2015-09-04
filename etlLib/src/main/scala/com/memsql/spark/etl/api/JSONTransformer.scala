@@ -1,7 +1,6 @@
 package com.memsql.spark.etl.api
 
 import com.memsql.spark.etl.api.configs.{JsonTransformConfig, PhaseConfig}
-import com.memsql.spark.etl.utils.ByteUtils._
 import com.memsql.spark.connector.dataframe.{JsonType, JsonValue}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.DataFrame
@@ -16,7 +15,7 @@ import org.apache.spark.sql.Row
 class JSONTransformer extends ByteArrayTransformer {
   override def transform(sqlContext: SQLContext, rdd: RDD[Array[Byte]], transformConfig: PhaseConfig, logger: Logger): DataFrame = {
     val jsonTransformConfig = transformConfig.asInstanceOf[JsonTransformConfig]
-    val transformedRDD = rdd.map(r => Row(new JsonValue(bytesToUTF8String(r))))
+    val transformedRDD = rdd.map(r => Row(new JsonValue(byteUtils.bytesToUTF8String(r))))
     val schema = StructType(Array(StructField(jsonTransformConfig.column_name, JsonType, true)))
     sqlContext.createDataFrame(transformedRDD, schema)
   }
