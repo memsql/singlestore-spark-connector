@@ -3,7 +3,7 @@ package com.memsql.spark.etl.utils
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 
-object ByteUtils {
+object ByteUtils extends Serializable {
   def bytesToUTF8String(bytes: Array[Byte]): String = new String(bytes, StandardCharsets.UTF_8)
   def bytesToLong(bytes: Array[Byte]): Long = ByteBuffer.wrap(bytes).getLong
   def bytesToShort(bytes: Array[Byte]): Short = ByteBuffer.wrap(bytes).getShort
