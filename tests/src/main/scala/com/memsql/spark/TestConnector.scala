@@ -462,6 +462,11 @@ object TestCreateWithKeys
         df.createMemSQLTableFromSchema("db","t6", keys=Array(PrimaryKey("a","b"), Key("b")))
         df.createMemSQLTableFromSchema("db","t7", keys=Array(Shard("a"), KeyUsingClusteredColumnStore("b")))
 
+        df.createMemSQLTableFromSchema("db","t7",
+          extraCols=Array(MemSQLExtraColumn("carl", "datetime", false, defaultValue="NOW()")),
+          keys=Array(Shard(), KeyUsingClusteredColumnStore("carl"))
+        )
+
         val conn = sc.GetMAConnection
         var stmt = conn.createStatement
 

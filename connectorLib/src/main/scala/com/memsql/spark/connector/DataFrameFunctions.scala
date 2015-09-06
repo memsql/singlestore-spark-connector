@@ -109,6 +109,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable with Logging
         val hasShardKey = keys.exists(_.canBeUsedAsShardKey)
         val theKeys = if (hasShardKey) keys else keys :+ Shard()
         sql.append(theKeys.map((k : MemSQLKey) => k.toSQL).mkString(","))
+        if (extraCols.length > 0) { sql.append(",") }
         sql.append(extraCols.map((k : MemSQLExtraColumn) => k.toSQL).mkString(","))
         sql.append(")")
 
