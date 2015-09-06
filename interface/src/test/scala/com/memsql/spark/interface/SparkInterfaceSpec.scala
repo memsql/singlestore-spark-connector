@@ -34,7 +34,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     Phase[LoadPhaseKind](
       LoadPhaseKind.MemSQL,
       LoadPhase.writeConfig(
-        LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None, None))))
+        LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))))
 
   class MockPipelineMonitor(override val api: ActorRef,
                                          pipeline: Pipeline,

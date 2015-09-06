@@ -49,7 +49,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
     Phase[LoadPhaseKind](
       LoadPhaseKind.MemSQL,
       LoadPhase.writeConfig(
-        LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None, None, None, None))))
+        LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))))
 
   "PipelineMonitor" should {
     "create a monitor if the class can be properly loaded" in {
