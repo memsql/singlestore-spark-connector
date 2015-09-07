@@ -7,7 +7,7 @@ case class KafkaExtractConfig(host: String, port: Int, topic: String) extends Ph
 
 case class TestLinesExtractConfig(value: String) extends PhaseConfig
 
-case class UserExtractConfig(class_name: String, value: String) extends PhaseConfig
+case class UserExtractConfig(class_name: String, value: JsValue) extends PhaseConfig with UserConfig
 
 object ExtractPhase extends JsonEnumProtocol {
   val kafkaConfigFormat = jsonFormat3(KafkaExtractConfig)

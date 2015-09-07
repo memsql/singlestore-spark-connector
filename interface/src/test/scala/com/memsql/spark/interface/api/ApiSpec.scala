@@ -36,7 +36,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
     val config2 = config.copy(extract = Phase[ExtractPhaseKind](
       ExtractPhaseKind.User,
       ExtractPhase.writeConfig(
-        ExtractPhaseKind.User, UserExtractConfig("com.user.ExtractClass", "test"))))
+        ExtractPhaseKind.User, UserExtractConfig("com.user.ExtractClass", JsString("test")))))
 
     "respond to ping" in {
       apiRef ! Ping
@@ -128,7 +128,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.config == config2)
           assert(pipeline.last_updated == 1)
           val userConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config).asInstanceOf[UserExtractConfig]
-          assert(userConfig.value == "test")
+          assert(userConfig.value.toString == "\"test\"")
         case Failure(err) => fail(s"unexpected response $err")
       }
     }
@@ -240,7 +240,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         Phase[TransformPhaseKind](
           TransformPhaseKind.User,
           TransformPhase.writeConfig(
-            TransformPhaseKind.User, UserTransformConfig("com.user.TransformClass", "test1"))),
+            TransformPhaseKind.User, UserTransformConfig("com.user.TransformClass", JsString("test1")))),
         Phase[LoadPhaseKind](
           LoadPhaseKind.MemSQL,
           LoadPhase.writeConfig(

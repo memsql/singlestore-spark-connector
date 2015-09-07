@@ -91,10 +91,6 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   }
   private[interface] val loader: Loader = config.load.kind match {
     case LoadPhaseKind.MemSQL => new MemSQLLoader
-    case LoadPhaseKind.User => {
-      val className = loadConfig.asInstanceOf[UserLoadConfig].class_name
-      Class.forName(className).newInstance.asInstanceOf[Loader]
-    }
   }
 
   override val pipelineInstance = PipelineInstance(extractor, extractConfig, transformer, transformConfig, loader, loadConfig)

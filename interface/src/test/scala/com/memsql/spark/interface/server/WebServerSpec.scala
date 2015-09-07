@@ -37,7 +37,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   val userConfig = kafkaConfig.copy(extract = Phase[ExtractPhaseKind](
                                                 ExtractPhaseKind.User,
                                                 ExtractPhase.writeConfig(
-                                                  ExtractPhaseKind.User, UserExtractConfig("com.user.Extract", ""))))
+                                                  ExtractPhaseKind.User, UserExtractConfig("com.user.Extract", JsString("")))))
   val kafkaConfigEntity = HttpEntity(`application/json`, kafkaConfig.toJson.toString)
   val basicPipeline = Pipeline("asdf", state=PipelineState.RUNNING, batch_interval=100, config=kafkaConfig, last_updated=0)
   def putPipeline(pipeline: Pipeline): Unit = {

@@ -4,9 +4,6 @@ import com.memsql.spark.etl.utils._
 
 import com.fasterxml.jackson.databind._
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.`type`.TypeReference;
-import com.fasterxml.jackson.core._
 import org.scalatest._
 
 class TestJSONPath extends FlatSpec {

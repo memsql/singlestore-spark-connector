@@ -1,17 +1,11 @@
 package com.memsql.spark.etl.utils
 
-import org.apache.spark.sql.DataFrame
-import com.memsql.spark.connector._
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.Row
-
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.`type`.TypeReference;
 
+import org.apache.spark.rdd._
+import org.apache.spark.sql._
+import org.apache.spark.sql.types._
 
 abstract class JSONPath {
   def get(obj: Map[String,Any], mapper: ObjectMapper): String

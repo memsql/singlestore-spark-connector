@@ -5,7 +5,7 @@ import TransformPhaseKind._
 
 case class JsonTransformConfig(column_name: String) extends PhaseConfig
 
-case class UserTransformConfig(class_name:String, value: String) extends PhaseConfig
+case class UserTransformConfig(class_name:String, value: JsValue) extends PhaseConfig with UserConfig
 
 object TransformPhase extends DefaultJsonProtocol {
   val jsonConfigFormat = jsonFormat1(JsonTransformConfig)

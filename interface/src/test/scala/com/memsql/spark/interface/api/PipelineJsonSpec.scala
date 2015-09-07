@@ -2,7 +2,6 @@ package com.memsql.spark.interface.api
 
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.interface._
-import com.memsql.spark.interface.api.PipelineBatchType._
 import com.memsql.spark.interface.api.ApiJsonProtocol._
 import ooyala.common.akka.web.JsonUtils._
 import spray.json._
@@ -17,11 +16,11 @@ class PipelineJsonSpec extends UnitSpec {
       Phase[ExtractPhaseKind](
         ExtractPhaseKind.User,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.User, UserExtractConfig("com.test.ExtractClass", ""))),
+          ExtractPhaseKind.User, UserExtractConfig("com.test.ExtractClass", JsNull))),
       Phase[TransformPhaseKind](
         TransformPhaseKind.User,
         TransformPhase.writeConfig(
-          TransformPhaseKind.User, UserTransformConfig("com.test.TransformClass", "test1"))),
+          TransformPhaseKind.User, UserTransformConfig("com.test.TransformClass", JsNull))),
       Phase[LoadPhaseKind](
         LoadPhaseKind.MemSQL,
         LoadPhase.writeConfig(
@@ -85,11 +84,11 @@ class PipelineJsonSpec extends UnitSpec {
       Phase[TransformPhaseKind](
         TransformPhaseKind.User,
         TransformPhase.writeConfig(
-          TransformPhaseKind.User, UserTransformConfig("com.user.Transform", "Test user data 1"))),
+          TransformPhaseKind.User, UserTransformConfig("com.user.Transform", JsString("Test user data 1")))),
       Phase[LoadPhaseKind](
-        LoadPhaseKind.User,
+        LoadPhaseKind.MemSQL,
         LoadPhase.writeConfig(
-          LoadPhaseKind.User, UserLoadConfig("com.user.Load", "Test user data 2"))),
+          LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))),
       config_version=42)
 
     var pipeline = Pipeline(
@@ -113,10 +112,10 @@ class PipelineJsonSpec extends UnitSpec {
     assert(transformUserConfigMap("class_name") == "com.user.Transform")
     assert(transformUserConfigMap("value") == "Test user data 1")
     val loadConfigMap = configMap("load").asInstanceOf[Map[String, Any]]
-    assert(loadConfigMap("kind") == "User")
+    assert(loadConfigMap("kind") == "MemSQL")
     val loadUserConfigMap = loadConfigMap("config").asInstanceOf[Map[String, Any]]
-    assert(loadUserConfigMap("class_name") == "com.user.Load")
-    assert(loadUserConfigMap("value") == "Test user data 2")
+    assert(loadUserConfigMap("db_name") == "db")
+    assert(loadUserConfigMap("table_name") == "table")
 
     config=config.copy(extract = Phase[ExtractPhaseKind](
       ExtractPhaseKind.TestLines,
@@ -159,10 +158,10 @@ class PipelineJsonSpec extends UnitSpec {
               }
           },
           "load": {
-              "kind": "User",
+              "kind": "MemSQL",
               "config": {
-                  "class_name": "com.user.Load",
-                  "value": "Test user data 2"
+                  "db_name": "db",
+                  "table_name": "table"
               }
           },
           "config_version": 42
@@ -193,11 +192,11 @@ class PipelineJsonSpec extends UnitSpec {
     assert(pipeline.config.transform.kind == TransformPhaseKind.User)
     val userTransformConfig = TransformPhase.readConfig(pipeline.config.transform.kind, pipeline.config.transform.config).asInstanceOf[UserTransformConfig]
     assert(userTransformConfig.class_name == "com.user.Transform")
-    assert(userTransformConfig.value == "Test user data 1")
-    assert(pipeline.config.load.kind == LoadPhaseKind.User)
-    val userLoadConfig = LoadPhase.readConfig(pipeline.config.load.kind, pipeline.config.load.config).asInstanceOf[UserLoadConfig]
-    assert(userLoadConfig.class_name == "com.user.Load")
-    assert(userLoadConfig.value == "Test user data 2")
+    assert(userTransformConfig.value.toString == "\"Test user data 1\"")
+    assert(pipeline.config.load.kind == LoadPhaseKind.MemSQL)
+    val memsqlLoadConfig = LoadPhase.readConfig(pipeline.config.load.kind, pipeline.config.load.config).asInstanceOf[MemSQLLoadConfig]
+    assert(memsqlLoadConfig.db_name == "db")
+    assert(memsqlLoadConfig.table_name == "table")
 
     config_json = """{
           "extract": {
@@ -214,10 +213,10 @@ class PipelineJsonSpec extends UnitSpec {
               }
           },
           "load": {
-              "kind": "User",
+              "kind": "MemSQL",
               "config": {
-                  "class_name": "com.user.Load",
-                  "value": "Test user data 2"
+                  "db_name": "db",
+                  "table_name": "table"
               }
           },
           "config_version": 42
@@ -254,11 +253,11 @@ class PipelineJsonSpec extends UnitSpec {
       Phase[TransformPhaseKind](
         TransformPhaseKind.User,
         TransformPhase.writeConfig(
-          TransformPhaseKind.User, UserTransformConfig("com.user.Transform", "Test user data 1"))),
+          TransformPhaseKind.User, UserTransformConfig("com.user.Transform", JsString("Test user data 1")))),
       Phase[LoadPhaseKind](
-        LoadPhaseKind.User,
+        LoadPhaseKind.MemSQL,
         LoadPhase.writeConfig(
-          LoadPhaseKind.User, UserLoadConfig("com.user.Load", "Test user data 2"))),
+          LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))),
       config_version=42)
 
     var pipeline1 = Pipeline(

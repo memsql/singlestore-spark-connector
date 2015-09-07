@@ -19,6 +19,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.types._
 import org.apache.spark.streaming.{Duration, StreamingContext}
+import spray.json._
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
 
@@ -69,7 +70,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
       val config2 = config.copy(extract = Phase[ExtractPhaseKind](
         ExtractPhaseKind.User,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.User, UserExtractConfig("com.test.Extract", ""))))
+          ExtractPhaseKind.User, UserExtractConfig("com.test.Extract", JsNull))))
 
       //create pipeline which requires a user defined class and try to load in a PipelineMonitor
       apiRef ! PipelinePut("pipeline1", batch_interval=100, config=config2)

@@ -73,8 +73,6 @@ case class MemSQLLoadConfig(
   }
 }
 
-case class UserLoadConfig(class_name: String, value: String) extends PhaseConfig
-
 object LoadPhaseImplicits extends JsonEnumProtocol {
   implicit val memSQLKeyTypeTypeFormat = jsonEnum(MemSQLKeyType)
   implicit val memSQLkeyConfigFormat = jsonFormat2(MemSQLKeyConfig)
@@ -85,19 +83,16 @@ object LoadPhaseImplicits extends JsonEnumProtocol {
 import LoadPhaseImplicits._
 
 object LoadPhase extends DefaultJsonProtocol {
-  val userConfigFormat = jsonFormat2(UserLoadConfig)
   val memSQLConfigFormat = jsonFormat4(MemSQLLoadConfig)
 
   def readConfig(kind: LoadPhaseKind, config: JsValue): PhaseConfig = {
     kind match {
-      case LoadPhaseKind.User => userConfigFormat.read(config)
       case LoadPhaseKind.MemSQL => memSQLConfigFormat.read(config)
     }
   }
 
   def writeConfig(kind: LoadPhaseKind, config: PhaseConfig): JsValue = {
     kind match {
-      case LoadPhaseKind.User => userConfigFormat.write(config.asInstanceOf[UserLoadConfig])
       case LoadPhaseKind.MemSQL => memSQLConfigFormat.write(config.asInstanceOf[MemSQLLoadConfig])
     }
   }

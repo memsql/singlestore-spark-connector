@@ -12,6 +12,7 @@ import org.apache.spark.sql.SQLContext
 import org.apache.spark.streaming.{StreamingContext, Duration}
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
+import spray.json._
 
 class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSparkContext {
   var mockTime = new MockTime()
@@ -277,7 +278,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
         ExtractPhaseKind.User,
         ExtractPhase.writeConfig(
           ExtractPhaseKind.User,
-          UserExtractConfig("com.foobar.Extract", ""))))
+          UserExtractConfig("com.foobar.Extract", JsNull))))
 
       apiRef ! PipelineUpdate("pipeline3", config = Some(newConfig))
       receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
