@@ -92,7 +92,11 @@ trait WebService extends HttpService {
               case Some(false) => Some(PipelineState.STOPPED)
               case default => None
             }
-            val future = (api ? PipelineUpdate(pipeline_id, state, batch_interval, configMaybe, trace_batch_count=trace_batch_count, _validate = true)).mapTo[Try[Boolean]]
+            val error = state match {
+              case Some(PipelineState.RUNNING) => Some("")
+              case default => None
+            }
+            val future = (api ? PipelineUpdate(pipeline_id, state, batch_interval, configMaybe, error=error, trace_batch_count=trace_batch_count, _validate = true)).mapTo[Try[Boolean]]
             future.map {
               case Success(resp) => ctx.complete(Map[String, Boolean]("success" -> resp).toJson.toString)
               case Failure(error) => ctx.complete(StatusCodes.NotFound, error.toString)
