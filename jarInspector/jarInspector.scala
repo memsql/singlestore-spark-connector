@@ -8,7 +8,7 @@ import org.apache.log4j.PropertyConfigurator
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 
-import org.reflections.util.{ ConfigurationBuilder, FilterBuilder }
+import org.reflections.util.ConfigurationBuilder
 import org.reflections.Reflections
 import org.reflections.scanners._
 
@@ -25,7 +25,7 @@ object JsonProto extends DefaultJsonProtocol {
 }
 
 object JarInspector {
-  val MAX_SUBCLASSES = 1024;
+  val MAX_SUBCLASSES = 1024
   val VERSION = "0.0.1"
 
   val EXTRACTOR_ROOT_CLASS = "com.memsql.spark.etl.api.Extractor"
@@ -35,41 +35,39 @@ object JarInspector {
   // prefix in the output
   val IGNORE_PREFIX = "com.memsql.spark.etl"
 
-  def getAllSubclasses(subTypesMap: Map[String, List[String]], root_class: String): mutable.ListBuffer[String] = {
+  def getAllSubclasses(subTypesMap: Map[String, List[String]], rootClass: String): List[String] = {
     var index = 0
-    var result = mutable.ListBuffer[String](root_class)
+    val result = mutable.ListBuffer[String](rootClass)
     while (index < result.length) {
       subTypesMap.get(result(index)).foreach(result.appendAll(_))
       index += 1
       if (index > MAX_SUBCLASSES) {
-        throw new Exception(s"JAR file contains more than $MAX_SUBCLASSES implementations of $root_class")
+        throw new Exception(s"JAR file contains more than $MAX_SUBCLASSES implementations of $rootClass")
       }
     }
-    result.filterNot(_.startsWith(IGNORE_PREFIX))
+    result.filterNot(_.startsWith(IGNORE_PREFIX)).toList
   }
 
   def inspectJarFile(jarFile: File): InspectionResult = {
-    var config = new ConfigurationBuilder()
-      .setUrls(mutable.ListBuffer(jarFile.toURI.toURL))
+    val thisJarURL = classOf[JarInfo].getProtectionDomain.getCodeSource.getLocation.toURI.toURL
+
+    val config = new ConfigurationBuilder()
+      .setUrls(List(thisJarURL, jarFile.toURI.toURL))
       .setScanners(new SubTypesScanner(false))
 
-    var reflect = new Reflections(config)
+    val reflect = new Reflections(config)
 
     val subTypesMap = mapAsScalaMap(reflect.getStore.get("SubTypesScanner").asMap)
       .map({ x => (x._1, x._2.toList)}).toMap
 
-    val extractors = getAllSubclasses(subTypesMap, EXTRACTOR_ROOT_CLASS).toList
-    val transformers = getAllSubclasses(subTypesMap, TRANSFORMER_ROOT_CLASS).toList
+    val extractors = getAllSubclasses(subTypesMap, EXTRACTOR_ROOT_CLASS)
+    val transformers = getAllSubclasses(subTypesMap, TRANSFORMER_ROOT_CLASS)
 
     if (extractors.length == 0 && transformers.length == 0) {
       throw new Exception(s"JAR file does not contain any valid Extractor or Transformer implementations.")
     }
 
-    InspectionResult(
-      success = true,
-      extractors = getAllSubclasses(subTypesMap, EXTRACTOR_ROOT_CLASS).toList,
-      transformers = getAllSubclasses(subTypesMap, TRANSFORMER_ROOT_CLASS).toList
-    )
+    InspectionResult(success = true, extractors = extractors, transformers = transformers)
   }
 
   def main(args: Array[String]): Unit = {

@@ -218,6 +218,7 @@ def docker_factory(request):
     return _factory
 
 class LocalContext:
+    ROOT_PATH = ROOT_PATH
     MEMSQL_JAR_PATH = MEMSQL_JAR_PATH
 
     def __init__(self):
@@ -258,7 +259,7 @@ class LocalContext:
     def run_kafka(self, broker_id):
         print "Running kafka"
         return self._shell.spawn(["/storage/testroot/kafka/start.sh"], update_env={
-            "EXPOSED_HSOT": "127.0.0.1",
+            "EXPOSED_HOST": "127.0.0.1",
             "ZOOKEEPER_IP": "127.0.0.1",
             "BROKER_ID": str(broker_id)
         })

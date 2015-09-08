@@ -1,0 +1,1 @@
+ -s dockertest/jar_inspector_test.py::test_jar_inspector --psyduck-time-limit=16
