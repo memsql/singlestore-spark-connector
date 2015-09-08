@@ -42,7 +42,7 @@ object JarInspector {
       subTypesMap.get(result(index)).foreach(result.appendAll(_))
       index += 1
       if (index > MAX_SUBCLASSES) {
-        throw new Exception(s"Jar file contains more than $MAX_SUBCLASSES implementations of $root_class")
+        throw new Exception(s"JAR file contains more than $MAX_SUBCLASSES implementations of $root_class")
       }
     }
     result.filterNot(_.startsWith(IGNORE_PREFIX))
@@ -62,7 +62,7 @@ object JarInspector {
     val transformers = getAllSubclasses(subTypesMap, TRANSFORMER_ROOT_CLASS).toList
 
     if (extractors.length == 0 && transformers.length == 0) {
-      throw new Exception(s"Jar file does not contain any valid Extractor or Transformer implementations.")
+      throw new Exception(s"JAR file does not contain any valid Extractor or Transformer implementations.")
     }
 
     InspectionResult(
@@ -82,7 +82,7 @@ object JarInspector {
       override def showUsageOnError = true
 
       head("jarInspector", JarInspector.VERSION)
-      opt[File]("target") required() action { (x, c) => c.copy(target = x) } text "Jar to inspect"
+      opt[File]("target") required() action { (x, c) => c.copy(target = x) } text "JAR to inspect"
     }
 
     parser.parse(args, JarInfo()) match {
