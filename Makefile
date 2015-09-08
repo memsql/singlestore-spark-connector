@@ -46,7 +46,7 @@ package: docs build
 
 .PHONY: psytest
 psytest: build-test
-	psy dockertest .psyduck
+	psy dockertest dockertest/.psyduck
 
 .PHONY: publish-local
 publish-local:

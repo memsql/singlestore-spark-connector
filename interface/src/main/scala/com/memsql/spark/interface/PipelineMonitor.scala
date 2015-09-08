@@ -2,11 +2,10 @@ package com.memsql.spark.interface
 
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.UUID
-import java.net.URLClassLoader
 
 import akka.pattern.ask
 import akka.actor.ActorRef
-import com.memsql.spark.context.{MemSQLSparkContext, MemSQLSQLContext}
+import com.memsql.spark.context.MemSQLContext
 import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.{KafkaExtractor, MemSQLLoader}
 import com.memsql.spark.etl.api.configs._
@@ -95,10 +94,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   override val pipelineInstance = PipelineInstance(extractor, extractConfig, transformer, transformConfig, loader, loadConfig)
 
-  override val sqlContext = sparkContext.isInstanceOf[MemSQLSparkContext] match {
-    case true => new MemSQLSQLContext(sparkContext.asInstanceOf[MemSQLSparkContext])
-    case false => new SQLContext(sparkContext)
-  }
+  override val sqlContext = MemSQLContext(sparkContext)
 
   private var currentBatchId: String = null
   private[interface] val isStopping = new AtomicBoolean()
@@ -380,8 +376,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   }
 
   private[interface] def getLoadColumns(): Option[List[(String, String)]] = {
-    if (sqlContext.isInstanceOf[MemSQLSQLContext] && pipelineInstance.loadConfig.isInstanceOf[MemSQLLoadConfig]) {
-      val memSQLSQLContext = sqlContext.asInstanceOf[MemSQLSQLContext]
+    if (sqlContext.isInstanceOf[MemSQLContext] && pipelineInstance.loadConfig.isInstanceOf[MemSQLLoadConfig]) {
+      val memSQLSQLContext = sqlContext.asInstanceOf[MemSQLContext]
       val memSQLLoadConfig = pipelineInstance.loadConfig.asInstanceOf[MemSQLLoadConfig]
       val columnsSchema = memSQLSQLContext.getTableSchema(
         memSQLLoadConfig.db_name, memSQLLoadConfig.table_name)

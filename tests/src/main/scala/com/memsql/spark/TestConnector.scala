@@ -1,26 +1,20 @@
 package com.memsql.spark
 
-import com.memsql.spark.context.{MemSQLSparkContext, MemSQLSQLContext}
-import java.sql.{DriverManager, ResultSet, SQLException, Connection, Statement}
+import com.memsql.spark.context.MemSQLContext
+import java.sql.{DriverManager, ResultSet, Connection}
 
-import org.apache.spark.sql.catalyst.expressions.RowOrdering
-import org.apache.spark.SparkContext
-import org.apache.spark.SparkConf
-import org.apache.spark.sql.SQLContext
+import org.apache.spark._
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
-import org.apache.spark.SparkException
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.catalyst.expressions.RowOrdering
 
-import com.memsql.spark.connector.dataframe.{JsonType, JsonValue, MemSQLDataFrame}
-import com.memsql.spark.connector.dataframe._
-import com.memsql.spark.connector.rdd.MemSQLRDD
 import com.memsql.spark.connector._
+import com.memsql.spark.connector.dataframe._
+import com.memsql.spark.connector.rdd._
 
 object MemSQLTestSetup {
   def SetupBasic() {
-    val host = "127.0.0.1"
+    val host = TestUtils.GetHostname
     val port = 10000
     val user = "root"
     val password = ""
@@ -35,15 +29,15 @@ object MemSQLTestSetup {
     stmt.execute("""
        CREATE TABLE t
        (id INT PRIMARY KEY, data VARCHAR(200), key(data))
-    """)
+                 """)
     stmt.execute("""
        CREATE TABLE s
        (id INT , data VARCHAR(200), key(id), key(data), shard())
-    """)
+                 """)
     stmt.execute("""
        CREATE /*!90618 reference */ TABLE r
        (id INT PRIMARY KEY, data VARCHAR(200), key(data))
-    """)
+                 """)
 
     var insertQuery = ""
     // Insert a bunch of rows like (1, "test_data_0001").
@@ -58,7 +52,7 @@ object MemSQLTestSetup {
   }
 
   def SetupAllMemSQLTypes(sqlContext: SQLContext, nullable: Boolean): DataFrame = {
-    val host = "127.0.0.1"
+    val host = TestUtils.GetHostname
     val port = 10000
     val user = "root"
     val password = ""
@@ -74,20 +68,17 @@ object MemSQLTestSetup {
     stmt.execute("drop table if exists " + tbname)
 
     val create = "create table " + tbname + " (" + Types.MemSQLTypes.map(_._1).map((t:String) => Types.ToCol(t)
-                                                                                   + " " + t + (if (!nullable) " not null" else " null default null")).mkString(",") + ",shard())"
+      + " " + t + (if (!nullable) " not null" else " null default null")).mkString(",") + ",shard())"
     stmt.execute(create)
 
     var insertQuery = "insert into " + tbname + " values"
-    for (i <- 0 until 3)
-    {
+    for (i <- 0 until 3) {
       insertQuery = insertQuery + "(" + Types.MemSQLTypes.map("'" + _._2(i) + "'").mkString(",") + ")"
-      if (i < 2)
-      {
+      if (i < 2) {
         insertQuery = insertQuery + ","
       }
     }
-    if (nullable)
-    {
+    if (nullable) {
       insertQuery = insertQuery + ", (" + Types.MemSQLTypes.map((a:Any) => "null").mkString(",") + ")"
     }
     stmt.execute(insertQuery)
@@ -96,8 +87,12 @@ object MemSQLTestSetup {
 
 }
 object TestUtils {
+  def GetHostname: String = {
+    import scala.sys.process._
+    ("awk NR==1 /etc/hosts"!!).split("\t+")(0)
+  }
   def DropAndCreate(dbName: String) {
-    val host = "127.0.0.1"
+    val host = TestUtils.GetHostname
     val port = 10000
     val user = "root"
     val password = ""
@@ -112,7 +107,7 @@ object TestUtils {
   def MemSQLDF(sqlContext : SQLContext, dbName : String, tableName : String) : DataFrame = {
     MemSQLDataFrame.MakeMemSQLDF(
       sqlContext,
-      "127.0.0.1",
+      TestUtils.GetHostname,
       10000,
       "root",
       "",
@@ -120,42 +115,36 @@ object TestUtils {
       "SELECT * FROM " + tableName)
   }
   def CollectAndSort(df: DataFrame): Seq[Row] = {
-    return df.collect.sorted(RowOrdering.forSchema(df.schema.map(_.dataType))) // zomg why is this like this?
+    df.collect.sorted(RowOrdering.forSchema(df.schema.map(_.dataType)))
   }
   def EqualDFs(df1: DataFrame, df2: DataFrame): Boolean = {
     val df1_sorted = CollectAndSort(df1)
     val df2_sorted = CollectAndSort(df2)
-    if (df1_sorted.size != df2_sorted.size)
-    {
+    if (df1_sorted.size != df2_sorted.size) {
       println("len df1 = " + df1_sorted.size + ", len df2 = " + df2_sorted.size)
       return false
     }
-    for (i <- 0 until df1_sorted.size)
-    {
-      if (!df1_sorted(i).equals(df2_sorted(i)))
-      {
+    for (i <- 0 until df1_sorted.size) {
+      if (!df1_sorted(i).equals(df2_sorted(i))) {
         println("row " + i + " is different.")
-        if (df1_sorted(i).size != df2_sorted(i).size)
-        {
+        if (df1_sorted(i).size != df2_sorted(i).size) {
           println("row sizes are different, " + df1_sorted(i).size + " vs " + df2_sorted(i).size)
           return false
         }
-        for (r <- 0 until df1_sorted(i).size)
-        {
+        for (r <- 0 until df1_sorted(i).size) {
           if ((df1_sorted(i)(r) == null) != (df2_sorted(i)(r) == null)
-            || ((df1_sorted(i)(r) != null)  && !df1_sorted(i)(r).equals(df2_sorted(i)(r))))
-          {
+            || ((df1_sorted(i)(r) != null)  && !df1_sorted(i)(r).equals(df2_sorted(i)(r)))) {
             println("difference : " + df1_sorted(i)(r) + " vs " + df2_sorted(i)(r))
           }
         }
         return false
       }
     }
-    return true
+    true
   }
 
   def connectToMA: Connection = {
-    val dbAddress = "jdbc:mysql://127.0.0.1:10000"
+    val dbAddress = s"jdbc:mysql://${TestUtils.GetHostname}:10000"
     DriverManager.getConnection(dbAddress, "root", "")
   }
   def doDDL(conn: Connection, q: String) {
@@ -203,7 +192,7 @@ object TestMemSQLDataFrameVeryBasic {
     val sc = new SparkContext(conf)
     val sqlContext = new SQLContext(sc)
 
-    val host = "127.0.0.1"
+    val host = TestUtils.GetHostname
     val port = 10000
     val user = "root"
     val password = ""
@@ -242,46 +231,43 @@ object TestMemSQLDataFrameVeryBasic {
     assert (df_r.rdd.partitions.size == 1)
 
     val dfs = Array(df_t, df_s, df_r)
-    for (i <- 0 until dfs.size)
-    {
+    for (i <- 0 until dfs.size) {
+      // TODO: We dont automatically test that anything is actually pushed down
+      // but you can see them being pushed down by reading the memsql tracelog
 
-        // TODO: We dont automatically test that anything is actually pushed down
-        // but you can see them being pushed down by reading the memsql tracelog
+      println(dfs(i).schema)
+      println(dfs(i).rdd.toDebugString)
+      val results = dfs(i).collect()
+      println(results.size)
+      println(dfs(i).rdd.partitions.size)
+      assert(results.size == 1000)
+      assert(dfs(i).count() == 1000)
 
-        println(dfs(i).schema)
-        println(dfs(i).rdd.toDebugString)
-        var results = dfs(i).collect()
-        println(results.size)
-        println(dfs(i).rdd.partitions.size)
-        assert(results.size == 1000)
-        assert(dfs(i).count() == 1000)
+      assert(dfs(i).filter(dfs(i)("id") === 1).collect().size == 1)
+      assert(dfs(i).filter(dfs(i)("id") === 1).count == 1)
 
-        assert(dfs(i).filter(dfs(i)("id") === 1).collect().size == 1)
-        assert(dfs(i).filter(dfs(i)("id") === 1).count == 1)
+      assert(dfs(i).filter(dfs(i)("id") <= 1).collect().size == 2)
+      assert(dfs(i).filter(dfs(i)("id") <= 1).count == 2)
 
-        assert(dfs(i).filter(dfs(i)("id") <= 1).collect().size == 2)
-        assert(dfs(i).filter(dfs(i)("id") <= 1).count == 2)
+      assert(dfs(i).filter(dfs(i)("id") < 1).collect().size == 1)
+      assert(dfs(i).filter(dfs(i)("id") < 1).count == 1)
 
-        assert(dfs(i).filter(dfs(i)("id") < 1).collect().size == 1)
-        assert(dfs(i).filter(dfs(i)("id") < 1).count == 1)
+      assert(dfs(i).filter(dfs(i)("id") > 1).collect().size == 998)
+      assert(dfs(i).filter(dfs(i)("id") > 1).count == 998)
 
-        assert(dfs(i).filter(dfs(i)("id") > 1).collect().size == 998)
-        assert(dfs(i).filter(dfs(i)("id") > 1).count == 998)
+      assert(dfs(i).filter(dfs(i)("id") >= 1).collect().size == 999)
+      assert(dfs(i).filter(dfs(i)("id") >= 1).count == 999)
 
-        assert(dfs(i).filter(dfs(i)("id") >= 1).collect().size == 999)
-        assert(dfs(i).filter(dfs(i)("id") >= 1).count == 999)
-
-        assert(dfs(i).filter(dfs(i)("id").in(dfs(i)("id"))).collect().size == 1000)
+      assert(dfs(i).filter(dfs(i)("id").in(dfs(i)("id"))).collect().size == 1000)
       // TODO: Get inlists to work
       //        assert(dfs(i).filter(dfs(i)("id").in(1,2,3,-1)).collect().size == 3)
       //        assert(dfs(i).filter(dfs(i)("id").in(1,2,3,-1)).count == 3)
 
-        assert(dfs(i).filter(dfs(i)("data") === "test_data_0000").collect().size == 1)
-        assert(dfs(i).filter(dfs(i)("data") === "test_data_0000").count() == 1)
+      assert(dfs(i).filter(dfs(i)("data") === "test_data_0000").collect().size == 1)
+      assert(dfs(i).filter(dfs(i)("data") === "test_data_0000").count() == 1)
 
-        // assert(dfs(i).filter(dfs(i)("data").in("test_data_0000","test_data_0000","not_present")).collect().size == 2)
-        // assert(dfs(i).filter(dfs(i)("data").in("test_data_0000","test_data_0000","not_present")).count() == 2)
-
+      // assert(dfs(i).filter(dfs(i)("data").in("test_data_0000","test_data_0000","not_present")).collect().size == 2)
+      // assert(dfs(i).filter(dfs(i)("data").in("test_data_0000","test_data_0000","not_present")).count() == 2)
     }
   }
 }
@@ -292,7 +278,7 @@ object TestSaveToMemSQLVeryBasic {
     val sc = new SparkContext(conf)
     val sqlContext = new SQLContext(sc)
 
-    val host = "127.0.0.1"
+    val host = TestUtils.GetHostname
     val port = 10000
     val user = "root"
     val password = ""
@@ -302,16 +288,16 @@ object TestSaveToMemSQLVeryBasic {
 
     val rdd = sc.parallelize(
       Array(Row(1,"pieguy"),
-            Row(2,"gbop"),
-            Row(3,"berry\ndave"),
-            Row(4,"psy\tduck"),
-            Row(null,"null"),
-            Row(6,"berry\\tdave"),
-            Row(7,"berry\\ndave"),
-            Row(8,"\"berry\" 'dave'")))
+        Row(2,"gbop"),
+        Row(3,"berry\ndave"),
+        Row(4,"psy\tduck"),
+        Row(null,"null"),
+        Row(6,"berry\\tdave"),
+        Row(7,"berry\\ndave"),
+        Row(8,"\"berry\" 'dave'")))
 
     val schema = StructType(Array(StructField("a",IntegerType,true),
-                                  StructField("b",StringType,false)))
+      StructField("b",StringType,false)))
     val df1 = sqlContext.createDataFrame(rdd, schema)
 
     df1.createMemSQLTableAs(dbName, "t", host, port, user, password)
@@ -345,7 +331,7 @@ object TestMemSQLTypes {
     val sc = new SparkContext(conf)
     val sqlContext = new SQLContext(sc)
 
-    val host = "127.0.0.1"
+    val host = TestUtils.GetHostname
     val port = 10000
     val user = "root"
     val password = ""
@@ -369,8 +355,7 @@ object TestMemSQLTypes {
     assert(df_not_null.schema.size == Types.MemSQLTypes.size)
     assert(df_nullable.schema.size == Types.MemSQLTypes.size)
 
-    for (i <- 0 until Types.MemSQLTypes.size)
-    {
+    for (i <- 0 until Types.MemSQLTypes.size) {
       val colname = Types.ToCol(Types.MemSQLTypes(i)._1)
       println(colname)
 
@@ -382,18 +367,15 @@ object TestMemSQLTypes {
       var cd_nn = df_not_null.select(colname).collect.map(_(0))
       var cd_na = df_nullable.select(colname).collect.map(_(0))
       println("not null")
-      for (r <- cd_nn)
-      {
+      for (r <- cd_nn) {
         println(r)
       }
       println("nullable")
-      for (r <- cd_na)
-      {
+      for (r <- cd_na) {
         println(r)
       }
       println("reference")
-      for (r <- Types.MemSQLTypes(i)._2)
-      {
+      for (r <- Types.MemSQLTypes(i)._2) {
         println(r)
       }
       assert(cd_na.indexOf(null) != -1)
@@ -440,127 +422,122 @@ object TestMemSQLTypes {
   }
 }
 
-object TestCreateWithKeys
-{
-    def main(args: Array[String])
-    {
-        val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")
-        val sc = new MemSQLSparkContext(conf, "127.0.0.1", 10000, "root", "")
-        val sqlContext = new SQLContext(sc)
-        TestUtils.DropAndCreate("db")
+object TestCreateWithKeys {
+  def main(args: Array[String]) {
+    val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
+    TestUtils.DropAndCreate("db")
 
-        val rdd = sc.parallelize(Array[Row]())
-        val schema = StructType(Array(StructField("a",IntegerType,true),
-                                      StructField("b",StringType,false)))
-        val df = sqlContext.createDataFrame(rdd, schema)
+    val rdd = sc.parallelize(Array[Row]())
+    val schema = StructType(Array(StructField("a",IntegerType,true),
+      StructField("b",StringType,false)))
+    val df = sqlContext.createDataFrame(rdd, schema)
 
-        df.createMemSQLTableFromSchema("db","t1", keys=Array(Shard()))
-        df.createMemSQLTableFromSchema("db","t2", keys=Array(Shard("a")))
-        df.createMemSQLTableFromSchema("db","t3", keys=Array(Shard("a","b")))
-        df.createMemSQLTableFromSchema("db","t4", keys=Array(PrimaryKey("a","b"), Shard("a")))
-        df.createMemSQLTableFromSchema("db","t5", keys=Array(UniqueKey("a","b"), Shard("a")))
-        df.createMemSQLTableFromSchema("db","t6", keys=Array(PrimaryKey("a","b"), Key("b")))
-        df.createMemSQLTableFromSchema("db","t7", keys=Array(Shard("a"), KeyUsingClusteredColumnStore("b")))
+    df.createMemSQLTableFromSchema("db","t1", keys=List(Shard()))
+    df.createMemSQLTableFromSchema("db","t2", keys=List(Shard("a")))
+    df.createMemSQLTableFromSchema("db","t3", keys=List(Shard("a","b")))
+    df.createMemSQLTableFromSchema("db","t4", keys=List(PrimaryKey("a","b"), Shard("a")))
+    df.createMemSQLTableFromSchema("db","t5", keys=List(UniqueKey("a","b"), Shard("a")))
+    df.createMemSQLTableFromSchema("db","t6", keys=List(PrimaryKey("a","b"), Key("b")))
+    df.createMemSQLTableFromSchema("db","t7", keys=List(Shard("a"), KeyUsingClusteredColumnStore("b")))
 
-        df.createMemSQLTableFromSchema("db","t8",
-          extraCols=Array(MemSQLExtraColumn("carl", "datetime", false)),
-          keys=Array(Shard(), KeyUsingClusteredColumnStore("carl"))
-        )
+    df.createMemSQLTableFromSchema("db","t8",
+      extraCols=List(MemSQLExtraColumn("carl", "datetime", false)),
+      keys=List(Shard(), KeyUsingClusteredColumnStore("carl"))
+    )
 
-        val conn = sc.GetMAConnection
-        var stmt = conn.createStatement
+    val conn = sqlContext.getMAConnection
+    val stmt = conn.createStatement
 
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t1'")).toArray.size==0)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t1'")).toArray.size==0)
 
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t2'")).toArray.size==1)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t2' and index_type='SHARD'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t2'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t2' and index_type='SHARD'")).toArray.size==1)
 
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t3'")).toArray.size==2)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t3' and index_type='SHARD'")).toArray.size==2)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t3'")).toArray.size==2)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t3' and index_type='SHARD'")).toArray.size==2)
 
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4'")).toArray.size==3)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4' and index_type='SHARD'")).toArray.size==1)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4' and index_name='PRIMARY'")).toArray.size==2)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4'")).toArray.size==3)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4' and index_type='SHARD'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4' and index_name='PRIMARY'")).toArray.size==2)
 
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5'")).toArray.size==3)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5' and index_type='SHARD'")).toArray.size==1)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5' and index_name='PRIMARY'")).toArray.size==0)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5'")).toArray.size==3)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5' and index_type='SHARD'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5' and index_name='PRIMARY'")).toArray.size==0)
 
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6'")).toArray.size==5)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6' and index_type='SHARD'")).toArray.size==2)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6' and index_name='PRIMARY'")).toArray.size==4)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6'")).toArray.size==5)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6' and index_type='SHARD'")).toArray.size==2)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6' and index_name='PRIMARY'")).toArray.size==4)
 
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7'")).toArray.size==2)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='SHARD'")).toArray.size==1)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='CLUSTERED COLUMN'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7'")).toArray.size==2)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='SHARD'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='CLUSTERED COLUMN'")).toArray.size==1)
 
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8'")).toArray.size==1)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8' and index_type='SHARD'")).toArray.size==0)
-        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8' and index_type='CLUSTERED COLUMN'")).toArray.size==1)
-    }
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8' and index_type='SHARD'")).toArray.size==0)
+    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8' and index_type='CLUSTERED COLUMN'")).toArray.size==1)
+  }
 }
 
-object TestMemSQLContextVeryBasic
-{
-    def main(args: Array[String])
-    {
-        val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")
-        val sc = new MemSQLSparkContext(conf, "127.0.0.1", 10000, "root", "")
-        val sqlContext = new SQLContext(sc)
-        TestUtils.DropAndCreate("db")
+object TestMemSQLContextVeryBasic {
+  def main(args: Array[String]) {
+    val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
+    TestUtils.DropAndCreate("db")
 
-        assert(sc.GetMemSQLNodesAvailableForIngest.size == 2)
-        assert(sc.GetMemSQLNodesAvailableForIngest(0)._2 == 10003)
-        assert(sc.GetMemSQLNodesAvailableForIngest(1)._2 == 10004)
+    assert(sqlContext.getMemSQLNodesAvailableForIngest.size == 2)
+    assert(sqlContext.getMemSQLNodesAvailableForIngest(0).port == 10003)
+    assert(sqlContext.getMemSQLNodesAvailableForIngest(1).port == 10004)
 
-        assert(sc.GetMemSQLLeaves.size == 2)
-        assert(sc.GetMemSQLLeaves(0)._2 == 10001)
-        assert(sc.GetMemSQLLeaves(1)._2 == 10002)
+    assert(sqlContext.getMemSQLLeaves.size == 2)
+    assert(sqlContext.getMemSQLLeaves(0).port == 10001)
+    assert(sqlContext.getMemSQLLeaves(1).port == 10002)
 
-        val rdd = sc.parallelize(
-          Array(Row(1,"pieguy"),
-                Row(2,"gbop"),
-                Row(3,"berrydave"),
-                Row(4,"psyduck"),
-                Row(null,"null")),
-          20)
-        val schema = StructType(Array(StructField("a",IntegerType,true),
-                                      StructField("b",StringType,false)))
-        val df = sqlContext.createDataFrame(rdd, schema)
+    val rdd = sc.parallelize(
+      Array(Row(1,"pieguy"),
+        Row(2,"gbop"),
+        Row(3,"berrydave"),
+        Row(4,"psyduck"),
+        Row(null,"null")),
+      20)
+    val schema = StructType(Array(StructField("a",IntegerType,true),
+      StructField("b",StringType,false)))
+    val df = sqlContext.createDataFrame(rdd, schema)
 
-        val memdf =  df.createMemSQLTableAs("db","t")
-        assert(TestUtils.EqualDFs(df, memdf))
-        val memdf2 = df.createMemSQLTableAs("db","t2","127.0.0.1",10000,"root","")
-        assert(TestUtils.EqualDFs(df, memdf2))
+    val memdf =  df.createMemSQLTableAs("db","t")
+    assert(TestUtils.EqualDFs(df, memdf))
+    val memdf2 = df.createMemSQLTableAs("db","t2",TestUtils.GetHostname,10000,"root","")
+    assert(TestUtils.EqualDFs(df, memdf2))
 
-        // lets make sure colocation works.
-        val targets = df.rdd.saveToMemSQLDryRun
-        assert (targets.exists(_.targetPort == 10003))
-        assert (targets.exists(_.targetPort == 10004))
-        for (t <- targets)
-        {
-            assert (t.isColocated)
-            assert (t.targetPort == 10004 || t.targetPort == 10003)
-        }
+    // lets make sure colocation works.
+    val targets = df.rdd.saveToMemSQLDryRun(sqlContext)
+    assert (targets.exists(_.targetPort == 10003))
+    assert (targets.exists(_.targetPort == 10004))
+    for (t <- targets) {
+      assert (t.isColocated)
+      assert (t.targetPort == 10004 || t.targetPort == 10003)
     }
+  }
 }
 
 object TestSaveToMemSQLErrors {
   def main(args: Array[String]) {
     val conn = TestUtils.connectToMA
     val conf = new SparkConf().setAppName("TestSaveToMemSQLErrors")
-    val sc = new MemSQLSparkContext(conf, "127.0.0.1", 10000, "root", "")
-    val sqlContext = new MemSQLSQLContext(sc)
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
     TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
 
     val rdd = sc.parallelize(
       Array(Row(1,"pieguy"),
-            Row(2,"gbop"),
-            Row(3,"berry\ndave"),
-            Row(4,"psy\tduck")))
+        Row(2,"gbop"),
+        Row(3,"berry\ndave"),
+        Row(4,"psy\tduck")))
 
     val schema = StructType(Array(StructField("a",IntegerType,true),
-                                  StructField("b",StringType,false)))
+      StructField("b",StringType,false)))
     val df1 = sqlContext.createDataFrame(rdd, schema)
 
     try {
@@ -600,7 +577,7 @@ object TestSaveToMemSQLWithRDDErrors {
     val sc = new SparkContext(conf)
     val sqlContext = new SQLContext(sc)
 
-    val host = "127.0.0.1"
+    val host = TestUtils.GetHostname
     val port = 10000
     val user = "root"
     val password = ""
@@ -611,12 +588,12 @@ object TestSaveToMemSQLWithRDDErrors {
     val rdd = sc.parallelize(
       Array(Row(1,"pieguy")))
       .map(x => {
-        throw new Exception("Test exception 123")
-        x
-      })
+      throw new Exception("Test exception 123")
+      x
+    })
 
     val schema = StructType(Array(StructField("a",IntegerType,true),
-                                  StructField("b",StringType,false)))
+      StructField("b",StringType,false)))
     val df1 = sqlContext.createDataFrame(rdd, schema)
 
     try {
@@ -637,7 +614,7 @@ object TestSaveToMemSQLJSONColumn {
     val sc = new SparkContext(conf)
     val sqlContext = new SQLContext(sc)
 
-    val host = "127.0.0.1"
+    val host = TestUtils.GetHostname
     val port = 10000
     val user = "root"
     val password = ""
@@ -679,37 +656,55 @@ object TestLeakedConns {
     val baseConns = numConns(conn)
     println ("base number connections = " + baseConns)
     val conf = new SparkConf().setAppName("TestSaveToMemLeakedConns")
-    val sc = new MemSQLSparkContext(conf, "127.0.0.1", 10000, "root", "")
-    assert (baseConns == numConns(conn)) // creating the MemSQLSparkContext shouldn't leak a connection
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
+    assert (baseConns == numConns(conn)) // creating the MemSQLContext shouldn't leak a connection
 
     TestUtils.doDDL(conn, "CREATE TABLE x_db.t(a bigint primary key, b bigint)")
 
     val rdd1 = sc.parallelize(Array(Row(1,1), Row(2,2), Row(3,3)))
-    rdd1.saveToMemSQL("x_db","t")
+    rdd1.saveToMemSQL("x_db",
+                      "t",
+                      sqlContext.getMemSQLMasterAggregator.host,
+                      sqlContext.getMemSQLMasterAggregator.port,
+                      sqlContext.getMemSQLUserName,
+                      sqlContext.getMemSQLPassword)
     assert (baseConns == numConns(conn)) // successful saveToMemSQL shouldn't leak a connection
-    rdd1.saveToMemSQL("x_db", "t", onDuplicateKeySql = "b = 1")
+    rdd1.saveToMemSQL("x_db",
+                      "t",
+                      sqlContext.getMemSQLMasterAggregator.host,
+                      sqlContext.getMemSQLMasterAggregator.port,
+                      sqlContext.getMemSQLUserName,
+                      sqlContext.getMemSQLPassword,
+                      onDuplicateKeySql = "b = 1")
     assert (baseConns == numConns(conn)) // successful saveToMemSQL with upsert shouldn't leak a connection
 
     val rddnull = sc.parallelize(Array(Row(null,3)))
     for (dupKeySql <- Array("","b = 1")) {
       try {
-        rddnull.saveToMemSQL("x_db", "t", onDuplicateKeySql = dupKeySql)
+        rddnull.saveToMemSQL("x_db",
+                             "t",
+                             sqlContext.getMemSQLMasterAggregator.host,
+                             sqlContext.getMemSQLMasterAggregator.port,
+                             sqlContext.getMemSQLUserName,
+                             sqlContext.getMemSQLPassword,
+                             onDuplicateKeySql = dupKeySql)
         assert (false)
       } catch {
         case e: SparkException => {
           assert(e.getMessage.contains("NULL supplied to NOT NULL column 'a' at row 0")
-                 || e.getMessage.contains("Column 'a' cannot be null"))
+            || e.getMessage.contains("Column 'a' cannot be null"))
         }
       }
       assert (baseConns == numConns(conn)) // failed saveToMemSQL shouldn't leak a connection
     }
 
-    val memrdd = sc.CreateRDDFromMemSQLQuery("x_db","SELECT * FROM t")
+    val memrdd = sqlContext.createRDDFromMemSQLQuery("x_db","SELECT * FROM t")
     println(memrdd.collect()(0))
     assert (baseConns == numConns(conn)) // reading from MemSQLRDD shouldn't leak a connection
 
     val q = "SELECT a FROM t WHERE a < (SELECT a FROM t)" // query has runtime error because t has two rows
-    val memrddfail = sc.CreateRDDFromMemSQLQuery("x_db",q)
+    val memrddfail = sqlContext.createRDDFromMemSQLQuery("x_db",q)
     try {
       println("before collect")
       println(memrddfail.collect()(0))
@@ -723,7 +718,6 @@ object TestLeakedConns {
     }
     assert (baseConns == numConns(conn)) // failed reading from MemSQLRDD shouldn't leak a connection
 
-    val sqlContext = new MemSQLSQLContext(sc)
     val df = sqlContext.createDataFrameFromMemSQLTable("x_db", "t")
     assert (baseConns == numConns(conn)) // getting metadata for dataframe shouldn't leak a connection
 
@@ -731,7 +725,7 @@ object TestLeakedConns {
     assert (baseConns == numConns(conn)) // creating a table shouldn't leak a connection
 
     try {
-      df.createMemSQLTableFromSchema("x_db","r",keys=Array(PrimaryKey("a"), PrimaryKey("b")))
+      df.createMemSQLTableFromSchema("x_db","r",keys=List(PrimaryKey("a"), PrimaryKey("b")))
       assert(false)
     } catch {
       case e: Exception => {
@@ -750,6 +744,6 @@ object TestLeakedConns {
       println("    processlist " + r.getString("Id") + " " + r.getString("db") + " " + r.getString("Command") + " "+ r.getString("State") + " " + r.getString("Info"))
     }
     stmt.close()
-    return result(0).toInt
+    result(0).toInt
   }
 }

@@ -16,8 +16,8 @@ class MemSQLLoader extends Loader {
     if (!hasInserted) {
       df.createMemSQLTableFromSchema(memSQLLoadConfig.db_name,
                                      memSQLLoadConfig.table_name,
-                                     keys = options.table_keys.getOrElse(List[MemSQLKeyConfig]()).map((k: MemSQLKeyConfig) => k.toMemSQLKey).toArray,
-                                     extraCols = options.table_extra_columns.getOrElse(List[MemSQLExtraColumnConfig]()).map((k: MemSQLExtraColumnConfig) => k.toMemSQLExtraColumn).toArray,
+                                     keys = options.table_keys.getOrElse(List[MemSQLKeyConfig]()).map((k: MemSQLKeyConfig) => k.toMemSQLKey),
+                                     extraCols = options.table_extra_columns.getOrElse(List[MemSQLExtraColumnConfig]()).map((k: MemSQLExtraColumnConfig) => k.toMemSQLExtraColumn),
                                      ifNotExists = true)
       hasInserted = true
     }

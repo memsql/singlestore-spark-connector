@@ -13,7 +13,6 @@ import org.apache.log4j.PropertyConfigurator
 import org.apache.spark.ui.jobs.JobProgressListener
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.spark.streaming.{Duration, StreamingContext}
-import com.memsql.spark.context.MemSQLSparkContext
 import spray.can.Http
 import akka.pattern.ask
 import scala.concurrent._
@@ -45,9 +44,13 @@ class SparkInterface(val providedConfig: Config) extends Application {
       .set("spark.executor.port", (config.port + 5).toString)
       .set("spark.fileserver.port", (config.port + 6).toString)
       .set("spark.files.overwrite", "true")
+      .set("memsql.host", config.dbHost)
+      .set("memsql.port", config.dbPort.toString)
+      .set("memsql.user", config.dbUser)
+      .set("memsql.password", config.dbPassword)
   }
 
-  override val sparkContext = new MemSQLSparkContext(sparkConf, config.dbHost, config.dbPort, config.dbUser, config.dbPassword)
+  override val sparkContext = new SparkContext(sparkConf)
   override val streamingContext = new StreamingContext(sparkContext, new Duration(5000))
   override val jobProgressListener = new JobProgressListener(sparkConf)
   sparkContext.addSparkListener(jobProgressListener)

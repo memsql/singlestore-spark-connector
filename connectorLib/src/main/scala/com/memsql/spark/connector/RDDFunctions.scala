@@ -1,46 +1,35 @@
 package com.memsql.spark.connector
 
+import com.memsql.spark.context.MemSQLMetaData
+
 import scala.util.Random
 
 import java.sql.{Connection, DriverManager, PreparedStatement, Types, Statement}
-// import org.apache.spark.util.Utils TODO: this object is private
 
-import org.apache.spark.{Logging, SparkException, TaskContext}
+import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
-import scala.reflect.ClassTag
 import org.apache.spark.{SparkException, Logging}
 
-import java.util.UUID
 import java.io._
-import java.lang.System
 
-import org.apache.commons.io.output._
 import java.util.zip.GZIPOutputStream
 import java.io.{PipedOutputStream, PipedInputStream}
 import net.jpountz.lz4._
-import com.memsql.spark.context.MemSQLSparkContext
 import com.memsql.spark.connector.rdd.MemSQLRDD
 
 class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
-
-
   /**
    * Saves an RDD's contents to a MemSQL database.  The RDD's elements should
    * consist of arrays of objects; each array should be the same length, and
    * the table specified in tableName should have as many columns as the arrays
    * have elements.
    *
-   * If dbHost, dbPort, user and password are not specified,
-   * the MemSQLSparkContext will determine where each partition's data is sent.
-   * Otherwise, all partitions will load into the node specified by MemSQLSparkContext.
-   *
-   * If MemSQLSparkContext is used to determine a partition's destination,
-   * and if the Spark executors are colocated with writable MemSQL nodes,
+   * If the Spark executors are colocated with writable MemSQL nodes,
    * then each Spark partition will insert into a randomly chosen colocated writable MemSQL node.
-   * If MemSQLSparkContext is used to determine a partitions's destination
-   * and the Spark executors are not colocated with writable MemSQL nodes,
+   *
+   * If the Spark executors are not colocated with writable MemSQL nodes,
    * Spark partitions will insert writable MemSQL nodes round robin.
    *
    * @param dbName the name of the database we're working in.
@@ -53,44 +42,28 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
   def saveToMemSQL(
     dbName: String,
     tableName: String,
-    dbHost: String = null,
-    dbPort: Int = -1,
-    user: String = null,
-    password: String = null,
+    dbHost: String,
+    dbPort: Int,
+    user: String,
+    password: String,
     onDuplicateKeySql: String = "",
     useInsertIgnore: Boolean = false,
     upsertBatchSize: Int = 10000,
     useKeylessShardedOptimization: Boolean = false): Long = {
-
-    var theUser = user
-    var thePassword = password
     var compression = "gzip"
-    var availableNodes: Array[(String,Int,String)] = Array((dbHost,dbPort,dbName))
-    if (dbHost == null || dbPort == -1 || user == null || password == null) {
-      rdd.sparkContext match {
-        case _: MemSQLSparkContext => {
-          val msc = rdd.sparkContext.asInstanceOf[MemSQLSparkContext]
-          theUser = msc.GetUserName
-          thePassword = msc.GetPassword
-          availableNodes = msc.GetMemSQLNodesAvailableForIngest.map(node => (node._1,node._2,dbName))
-        }
-        case _ => {
-          throw new SparkException("saveToMemSQL requires intializing Spark with MemSQLSparkContext or explicitly setting dbName, dbHost, user and password")
-        }
-      }
-    }
+    var availableNodes: List[(String, Int, String)] = List((dbHost, dbPort, dbName))
     if (useKeylessShardedOptimization) {
       var conn: Connection = null
       var stmt: Statement = null
       try {
         val randomIndex = Random.nextInt(availableNodes.size)
         val dbAddress = "jdbc:mysql://" + availableNodes(randomIndex)._1 + ":" + availableNodes(randomIndex)._2
-        conn = DriverManager.getConnection(dbAddress, theUser, thePassword)
+        conn = DriverManager.getConnection(dbAddress, user, password)
         stmt = conn.createStatement
         availableNodes = MemSQLRDD.resultSetToIterator(stmt.executeQuery("SHOW PARTITIONS FROM " + dbName))
                         .filter(_.getString("Role").equals("Master"))
                         .map(r => (r.getString("Host"), r.getInt("Port"), dbName + "_" + r.getString("Ordinal")))
-                        .toArray
+                        .toList
       } finally {
         if (stmt != null && !stmt.isClosed()) {
           stmt.close()
@@ -112,11 +85,11 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       var numRowsAffected = 0
       if (onDuplicateKeySql.isEmpty) {
         numRowsAffected = loadPartitionInMemSQL(
-          node.targetHost, node.targetPort, theUser, thePassword, node.targetDb, tableName,
+          node.targetHost, node.targetPort, user, password, node.targetDb, tableName,
           useInsertIgnore, part, compression=compression)
       } else { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
         numRowsAffected = insertPartitionInMemSQL(
-          node.targetHost, node.targetPort, theUser, thePassword, node.targetDb, tableName, onDuplicateKeySql,
+          node.targetHost, node.targetPort, user, password, node.targetDb, tableName, onDuplicateKeySql,
           upsertBatchSize, useInsertIgnore, part)
       }
       numRowsAccumulator += numRowsAffected
@@ -138,7 +111,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
    * From a list of possibilities, chooses a MemSQLTarget.
    * Must be called from an executor.
    */
-  private def chooseMemSQLTarget(availableNodes: Array[(String, Int, String)], randomIndex: Int) : MemSQLTarget = {
+  private def chooseMemSQLTarget(availableNodes: List[(String, Int, String)], randomIndex: Int) : MemSQLTarget = {
     val hostname = TaskContext.get.taskMetrics.hostname
     val id = TaskContext.get.partitionId
     var myAvailableNodes = availableNodes.filter(_._1.equals(hostname))
@@ -157,16 +130,15 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
 
   /*
    * A debugging utility.
-   * Returns an Array of MemSQLTarget structs, one for each Spark partition.
+   * Returns a List of MemSQLTarget structs, one for each Spark partition.
    * Represents one possibility for the Spark -> MemSQL mapping created by calling saveToMemSQL.
    */
-  def saveToMemSQLDryRun : Array[MemSQLTarget] = {
-    val msc = rdd.sparkContext.asInstanceOf[MemSQLSparkContext]
-    val availableNodes = msc.GetMemSQLNodesAvailableForIngest.map(node => (node._1,node._2,null: String))
+  def saveToMemSQLDryRun(memSQLMetaData: MemSQLMetaData) : List[MemSQLTarget] = {
+    val availableNodes = memSQLMetaData.getMemSQLNodesAvailableForIngest.map(node => (node.host, node.port, null: String))
     val randomIndex = Random.nextInt(availableNodes.size)
     rdd.mapPartitions{ part =>
-      Array(chooseMemSQLTarget(availableNodes, randomIndex)).toIterator
-    }.collect
+      List(chooseMemSQLTarget(availableNodes, randomIndex)).toIterator
+    }.collect.toList
   }
 
   private def insertPartitionInMemSQL(
@@ -192,7 +164,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       conn.setAutoCommit(false)
       val groupedPartitionContents = iter.grouped(upsertBatchSize)
       for (group <- groupedPartitionContents) {
-        val rowGroup = group.toArray
+        val rowGroup = group.toList
         if (rowGroup.isEmpty) {
           return 0
         }
