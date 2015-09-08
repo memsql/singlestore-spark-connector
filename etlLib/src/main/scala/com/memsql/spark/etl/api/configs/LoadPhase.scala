@@ -49,7 +49,8 @@ case class MemSQLLoadConfig(
   db_name: String,
   table_name: String,
   table_config: Option[MemSQLTableConfig],
-  options: Option[LoadConfigOptions]
+  options: Option[LoadConfigOptions],
+  dry_run: Boolean = false
 ) extends PhaseConfig {
   def getDefaultOptions: LoadConfigOptions = {
     val keyType = table_config match {
@@ -83,7 +84,7 @@ object LoadPhaseImplicits extends JsonEnumProtocol {
 import LoadPhaseImplicits._
 
 object LoadPhase extends DefaultJsonProtocol {
-  val memSQLConfigFormat = jsonFormat4(MemSQLLoadConfig)
+  val memSQLConfigFormat = jsonFormat5(MemSQLLoadConfig)
 
   def readConfig(kind: LoadPhaseKind, config: JsValue): PhaseConfig = {
     kind match {

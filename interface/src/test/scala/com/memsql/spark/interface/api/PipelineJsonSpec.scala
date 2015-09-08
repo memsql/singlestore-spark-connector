@@ -116,6 +116,7 @@ class PipelineJsonSpec extends UnitSpec {
     val loadUserConfigMap = loadConfigMap("config").asInstanceOf[Map[String, Any]]
     assert(loadUserConfigMap("db_name") == "db")
     assert(loadUserConfigMap("table_name") == "table")
+    assert(loadUserConfigMap("dry_run") == false)
 
     config=config.copy(extract = Phase[ExtractPhaseKind](
       ExtractPhaseKind.TestLines,
@@ -161,7 +162,8 @@ class PipelineJsonSpec extends UnitSpec {
               "kind": "MemSQL",
               "config": {
                   "db_name": "db",
-                  "table_name": "table"
+                  "table_name": "table",
+                  "dry_run": true
               }
           },
           "config_version": 42
@@ -197,6 +199,7 @@ class PipelineJsonSpec extends UnitSpec {
     val memsqlLoadConfig = LoadPhase.readConfig(pipeline.config.load.kind, pipeline.config.load.config).asInstanceOf[MemSQLLoadConfig]
     assert(memsqlLoadConfig.db_name == "db")
     assert(memsqlLoadConfig.table_name == "table")
+    assert(memsqlLoadConfig.dry_run)
 
     config_json = """{
           "extract": {
@@ -216,7 +219,8 @@ class PipelineJsonSpec extends UnitSpec {
               "kind": "MemSQL",
               "config": {
                   "db_name": "db",
-                  "table_name": "table"
+                  "table_name": "table",
+                  "dry_run": false
               }
           },
           "config_version": 42

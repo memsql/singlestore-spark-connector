@@ -21,10 +21,15 @@ class MemSQLLoader extends Loader {
                                      ifNotExists = true)
       hasInserted = true
     }
-    df.saveToMemSQL(memSQLLoadConfig.db_name,
-                    memSQLLoadConfig.table_name,
-                    onDuplicateKeySql = options.on_duplicate_key_sql.getOrElse(""),
-                    upsertBatchSize = options.upsert_batch_size.getOrElse(DefaultUpsertBatchSize),
-                    useKeylessShardedOptimization = options.use_keyless_sharding_optimization.getOrElse(false))
+
+    if (memSQLLoadConfig.dry_run) {
+      df.rdd.map(x => 0).reduce(_+_)
+    } else {
+      df.saveToMemSQL(memSQLLoadConfig.db_name,
+        memSQLLoadConfig.table_name,
+        onDuplicateKeySql = options.on_duplicate_key_sql.getOrElse(""),
+        upsertBatchSize = options.upsert_batch_size.getOrElse(DefaultUpsertBatchSize),
+        useKeylessShardedOptimization = options.use_keyless_sharding_optimization.getOrElse(false))
+    }
   }
 }
