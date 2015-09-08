@@ -1,6 +1,6 @@
 lazy val commonSettings = Seq(
   organization := "com.memsql",
-  version := "0.1.7",
+  version := "0.1.8",
   scalaVersion := "2.10.5",
   publishTo := Some(Resolver.file("file",  new File(Path.userHome.absolutePath+"/.m2/repository")))
 )
