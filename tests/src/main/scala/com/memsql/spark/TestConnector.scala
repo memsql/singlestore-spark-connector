@@ -462,8 +462,8 @@ object TestCreateWithKeys
         df.createMemSQLTableFromSchema("db","t6", keys=Array(PrimaryKey("a","b"), Key("b")))
         df.createMemSQLTableFromSchema("db","t7", keys=Array(Shard("a"), KeyUsingClusteredColumnStore("b")))
 
-        df.createMemSQLTableFromSchema("db","t7",
-          extraCols=Array(MemSQLExtraColumn("carl", "datetime", false, defaultValue="NOW()")),
+        df.createMemSQLTableFromSchema("db","t8",
+          extraCols=Array(MemSQLExtraColumn("carl", "datetime", false)),
           keys=Array(Shard(), KeyUsingClusteredColumnStore("carl"))
         )
 
@@ -494,6 +494,9 @@ object TestCreateWithKeys
         assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='SHARD'")).toArray.size==1)
         assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='CLUSTERED COLUMN'")).toArray.size==1)
 
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8'")).toArray.size==1)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8' and index_type='SHARD'")).toArray.size==0)
+        assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8' and index_type='CLUSTERED COLUMN'")).toArray.size==1)
     }
 }
 

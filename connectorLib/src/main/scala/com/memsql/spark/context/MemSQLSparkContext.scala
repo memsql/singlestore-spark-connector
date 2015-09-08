@@ -51,7 +51,7 @@ class MemSQLSparkContext(conf: SparkConf,
                     newAggs = newAggs :+ (agg.getString("Host"), agg.getInt("Port"))
                     if (masterAggHost == "127.0.0.1" && agg.getString("Host") != "127.0.0.1")
                     {
-                        throw new SparkException("Please create MemSQLSparkContext with masterAggHost set to a cluster-visible IP (not 127.0.0.1)")
+                        logWarning("Please create MemSQLSparkContext with masterAggHost set to a cluster-visible IP (not 127.0.0.1)")
                     }
                 }
             }
@@ -62,7 +62,7 @@ class MemSQLSparkContext(conf: SparkConf,
                     newLeaves = newLeaves :+ (leaf.getString("Host"), leaf.getInt("Port"))
                     if (masterAggHost == "127.0.0.1" && leaf.getString("Host") != "127.0.0.1")
                     {
-                        throw new SparkException("Please create MemSQLSparkContext with masterAggHost set to a cluster-visible IP (not 127.0.0.1)")
+                        logWarning("Please create MemSQLSparkContext with masterAggHost set to a cluster-visible IP (not 127.0.0.1)")
                     }
                 }
             }            

@@ -57,7 +57,7 @@ RUN sudo wget -q -O /storage/testroot/memsql-spark/memsql-spark.tar.gz \
     http://download.memsql.com/memsql-spark-1.4.1-distribution-0.1.8/memsql-spark-1.4.1-distribution-0.1.8.tar.gz && \
     sudo tar zxvf /storage/testroot/memsql-spark/memsql-spark.tar.gz -C /storage/testroot/memsql-spark && \
     sudo rm /storage/testroot/memsql-spark/memsql-spark.tar.gz
-ADD tests/target/scala-2.10/tests-assembly-0.1.8.jar /storage/testroot/memsql-spark/interface/interface.jar
+ADD tests/target/scala-2.10/tests-assembly-0.1.8.jar /storage/testroot/memsql-spark/interface/memsql_spark_interface.jar
 
 # prepare java for tests
 RUN sudo ln -sf /var/lib/memsql-ops/data/spark/install/jdk/bin/java /usr/bin/java

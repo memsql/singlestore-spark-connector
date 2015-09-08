@@ -13,7 +13,7 @@ REAL_ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(_
 ROOT_PATH = '/storage/testroot'
 MEMSQL_OPS_ROOT = "/var/lib/memsql-ops"
 SPARK_ROOT = os.path.join(MEMSQL_OPS_ROOT, "data/spark/install")
-MEMSQL_JAR_PATH = os.path.join(ROOT_PATH, "memsql-spark/interface/interface.jar")
+MEMSQL_JAR_PATH = os.path.join(ROOT_PATH, "memsql-spark/interface/memsql_spark_interface.jar")
 
 def is_psyduck():
     return "SWITCHMAN_IP" in os.environ or pytest.config.getoption("is_psyduck", default=False)

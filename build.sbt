@@ -96,9 +96,26 @@ lazy val interface = (project in file("interface")).
     }
   )
 
+lazy val examples = (project in file("examples")).
+  dependsOn(interface).
+  settings(commonSettings: _*).
+  settings(
+    name := "examples",
+    libraryDependencies ++= {
+      Seq(
+        "mysql" % "mysql-connector-java" % "5.1.34",
+        "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
+        "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
+        "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided"
+      )
+    }
+  )
+
 lazy val tests = (project in file("tests")).
   dependsOn(connectorLib).
+  dependsOn(etlLib).
   dependsOn(interface).
+  dependsOn(examples).
   settings(commonSettings: _*).
   settings(
     name := "tests",
@@ -112,7 +129,6 @@ lazy val tests = (project in file("tests")).
       )
     }
   )
-
 
 lazy val root = (project in file(".")).
   dependsOn(connectorLib).
