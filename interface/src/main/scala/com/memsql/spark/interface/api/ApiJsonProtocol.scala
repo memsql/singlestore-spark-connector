@@ -18,7 +18,16 @@ object ApiJsonProtocol extends JsonEnumProtocol {
   implicit val pipelineMetricRecordFormat = jsonFormat9(PipelineMetricRecord)
 
   implicit val pipelineStateFormat = jsonEnum(PipelineState)
-  // We explicitly specify the fields we want in pipelines because we don't
-  // want to include metric records.
-  implicit val pipelineFormat = jsonFormat(Pipeline.apply, "pipeline_id", "state", "batch_interval", "config", "last_updated", "error")
+
+  val basePipelineFormat = jsonFormat(Pipeline.apply, "pipeline_id", "state", "batch_interval", "config", "last_updated", "error")
+
+  implicit object pipelineFormat extends RootJsonFormat[Pipeline] {
+    def write(p: Pipeline) =
+      JsObject(
+        basePipelineFormat.write(p).asJsObject.fields + ("trace_batch_count" -> p.traceBatchCount.toJson)
+      )
+
+    // Note: This method doesn't support reading in traceBatchCount
+    def read(value: JsValue) = basePipelineFormat.read(value)
+  }
 }
