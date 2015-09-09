@@ -31,6 +31,10 @@ build: clean
 build-test: clean
 	sbt "project tests" assembly
 
+.PHONY: build-sample
+build-sample:
+	cd dockertest/sample_jar; sbt assembly
+
 .PHONY: docs
 docs: clean
 	sbt unidoc
@@ -45,7 +49,7 @@ package: docs build
 	tar cvzf memsql-$(VERSION).tar.gz memsql-$(VERSION)/
 
 .PHONY: psytest
-psytest: build-test
+psytest: build-test build-sample
 	psy dockertest dockertest/.psyduck
 
 .PHONY: publish-local

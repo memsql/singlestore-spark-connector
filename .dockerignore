@@ -5,3 +5,5 @@ test_root
 distribution
 target/streams
 target/resolution-cache
+dockertest/sample_pipelines/target/resolution-cache
+dockertest/sample_pipelines/target/streams

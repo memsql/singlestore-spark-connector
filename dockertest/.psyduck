@@ -9,4 +9,5 @@
  -s dockertest/spark_submit_test.py::test_save_errors --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_save_rdd_errors --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_save_json_column --psyduck-time-limit=16
- -s dockertest/jar_inspector_test.py::test_jar_inspector --psyduck-time-limit=16
+ -s dockertest/jar_inspector_test.py::test_jar_inspector_sanity --psyduck-time-limit=16
+ -s dockertest/jar_inspector_test.py::test_jar_inspector_external_jar --psyduck-time-limit=16
