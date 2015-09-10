@@ -114,12 +114,20 @@ object TestUtils {
       dbName,
       "SELECT * FROM " + tableName)
   }
-  def CollectAndSort(df: DataFrame): Seq[Row] = {
-    df.collect.sorted(RowOrdering.forSchema(df.schema.map(_.dataType)))
+  def CollectAndSort(df: DataFrame, asString: Boolean = false): Seq[Row] = {
+    val rdd = if (asString) {
+      df.rdd.map((r: Row) => 
+        Row.fromSeq(r.toSeq.map(_.toString))) 
+    } else {
+      df.rdd 
+    }
+    rdd.collect.sorted(RowOrdering.forSchema(
+      df.schema.map((sf:StructField) => 
+        if (asString) { StringType } else sf.dataType)))
   }
-  def EqualDFs(df1: DataFrame, df2: DataFrame): Boolean = {
-    val df1_sorted = CollectAndSort(df1)
-    val df2_sorted = CollectAndSort(df2)
+  def EqualDFs(df1: DataFrame, df2: DataFrame, asString: Boolean = false): Boolean = {
+    val df1_sorted = CollectAndSort(df1, asString)
+    val df2_sorted = CollectAndSort(df2, asString)
     if (df1_sorted.size != df2_sorted.size) {
       println("len df1 = " + df1_sorted.size + ", len df2 = " + df2_sorted.size)
       return false
@@ -171,20 +179,43 @@ object Types {
     ("timestamp",Array("1990-08-23 01:01:04.0","1990-08-23 01:01:05.0","1990-08-23 01:01:06.0")),
     ("date",Array("1990-08-23","1990-09-23","1990-10-23")))
   def ToCol(tp: String): String = "val_" + tp.replace("(","_").replace(")","").replace(",","_")
-  val SparkSQLTypes: Array[DataType] = Array(
-    IntegerType,
-    LongType,
-    DoubleType,
-    FloatType,
-    ShortType,
-    ByteType,
-    BooleanType,
-    StringType,
-    BinaryType,
-    TimestampType,
-    DateType)
+  val SparkSQLTypes: Array[(DataType,Array[Any])] = Array(
+    (IntegerType,Array(1,2,3)),
+    (LongType,Array(4,5,6)),    
+    (DoubleType,Array(7.8,9.1,1.2)),
+    (FloatType,Array(2.8,3.1,4.2)),
+    (ShortType,Array(7,8,9)),
+    (ByteType,Array(10,11,12)),
+    (BooleanType,Array(1,0,0)),
+    (StringType,Array("hi","there","buddy")),
+    (BinaryType,Array("how","are","you")),
+    (TimestampType,Array("1990-08-23 01:01:04.0","1990-08-23 01:01:05.0","1990-08-23 01:01:06.0")),
+    (DateType,Array("1990-08-23","1990-09-23","1990-10-23")))
 }
 
+object TestSparkSQLTypes {
+  def main(args: Array[String]) = {
+    val conn = TestUtils.connectToMA
+    val conf = new SparkConf().setAppName("TestSparkSQLTypes")
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
+    TestUtils.doDDL(conn, "DROP DATABASE IF EXISTS x_db")
+    TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
+    
+    // Types.SparkSQLTypes (above) is an Array[(DataType,Array[Any])] where each element is a tuple (type, three possible values for that type)
+    // We transpose this data into a dataframe, where each column has the name val_<typename>.
+    //
+    val schema = StructType(Types.SparkSQLTypes.map(r => 
+      StructField("val_" + r._1.toString, r._1, true)))
+    val rows = (0 until 3).map(i => 
+      Row.fromSeq(Types.SparkSQLTypes.map(_._2(i)).toSeq))
+    val df = sqlContext.createDataFrame(sc.parallelize(rows), schema)
+      
+    df.createMemSQLTableAs("x_db","t")
+    val df2 = sqlContext.createDataFrameFromMemSQLTable("x_db","t")
+    assert(TestUtils.EqualDFs(df, df2, asString=true))
+  }
+}
 
 object TestMemSQLDataFrameVeryBasic {
   def main(args: Array[String]) {

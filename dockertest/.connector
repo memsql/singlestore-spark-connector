@@ -6,3 +6,4 @@
  -s dockertest/spark_submit_test.py::test_memsql_context --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_leaked_conns --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_save_errors --psyduck-time-limit=16
+ -s dockertest/spark_submit_test.py::test_sparksql_types --psyduck-time-limit=16

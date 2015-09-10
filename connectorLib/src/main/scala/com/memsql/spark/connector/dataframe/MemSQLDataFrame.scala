@@ -20,8 +20,8 @@ object MemSQLDataFrameUtils {
     dataType match {
       case ShortType => "TINYINT"
       case LongType => "BIGINT"
-      case ByteType => "BYTE"
-      case BooleanType => "BIT"
+      case ByteType => "TINYINT"
+      case BooleanType => "BOOLEAN"
       case StringType => "TEXT"
       case BinaryType => "BLOB"
       case DecimalType.Unlimited => "DOUBLE"
