@@ -1,7 +1,7 @@
 package com.memsql.spark.interface
 
-import java.text.SimpleDateFormat
 import java.io.File
+import java.sql.Timestamp
 
 import akka.pattern.ask
 import akka.actor.Props
@@ -124,11 +124,10 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
             StructField("val_datetime", TimestampType, false),
             StructField("val_bool", BooleanType, false)
           ))
-          val dateFormat = new SimpleDateFormat()
           val rows = Array(
-            Row(1, "test 1", dateFormat.format(111111111111L), true),
-            Row(2, "test 2", dateFormat.format(222222222222L), true),
-            Row(3, null, dateFormat.format(333333333333L), false)
+            Row(1, "test 1", Timestamp.valueOf("1973-07-09 17:11:51.111"), true),
+            Row(2, "test 2", Timestamp.valueOf("1977-01-15 16:23:42.222"), true),
+            Row(3, null,     Timestamp.valueOf("1980-07-24 17:35:33.333"), false)
           )
           val df = sqlContext.createDataFrame(sc.parallelize(rows), schema)
 
@@ -138,17 +137,17 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
           val record1 = records.get(0)
           assert(record1(0) == "1")
           assert(record1(1) == "test 1")
-          assert(record1(2) == dateFormat.format(111111111111L).toString)
+          assert(record1(2) == "1973-07-09 17:11:51.111")
           assert(record1(3) == "true")
           val record2 = records.get(1)
           assert(record2(0) == "2")
           assert(record2(1) == "test 2")
-          assert(record2(2) == dateFormat.format(222222222222L).toString)
+          assert(record2(2) == "1977-01-15 16:23:42.222")
           assert(record2(3) == "true")
           val record3 = records.get(2)
           assert(record3(0) == "3")
           assert(record3(1) == "null")
-          assert(record3(2) == dateFormat.format(333333333333L).toString)
+          assert(record3(2) == "1980-07-24 17:35:33.333")
           assert(record3(3) == "false")
         }
         case Failure(error) => fail(s"Expected pipeline pipeline2 to exist: $error")
