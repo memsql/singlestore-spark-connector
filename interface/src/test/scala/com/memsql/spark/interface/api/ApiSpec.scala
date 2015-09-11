@@ -293,6 +293,33 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.config == newConfig)
         case Failure(err) => fail(s"unexpected response $err")
       }
+
+      // Updating just the trace batch count should not change last_updated
+      // but it should still return true
+      mockTime.tick
+      apiRef ! PipelineUpdate("pipeline1", trace_batch_count=Some(10))
+      expectMsg(Success(true))
+      apiRef ! PipelineGet("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val pipeline = resp.get.asInstanceOf[Pipeline]
+          assert(pipeline.last_updated == 8)
+          assert(pipeline.traceBatchCount == 10)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      // No-op updates to trace batch count should behave the same as other no-op updates
+      mockTime.tick
+      apiRef ! PipelineUpdate("pipeline1", trace_batch_count=Some(10))
+      expectMsg(Success(false))
+      apiRef ! PipelineGet("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val pipeline = resp.get.asInstanceOf[Pipeline]
+          assert(pipeline.last_updated == 8)
+          assert(pipeline.traceBatchCount == 10)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
     }
 
     "return metrics when available" in {

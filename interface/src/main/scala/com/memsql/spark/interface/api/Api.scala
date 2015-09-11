@@ -109,9 +109,9 @@ trait ApiService {
               updated |= newError != pipeline.error
             }
 
+            // NOTE: we don't update the pipeline if only the trace_batch_count is changed
             if (trace_batch_count.isDefined) {
               newTraceBatchCount = trace_batch_count.get
-              updated |= newTraceBatchCount != pipeline.traceBatchCount
             }
 
             // update all fields in the pipeline and respond with success
@@ -121,8 +121,14 @@ trait ApiService {
               newPipeline.traceBatchCount = newTraceBatchCount
               newPipeline.metricsQueue = pipeline.metricsQueue
               pipelines = pipelines + (pipeline_id -> newPipeline)
+              sender ! Success(true)
+            } else if (newTraceBatchCount != pipeline.traceBatchCount) {
+              // in the case where only the batch count has changed, update it in place
+              pipeline.traceBatchCount = newTraceBatchCount
+              sender ! Success(true)
+            } else {
+              sender ! Success(false)
             }
-            sender ! Success(updated)
           } catch {
             case e: ApiException => sender ! Failure(e)
             case NonFatal(e) => sender ! Failure(ApiException(s"unexpected exception: $e"))

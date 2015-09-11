@@ -50,6 +50,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     override def lastUpdated = pipeline.last_updated
     override def hasError: Boolean = error != null
     override var error: Throwable = null
+    override def traceBatchCount(): Int = pipeline.traceBatchCount
 
     var running = false
 
@@ -311,6 +312,22 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       assert(newPipelineMonitor == oldPipelineMonitor)
       assert(newPipelineMonitor.isAlive)
       assert(newPipelineMonitor.config == newConfig)
+      assert(newPipelineMonitor.traceBatchCount == 0)
+
+      // updating the trace_batch_count should not restart the pipeline monitor
+      apiRef ! PipelineUpdate("pipeline3", trace_batch_count = Some(10))
+      receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
+        case Success(resp) => assert(resp)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+      pipeline = getPipeline("pipeline3")
+      sparkInterface.update
+
+      oldPipelineMonitor = newPipelineMonitor
+      newPipelineMonitor = sparkInterface.pipelineMonitors.get("pipeline3").get
+      assert(newPipelineMonitor == oldPipelineMonitor)
+      assert(newPipelineMonitor.isAlive)
+      assert(newPipelineMonitor.traceBatchCount == 10)
     }
   }
 }

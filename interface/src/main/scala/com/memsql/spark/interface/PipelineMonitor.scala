@@ -41,6 +41,7 @@ trait PipelineMonitor {
   def batchInterval: Long
   def lastUpdated: Long
   def config: PipelineConfig
+  def traceBatchCount: Int
   def pipelineInstance: PipelineInstance
   def sparkContext: SparkContext
   def streamingContext: StreamingContext
@@ -66,6 +67,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   override val config = pipeline.config
   override val lastUpdated = pipeline.last_updated
   override var error: Throwable = null
+  override def traceBatchCount(): Int = pipeline.traceBatchCount
 
   val TRACED_RECORDS_PER_BATCH = 10
 
