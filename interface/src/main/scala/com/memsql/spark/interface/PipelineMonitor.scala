@@ -25,7 +25,7 @@ import org.apache.spark.ui.jobs.JobProgressListener
 import scala.collection.mutable.HashSet
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.control.NonFatal
+import scala.util.control.{ControlThrowable, NonFatal}
 import scala.util.{Failure, Success, Try}
 
 class PipelineMonitorException(message:String) extends BaseException(message)
@@ -285,7 +285,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         Thread.sleep(sleepTimeMillis)
       }
     } catch {
-      case NonFatal(e) => {
+      case e: ControlThrowable => throw e
+      case e: Throwable => {
         logError(s"Exception in pipeline $pipeline_id", e)
         error = e
       }
