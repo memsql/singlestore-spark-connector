@@ -14,6 +14,7 @@ class JsonType private() extends UserDefinedType[JsonValue] {
   override def serialize(obj: Any): String = {
     obj match {
       case x: JsonValue => x.value
+      case x: String    => x
     }
   }
 
