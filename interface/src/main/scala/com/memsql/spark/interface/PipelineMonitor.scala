@@ -14,8 +14,7 @@ import com.memsql.spark.interface.api.PipelineBatchType
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface.util.ErrorUtils._
 import ApiActor._
-import com.memsql.spark.interface.util.{BaseException, ArrayLogAppender}
-import org.apache.log4j.{Logger, Level}
+import com.memsql.spark.interface.util.{PipelineLogger, BaseException}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext}
@@ -120,7 +119,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     var inputDStream: InputDStream[Array[Byte]] = null
 
     try {
-      val (extractLogger, extractAppender) = getPhaseLogger("extract")
+      val extractLogger = getPhaseLogger("extract")
       logDebug(s"Initializing extractor for pipeline $pipeline_id")
       inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig, batchIntervalMillis, extractLogger)
       logDebug(s"Starting InputDStream for pipeline $pipeline_id")
@@ -158,11 +157,11 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           val maybeRdd = inputDStream.compute(Time(time))
           var logs: Option[List[String]] = None
           if (trace) {
-            logs = Some(extractAppender.getLogEntries)
+            logs = Some(extractLogger.getLogEntries)
           }
-          // We clear the extract appender's log entries because we use one
-          // appender for all batches, unlike the transform and load appenders.
-          extractAppender.clearLogEntries
+          // We clear the extractLogger entries because we use one
+          // logger for all batches, unlike the transform and load loggers.
+          extractLogger.clearLogEntries
           maybeRdd match {
             case null => throw new PipelineMonitorException(s"Extractor for pipeline $pipeline_id emitted null instead of None or Some(RDD)")
             case Some(null) => throw new PipelineMonitorException(s"Extractor for pipeline $pipeline_id emitted Some(null) instead of None or Some(RDD)")
@@ -189,21 +188,17 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
         var tracedDf: DataFrame = null
         var df: DataFrame = null
-        // We use two loggers and appenders in the transform phase because
-        // we want to only get logs from the ArrayLogAppenders for traced
-        // records, but we still need to pass in a logger object to both
-        // transform() calls.
-        val (transformLogger, transformAppender) = getPhaseLogger("transform")
-        var tracedTransformLogger: Logger = null
-        var tracedTransformAppender: ArrayLogAppender = null
+        // We use two loggers in the transform phase because we want to
+        // only get logs for the traced records, but we still need to pass
+        // in a logger object to both transform() calls.
+        val transformLogger = getPhaseLogger("transform")
+        var tracedTransformLogger: PipelineLogger = null
         var tracedCount: Long = 0
         if (extractedRdd != null) {
           transformRecord = runPhase(() => {
             logDebug(s"Transforming RDD for pipeline $pipeline_id")
             if (tracedRdd != null) {
-              val loggerAndAppender = getPhaseLogger("transform")
-              tracedTransformLogger = loggerAndAppender._1
-              tracedTransformAppender = loggerAndAppender._2
+              tracedTransformLogger = getPhaseLogger("transform")
               tracedDf = pipelineInstance.transformer.transform(
                 sqlContext, tracedRdd, pipelineInstance.transformConfig,
                 tracedTransformLogger)
@@ -228,8 +223,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
                 columns = columnsAndRecords._1
                 records = columnsAndRecords._2
               }
-              if (tracedTransformAppender != null) {
-                logs = Some(tracedTransformAppender.getLogEntries)
+              if (tracedTransformLogger != null) {
+                logs = Some(tracedTransformLogger.getLogEntries)
               }
               PhaseResult(count = count, columns = columns, records = records, logs = logs)
             } else {
@@ -238,7 +233,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           })
         }
 
-        val (loadLogger, loadAppender) = getPhaseLogger("load")
+        val loadLogger = getPhaseLogger("load")
         if (df != null) {
           if (tracedDf != null) {
             df = df.unionAll(tracedDf)
@@ -250,7 +245,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
             var logs: Option[List[String]] = None
             if (trace) {
               columns = getLoadColumns()
-              logs = Some(loadAppender.getLogEntries)
+              logs = Some(loadLogger.getLogEntries)
             }
             PhaseResult(count = count, columns = columns, logs = logs)
           })
@@ -328,12 +323,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     ))
   }
 
-  private[interface] def getPhaseLogger(phaseName: String): (Logger, ArrayLogAppender) = {
-    val logger = Logger.getLogger(s"Pipeline $pipeline_id $phaseName")
-    logger.setLevel(Level.DEBUG)
-    val appender = new ArrayLogAppender()
-    logger.addAppender(appender)
-    (logger, appender)
+  private[interface] def getPhaseLogger(phaseName: String): PipelineLogger = {
+    new PipelineLogger(s"Pipeline $pipeline_id $phaseName")
   }
 
   private[interface] def getExtractRecords(rdd: RDD[Array[Byte]]): (Option[List[(String, String)]], Option[List[List[String]]]) = {
@@ -370,7 +361,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
             case null => "null"
             case default => default.toString
           }
-        }).toList
+        })
       } catch {
         case e: Exception => List(s"Could not get string representation of row: $e")
       }

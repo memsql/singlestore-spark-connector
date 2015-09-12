@@ -1,15 +1,14 @@
 package com.memsql.spark.etl.api
 
-import org.apache.log4j.Logger
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.{Time, StreamingContext}
 import com.memsql.spark.etl.api.configs.{UserExtractConfig, PhaseConfig}
-import com.memsql.spark.etl.utils.ByteUtils
+import com.memsql.spark.etl.utils.{PhaseLogger, ByteUtils}
 
 abstract class Extractor[S] extends Serializable {
-  def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchInterval: Long, logger: Logger): InputDStream[S]
+  def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchInterval: Long, logger: PhaseLogger): InputDStream[S]
 }
 
 abstract class ByteArrayExtractor extends Extractor[Array[Byte]] {
@@ -17,7 +16,7 @@ abstract class ByteArrayExtractor extends Extractor[Array[Byte]] {
 }
 
 abstract class SimpleByteArrayExtractor extends ByteArrayExtractor {
-  final def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchInterval: Long, logger: Logger): InputDStream[Array[Byte]] = {
+  final def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchInterval: Long, logger: PhaseLogger): InputDStream[Array[Byte]] = {
     val userConfig = extractConfig.asInstanceOf[UserExtractConfig]
 
     new InputDStream[Array[Byte]](ssc) {
@@ -29,9 +28,9 @@ abstract class SimpleByteArrayExtractor extends ByteArrayExtractor {
     }
   }
 
-  def initialize(sparkContext: SparkContext, config: UserExtractConfig, batchInterval: Long, logger: Logger): Unit = {}
+  def initialize(sparkContext: SparkContext, config: UserExtractConfig, batchInterval: Long, logger: PhaseLogger): Unit = {}
 
-  def cleanup(sparkContext: SparkContext, config: UserExtractConfig, batchInterval: Long, logger: Logger): Unit = {}
+  def cleanup(sparkContext: SparkContext, config: UserExtractConfig, batchInterval: Long, logger: PhaseLogger): Unit = {}
 
-  def nextRDD(sparkContext: SparkContext, config: UserExtractConfig, batchInterval: Long, logger: Logger): Option[RDD[Array[Byte]]]
+  def nextRDD(sparkContext: SparkContext, config: UserExtractConfig, batchInterval: Long, logger: PhaseLogger): Option[RDD[Array[Byte]]]
 }
