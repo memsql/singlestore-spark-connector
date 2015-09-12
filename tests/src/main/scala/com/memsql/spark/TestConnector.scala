@@ -15,7 +15,7 @@ import com.memsql.spark.connector.rdd._
 object MemSQLTestSetup {
   def SetupBasic() {
     val host = TestUtils.GetHostname
-    val port = 10000
+    val port = 3306
     val user = "root"
     val password = ""
     val dbName = "x_db"
@@ -53,7 +53,7 @@ object MemSQLTestSetup {
 
   def SetupAllMemSQLTypes(sqlContext: SQLContext, nullable: Boolean): DataFrame = {
     val host = TestUtils.GetHostname
-    val port = 10000
+    val port = 3306
     val user = "root"
     val password = ""
     val dbName = "alltypes_db"
@@ -93,7 +93,7 @@ object TestUtils {
   }
   def DropAndCreate(dbName: String) {
     val host = TestUtils.GetHostname
-    val port = 10000
+    val port = 3306
     val user = "root"
     val password = ""
     val dbAddress = "jdbc:mysql://" + host + ":" + port
@@ -108,7 +108,7 @@ object TestUtils {
     MemSQLDataFrame.MakeMemSQLDF(
       sqlContext,
       TestUtils.GetHostname,
-      10000,
+      3306,
       "root",
       "",
       dbName,
@@ -121,8 +121,9 @@ object TestUtils {
     } else {
       df.rdd 
     }
+
     rdd.collect.sorted(RowOrdering.forSchema(
-      df.schema.map((sf:StructField) => 
+      df.schema.map((sf:StructField) =>
         if (asString) { StringType } else sf.dataType)))
   }
   def EqualDFs(df1: DataFrame, df2: DataFrame, asString: Boolean = false): Boolean = {
@@ -152,7 +153,7 @@ object TestUtils {
   }
 
   def connectToMA: Connection = {
-    val dbAddress = s"jdbc:mysql://${TestUtils.GetHostname}:10000"
+    val dbAddress = s"jdbc:mysql://${TestUtils.GetHostname}:3306"
     DriverManager.getConnection(dbAddress, "root", "")
   }
   def doDDL(conn: Connection, q: String) {
@@ -198,7 +199,7 @@ object TestSparkSQLTypes {
     val conn = TestUtils.connectToMA
     val conf = new SparkConf().setAppName("TestSparkSQLTypes")
     val sc = new SparkContext(conf)
-    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
     TestUtils.doDDL(conn, "DROP DATABASE IF EXISTS x_db")
     TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
     
@@ -224,7 +225,7 @@ object TestMemSQLDataFrameVeryBasic {
     val sqlContext = new SQLContext(sc)
 
     val host = TestUtils.GetHostname
-    val port = 10000
+    val port = 3306
     val user = "root"
     val password = ""
     val dbName = "x_db"
@@ -310,7 +311,7 @@ object TestSaveToMemSQLVeryBasic {
     val sqlContext = new SQLContext(sc)
 
     val host = TestUtils.GetHostname
-    val port = 10000
+    val port = 3306
     val user = "root"
     val password = ""
     val dbName = "x_testsave"
@@ -363,7 +364,7 @@ object TestMemSQLTypes {
     val sqlContext = new SQLContext(sc)
 
     val host = TestUtils.GetHostname
-    val port = 10000
+    val port = 3306
     val user = "root"
     val password = ""
     val dbName = "alltypes_db"
@@ -457,7 +458,7 @@ object TestCreateWithKeys {
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")
     val sc = new SparkContext(conf)
-    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
     TestUtils.DropAndCreate("db")
 
     val rdd = sc.parallelize(Array[Row]())
@@ -515,16 +516,16 @@ object TestMemSQLContextVeryBasic {
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")
     val sc = new SparkContext(conf)
-    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
     TestUtils.DropAndCreate("db")
 
     assert(sqlContext.getMemSQLNodesAvailableForIngest.size == 2)
-    assert(sqlContext.getMemSQLNodesAvailableForIngest(0).port == 10003)
-    assert(sqlContext.getMemSQLNodesAvailableForIngest(1).port == 10004)
+    assert(sqlContext.getMemSQLNodesAvailableForIngest(0).port == 3309)
+    assert(sqlContext.getMemSQLNodesAvailableForIngest(1).port == 3310)
 
     assert(sqlContext.getMemSQLLeaves.size == 2)
-    assert(sqlContext.getMemSQLLeaves(0).port == 10001)
-    assert(sqlContext.getMemSQLLeaves(1).port == 10002)
+    assert(sqlContext.getMemSQLLeaves(0).port == 3307)
+    assert(sqlContext.getMemSQLLeaves(1).port == 3308)
 
     val rdd = sc.parallelize(
       Array(Row(1,"pieguy"),
@@ -539,16 +540,16 @@ object TestMemSQLContextVeryBasic {
 
     val memdf =  df.createMemSQLTableAs("db","t")
     assert(TestUtils.EqualDFs(df, memdf))
-    val memdf2 = df.createMemSQLTableAs("db","t2",TestUtils.GetHostname,10000,"root","")
+    val memdf2 = df.createMemSQLTableAs("db","t2",TestUtils.GetHostname,3306,"root","")
     assert(TestUtils.EqualDFs(df, memdf2))
 
     // lets make sure colocation works.
     val targets = df.rdd.saveToMemSQLDryRun(sqlContext)
-    assert (targets.exists(_.targetPort == 10003))
-    assert (targets.exists(_.targetPort == 10004))
+    assert (targets.exists(_.targetPort == 3309))
+    assert (targets.exists(_.targetPort == 3310))
     for (t <- targets) {
       assert (t.isColocated)
-      assert (t.targetPort == 10004 || t.targetPort == 10003)
+      assert (t.targetPort == 3309 || t.targetPort == 3310)
     }
   }
 }
@@ -558,7 +559,7 @@ object TestSaveToMemSQLErrors {
     val conn = TestUtils.connectToMA
     val conf = new SparkConf().setAppName("TestSaveToMemSQLErrors")
     val sc = new SparkContext(conf)
-    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
     TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
 
     val rdd = sc.parallelize(
@@ -609,7 +610,7 @@ object TestSaveToMemSQLWithRDDErrors {
     val sqlContext = new SQLContext(sc)
 
     val host = TestUtils.GetHostname
-    val port = 10000
+    val port = 3306
     val user = "root"
     val password = ""
     val dbName = "x_testsave"
@@ -646,7 +647,7 @@ object TestSaveToMemSQLJSONColumn {
     val sqlContext = new SQLContext(sc)
 
     val host = TestUtils.GetHostname
-    val port = 10000
+    val port = 3306
     val user = "root"
     val password = ""
     val dbName = "x_testsave"
@@ -688,7 +689,7 @@ object TestLeakedConns {
     println ("base number connections = " + baseConns)
     val conf = new SparkConf().setAppName("TestSaveToMemLeakedConns")
     val sc = new SparkContext(conf)
-    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
     assert (baseConns == numConns(conn)) // creating the MemSQLContext shouldn't leak a connection
 
     TestUtils.doDDL(conn, "CREATE TABLE x_db.t(a bigint primary key, b bigint)")

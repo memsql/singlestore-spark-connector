@@ -5,7 +5,7 @@ import subprocess
 def do_test_spark_submit(local_context, test_name, num_aggs=0, num_leaves=1, args=[]):
     ctx = local_context()
     ctx.run_ops()
-    ctx.deploy_memsql_cluster(num_aggs=num_aggs, num_leaves=num_leaves, port=10000)
+    ctx.deploy_memsql_cluster(num_aggs=num_aggs, num_leaves=num_leaves)
     print "MemSQL up!"
     ctx.deploy_spark()
     print "sleep(30)"

@@ -225,9 +225,13 @@ class LocalContext:
         self._shell = LocalShell()
 
     def deploy_spark(self):
+        with open(os.path.join(ROOT_PATH, "memsql-spark/build_receipt.json")) as f:
+            data = json.loads(f.read())
+            spark_version = data['version']
+
         self._shell.sudo(["tar", "czvf", "/tmp/memsql-spark.tar.gz", "-C", os.path.join(ROOT_PATH, "memsql-spark"), "."], None)
         self._shell.sudo(["memsql-ops", "file-add", "-t", "spark", "/tmp/memsql-spark.tar.gz"], None)
-        return self._shell.run(["memsql-ops", "spark-deploy"])
+        return self._shell.run(["memsql-ops", "spark-deploy", "--version", spark_version])
 
     def kill_spark_interface(self):
         return self._shell.sudo(["pkill", "-f", "com.memsql.spark.interface.Main"], None)
@@ -270,7 +274,7 @@ class LocalContext:
         external_ip = self._shell.run(["awk", "NR==1 {print $1}", "/etc/hosts"]).output
         cmd = [
             os.path.join(SPARK_ROOT, "bin/spark-submit"),
-            "--master", "spark://%s:7077" % external_ip,
+            "--master", "spark://%s:10001" % external_ip,
             "--class", className,
             "--deploy-mode", "client",
             jar]
