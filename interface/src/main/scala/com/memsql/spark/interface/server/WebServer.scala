@@ -29,13 +29,13 @@ trait WebService extends HttpService {
   val api = actorRefFactory.actorSelection("/user/api")
   implicit val timeout = Timeout(5.seconds)
 
-  // logs just the request method and response status at info level
-  def requestMethodAndResponseStatusAsInfo(req: HttpRequest): Any => Option[LogEntry] = {
-    case res: HttpResponse => Some(LogEntry(req.method + ":" + req.uri + "," + req.entity + " - " + res.message.status + ":" + res.message.message, InfoLevel))
+  // logs just the request method and response status at debug level
+  def requestMethodAndResponseStatusAsDebug(req: HttpRequest): Any => Option[LogEntry] = {
+    case res: HttpResponse => Some(LogEntry(req.method + ":" + req.uri + "," + req.entity + " - " + res.message.status + ":" + res.message.message, DebugLevel))
     case _ => None // other kind of responses
   }
 
-  def routeWithLogging = logRequestResponse(requestMethodAndResponseStatusAsInfo _)(route)
+  def routeWithLogging = logRequestResponse(requestMethodAndResponseStatusAsDebug _)(route)
 
   val route = {
     path("version") {
