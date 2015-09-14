@@ -4,6 +4,7 @@ import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api.{Pipeline, PipelineState, ApiActor}
 
 import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.event.Logging._
 import akka.io.IO
 import com.memsql.spark.interface.server.WebServer
 import ApiActor._
@@ -33,6 +34,16 @@ class SparkInterface(val providedConfig: Config) extends Application {
   override implicit val system = ActorSystem("spark-interface")
   override val api = system.actorOf(Props[ApiActor], "api")
   override val web = system.actorOf(Props[WebServer], "web")
+
+  val loggingProperties = Logging.defaultProps
+  if (config.debug) {
+    loggingProperties.setProperty("log4j.logger.com.memsql", "DEBUG")
+    system.eventStream.setLogLevel(DebugLevel)
+  } else {
+    loggingProperties.setProperty("log4j.logger.com.memsql", "INFO")
+    system.eventStream.setLogLevel(InfoLevel)
+  }
+  PropertyConfigurator.configure(loggingProperties)
 
   //TODO verify we have sane defaults for spark conf
   override val sparkConf = {
@@ -77,10 +88,6 @@ trait Application extends Logging {
 
   private[interface] lazy val config: Config = Config()
   Paths.initialize(config.dataDir)
-
-  val loggingProperties = Logging.defaultProps
-  loggingProperties.setProperty("log4j.logger.com.memsql", if (config.debug) "DEBUG" else "INFO")
-  PropertyConfigurator.configure(loggingProperties)
 
   implicit private[interface] val system: ActorSystem
   private[interface] def api: ActorRef
