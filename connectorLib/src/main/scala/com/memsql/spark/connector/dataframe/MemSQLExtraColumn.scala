@@ -1,10 +1,10 @@
 package com.memsql.spark.connector.dataframe
 
-case class MemSQLExtraColumn(name: String, colType: String, nullable: Boolean =true, defaultValue: String = null, persisted: String = null)
+case class MemSQLExtraColumn(name: String, colType: String, nullable: Boolean =true, defaultValue: Any = null, persisted: String = null)
 {
   def toSQL: String = {
     var sql = new StringBuilder
-    sql.append(name).append(" ")
+    sql.append("`").append(name).append("` ")
     if (persisted != null) {
       sql.append("AS ").append(persisted).append(" PERSISTED ")
     }
@@ -20,7 +20,11 @@ case class MemSQLExtraColumn(name: String, colType: String, nullable: Boolean =t
           sql.append("DEFAULT '0'")
         }
       } else {
-        sql.append("DEFAULT ").append(defaultValue)
+        sql.append("DEFAULT ")
+        defaultValue match {
+          case dvs : String => sql.append("'").append(dvs).append("'")
+          case dva : Any => sql.append(dva.toString)
+        }
       }
     }
     sql.toString

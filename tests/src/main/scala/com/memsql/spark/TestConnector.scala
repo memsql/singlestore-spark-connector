@@ -778,3 +778,22 @@ object TestLeakedConns {
     result(0).toInt
   }
 }
+
+object TestEscapedColumnNames {
+  def main(args: Array[String]) {
+    val conn = TestUtils.connectToMA
+    TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
+    val conf = new SparkConf().setAppName("TestEscapedColumnNames")
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
+
+
+    val schema = StructType(Array(StructField("index",IntegerType,true)))
+    val rows = sc.parallelize(Array(Row(1),Row(2),Row(3),Row(4)))
+    val df = sqlContext.createDataFrame(rows,schema)
+
+    df.createMemSQLTableAs("x_db","t",
+      keys=List(PrimaryKey("index")),
+      extraCols=List(MemSQLExtraColumn("table", "varchar(200)", defaultValue="")))
+  }
+}

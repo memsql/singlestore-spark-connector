@@ -36,7 +36,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
         insertTable.append(", ")
       }
       first = false
-      insertTable.append(col.name)
+      insertTable.append("`").append(col.name).append("`")
     }
     val insertTableString = insertTable.append(")").toString
 
@@ -57,8 +57,9 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
                           password: String = null,
                           ifNotExists: Boolean = false,
                           keys: List[MemSQLKey] = List(),
+                          extraCols: List[MemSQLExtraColumn] = List(),
                           useKeylessShardedOptimization: Boolean = false): DataFrame = {
-    val resultDf = df.createMemSQLTableFromSchema(dbName, tableName, dbHost, dbPort, user, password, ifNotExists, keys)
+    val resultDf = df.createMemSQLTableFromSchema(dbName, tableName, dbHost, dbPort, user, password, ifNotExists, keys, extraCols)
     df.saveToMemSQL(dbName, tableName, dbHost, dbPort, user, password, useKeylessShardedOptimization = useKeylessShardedOptimization)
     resultDf
   }
@@ -81,7 +82,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
     }
     sql.append(s"`$tableName`").append(" (")
     for (col <- df.schema) {
-      sql.append(col.name).append(" ")
+      sql.append("`").append(col.name).append("` ")
       sql.append(MemSQLDataFrameUtils.DataFrameTypeToMemSQLTypeString(col.dataType))
 
       if (col.nullable) {

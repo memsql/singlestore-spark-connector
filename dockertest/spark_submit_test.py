@@ -54,3 +54,6 @@ def test_save_json_column(local_context):
 
 def test_spark_sql_types(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestSparkSQLTypes")
+
+def test_escaped_cols(local_context):
+    do_test_spark_submit(local_context, "com.memsql.spark.TestEscapedColumnNames")
