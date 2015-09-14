@@ -13,13 +13,13 @@ case class MemSQLExtraColumn(name: String, colType: String, nullable: Boolean =t
       sql.append("NOT NULL").append(" ")
     }
     if (persisted == null) {
-      if (defaultValue == null) {
+      if (defaultValue == null && colType.toLowerCase() != "timestamp") {
         if (nullable) {
           sql.append("DEFAULT null")
         } else {
           sql.append("DEFAULT '0'")
         }
-      } else {
+      } else if (defaultValue != null) {
         sql.append("DEFAULT ")
         defaultValue match {
           case dvs : String => sql.append("'").append(dvs).append("'")
