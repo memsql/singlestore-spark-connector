@@ -33,7 +33,7 @@ build-test: clean
 
 .PHONY: build-sample
 build-sample:
-	cd dockertest/sample_jar; sbt assembly
+	cd dockertest/sample_pipelines; sbt assembly
 
 .PHONY: docs
 docs: clean
