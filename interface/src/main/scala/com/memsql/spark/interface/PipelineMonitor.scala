@@ -13,6 +13,7 @@ import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api.PipelineBatchType
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface.util.ErrorUtils._
+import com.memsql.spark.connector.SaveToMemSQLException
 import ApiActor._
 import com.memsql.spark.interface.util.{PipelineLogger, BaseException}
 import org.apache.spark.SparkContext
@@ -301,11 +302,18 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   def runPhase(fn: () => PhaseResult): Option[PhaseMetricRecord] = {
     var error: Option[String] = None
+    var count: Option[Long] = None
     var phaseResult = PhaseResult()
     val startTime = System.currentTimeMillis
     try {
       phaseResult = fn()
+      count = phaseResult.count
     } catch {
+      case e: SaveToMemSQLException => {
+        logError(s"Phase error in pipeline $pipeline_id, preserving rows count", e.exception)
+        error = Some(getStackTraceAsString(e.exception))
+        count = Some(e.count)
+      }
       case NonFatal(e) => {
         logError(s"Phase error in pipeline $pipeline_id", e)
         error = Some(getStackTraceAsString(e))
@@ -315,7 +323,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     Some(PhaseMetricRecord(
       start = startTime,
       stop = stopTime,
-      count = phaseResult.count,
+      count = count,
       error = error,
       columns = phaseResult.columns,
       records = phaseResult.records,

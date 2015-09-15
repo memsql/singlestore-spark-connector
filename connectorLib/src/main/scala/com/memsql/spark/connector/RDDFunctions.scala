@@ -19,6 +19,8 @@ import java.io.{PipedOutputStream, PipedInputStream}
 import net.jpountz.lz4._
 import com.memsql.spark.connector.rdd.MemSQLRDD
 
+class SaveToMemSQLException(var exception: SparkException, var count: Long) extends Exception
+
 class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
   /**
    * Saves an RDD's contents to a MemSQL database.  The RDD's elements should
@@ -76,23 +78,27 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
 
     val randomIndex = Random.nextInt(availableNodes.size)
     val numRowsAccumulator = rdd.sparkContext.accumulator[Long](0, "saveToMemSQL accumulator")
-    rdd.foreachPartition{ part =>
-      val node = chooseMemSQLTarget(availableNodes, randomIndex)
-      if (node.isColocated) {
-        compression = "tsv"
-      }
+    try {
+      rdd.foreachPartition{ part =>
+        val node = chooseMemSQLTarget(availableNodes, randomIndex)
+        if (node.isColocated) {
+          compression = "tsv"
+        }
 
-      var numRowsAffected = 0
-      if (onDuplicateKeySql.isEmpty) {
-        numRowsAffected = loadPartitionInMemSQL(
-          node.targetHost, node.targetPort, user, password, node.targetDb, tableName,
-          useInsertIgnore, part, compression=compression)
-      } else { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
-        numRowsAffected = insertPartitionInMemSQL(
-          node.targetHost, node.targetPort, user, password, node.targetDb, tableName, onDuplicateKeySql,
-          upsertBatchSize, useInsertIgnore, part)
+        var numRowsAffected = 0
+        if (onDuplicateKeySql.isEmpty) {
+          numRowsAffected = loadPartitionInMemSQL(
+            node.targetHost, node.targetPort, user, password, node.targetDb, tableName,
+            useInsertIgnore, part, compression=compression)
+        } else { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
+          numRowsAffected = insertPartitionInMemSQL(
+            node.targetHost, node.targetPort, user, password, node.targetDb, tableName, onDuplicateKeySql,
+            upsertBatchSize, useInsertIgnore, part)
+        }
+        numRowsAccumulator += numRowsAffected
       }
-      numRowsAccumulator += numRowsAffected
+    } catch {
+      case e: SparkException => throw new SaveToMemSQLException(e, numRowsAccumulator.value)
     }
     numRowsAccumulator.value
   }
