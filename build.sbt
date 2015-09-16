@@ -39,7 +39,8 @@ lazy val etlLib = (project in file("etlLib")).
       "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
       "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
       "org.apache.kafka" %% "kafka" % "0.8.2.1",
-      "org.scalatest" %% "scalatest" % "2.2.5" % "test"
+      "org.scalatest" %% "scalatest" % "2.2.5" % "test",
+      "org.apache.commons" % "commons-csv" % "1.2"
     ),
     autoAPIMappings := true,
     apiMappings ++= {

@@ -16,3 +16,5 @@ test_root/*
 *~
 *.class
 python/
+*.swp
+.idea
