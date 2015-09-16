@@ -62,7 +62,6 @@ case class MemSQLRDD[T: ClassTag](
       // Prepare the MySQL JDBC driver.
       Class.forName("com.mysql.jdbc.Driver").newInstance()
       conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)
-  
       versionStmt = conn.createStatement
       val versionRs = versionStmt.executeQuery("SHOW VARIABLES LIKE 'memsql_version'")
       val versions = MemSQLRDD.resultSetToIterator(versionRs).map(r => r.getString("Value")).toArray

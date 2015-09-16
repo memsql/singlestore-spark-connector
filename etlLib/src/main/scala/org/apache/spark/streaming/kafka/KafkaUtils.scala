@@ -1,3 +1,5 @@
+package org.apache.spark.streaming.kafka
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -13,9 +15,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Modified for MemSQL Streamliner
  */
-
-package com.memsql.spark.etl.kafka
 
 import scala.reflect.ClassTag
 
@@ -29,7 +31,7 @@ import org.apache.spark.streaming.dstream.InputDStream
 
 class KafkaException(message: String) extends Exception(message)
 
-object KafkaUtils {
+object MemSQLKafkaUtils {
   /**
    * :: Experimental ::
    * Create an input stream that directly pulls messages from Kafka Brokers
@@ -42,7 +44,7 @@ object KafkaUtils {
    *    by the stream itself. For interoperability with Kafka monitoring tools that depend on
    *    Zookeeper, you have to update Kafka/Zookeeper yourself from the streaming application.
    *    You can access the offsets used in each batch from the generated RDDs (see
-   *    [[com.memsql.spark.etl.kafka.HasOffsetRanges]]).
+   *    [[org.apache.spark.streaming.kafka.HasOffsetRanges]]).
    *  - Failure Recovery: To recover from driver failures, you have to enable checkpointing
    *    in the [[StreamingContext]]. The information on consumed offset can be
    *    recovered from the checkpoint. See the programming guide for details (constraints, etc.).
@@ -60,19 +62,19 @@ object KafkaUtils {
    *   If not starting from a checkpoint, "auto.offset.reset" may be set to "largest" or "smallest"
    *   to determine where the stream starts (defaults to "largest")
    * @param topics Names of the topics to consume
-   * @param batchDuration Batch duration for this pipeline (NOTE: Added to support pipelines with different intervals)
+   * @param batchInterval Batch interval for this pipeline. NOTE: Modified for MemSQL Streamliner
    */
   @Experimental
-  def createDirectValueStream[
-    K: ClassTag,
-    V: ClassTag,
-    KD <: Decoder[K]: ClassTag,
-    VD <: Decoder[V]: ClassTag] (
-      ssc: StreamingContext,
-      kafkaParams: Map[String, String],
-      topics: Set[String],
-      batchDuration: Long
-  ): InputDStream[V] = {
+  def createDirectStream[
+  K: ClassTag,
+  V: ClassTag,
+  KD <: Decoder[K]: ClassTag,
+  VD <: Decoder[V]: ClassTag] (
+                                ssc: StreamingContext,
+                                kafkaParams: Map[String, String],
+                                topics: Set[String],
+                                batchInterval: Long
+                                ): InputDStream[V] = {
     val messageHandler = (mmd: MessageAndMetadata[K, V]) => mmd.message
     val kc = new KafkaCluster(kafkaParams)
     val reset = kafkaParams.get("auto.offset.reset").map(_.toLowerCase)
@@ -86,10 +88,10 @@ object KafkaUtils {
       }).right
     } yield {
       val fromOffsets = leaderOffsets.map { case (tp, lo) =>
-          (tp, lo.offset)
+        (tp, lo.offset)
       }
-      new DirectKafkaInputDStream[K, V, KD, VD, V](
-        ssc, kafkaParams, fromOffsets, messageHandler, batchDuration)
+      new MemSQLDirectKafkaInputDStream[K, V, KD, VD, V](
+        ssc, kafkaParams, fromOffsets, messageHandler, batchInterval)
     }).fold(
       errs => {
         val wrappedErrs = errs.map {
@@ -105,5 +107,3 @@ object KafkaUtils {
     )
   }
 }
-
-

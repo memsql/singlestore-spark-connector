@@ -38,7 +38,7 @@ lazy val etlLib = (project in file("etlLib")).
       "io.spray" %% "spray-json" % "1.3.2",
       "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
       "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
-      "org.apache.kafka" %% "kafka" % "0.8.2.1",
+      "org.apache.spark" %% "spark-streaming-kafka" % "1.4.1" % "provided",
       "org.scalatest" %% "scalatest" % "2.2.5" % "test",
       "org.apache.commons" % "commons-csv" % "1.2"
     ),
@@ -63,6 +63,7 @@ lazy val jarInspector = (project in file("jarInspector")).
   settings(
     name := "jarInspector",
     libraryDependencies  ++= Seq(
+      "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
       "io.spray" %% "spray-json" % "1.3.2",
       "com.github.scopt" %% "scopt" % "3.2.0",
       "org.reflections" % "reflections" % "0.9.10"
@@ -89,6 +90,7 @@ lazy val interface = (project in file("interface")).
         "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
         "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
         "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
+        "org.apache.spark" %% "spark-streaming-kafka" % "1.4.1" exclude("org.spark-project.spark", "unused"),
         "org.scalatest" %% "scalatest" % "2.2.5" % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
         "org.scalamock" %% "scalamock-scalatest-support" % "3.2" % "test",
