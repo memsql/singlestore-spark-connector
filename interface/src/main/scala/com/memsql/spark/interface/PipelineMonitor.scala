@@ -9,13 +9,13 @@ import com.memsql.spark.phases._
 import com.memsql.spark.context.MemSQLContext
 import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.configs._
+import com.memsql.spark.phases.configs._
 import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface.util.ErrorUtils._
 import com.memsql.spark.connector.SaveToMemSQLException
 import ApiActor._
-import com.memsql.spark.interface.util.{PipelineLogger, BaseException}
-import com.memsql.spark.phases.configs.ExtractPhase
+import com.memsql.spark.interface.util.{Checkpoint, PipelineLogger, BaseException}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext}
@@ -76,7 +76,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   private[interface] val loadConfig = LoadPhase.readConfig(config.load.kind, config.load.config)
 
   private[interface] val extractor: ByteArrayExtractor = config.extract.kind match {
-    case ExtractPhaseKind.Kafka => new KafkaExtractor(pipeline_id)
+    case ExtractPhaseKind.Kafka => new KafkaExtractor()
     case ExtractPhaseKind.TestLines => new TestLinesExtractor()
     case ExtractPhaseKind.User => {
       val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
@@ -121,9 +121,12 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     var inputDStream: InputDStream[Array[Byte]] = null
 
     try {
+      initializeExtractorCheckpoint
+
       val extractLogger = getPhaseLogger("extract")
       logDebug(s"Initializing extractor for pipeline $pipeline_id")
-      inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig, batchIntervalMillis, extractLogger)
+      inputDStream = pipelineInstance.extractor.extract(streamingContext, pipelineInstance.extractConfig,
+                                                        batchIntervalMillis, extractLogger)
       logDebug(s"Starting InputDStream for pipeline $pipeline_id")
       inputDStream.start()
 
@@ -260,6 +263,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           task_errors.isEmpty
         )
 
+        saveExtractorCheckpoint(batch_id, success)
+
         val metric = PipelineMetricRecord(
           batch_id = batch_id,
           batch_type = batch_type,
@@ -302,6 +307,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     val startTime = System.currentTimeMillis
     try {
       phaseResult = fn()
+
       count = phaseResult.count
     } catch {
       case e: SaveToMemSQLException => {
@@ -334,6 +340,32 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       records = phaseResult.records,
       logs = logs
     ))
+  }
+
+  private[interface] def initializeExtractorCheckpoint: Unit = {
+    if (config.enable_checkpointing) {
+      logDebug(s"Retrieving checkpoint data for pipeline $pipeline_id")
+      val checkpointData = Checkpoint.getCheckpointData(pipeline_id)
+      extractor.lastCheckpoint = checkpointData
+    }
+  }
+
+  private[interface] def saveExtractorCheckpoint(batchId: String, success: Boolean): Unit = {
+    if (config.enable_checkpointing) {
+      //NOTE: if we error because of malformed data, the batch will be retried indefinitely
+      if (success) {
+        extractor.batchCheckpoint match {
+          case Some(checkpointData) => {
+            logDebug(s"Checkpointing data for batch $batchId from pipeline $pipeline_id")
+            Checkpoint.setCheckpointData(pipeline_id, checkpointData)
+          }
+          case None => logWarn(s"No checkpoint data for batch $batchId from pipeline $pipeline_id")
+        }
+      } else {
+        logInfo(s"Retrying batch $batchId from pipeline $pipeline_id")
+        extractor.batchRetry
+      }
+    }
   }
 
   private[interface] def getPhaseLogger(phaseName: String, trackEntries: Boolean=true): PipelineLogger = {

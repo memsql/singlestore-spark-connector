@@ -22,6 +22,28 @@ abstract class Extractor[S] extends Serializable {
    * @return The input source for your pipeline.
    */
   def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchInterval: Long, logger: PhaseLogger): InputDStream[S]
+
+  /**
+   * The last checkpoint that this extractor saved. Value is [[scala.None]] if there is no checkpoint data or it
+   * could not be deserialized.
+   */
+  final var lastCheckpoint: Option[Map[String, Any]] = None
+
+  /**
+   * Called at the end of a pipeline batch if it has succeeded. Override this and [[batchRetry]] to implement
+   * checkpointing for your Extractor. Default implementation does nothing.
+   *
+   * @return The serialized data to be saved in the checkpoint database for the successful batch.
+   */
+  def batchCheckpoint(): Option[Map[String, Any]] = None
+
+  /**
+   * Called at the end of a pipeline batch if it has failed. Override this and [[batchCheckpoint]] to implement
+   * checkpointing for your Extractor. Default implementation does nothing.
+   *
+   * Use this to reset the Extractor state so it will retry the failed batch on the next call to [[extract]].
+   */
+  def batchRetry(): Unit = {}
 }
 
 /**

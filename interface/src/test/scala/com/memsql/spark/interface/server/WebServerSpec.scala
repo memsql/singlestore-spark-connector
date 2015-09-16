@@ -9,7 +9,7 @@ import LoadPhaseKind._
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface._
 import com.memsql.spark.phases.{JsonTransformConfig, KafkaExtractConfig}
-import com.memsql.spark.phases.configs.{ExtractPhase}
+import com.memsql.spark.phases.configs._
 import spray.http.HttpEntity
 import spray.http.ContentTypes._
 import spray.json._
@@ -427,6 +427,33 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
       assert(pipeline.state == PipelineState.RUNNING)
       assert(pipeline.config == newConfig)
+      assert(status == OK)
+    }
+
+    val userConfigWithCheckpointing = userConfig.copy(enable_checkpointing = true)
+    val userConfigWithCheckpointingEntity = HttpEntity(`application/json`, userConfigWithCheckpointing.toJson.toString)
+    Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigWithCheckpointingEntity) ~> route ~> check {
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
+      assert(status == OK)
+    }
+
+    // pipeline should be running with checkpointing enabled
+    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
+      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
+      assert(pipeline.config.enable_checkpointing == true)
+      assert(status == OK)
+    }
+
+    // no-op updates to enable_checkpointing should return false
+    Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigWithCheckpointingEntity) ~> route ~> check {
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(false)).toString)
+      assert(status == OK)
+    }
+
+    // pipeline should still be running with checkpointing enabled
+    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
+      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
+      assert(pipeline.config.enable_checkpointing == true)
       assert(status == OK)
     }
   }

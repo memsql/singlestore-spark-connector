@@ -17,6 +17,7 @@ object Main {
       opt[Int]("dbPort") action { (x, c) => c.copy(dbPort = x) } text "MemSQL Master port"
       opt[String]("dbUser") action { (x, c) => c.copy(dbUser = x) } text "MemSQL Master user"
       opt[String]("dbPassword") action { (x, c) => c.copy(dbPassword = x) } text "MemSQL Master password"
+      opt[String]("metadataDbName") action { (x, c) => c.copy(metadatadbName = x) } text "MemSQL Streamliner database for checkpoints and metadata"
 
       opt[Unit]("debug") action { (_, c) => c.copy(debug = true) } text "Enable debug logging"
     }

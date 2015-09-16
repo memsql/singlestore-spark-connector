@@ -19,6 +19,9 @@ package org.apache.spark.streaming.kafka
  * Modified for MemSQL Streamliner
  */
 
+import com.memsql.spark.etl.utils.Logging
+import kafka.common.TopicAndPartition
+
 import scala.reflect.ClassTag
 
 import kafka.message.MessageAndMetadata
@@ -27,11 +30,12 @@ import kafka.serializer.Decoder
 import org.apache.spark.SparkException
 import org.apache.spark.annotation.Experimental
 import org.apache.spark.streaming.StreamingContext
-import org.apache.spark.streaming.dstream.InputDStream
+
+import scala.util.control.NonFatal
 
 class KafkaException(message: String) extends Exception(message)
 
-object MemSQLKafkaUtils {
+object MemSQLKafkaUtils extends Logging {
   /**
    * :: Experimental ::
    * Create an input stream that directly pulls messages from Kafka Brokers
@@ -63,19 +67,74 @@ object MemSQLKafkaUtils {
    *   to determine where the stream starts (defaults to "largest")
    * @param topics Names of the topics to consume
    * @param batchInterval Batch interval for this pipeline. NOTE: Modified for MemSQL Streamliner
+   * @param lastCheckpoint Offsets to use when initializing the consumer. If the topic, partition count,
+   *   or offsets from the checkpoint are invalid, fall back to the offsets specified by "auto.offset.reset".
+   *   NOTE: Modified for MemSQL Streamliner
    */
   @Experimental
-  def createDirectStream[K: ClassTag,
-                         V: ClassTag,
-                         KD <: Decoder[K]: ClassTag,
-                         VD <: Decoder[V]: ClassTag] (ssc: StreamingContext,
-                                                      kafkaParams: Map[String, String],
-                                                      topics: Set[String],
-                                                      batchInterval: Long): InputDStream[V] = {
+  def createDirectStream[K: ClassTag, V: ClassTag, KD <: Decoder[K]: ClassTag, VD <: Decoder[V]: ClassTag] (
+                         ssc: StreamingContext,
+                         kafkaParams: Map[String, String],
+                         topics: Set[String],
+                         batchInterval: Long,
+                         lastCheckpoint: Option[Map[String, Any]]): MemSQLDirectKafkaInputDStream[K, V, KD, VD, V] = {
     val messageHandler = (mmd: MessageAndMetadata[K, V]) => mmd.message
+    val initialOffsets = getInitialOffsets(kafkaParams, topics, lastCheckpoint)
+    new MemSQLDirectKafkaInputDStream[K, V, KD, VD, V](
+      ssc, kafkaParams, initialOffsets, messageHandler, batchInterval)
+  }
+
+  private def getInitialOffsets(kafkaParams: Map[String, String], topics: Set[String],
+                                lastCheckpoint: Option[Map[String, Any]]): Map[TopicAndPartition, Long] = {
     val kc = new KafkaCluster(kafkaParams)
     val reset = kafkaParams.get("auto.offset.reset").map(_.toLowerCase)
+    val broker = kafkaParams("metadata.broker.list")
 
+    val checkpointBroker = lastCheckpoint.flatMap { x => x.get("broker") }
+    val checkpointOffsets = lastCheckpoint.flatMap(getCheckpointOffsets)
+    val zookeeperOffsets = getZookeeperOffsets(kc, topics, reset)
+
+    (checkpointBroker, checkpointOffsets, zookeeperOffsets) match {
+      case (None, _, _) => zookeeperOffsets
+      case (_, None, _) => zookeeperOffsets
+      case (Some(checkpointBroker), Some(offsets), _) => {
+        if (checkpointBroker != broker) {
+          logWarn("Kafka broker has changed since the last checkpoint, falling back to Zookeeper offsets")
+          zookeeperOffsets
+        } else if (offsets.size != zookeeperOffsets.size) {
+          logWarn("Kafka partition count has changed since the last checkpoint, falling back to Zookeeper offsets")
+          zookeeperOffsets
+        } else if (offsets.nonEmpty && offsets.keys.head.topic != zookeeperOffsets.keys.head.topic) {
+          logWarn("Kafka topic has changed since the last checkpoint, falling back to Zookeeper offsets")
+          zookeeperOffsets
+        } else {
+          offsets
+        }
+      }
+    }
+  }
+
+  // Serializes the checkpoint data into the format expected by KafkaDirectInputDStream
+  private def getCheckpointOffsets(checkpoint: Map[String, Any]): Option[Map[TopicAndPartition, Long]] = {
+    try {
+      val offsets = checkpoint("offsets").asInstanceOf[List[Map[String, Any]]]
+      val checkpointOffsets = offsets.map { partitionInfo =>
+        val topic = partitionInfo("topic").asInstanceOf[String]
+        val partition = partitionInfo("partition").asInstanceOf[Int]
+        val offset = partitionInfo("offset").asInstanceOf[Number].longValue
+
+        (TopicAndPartition(topic, partition), offset)
+      }.toMap
+      Some(checkpointOffsets)
+    } catch {
+      case NonFatal(e) => {
+        logWarn("Kafka checkpoint data is invalid, it will be ignored", e)
+        None
+      }
+    }
+  }
+
+  private def getZookeeperOffsets(kc: KafkaCluster, topics: Set[String], reset: Option[String]): Map[TopicAndPartition, Long] = {
     (for {
       topicPartitions <- kc.getPartitions(topics).right
       leaderOffsets <- (if (reset == Some("smallest")) {
@@ -84,17 +143,15 @@ object MemSQLKafkaUtils {
         kc.getLatestLeaderOffsets(topicPartitions)
       }).right
     } yield {
-      val fromOffsets = leaderOffsets.map { case (tp, lo) =>
+      leaderOffsets.map { case (tp, lo) =>
         (tp, lo.offset)
       }
-      new MemSQLDirectKafkaInputDStream[K, V, KD, VD, V](
-        ssc, kafkaParams, fromOffsets, messageHandler, batchInterval)
     }).fold(
       errs => {
         val wrappedErrs = errs.map {
           case err: java.nio.channels.ClosedChannelException => {
-            val brokerList = kafkaParams("metadata.broker.list")
-            new KafkaException(s"Could not connect to Kafka broker(s) at $brokerList: $err")
+            val broker = kc.config.seedBrokers.toList(0)
+            new KafkaException(s"Could not connect to Kafka broker(s) at ${broker._1}:${broker._2}: $err")
           }
           case default => default
         }

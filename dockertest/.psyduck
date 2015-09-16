@@ -16,3 +16,5 @@
  -s dockertest/spark_submit_test.py::test_dup_keys --psyduck-time-limit=16
  -s dockertest/jar_inspector_test.py::test_jar_inspector_sanity --psyduck-time-limit=16
  -s dockertest/jar_inspector_test.py::test_jar_inspector_external_jar --psyduck-time-limit=16
+ -s dockertest/pipeline_test.py::test_kafka_checkpointing_multiple_partitions --psyduck-time-limit=16
+ -s dockertest/pipeline_test.py::test_kafka_checkpointing_single_partition --psyduck-time-limit=16

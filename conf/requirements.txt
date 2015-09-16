@@ -4,3 +4,4 @@ ipdb==0.8
 requests==2.7.0
 memsql==2.14.5
 simplegeneric==0.8.1
+pykafka==1.1.1

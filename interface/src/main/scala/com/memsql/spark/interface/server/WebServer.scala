@@ -8,7 +8,7 @@ import com.memsql.spark.interface.api._
 import com.memsql.spark.etl.api.configs.PipelineConfig
 import spray.http.{HttpRequest, HttpResponse, StatusCodes}
 import spray.httpx.SprayJsonSupport._
-import spray.routing.{Route, Directive0, HttpService}
+import spray.routing.{Route, HttpService}
 import spray.json._
 import spray.routing.directives.LogEntry
 import scala.concurrent.duration._
@@ -103,8 +103,8 @@ trait WebService extends HttpService {
               case Some(PipelineState.RUNNING) => Some("")
               case default => None
             }
-            val future = (api ? PipelineUpdate(pipeline_id, state, batch_interval, configMaybe, error=error,
-                                               trace_batch_count=trace_batch_count, _validate = true)).mapTo[Try[Boolean]]
+            val future = (api ? PipelineUpdate(pipeline_id, state, batch_interval, configMaybe,
+                                               error=error, trace_batch_count=trace_batch_count, _validate = true)).mapTo[Try[Boolean]]
             future.map {
               case Success(resp) => ctx.complete(Map[String, Boolean]("success" -> resp).toJson.toString)
               case Failure(error) => ctx.complete(StatusCodes.NotFound, error.toString)
