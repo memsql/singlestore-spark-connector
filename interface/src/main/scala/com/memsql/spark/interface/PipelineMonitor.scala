@@ -126,6 +126,10 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       logDebug(s"Starting InputDStream for pipeline $pipeline_id")
       inputDStream.start()
 
+      val transformLogger = getPhaseLogger("transform", trackEntries=false)
+      logDebug(s"Initializing transformer for pipeline $pipeline_id")
+      pipelineInstance.transformer.initialize(sqlContext, pipelineInstance.transformConfig, transformLogger)
+
       var time: Long = 0
 
       // manually compute the next RDD in the DStream so that we can sidestep issues with
@@ -189,16 +193,14 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
         var tracedDf: DataFrame = null
         var df: DataFrame = null
-        // We use two loggers in the transform phase because we want to
-        // only get logs for the traced records, but we still need to pass
-        // in a logger object to both transform() calls.
-        val transformLogger = getPhaseLogger("transform")
         var tracedTransformLogger: PipelineLogger = null
         var tracedCount: Long = 0
         if (extractedRdd != null) {
           transformRecord = runPhase(() => {
             logDebug(s"Transforming RDD for pipeline $pipeline_id")
             if (tracedRdd != null) {
+              // We use a new logger for the trace because we want to
+              // only get logs for the traced records.
               tracedTransformLogger = getPhaseLogger("transform")
               tracedDf = pipelineInstance.transformer.transform(
                 sqlContext, tracedRdd, pipelineInstance.transformConfig,
@@ -331,8 +333,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     ))
   }
 
-  private[interface] def getPhaseLogger(phaseName: String): PipelineLogger = {
-    new PipelineLogger(s"Pipeline $pipeline_id $phaseName")
+  private[interface] def getPhaseLogger(phaseName: String, trackEntries: Boolean=true): PipelineLogger = {
+    new PipelineLogger(s"Pipeline $pipeline_id $phaseName", trackEntries)
   }
 
   private[interface] def getExtractRecords(rdd: RDD[Array[Byte]]): (Option[List[(String, String)]], Option[List[List[String]]]) = {

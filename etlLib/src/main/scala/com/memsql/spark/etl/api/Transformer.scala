@@ -6,6 +6,7 @@ import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.{ByteUtils, PhaseLogger}
 
 abstract class Transformer[S] extends Serializable {
+  def initialize(sqlContext: SQLContext, transformConfig: PhaseConfig, logger: PhaseLogger): Unit = {}
   def transform(sqlContext: SQLContext, rdd: RDD[S], transformConfig: PhaseConfig, logger: PhaseLogger): DataFrame
 }
 

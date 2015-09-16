@@ -13,10 +13,16 @@ import org.apache.spark.sql.Row
 // Appropriate for working with Loaders which load into tables with a single (Parquette) JSON column and possibly a key column or columns with default/computed/timestamp columns
 //
 class JSONTransformer extends ByteArrayTransformer {
-  override def transform(sqlContext: SQLContext, rdd: RDD[Array[Byte]], transformConfig: PhaseConfig, logger: PhaseLogger): DataFrame = {
+  var columnName: String = null
+
+  override def initialize(sqlContext: SQLContext, transformConfig: PhaseConfig, logger: PhaseLogger): Unit = {
     val jsonTransformConfig = transformConfig.asInstanceOf[JsonTransformConfig]
+    columnName = jsonTransformConfig.column_name
+  }
+
+  override def transform(sqlContext: SQLContext, rdd: RDD[Array[Byte]], transformConfig: PhaseConfig, logger: PhaseLogger): DataFrame = {
     val transformedRDD = rdd.map(r => Row(new JsonValue(byteUtils.bytesToUTF8String(r))))
-    val schema = StructType(Array(StructField(jsonTransformConfig.column_name, JsonType, true)))
+    val schema = StructType(Array(StructField(columnName, JsonType, true)))
     sqlContext.createDataFrame(transformedRDD, schema)
   }
 }
