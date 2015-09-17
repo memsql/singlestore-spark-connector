@@ -15,6 +15,7 @@ import com.memsql.spark.interface.util.ErrorUtils._
 import com.memsql.spark.connector.SaveToMemSQLException
 import ApiActor._
 import com.memsql.spark.interface.util.{PipelineLogger, BaseException}
+import com.memsql.spark.phases.configs.ExtractPhase
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext}
@@ -82,7 +83,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     }
   }
   private[interface] val transformer: ByteArrayTransformer = config.transform.kind match {
-    case TransformPhaseKind.Json => new JSONTransformer()
+    case TransformPhaseKind.Json => new JSONTransformer
+    case TransformPhaseKind.Csv => new CSVTransformer
     case TransformPhaseKind.User => {
       val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
       Class.forName(className).newInstance.asInstanceOf[ByteArrayTransformer]

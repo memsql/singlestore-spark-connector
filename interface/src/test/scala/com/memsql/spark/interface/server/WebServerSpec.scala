@@ -8,7 +8,8 @@ import TransformPhaseKind._
 import LoadPhaseKind._
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface._
-import com.memsql.spark.phases.{KafkaExtractConfig, ExtractPhase}
+import com.memsql.spark.phases.{JsonTransformConfig, KafkaExtractConfig}
+import com.memsql.spark.phases.configs.{ExtractPhase}
 import spray.http.HttpEntity
 import spray.http.ContentTypes._
 import spray.json._

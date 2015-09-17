@@ -6,7 +6,8 @@ import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.interface._
 import com.memsql.spark.interface.api.PipelineBatchType._
 import ApiActor._
-import com.memsql.spark.phases.{KafkaExtractConfig, ExtractPhase}
+import com.memsql.spark.phases.{JsonTransformConfig, KafkaExtractConfig}
+import com.memsql.spark.phases.configs.{ExtractPhase}
 import scala.concurrent.duration._
 import spray.json._
 

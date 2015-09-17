@@ -7,6 +7,8 @@ import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.kafka.MemSQLKafkaUtils
 
+case class KafkaExtractConfig(host: String, port: Int, topic: String) extends PhaseConfig
+
 class KafkaExtractor(consumerId: String) extends ByteArrayExtractor {
   def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchDuration: Long, logger: PhaseLogger): InputDStream[Array[Byte]] = {
     val kafkaConfig  = extractConfig.asInstanceOf[KafkaExtractConfig]

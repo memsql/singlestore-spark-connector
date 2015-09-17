@@ -4,7 +4,8 @@ import com.memsql.spark.etl.api.{UserTransformConfig, UserExtractConfig}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.interface._
 import com.memsql.spark.interface.api.ApiJsonProtocol._
-import com.memsql.spark.phases.{KafkaExtractConfig, TestLinesExtractConfig, ExtractPhase}
+import com.memsql.spark.phases.{KafkaExtractConfig, JsonTransformConfig, TestLinesExtractConfig}
+import com.memsql.spark.phases.configs.{ExtractPhase}
 import ooyala.common.akka.web.JsonUtils._
 import spray.json._
 

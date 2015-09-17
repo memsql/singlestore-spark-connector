@@ -1,11 +1,11 @@
 package com.memsql.spark.phases
 
-import com.memsql.spark.etl.api.{SimpleByteArrayTransformer, UserTransformConfig}
+import com.memsql.spark.etl.api.{ByteArrayTransformer, PhaseConfig}
 import com.memsql.spark.etl.utils.{PhaseLogger, SimpleJsonSchema}
 import org.apache.commons.csv._
 import org.apache.spark.rdd._
 import org.apache.spark.sql._
-import spray.json._
+import spray.json.JsValue
 
 import scala.collection.JavaConversions._
 
@@ -14,15 +14,11 @@ case class CSVTransformerConfig(
   escape: Option[Char],
   quote: Option[Char],
   null_string: Option[String],
-  columns: JsValue)
+  columns: JsValue) extends PhaseConfig
 
-object CSVTransformerProtocol extends DefaultJsonProtocol {
-  val csvTransformerConfigFormat = jsonFormat5(CSVTransformerConfig)
-}
-
-class CSVTransformer extends SimpleByteArrayTransformer {
-  override def transform(sqlContext: SQLContext, rdd: RDD[Array[Byte]], userConfig: UserTransformConfig, logger: PhaseLogger): DataFrame = {
-    val config = CSVTransformerProtocol.csvTransformerConfigFormat.read(userConfig.value)
+class CSVTransformer extends ByteArrayTransformer {
+  override def transform(sqlContext: SQLContext, rdd: RDD[Array[Byte]], transformConfig: PhaseConfig, logger: PhaseLogger): DataFrame = {
+    val config = transformConfig.asInstanceOf[CSVTransformerConfig]
     val csvFormat = getCSVFormat(config)
     val nullString = config.null_string
     val schema = SimpleJsonSchema.jsonSchemaToStruct(config.columns)

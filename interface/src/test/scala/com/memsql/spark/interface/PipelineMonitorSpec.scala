@@ -15,7 +15,8 @@ import LoadPhaseKind._
 import com.memsql.spark.interface.api.{Pipeline, PipelineState, ApiActor}
 import ApiActor._
 import com.memsql.spark.interface.util.Paths
-import com.memsql.spark.phases.{KafkaExtractConfig, ExtractPhase}
+import com.memsql.spark.phases.{JsonTransformConfig, KafkaExtractConfig}
+import com.memsql.spark.phases.configs.ExtractPhase
 import org.apache.spark.{SparkContext, SparkConf}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.SQLContext

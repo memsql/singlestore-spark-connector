@@ -6,6 +6,8 @@ import com.memsql.spark.etl.utils.PhaseLogger
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.dstream._
 
+case class TestLinesExtractConfig(value: String) extends PhaseConfig
+
 /*
  * A simple Extractor for testing.  Produces the same fixed RDD every interval.
  * The RDD is the result of splitting the user config by lines.

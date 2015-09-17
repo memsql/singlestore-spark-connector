@@ -16,7 +16,7 @@ import com.memsql.spark.etl.api.configs.ExtractPhaseKind._
 
 object TransformPhaseKind extends Enumeration {
   type TransformPhaseKind = Value
-  val Json, User = Value
+  val Json, Csv, User = Value
 }
 import com.memsql.spark.etl.api.configs.TransformPhaseKind._
 
