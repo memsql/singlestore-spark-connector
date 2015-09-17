@@ -16,7 +16,7 @@ import akka.util.Timeout
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Success, Failure, Try}
 
-class WebServer extends Actor with WebService {
+class WebServer(val appWebUIPort: Int) extends Actor with WebService {
   def actorRefFactory = context
   def receive = runRoute(routeWithLogging)
 }
@@ -26,6 +26,7 @@ trait WebService extends HttpService {
   import com.memsql.spark.interface.api.ApiActor._
   import ooyala.common.akka.web.JsonUtils._
 
+  val appWebUIPort: Int
   val api = actorRefFactory.actorSelection("/user/api")
   implicit val timeout = Timeout(5.seconds)
 
@@ -49,6 +50,11 @@ trait WebService extends HttpService {
         future.map { resp =>
           ctx.complete(resp.toJson.toString)
         }
+      }
+    } ~
+    path("webui_port") {
+      get {
+        complete(JsObject("webui_port" -> JsNumber(appWebUIPort)))
       }
     } ~
     path("pipeline" / "query") {

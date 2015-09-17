@@ -18,6 +18,7 @@ import com.memsql.spark.etl.api.configs.PipelineConfigVersion.CurrentPipelineCon
 import ApiJsonProtocol._
 
 class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
+  override val appWebUIPort = -1
 
   def actorRefFactory = system
   val apiRef = system.actorOf(Props[ApiActor], "api")

@@ -86,6 +86,7 @@ lazy val interface = (project in file("interface")).
         "com.typesafe.akka" %% "akka-actor" % akkaVersion,
         "com.github.scopt" %% "scopt" % "3.2.0",
         "mysql" % "mysql-connector-java" % "5.1.34",
+        "org.eclipse.jetty" % "jetty-servlet" % "8.1.14.v20131031" % "provided",
         "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
         "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
         "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",

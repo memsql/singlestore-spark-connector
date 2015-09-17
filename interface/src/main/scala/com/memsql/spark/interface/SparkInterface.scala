@@ -12,7 +12,7 @@ import com.memsql.spark.interface.util.Paths
 import com.memsql.spark.interface.util.ErrorUtils._
 import org.apache.log4j.PropertyConfigurator
 import org.apache.spark.ui.jobs.JobProgressListener
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{SparkConf, SparkContext, SparkContextHelper}
 import org.apache.spark.streaming.{Duration, StreamingContext}
 import spray.can.Http
 import akka.pattern.ask
@@ -32,8 +32,6 @@ case class Config(port:Int = 10001,
 class SparkInterface(val providedConfig: Config) extends Application {
   override lazy val config = providedConfig
   override implicit val system = ActorSystem("spark-interface")
-  override val api = system.actorOf(Props[ApiActor], "api")
-  override val web = system.actorOf(Props[WebServer], "web")
 
   val loggingProperties = Logging.defaultProps
   if (config.debug) {
@@ -72,6 +70,11 @@ class SparkInterface(val providedConfig: Config) extends Application {
   // can't connect to the Spark master.
   val sparkMaster = sparkContext.master
   logInfo(s"Connected to a Spark master on $sparkMaster")
+
+  val appWebUIPort = SparkContextHelper.getUIBoundPort(sparkContext)
+
+  override val api = system.actorOf(Props[ApiActor], "api")
+  override val web = system.actorOf(Props(classOf[WebServer], appWebUIPort), "web")
 
   IO(Http) ? Http.Bind(web, interface = "0.0.0.0", port = config.port) onComplete {
     case Success(Http.Bound(endpoint)) => logInfo(s"Listening on 0.0.0.0:${config.port}")
