@@ -2,7 +2,6 @@ package com.memsql.spark.etl.api
 
 import org.apache.spark.sql.{SQLContext, DataFrame}
 import org.apache.spark.rdd.RDD
-import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.{ByteUtils, PhaseLogger}
 
 abstract class Transformer[S] extends Serializable {

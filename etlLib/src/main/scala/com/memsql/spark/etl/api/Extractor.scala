@@ -4,7 +4,6 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.{Time, StreamingContext}
-import com.memsql.spark.etl.api.configs.{UserExtractConfig, PhaseConfig}
 import com.memsql.spark.etl.utils.{PhaseLogger, ByteUtils}
 
 abstract class Extractor[S] extends Serializable {

@@ -1,11 +1,11 @@
-package com.memsql.spark.etl.api
+package com.memsql.spark.phases
 
+import com.memsql.spark.etl.api.{ByteArrayExtractor, PhaseConfig}
+import com.memsql.spark.etl.utils.PhaseLogger
 import kafka.serializer.{DefaultDecoder, StringDecoder}
 import org.apache.spark.streaming.StreamingContext
-import org.apache.spark.streaming.kafka.MemSQLKafkaUtils
 import org.apache.spark.streaming.dstream.InputDStream
-import com.memsql.spark.etl.api.configs.{PhaseConfig, KafkaExtractConfig}
-import com.memsql.spark.etl.utils.PhaseLogger
+import org.apache.spark.streaming.kafka.MemSQLKafkaUtils
 
 class KafkaExtractor(consumerId: String) extends ByteArrayExtractor {
   def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchDuration: Long, logger: PhaseLogger): InputDStream[Array[Byte]] = {

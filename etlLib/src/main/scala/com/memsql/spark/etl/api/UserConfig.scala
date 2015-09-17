@@ -1,18 +1,13 @@
-package com.memsql.spark.etl.api.configs
+package com.memsql.spark.etl.api
 
-import spray.json._
-import DefaultJsonProtocol._
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import spray.json._
+
+import DefaultJsonProtocol._
 
 import scala.util.Try
 
-object PipelineConfigVersion {
-  val CurrentPipelineConfigVersion = 1
-}
-import PipelineConfigVersion._
-
-abstract class PhaseConfig
 trait UserConfig {
   def class_name: String
   def value: JsValue
@@ -72,30 +67,3 @@ trait UserConfig {
     }
   }
 }
-
-case class Phase[T](kind: T, config: JsValue)
-
-object ExtractPhaseKind extends Enumeration {
-  type ExtractPhaseKind = Value
-  val Kafka, TestLines, User = Value
-}
-import ExtractPhaseKind._
-
-object TransformPhaseKind extends Enumeration {
-  type TransformPhaseKind = Value
-  val Json, User = Value
-}
-import TransformPhaseKind._
-
-object LoadPhaseKind extends Enumeration {
-  type LoadPhaseKind = Value
-  val MemSQL = Value
-}
-import LoadPhaseKind._
-
-// The PipelineConfig object contains configuration for all phases of an
-// ETL pipeline.
-case class PipelineConfig(var extract: Phase[ExtractPhaseKind],
-                          var transform: Phase[TransformPhaseKind],
-                          var load: Phase[LoadPhaseKind],
-                          var config_version: Int = PipelineConfigVersion.CurrentPipelineConfigVersion)

@@ -1,14 +1,13 @@
-package com.memsql.spark.etl.api
+package com.memsql.spark.phases
 
-import java.util.NoSuchElementException
-
+import com.memsql.spark.etl.api.{SimpleByteArrayTransformer, UserTransformConfig}
+import com.memsql.spark.etl.utils.{PhaseLogger, SimpleJsonSchema}
+import org.apache.commons.csv._
 import org.apache.spark.rdd._
 import org.apache.spark.sql._
-import com.memsql.spark.etl.utils.{SimpleJsonSchema, PhaseLogger}
-import com.memsql.spark.etl.api.configs._
-import scala.collection.JavaConversions._
-import org.apache.commons.csv._
 import spray.json._
+
+import scala.collection.JavaConversions._
 
 case class CSVTransformerConfig(
   delimiter: Option[Char],

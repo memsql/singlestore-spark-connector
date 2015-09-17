@@ -2,6 +2,7 @@ package com.memsql.spark.interface.api
 
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.interface.util.BoundedQueue
+import com.memsql.spark.phases.ExtractPhase
 import spray.json.DeserializationException
 
 object PipelineState extends Enumeration {

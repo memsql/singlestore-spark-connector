@@ -1,10 +1,12 @@
 package com.memsql.spark.interface.api
 
 import akka.actor.Props
+import com.memsql.spark.etl.api.{UserTransformConfig, UserExtractConfig}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.interface._
 import com.memsql.spark.interface.api.PipelineBatchType._
 import ApiActor._
+import com.memsql.spark.phases.{KafkaExtractConfig, ExtractPhase}
 import scala.concurrent.duration._
 import spray.json._
 

@@ -1,7 +1,6 @@
 package com.memsql.spark.etl.utils
 
 import com.memsql.spark.connector.dataframe.JsonType
-import com.memsql.spark.etl.api.configs.JsonEnumProtocol
 import org.apache.spark.sql.types.StructField
 import spray.json._
 import org.apache.spark.sql.types._

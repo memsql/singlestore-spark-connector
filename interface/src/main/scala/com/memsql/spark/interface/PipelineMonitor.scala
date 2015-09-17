@@ -5,12 +5,11 @@ import java.util.UUID
 
 import akka.pattern.ask
 import akka.actor.ActorRef
+import com.memsql.spark.phases._
 import com.memsql.spark.context.MemSQLContext
 import com.memsql.spark.etl.api._
-import com.memsql.spark.etl.api.{KafkaExtractor, MemSQLLoader}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.Logging
-import com.memsql.spark.interface.api.PipelineBatchType
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface.util.ErrorUtils._
 import com.memsql.spark.connector.SaveToMemSQLException

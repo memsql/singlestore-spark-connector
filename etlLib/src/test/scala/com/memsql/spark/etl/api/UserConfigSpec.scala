@@ -2,7 +2,7 @@ package com.memsql.spark.etl.api
 
 import org.scalatest._
 import spray.json._
-import com.memsql.spark.etl.api.configs._
+import com.memsql.spark.etl.api._
 
 class UserConfigSpec extends FlatSpec {
   val extractConfig = UserExtractConfig("com.test.Extract", JsObject(

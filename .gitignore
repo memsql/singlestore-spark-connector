@@ -18,3 +18,4 @@ test_root/*
 python/
 *.swp
 .idea
+.DS_Store

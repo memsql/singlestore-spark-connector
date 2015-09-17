@@ -1,6 +1,7 @@
 package com.memsql.spark.interface.api
 
 import com.memsql.spark.etl.api.configs._
+import com.memsql.spark.etl.utils.JsonEnumProtocol
 import spray.json._
 
 object ApiJsonProtocol extends JsonEnumProtocol {

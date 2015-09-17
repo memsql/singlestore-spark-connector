@@ -1,20 +1,22 @@
 package com.memsql.spark.etl.api.configs
 
-import spray.json._
-import LoadPhaseKind._
 import com.memsql.spark.connector.dataframe._
+import com.memsql.spark.etl.api.PhaseConfig
+import com.memsql.spark.etl.api.configs.LoadPhaseKind._
+import com.memsql.spark.etl.utils.JsonEnumProtocol
+import spray.json._
 
 object MemSQLKeyType extends Enumeration {
   type MemSQLKeyType = Value
   val Shard, Key, PrimaryKey, UniqueKey, KeyUsingClusteredColumnStore = Value
 }
-import MemSQLKeyType._
+import com.memsql.spark.etl.api.configs.MemSQLKeyType._
 
 object MemSQLTableConfig extends Enumeration {
   type MemSQLTableConfig = Value
   val RowStore, ColumnStore, Custom = Value
 }
-import MemSQLTableConfig.MemSQLTableConfig
+import com.memsql.spark.etl.api.configs.MemSQLTableConfig.MemSQLTableConfig
 
 case class MemSQLKeyConfig(key_type: MemSQLKeyType, column_names: List[String]) {
   def toMemSQLKey : MemSQLKey = {
@@ -81,7 +83,7 @@ object LoadPhaseImplicits extends JsonEnumProtocol {
   implicit val memSQLTableTypeTypeFormat = jsonEnum(MemSQLTableConfig)
   implicit val memSQLOptionsFormat = jsonFormat5(LoadConfigOptions)
 }
-import LoadPhaseImplicits._
+import com.memsql.spark.etl.api.configs.LoadPhaseImplicits._
 
 object LoadPhase extends DefaultJsonProtocol {
   val memSQLConfigFormat = jsonFormat5(MemSQLLoadConfig)

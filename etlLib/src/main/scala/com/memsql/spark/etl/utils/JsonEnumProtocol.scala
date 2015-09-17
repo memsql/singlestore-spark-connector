@@ -1,4 +1,4 @@
-package com.memsql.spark.etl.api.configs
+package com.memsql.spark.etl.utils
 
 import spray.json._
 

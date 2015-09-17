@@ -1,9 +1,10 @@
-package com.memsql.spark.etl.api
+package com.memsql.spark.phases
 
-import org.apache.spark.sql.DataFrame
 import com.memsql.spark.connector._
+import com.memsql.spark.etl.api.configs.{MemSQLExtraColumnConfig, MemSQLKeyConfig, MemSQLLoadConfig}
+import com.memsql.spark.etl.api.{Loader, PhaseConfig}
 import com.memsql.spark.etl.utils.PhaseLogger
-import com.memsql.spark.etl.api.configs.{PhaseConfig, MemSQLLoadConfig, MemSQLKeyConfig, MemSQLExtraColumnConfig}
+import org.apache.spark.sql.DataFrame
 
 class MemSQLLoader extends Loader {
   val DefaultUpsertBatchSize = 1000

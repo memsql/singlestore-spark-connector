@@ -1,12 +1,14 @@
 package com.memsql.spark.interface.server
 
 import akka.actor.Props
+import com.memsql.spark.etl.api.UserExtractConfig
 import com.memsql.spark.etl.api.configs._
 import ExtractPhaseKind._
 import TransformPhaseKind._
 import LoadPhaseKind._
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface._
+import com.memsql.spark.phases.{KafkaExtractConfig, ExtractPhase}
 import spray.http.HttpEntity
 import spray.http.ContentTypes._
 import spray.json._

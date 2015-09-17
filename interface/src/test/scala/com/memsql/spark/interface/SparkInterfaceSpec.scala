@@ -1,12 +1,14 @@
 package com.memsql.spark.interface
 
 import akka.actor.{ActorRef, Props}
+import com.memsql.spark.etl.api.UserExtractConfig
 import com.memsql.spark.etl.api.configs._
 import ExtractPhaseKind._
 import TransformPhaseKind._
 import LoadPhaseKind._
 import com.memsql.spark.interface.api.{PipelineInstance, Pipeline, PipelineState, ApiActor}
 import ApiActor._
+import com.memsql.spark.phases.{KafkaExtractConfig, ExtractPhase}
 import org.apache.spark.{SparkContext, SparkConf}
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.streaming.{StreamingContext, Duration}

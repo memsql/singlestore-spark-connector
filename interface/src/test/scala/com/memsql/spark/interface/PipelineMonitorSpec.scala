@@ -6,6 +6,7 @@ import java.sql.Timestamp
 import akka.pattern.ask
 import akka.actor.Props
 import akka.util.Timeout
+import com.memsql.spark.etl.api.UserExtractConfig
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.ByteUtils._
 import ExtractPhaseKind._
@@ -14,6 +15,7 @@ import LoadPhaseKind._
 import com.memsql.spark.interface.api.{Pipeline, PipelineState, ApiActor}
 import ApiActor._
 import com.memsql.spark.interface.util.Paths
+import com.memsql.spark.phases.{KafkaExtractConfig, ExtractPhase}
 import org.apache.spark.{SparkContext, SparkConf}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.SQLContext

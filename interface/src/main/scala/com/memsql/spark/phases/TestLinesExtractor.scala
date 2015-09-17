@@ -1,10 +1,10 @@
-package com.memsql.spark.etl.api
+package com.memsql.spark.phases
 
-import org.apache.spark.streaming.dstream._
-import org.apache.spark.streaming._
-import com.memsql.spark.etl.api.configs.{TestLinesExtractConfig, PhaseConfig}
+import com.memsql.spark.etl.api.{ByteArrayExtractor, PhaseConfig}
 import com.memsql.spark.etl.utils.ByteUtils._
 import com.memsql.spark.etl.utils.PhaseLogger
+import org.apache.spark.streaming._
+import org.apache.spark.streaming.dstream._
 
 /*
  * A simple Extractor for testing.  Produces the same fixed RDD every interval.

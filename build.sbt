@@ -35,12 +35,10 @@ lazy val etlLib = (project in file("etlLib")).
   settings(
     name := "MemSQLETL",
     libraryDependencies  ++= Seq(
-      "io.spray" %% "spray-json" % "1.3.2",
+      "io.spray" %% "spray-json" % "1.3.2" % "provided",
       "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
       "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
-      "org.apache.spark" %% "spark-streaming-kafka" % "1.4.1" % "provided",
-      "org.scalatest" %% "scalatest" % "2.2.5" % "test",
-      "org.apache.commons" % "commons-csv" % "1.2"
+      "org.scalatest" %% "scalatest" % "2.2.5" % "test"
     ),
     autoAPIMappings := true,
     apiMappings ++= {
@@ -82,6 +80,7 @@ lazy val interface = (project in file("interface")).
       val akkaVersion = "2.3.9"
       val sprayVersion = "1.3.2"
       Seq(
+        "io.spray" %% "spray-json" % sprayVersion,
         "io.spray" %% "spray-can" % sprayVersion,
         "io.spray" %% "spray-routing" % sprayVersion,
         "com.typesafe.akka" %% "akka-actor" % akkaVersion,
@@ -94,7 +93,8 @@ lazy val interface = (project in file("interface")).
         "org.scalatest" %% "scalatest" % "2.2.5" % "test",
         "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
         "org.scalamock" %% "scalamock-scalatest-support" % "3.2" % "test",
-        "io.spray" %% "spray-testkit" % sprayVersion % "test" exclude("org.scalamacros", "quasiquotes_2.10.3")
+        "io.spray" %% "spray-testkit" % sprayVersion % "test" exclude("org.scalamacros", "quasiquotes_2.10.3"),
+        "org.apache.commons" % "commons-csv" % "1.2"
       )
     }
   )

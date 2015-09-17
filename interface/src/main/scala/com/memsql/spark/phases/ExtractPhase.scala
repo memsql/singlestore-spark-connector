@@ -1,13 +1,14 @@
-package com.memsql.spark.etl.api.configs
+package com.memsql.spark.phases
 
+import com.memsql.spark.etl.api.configs.ExtractPhaseKind
+import com.memsql.spark.etl.api.{UserExtractConfig, PhaseConfig}
+import com.memsql.spark.etl.api.configs.ExtractPhaseKind._
+import com.memsql.spark.etl.utils.JsonEnumProtocol
 import spray.json._
-import ExtractPhaseKind._
 
 case class KafkaExtractConfig(host: String, port: Int, topic: String) extends PhaseConfig
 
 case class TestLinesExtractConfig(value: String) extends PhaseConfig
-
-case class UserExtractConfig(class_name: String, value: JsValue) extends PhaseConfig with UserConfig
 
 object ExtractPhase extends JsonEnumProtocol {
   val kafkaConfigFormat = jsonFormat3(KafkaExtractConfig)
