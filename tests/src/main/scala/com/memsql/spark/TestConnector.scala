@@ -479,7 +479,7 @@ object TestCreateWithKeys {
       keys=List(Shard(), KeyUsingClusteredColumnStore("carl"))
     )
 
-    val conn = sqlContext.getMAConnection
+    val conn = MemSQLContext.getMemSQLConnection(TestUtils.GetHostname, 3306, "root", "")
     val stmt = conn.createStatement
 
     assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t1'")).toArray.size==0)

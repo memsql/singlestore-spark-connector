@@ -1,6 +1,6 @@
 package com.memsql.spark.connector
 
-import com.memsql.spark.context.MemSQLMetaData
+import com.memsql.spark.context.MemSQLContext
 
 import scala.util.Random
 
@@ -53,7 +53,10 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     upsertBatchSize: Int = 10000,
     useKeylessShardedOptimization: Boolean = false): Long = {
     var compression = "gzip"
-    var availableNodes: List[(String, Int, String)] = List((dbHost, dbPort, dbName))
+
+    var availableNodes = MemSQLContext.getMemSQLNodesAvailableForIngest(dbHost, dbPort, user, password)
+                                      .map { node => (node.host, node.port, dbName) }
+
     if (useKeylessShardedOptimization) {
       var conn: Connection = null
       var stmt: Statement = null
@@ -139,8 +142,8 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
    * Returns a List of MemSQLTarget structs, one for each Spark partition.
    * Represents one possibility for the Spark -> MemSQL mapping created by calling saveToMemSQL.
    */
-  def saveToMemSQLDryRun(memSQLMetaData: MemSQLMetaData) : List[MemSQLTarget] = {
-    val availableNodes = memSQLMetaData.getMemSQLNodesAvailableForIngest.map(node => (node.host, node.port, null: String))
+  def saveToMemSQLDryRun(memSQLContext: MemSQLContext) : List[MemSQLTarget] = {
+    val availableNodes = memSQLContext.getMemSQLNodesAvailableForIngest.map(node => (node.host, node.port, null: String))
     val randomIndex = Random.nextInt(availableNodes.size)
     rdd.mapPartitions{ part =>
       List(chooseMemSQLTarget(availableNodes, randomIndex)).toIterator
