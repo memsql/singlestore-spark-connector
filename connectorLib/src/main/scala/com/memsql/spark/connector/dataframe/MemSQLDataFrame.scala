@@ -50,6 +50,7 @@ object MemSQLDataFrameUtils {
       case java.sql.Types.NVARCHAR => StringType
       case java.sql.Types.LONGVARBINARY => BinaryType
       case java.sql.Types.VARBINARY => BinaryType
+      case java.sql.Types.BINARY => BinaryType
       case _ => throw new IllegalArgumentException("Can't translate type " + rsmd.getColumnTypeName(ix))
     }
   }

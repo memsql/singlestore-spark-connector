@@ -1,6 +1,6 @@
 package com.memsql.spark.etl.utils
 
-import com.memsql.spark.connector.dataframe.JsonType
+import com.memsql.spark.connector.dataframe.{BigIntUnsignedType, GeographyType, GeographyPointType, JsonType}
 import org.apache.spark.sql.types.StructField
 import spray.json._
 import org.apache.spark.sql.types._
@@ -14,22 +14,25 @@ case class ColumnDefinition(
 object SimpleJsonSchemaProtocol extends JsonEnumProtocol {
   implicit object columnTypeFormat extends RootJsonFormat[DataType] {
     def read(value: JsValue): DataType = value match {
-      case JsString(column) => column match {
-        case "byte"     => ByteType
-        case "short"    => ShortType
-        case "int"      => IntegerType
-        case "integer"  => IntegerType
-        case "long"     => LongType
-        case "float"    => FloatType
-        case "double"   => DoubleType
-        case "string"   => StringType
-        case "binary"   => BinaryType
-        case "bool"     => BooleanType
-        case "boolean"  => BooleanType
-        case "timestamp"=> TimestampType
-        case "date"     => TimestampType
-        case "datetime" => TimestampType
-        case "json"     => JsonType
+      case JsString(column) => column.toUpperCase match {
+        case "BYTE"            => ByteType
+        case "SHORT"           => ShortType
+        case "INT"             => IntegerType
+        case "INTEGER"         => IntegerType
+        case "BIGINT"          => LongType
+        case "BIGINT UNSIGNED" => BigIntUnsignedType
+        case "FLOAT"           => FloatType
+        case "DOUBLE"          => DoubleType
+        case "STRING"          => StringType
+        case "BINARY"          => BinaryType
+        case "BOOL"            => BooleanType
+        case "BOOLEAN"         => BooleanType
+        case "TIMESTAMP"       => TimestampType
+        case "DATE"            => TimestampType
+        case "DATETIME"        => TimestampType
+        case "JSON"            => JsonType
+        case "GEOGRAPHY"       => GeographyType
+        case "GEOGRAPHYPOINT"  => GeographyPointType
         case _ => throw new DeserializationException("Unknown type " + column)
       }
       case _ => throw new DeserializationException("ColumnType must be a string")
