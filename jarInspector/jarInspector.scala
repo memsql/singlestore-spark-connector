@@ -76,7 +76,7 @@ object JarInspector {
     val inspectorVersion = Meta.version
     val scannedVersions = reflect.getStore.get("MemSQLVersionScanner").asMap
     if (!scannedVersions.contains("version")) {
-      throw new JarInspectorException(s"JAR file does not include MemSQL etlib.")
+      throw new JarInspectorException(s"JAR file does not include MemSQL etlLib.")
     }
 
     val jarVersion = scannedVersions.get("version").head
@@ -84,7 +84,7 @@ object JarInspector {
     val inspectorVersionTuple = inspectorVersion.split("\\.").take(2).toList
     //NOTE: we only compare major/minor versions here because they may have changed the etl interface
     if (jarVersionTuple != inspectorVersionTuple) {
-      throw new JarInspectorException(s"JAR file was compiled against MemSQL etlib version $jarVersion but this MemSQL Spark distribution is version $inspectorVersion")
+      throw new JarInspectorException(s"JAR file was compiled against MemSQL etlLib version $jarVersion but this MemSQL Spark distribution is version $inspectorVersion")
     }
 
     val subTypesMap = mapAsScalaMap(reflect.getStore.get("SubTypesScanner").asMap)
