@@ -9,6 +9,7 @@ lazy val root = (project in file(".")).
         "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
         "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
         "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
-        "com.memsql" %% "memsqletl" % "0.2.0" % "provided"
+        "io.spray" %% "spray-json" % "1.3.2" % "provided",
+        "com.memsql" %% "memsqletl" % "0.2.1"
     )
 )

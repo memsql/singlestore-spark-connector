@@ -9,7 +9,6 @@ import org.apache.spark.sql.types._
 import com.memsql.spark.context._
 import com.memsql.spark.connector._
 import com.memsql.spark.etl.api._
-import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils._
 import com.memsql.spark.etl.utils.PhaseLogger
 
