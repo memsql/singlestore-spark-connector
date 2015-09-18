@@ -21,6 +21,7 @@ case class CSVTransformerConfig(
 class CSVTransformer extends ByteArrayTransformer {
   override def transform(sqlContext: SQLContext, rdd: RDD[Array[Byte]], transformConfig: PhaseConfig, logger: PhaseLogger): DataFrame = {
     val config = transformConfig.asInstanceOf[CSVTransformerConfig]
+
     val csvFormat = getCSVFormat(config)
     val nullString = config.null_string
     val columns = SimpleJsonSchema.parseColumnDefs(config.columns)
@@ -52,13 +53,12 @@ class CSVTransformer extends ByteArrayTransformer {
   }
 
   private def getCSVFormat(config: CSVTransformerConfig): CSVFormat = {
-    // The MYSQL format is a sensible base format (you need to pick one in CSVFormat). We
-    // override most of the options via the config, so the choice is not too significant.
-    return CSVFormat.MYSQL
-      .withDelimiter(config.delimiter.getOrElse(','))
+    return CSVFormat.newFormat(config.delimiter.getOrElse(','))
+      .withIgnoreSurroundingSpaces()
+      .withIgnoreEmptyLines(false)
+      .withRecordSeparator('\n')
       .withEscape(config.escape.getOrElse('\\'))
       .withQuote(config.quote.getOrElse('"'))
-      .withIgnoreSurroundingSpaces()
   }
 
   // TODO: support non-standard line delimiters
