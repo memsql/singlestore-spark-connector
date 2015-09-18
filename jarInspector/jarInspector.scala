@@ -51,7 +51,7 @@ object JarInspector {
 
   // We won't include any extractors or transformers that begin with this
   // prefix in the output
-  val IGNORE_PREFIX = "com.memsql.spark.etl"
+  val IGNORE_PREFIXES = Set("com.memsql.spark.etl", "com.memsql.spark.phases")
 
   def getAllSubclasses(subTypesMap: Map[String, List[String]], rootClass: String): List[String] = {
     var index = 0
@@ -63,7 +63,7 @@ object JarInspector {
         throw new JarInspectorException(s"JAR file contains more than $MAX_SUBCLASSES implementations of $rootClass")
       }
     }
-    result.filterNot(_.startsWith(IGNORE_PREFIX)).toList
+    result.filterNot(x => IGNORE_PREFIXES.map(x.contains(_)).reduce(_ || _)).toList
   }
 
   def inspectJarFile(jarFile: File): InspectionResult = {
