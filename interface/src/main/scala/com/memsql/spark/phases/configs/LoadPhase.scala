@@ -65,13 +65,14 @@ case class MemSQLLoadConfig(
         name="memsql_insert_time",
         col_type="TIMESTAMP",
         nullable=Some(false),
-        default_value=Some("CURRENT_TIMESTAMP"),
+        default_value=None,
         persisted=None
       ))),
       table_keys=Some(List(
         MemSQLKeyConfig(key_type=MemSQLKeyType.Shard, column_names=List()),
         MemSQLKeyConfig(key_type=keyType, column_names=List("memsql_insert_time"))
-      ))
+      )),
+      use_keyless_sharding_optimization = Some(false)
     )
   }
 }
