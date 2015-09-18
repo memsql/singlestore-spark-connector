@@ -9,6 +9,8 @@ import spray.json.JsValue
 
 import scala.collection.JavaConversions._
 
+class CSVTransformerException(message: String) extends Exception(message)
+
 case class CSVTransformerConfig(
   delimiter: Option[Char],
   escape: Option[Char],
@@ -21,7 +23,8 @@ class CSVTransformer extends ByteArrayTransformer {
     val config = transformConfig.asInstanceOf[CSVTransformerConfig]
     val csvFormat = getCSVFormat(config)
     val nullString = config.null_string
-    val schema = SimpleJsonSchema.jsonSchemaToStruct(config.columns)
+    val columns = SimpleJsonSchema.parseColumnDefs(config.columns)
+    val schema = SimpleJsonSchema.columnsToStruct(columns)
 
     val parsedRDD = rdd.map(byteUtils.bytesToUTF8String)
                        .flatMap(parseCSVLines(_, csvFormat))
@@ -31,7 +34,20 @@ class CSVTransformer extends ByteArrayTransformer {
       case None => parsedRDD
     }
 
-    val rowRDD = nulledRDD.map(x => Row.fromSeq(x))
+    val rowRDD = nulledRDD.map(x => {
+      // For each row, remove the values where their corresponding column
+      // definition has skip = true. Check the length of the row to make sure
+      // that it has the correct number of values both before and after
+      // filtering columns.
+      if (x.size != columns.size) {
+        throw new CSVTransformerException(s"Row with values $x has length ${x.size} but there are ${columns.size} columns defined")
+      }
+      val values = x
+        .zip(columns)
+        .filter{ case (value, column) =>  !column.skip.getOrElse(false) }
+        .map{ case (value, column) => value }
+      Row.fromSeq(values)
+    })
     return sqlContext.createDataFrame(rowRDD, schema)
   }
 

@@ -5,7 +5,11 @@ import org.apache.spark.sql.types.StructField
 import spray.json._
 import org.apache.spark.sql.types._
 
-case class ColumnDefinition(name: String, column_type: Option[DataType] = None)
+case class ColumnDefinition(
+  name: Option[String] = None,
+  column_type: Option[DataType] = None,
+  skip: Option[Boolean] = None
+)
 
 object SimpleJsonSchemaProtocol extends JsonEnumProtocol {
   implicit object columnTypeFormat extends RootJsonFormat[DataType] {
@@ -34,7 +38,7 @@ object SimpleJsonSchemaProtocol extends JsonEnumProtocol {
     def write(d: DataType) = throw new Exception("Writing ColumnTypes is not supported")
   }
 
-  implicit val columnDefinitionFormat = jsonFormat2(ColumnDefinition)
+  implicit val columnDefinitionFormat = jsonFormat3(ColumnDefinition)
 
   object columnsFormat extends RootJsonReader[List[ColumnDefinition]] {
     def read(value: JsValue): List[ColumnDefinition] = value match {
@@ -47,12 +51,20 @@ object SimpleJsonSchemaProtocol extends JsonEnumProtocol {
 }
 
 object SimpleJsonSchema {
-  def jsonSchemaToStruct(rawColumns: JsValue): StructType = {
-    val columns = SimpleJsonSchemaProtocol.columnsFormat.read(rawColumns)
-    val fields = columns.map(c => {
-      val columnType = c.column_type.getOrElse(StringType)
-      StructField(c.name, columnType, true)
-    })
+  def parseColumnDefs(rawColumns: JsValue): List[ColumnDefinition] = {
+    SimpleJsonSchemaProtocol.columnsFormat.read(rawColumns)
+  }
+
+  def columnsToStruct(columns: List[ColumnDefinition]): StructType = {
+    val fields = columns
+      .filterNot(_.skip.getOrElse(false))
+      .map(c => {
+        if (c.name.isEmpty) {
+          throw new DeserializationException("Columns must have a name")
+        }
+        val columnType = c.column_type.getOrElse(StringType)
+        StructField(c.name.get, columnType, true)
+      })
     return StructType(fields)
   }
 }
