@@ -5,7 +5,7 @@ import org.apache.spark.sql.types.StructField
 import spray.json._
 import org.apache.spark.sql.types._
 
-case class ColumnDefinition(name: String, column_type: DataType)
+case class ColumnDefinition(name: String, column_type: Option[DataType] = None)
 
 object SimpleJsonSchemaProtocol extends JsonEnumProtocol {
   implicit object columnTypeFormat extends RootJsonFormat[DataType] {
@@ -49,8 +49,10 @@ object SimpleJsonSchemaProtocol extends JsonEnumProtocol {
 object SimpleJsonSchema {
   def jsonSchemaToStruct(rawColumns: JsValue): StructType = {
     val columns = SimpleJsonSchemaProtocol.columnsFormat.read(rawColumns)
-    val fields = columns.map(c => StructField(c.name, c.column_type, true))
+    val fields = columns.map(c => {
+      val columnType = c.column_type.getOrElse(StringType)
+      StructField(c.name, columnType, true)
+    })
     return StructType(fields)
   }
 }
-
