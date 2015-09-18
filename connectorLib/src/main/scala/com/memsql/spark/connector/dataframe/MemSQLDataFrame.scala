@@ -32,6 +32,7 @@ object MemSQLDataFrameUtils {
 
   def JDBCTypeToDataFrameType(rsmd: ResultSetMetaData, ix: Int) : DataType = {
     rsmd.getColumnType(ix) match {
+      case java.sql.Types.CHAR => ByteType
       case java.sql.Types.INTEGER => IntegerType
       case java.sql.Types.TINYINT => ShortType
       case java.sql.Types.BIGINT => LongType  // TODO: This will prevent inequalities for some dumb reason
