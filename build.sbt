@@ -35,7 +35,7 @@ lazy val etlLib = (project in file("etlLib")).
   settings(
     name := "MemSQLETL",
     libraryDependencies  ++= Seq(
-      "io.spray" %% "spray-json" % "1.3.2" % "provided",
+      "io.spray" %% "spray-json" % "1.3.2",
       "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
       "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
       "org.scalatest" %% "scalatest" % "2.2.5" % "test"
