@@ -116,10 +116,10 @@ object TestUtils {
   }
   def CollectAndSort(df: DataFrame, asString: Boolean = false): Seq[Row] = {
     val rdd = if (asString) {
-      df.rdd.map((r: Row) => 
-        Row.fromSeq(r.toSeq.map(_.toString))) 
+      df.rdd.map((r: Row) =>
+        Row.fromSeq(r.toSeq.map(_.toString)))
     } else {
-      df.rdd 
+      df.rdd
     }
 
     rdd.collect.sorted(RowOrdering.forSchema(
@@ -182,7 +182,7 @@ object Types {
   def ToCol(tp: String): String = "val_" + tp.replace("(","_").replace(")","").replace(",","_")
   val SparkSQLTypes: Array[(DataType,Array[Any])] = Array(
     (IntegerType,Array(1,2,3)),
-    (LongType,Array(4,5,6)),    
+    (LongType,Array(4,5,6)),
     (DoubleType,Array(7.8,9.1,1.2)),
     (FloatType,Array(2.8,3.1,4.2)),
     (ShortType,Array(7,8,9)),
@@ -202,16 +202,16 @@ object TestSparkSQLTypes {
     val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
     TestUtils.doDDL(conn, "DROP DATABASE IF EXISTS x_db")
     TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
-    
+
     // Types.SparkSQLTypes (above) is an Array[(DataType,Array[Any])] where each element is a tuple (type, three possible values for that type)
     // We transpose this data into a dataframe, where each column has the name val_<typename>.
     //
-    val schema = StructType(Types.SparkSQLTypes.map(r => 
+    val schema = StructType(Types.SparkSQLTypes.map(r =>
       StructField("val_" + r._1.toString, r._1, true)))
-    val rows = (0 until 3).map(i => 
+    val rows = (0 until 3).map(i =>
       Row.fromSeq(Types.SparkSQLTypes.map(_._2(i)).toSeq))
     val df = sqlContext.createDataFrame(sc.parallelize(rows), schema)
-      
+
     df.createMemSQLTableAs("x_db","t")
     val df2 = sqlContext.createDataFrameFromMemSQLTable("x_db","t")
     assert(TestUtils.EqualDFs(df, df2, asString=true))
@@ -576,9 +576,9 @@ object TestSaveToMemSQLErrors {
       df1.saveToMemSQL("x_db", "t")
       assert(false)
     } catch {
-      case e: SparkException => {
-        println(e.getMessage)
-        assert(e.getMessage.contains("Table 'x_db.t' doesn't exist"))
+      case e: SaveToMemSQLException => {
+        println(e.exception.getMessage)
+        assert(e.exception.getMessage.contains("Table 'x_db.t' doesn't exist"))
       }
     }
     val df2 = df1.createMemSQLTableAs("x_db","t")
@@ -587,15 +587,15 @@ object TestSaveToMemSQLErrors {
         try {
           df.select(df("a") as "a", df("b") as "b", df("a") as "c").saveToMemSQL("x_db", "t", onDuplicateKeySql = dupKeySql)
         } catch {
-          case e: SparkException => {
-            assert(e.getMessage.contains("Unknown column 'c' in 'field list'"))
+          case e: SaveToMemSQLException => {
+            assert(e.exception.getMessage.contains("Unknown column 'c' in 'field list'"))
           }
         }
         try {
           df.select(df("a"), df("b"), df("a")).saveToMemSQL("x_db", "t", onDuplicateKeySql = dupKeySql)
         } catch {
-          case e: SparkException => {
-            assert(e.getMessage.contains("Column 'a' specified twice"))
+          case e: SaveToMemSQLException => {
+            assert(e.exception.getMessage.contains("Column 'a' specified twice"))
           }
         }
       }
@@ -632,9 +632,9 @@ object TestSaveToMemSQLWithRDDErrors {
       df1.createMemSQLTableAs(dbName, "t", host, port, user, password)
       assert(false, "We should have raised an exception when saving to MemSQL")
     } catch {
-      case e: SparkException => {
-        println(e.getMessage)
-        assert(e.getMessage.contains("Test exception 123"))
+      case e: SaveToMemSQLException => {
+        println(e.exception.getMessage)
+        assert(e.exception.getMessage.contains("Test exception 123"))
       }
     }
   }
@@ -723,9 +723,9 @@ object TestLeakedConns {
                              onDuplicateKeySql = dupKeySql)
         assert (false)
       } catch {
-        case e: SparkException => {
-          assert(e.getMessage.contains("NULL supplied to NOT NULL column 'a' at row 0")
-            || e.getMessage.contains("Column 'a' cannot be null"))
+        case e: SaveToMemSQLException => {
+          assert(e.exception.getMessage.contains("NULL supplied to NOT NULL column 'a' at row 0")
+            || e.exception.getMessage.contains("Column 'a' cannot be null"))
         }
       }
       assert (baseConns == numConns(conn)) // failed saveToMemSQL shouldn't leak a connection
@@ -786,7 +786,7 @@ object TestEscapedColumnNames {
     TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
     val conf = new SparkConf().setAppName("TestEscapedColumnNames")
     val sc = new SparkContext(conf)
-    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 10000, "root", "")
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
 
 
     val schema = StructType(Array(StructField("index",IntegerType,true)))
