@@ -36,9 +36,11 @@ class SparkInterface(val providedConfig: Config) extends Application {
   val loggingProperties = Logging.defaultProps
   if (config.debug) {
     loggingProperties.setProperty("log4j.logger.com.memsql", "DEBUG")
+    loggingProperties.setProperty("log4j.logger.org.apache.spark", "INFO")
     system.eventStream.setLogLevel(DebugLevel)
   } else {
     loggingProperties.setProperty("log4j.logger.com.memsql", "INFO")
+    loggingProperties.setProperty("log4j.logger.org.apache.spark", "WARN")
     system.eventStream.setLogLevel(InfoLevel)
   }
   PropertyConfigurator.configure(loggingProperties)
@@ -53,6 +55,7 @@ class SparkInterface(val providedConfig: Config) extends Application {
       .set("spark.executor.port", (config.port + 5).toString)
       .set("spark.fileserver.port", (config.port + 6).toString)
       .set("spark.files.overwrite", "true")
+      .set("spark.ui.showConsoleProgress", "false")
       .set("memsql.host", config.dbHost)
       .set("memsql.port", config.dbPort.toString)
       .set("memsql.user", config.dbUser)
