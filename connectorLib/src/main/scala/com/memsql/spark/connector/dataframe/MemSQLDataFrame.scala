@@ -93,17 +93,17 @@ object MemSQLDataFrame {
     query: String) : MemSQLRDD[Row] = {
 
     return new MemSQLRDD(sc,
-			 dbHost,
-			 dbPort,
-			 user,
-			 password,
-			 dbName,
-			 query,
-  			 (r:ResultSet) => {
-  			   val count = r.getMetaData.getColumnCount
-  			   Row.fromSeq(Range(0,count)
+             dbHost,
+             dbPort,
+             user,
+             password,
+             dbName,
+             query,
+               (r:ResultSet) => {
+                 val count = r.getMetaData.getColumnCount
+                 Row.fromSeq(Range(0,count)
                                        .map(i => MemSQLDataFrameUtils.GetJDBCValue(r.getMetaData.getColumnType(i+1), i+1, r)))
-  			 })
+               })
   }
 
   def MakeMemSQLDF(
@@ -140,7 +140,7 @@ object MemSQLDataFrame {
       val count = metadata.getColumnCount
       val schema = StructType(Range(0,count).map(i => StructField(metadata.getColumnName(i+1),
                                                                   MemSQLDataFrameUtils.JDBCTypeToDataFrameType(metadata, i+1),
-                                                                  metadata.isNullable(i+1) == ResultSetMetaData.columnNullable)))
+                                                                  true)))
       return schema
     } finally {
       if (schemaStmt != null && !schemaStmt.isClosed()) {
@@ -169,16 +169,16 @@ case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlCont
     {
       if (i != 0) // scala apparently has no "pythonic" join
       {
-	result.append(" AND ")
+    result.append(" AND ")
       }
       filters(i) match
       {
-	case EqualTo(attr, v) =>  result.append(attr).append(" = '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
-	case GreaterThan(attr, v) =>  result.append(attr).append(" > '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
-	case LessThan(attr, v) =>  result.append(attr).append(" < '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
-	case GreaterThanOrEqual(attr, v) => result.append(attr).append(" >= '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
-	case LessThanOrEqual(attr, v) => result.append(attr).append(" <= '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
-	case In(attr, vs) => {
+    case EqualTo(attr, v) =>  result.append(attr).append(" = '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
+    case GreaterThan(attr, v) =>  result.append(attr).append(" > '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
+    case LessThan(attr, v) =>  result.append(attr).append(" < '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
+    case GreaterThanOrEqual(attr, v) => result.append(attr).append(" >= '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
+    case LessThanOrEqual(attr, v) => result.append(attr).append(" <= '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
+    case In(attr, vs) => {
           result.append(" in (")
           for (j <- 0 to (vs.size - 1))
           {
@@ -215,12 +215,12 @@ case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlCont
 class MemSQLRelationProvider extends RelationProvider {
   def createRelation(sqlContext: SQLContext, parameters: Map[String,String]) : MemSQLScan = {
     return new MemSQLScan(MemSQLDataFrame.MakeMemSQLRowRDD(sqlContext.sparkContext,
-						           parameters("dbHost"),
-						           parameters("dbPort").toInt,
-						           parameters("user"),
-						           parameters("password"),
-						           parameters("dbName"),
-                                                           parameters("query")),
-			  sqlContext)
+                                   parameters("dbHost"),
+                                   parameters("dbPort").toInt,
+                                   parameters("user"),
+                                   parameters("password"),
+                                   parameters("dbName"),
+                                   parameters("query")),
+              sqlContext)
   }
 }

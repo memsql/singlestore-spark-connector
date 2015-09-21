@@ -393,7 +393,7 @@ object TestMemSQLTypes {
 
       assert(df_not_null.schema(i).dataType.equals(df_nullable.schema(i).dataType))
       assert(df_not_null.schema(i).name.equals(df_nullable.schema(i).name))
-      assert(!df_not_null.schema(i).nullable)
+      assert( df_not_null.schema(i).nullable)
       assert( df_nullable.schema(i).nullable)
 
       var cd_nn = df_not_null.select(colname).collect.map(_(0))
