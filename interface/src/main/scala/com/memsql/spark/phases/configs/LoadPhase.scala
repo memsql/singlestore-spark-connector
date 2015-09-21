@@ -18,6 +18,12 @@ object MemSQLTableConfig extends Enumeration {
 }
 import com.memsql.spark.etl.api.configs.MemSQLTableConfig.MemSQLTableConfig
 
+object MemSQLDupKeyBehavior extends Enumeration {
+  type MemSQLDupKeyBehavior = Value
+  val Replace, Ignore, Update = Value
+}
+import com.memsql.spark.etl.api.configs.MemSQLDupKeyBehavior._
+
 case class MemSQLKeyConfig(key_type: MemSQLKeyType, column_names: List[String]) {
   def toMemSQLKey : MemSQLKey = {
     key_type match {
@@ -45,7 +51,8 @@ case class LoadConfigOptions(
   upsert_batch_size: Option[Int]=None,
   table_keys: Option[List[MemSQLKeyConfig]]=None,
   table_extra_columns: Option[List[MemSQLExtraColumnConfig]]=None,
-  use_keyless_sharding_optimization: Option[Boolean]=None)
+  use_keyless_sharding_optimization: Option[Boolean]=None,
+  duplicate_key_behavior: Option[MemSQLDupKeyBehavior]=None)
 
 case class MemSQLLoadConfig(
   db_name: String,
@@ -82,7 +89,8 @@ object LoadPhaseImplicits extends JsonEnumProtocol {
   implicit val memSQLkeyConfigFormat = jsonFormat2(MemSQLKeyConfig)
   implicit val memSQLextraColumnConfigFormat = jsonFormat5(MemSQLExtraColumnConfig)
   implicit val memSQLTableTypeTypeFormat = jsonEnum(MemSQLTableConfig)
-  implicit val memSQLOptionsFormat = jsonFormat5(LoadConfigOptions)
+  implicit val memSQLErrorBehaviorFormat = jsonEnum(MemSQLDupKeyBehavior)
+  implicit val memSQLOptionsFormat = jsonFormat6(LoadConfigOptions)
 }
 import com.memsql.spark.etl.api.configs.LoadPhaseImplicits._
 

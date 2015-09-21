@@ -9,6 +9,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.catalyst.expressions.RowOrdering
 
 import com.memsql.spark.connector._
+import com.memsql.spark.connector.OnDupKeyBehavior._
 import com.memsql.spark.connector.dataframe._
 import com.memsql.spark.connector.rdd._
 
@@ -463,7 +464,7 @@ object TestCreateWithKeys {
 
     val rdd = sc.parallelize(Array[Row]())
     val schema = StructType(Array(StructField("a",IntegerType,true),
-      StructField("b",StringType,false)))
+      StructField("b",StringType,true)))
     val df = sqlContext.createDataFrame(rdd, schema)
 
     df.createMemSQLTableFromSchema("db","t1", keys=List(Shard()))
@@ -535,7 +536,7 @@ object TestMemSQLContextVeryBasic {
         Row(null,"null")),
       20)
     val schema = StructType(Array(StructField("a",IntegerType,true),
-      StructField("b",StringType,false)))
+      StructField("b",StringType,true)))
     val df = sqlContext.createDataFrame(rdd, schema)
 
     val memdf =  df.createMemSQLTableAs("db","t")
@@ -569,7 +570,7 @@ object TestSaveToMemSQLErrors {
         Row(4,"psy\tduck")))
 
     val schema = StructType(Array(StructField("a",IntegerType,true),
-      StructField("b",StringType,false)))
+      StructField("b",StringType,true)))
     val df1 = sqlContext.createDataFrame(rdd, schema)
 
     try {
@@ -583,16 +584,22 @@ object TestSaveToMemSQLErrors {
     }
     val df2 = df1.createMemSQLTableAs("x_db","t")
     for (dupKeySql <- Array("","b = 1")) {
+      val onDuplicateKeyBehavior = if (dupKeySql.isEmpty) {
+        None
+      } else {
+        Some(OnDupKeyBehavior.Update)
+      }
+
       for (df <- Array(df1, df2)) {
         try {
-          df.select(df("a") as "a", df("b") as "b", df("a") as "c").saveToMemSQL("x_db", "t", onDuplicateKeySql = dupKeySql)
+          df.select(df("a") as "a", df("b") as "b", df("a") as "c").saveToMemSQL("x_db", "t", onDuplicateKeyBehavior = onDuplicateKeyBehavior, onDuplicateKeySql = dupKeySql)
         } catch {
           case e: SaveToMemSQLException => {
             assert(e.exception.getMessage.contains("Unknown column 'c' in 'field list'"))
           }
         }
         try {
-          df.select(df("a"), df("b"), df("a")).saveToMemSQL("x_db", "t", onDuplicateKeySql = dupKeySql)
+          df.select(df("a"), df("b"), df("a")).saveToMemSQL("x_db", "t", onDuplicateKeyBehavior = onDuplicateKeyBehavior, onDuplicateKeySql = dupKeySql)
         } catch {
           case e: SaveToMemSQLException => {
             assert(e.exception.getMessage.contains("Column 'a' specified twice"))
@@ -625,7 +632,7 @@ object TestSaveToMemSQLWithRDDErrors {
     })
 
     val schema = StructType(Array(StructField("a",IntegerType,true),
-      StructField("b",StringType,false)))
+      StructField("b",StringType,true)))
     val df1 = sqlContext.createDataFrame(rdd, schema)
 
     try {
@@ -708,18 +715,25 @@ object TestLeakedConns {
                       sqlContext.getMemSQLMasterAggregator.port,
                       sqlContext.getMemSQLUserName,
                       sqlContext.getMemSQLPassword,
+                      onDuplicateKeyBehavior = Some(OnDupKeyBehavior.Update),
                       onDuplicateKeySql = "b = 1")
     assert (baseConns == numConns(conn)) // successful saveToMemSQL with upsert shouldn't leak a connection
 
     val rddnull = sc.parallelize(Array(Row(null,3)))
     for (dupKeySql <- Array("","b = 1")) {
       try {
+        val onDuplicateKeyBehavior = if (dupKeySql.isEmpty) {
+          None
+        } else {
+          Some(OnDupKeyBehavior.Update)
+        }
         rddnull.saveToMemSQL("x_db",
                              "t",
                              sqlContext.getMemSQLMasterAggregator.host,
                              sqlContext.getMemSQLMasterAggregator.port,
                              sqlContext.getMemSQLUserName,
                              sqlContext.getMemSQLPassword,
+                             onDuplicateKeyBehavior = onDuplicateKeyBehavior,
                              onDuplicateKeySql = dupKeySql)
         assert (false)
       } catch {
@@ -788,7 +802,6 @@ object TestEscapedColumnNames {
     val sc = new SparkContext(conf)
     val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
 
-
     val schema = StructType(Array(StructField("index",IntegerType,true)))
     val rows = sc.parallelize(Array(Row(1),Row(2),Row(3),Row(4)))
     val df = sqlContext.createDataFrame(rows,schema)
@@ -796,5 +809,79 @@ object TestEscapedColumnNames {
     df.createMemSQLTableAs("x_db","t",
       keys=List(PrimaryKey("index")),
       extraCols=List(MemSQLExtraColumn("table", "varchar(200)", defaultValue="")))
+  }
+}
+
+object TestSaveToMemSQLWithDupKeys {
+  def main(args : Array[String]) {
+    val conf = new SparkConf().setAppName("MemSQLRDD Application")
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
+
+    TestUtils.DropAndCreate("x_db")
+
+    val rdd1 = sc.parallelize(
+      Array(Row(1,"test 1"),
+        Row(2,"test 2"),
+        Row(3,"test 3")))
+
+    val schema = StructType(Array(StructField("a",IntegerType,true),
+      StructField("b",StringType,true)))
+    val df1 = sqlContext.createDataFrame(rdd1, schema)
+
+    df1.createMemSQLTableAs("x_db", "t", keys=List(PrimaryKey("a")))
+
+    val df_t = TestUtils.MemSQLDF(sqlContext, "x_db", "t")
+    assert(df_t.schema.equals(schema))
+    assert(df_t.count == 3)
+    assert(TestUtils.EqualDFs(df_t, df1))
+
+    val rdd2 = sc.parallelize(
+      Array(Row(1,"test 4"),
+        Row(2,"test 5"),
+        Row(3,"test 6")))
+    val df2 = sqlContext.createDataFrame(rdd2, schema)
+    df2.saveToMemSQL("x_db", "t", onDuplicateKeyBehavior=Some(OnDupKeyBehavior.Replace))
+
+    assert(df_t.count == 3)
+    // We should have replaced the data in the table with the data in rdd2.
+    assert(TestUtils.EqualDFs(df_t, df2))
+
+    val rdd3 = sc.parallelize(
+      Array(Row(1,"test 7"),
+        Row(2,"test 8"),
+        Row(3,"test 9")))
+    val df3 = sqlContext.createDataFrame(rdd3, schema)
+    df3.saveToMemSQL("x_db", "t", onDuplicateKeyBehavior=Some(OnDupKeyBehavior.Ignore))
+
+    // We should not have inserted or replaced any new rows because we
+    // specified OnDupKeyBehavior.Ignore
+    assert(df_t.count == 3)
+    assert(TestUtils.EqualDFs(df_t, df2))
+
+    try {
+      // If onDuplicateKeySql is set, onDuplicateKeyBehavior must be Update
+      // and vice-versa, so this should throw an error.
+      df3.saveToMemSQL("x_db", "t", onDuplicateKeyBehavior=Some(OnDupKeyBehavior.Replace), onDuplicateKeySql="b = 'foobar'")
+      assert(false)
+    } catch {
+      case e: IllegalArgumentException => //
+    }
+    try {
+      df3.saveToMemSQL("x_db", "t", onDuplicateKeyBehavior=Some(OnDupKeyBehavior.Update), onDuplicateKeySql="")
+      assert(false)
+    } catch {
+      case e: IllegalArgumentException => //
+    }
+
+    df3.saveToMemSQL("x_db", "t", onDuplicateKeyBehavior=Some(OnDupKeyBehavior.Update), onDuplicateKeySql="b = 'foobar'")
+
+    val rdd4 = sc.parallelize(
+      Array(Row(1,"foobar"),
+        Row(2,"foobar"),
+        Row(3,"foobar")))
+    val df4 = sqlContext.createDataFrame(rdd4, schema)
+    assert(df_t.count == 3)
+    assert(TestUtils.EqualDFs(df_t, df4))
   }
 }

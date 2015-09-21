@@ -11,5 +11,6 @@
  -s dockertest/spark_submit_test.py::test_save_json_column --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_spark_sql_types --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_escaped_cols --psyduck-time-limit=16
+ -s dockertest/spark_submit_test.py::test_dup_keys --psyduck-time-limit=16
  -s dockertest/jar_inspector_test.py::test_jar_inspector_sanity --psyduck-time-limit=16
  -s dockertest/jar_inspector_test.py::test_jar_inspector_external_jar --psyduck-time-limit=16

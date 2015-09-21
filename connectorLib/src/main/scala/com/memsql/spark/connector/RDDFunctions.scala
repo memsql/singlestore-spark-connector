@@ -26,6 +26,12 @@ object RDDFunctions {
   val LZ4_BLOCK_SIZE = 1024 * 1024 // bytes
 }
 
+object OnDupKeyBehavior extends Enumeration {
+  type OnDupKeyBehavior = Value
+  val Replace, Ignore, Update = Value
+}
+import com.memsql.spark.connector.OnDupKeyBehavior._
+
 class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
   /**
    * Saves an RDD's contents to a MemSQL database.  The RDD's elements should
@@ -41,8 +47,18 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
    *
    * @param dbName the name of the database we're working in.
    * @param tableName the name of the table we're saving the data in.
+   * @param onDuplicateKeyBehavior How to handle duplicate key errors when
+   *                          inserting rows. If this is Replace, we will
+   *                          replace existing rows with the ones in rdd. If
+   *                          this is Ignore, we will leave existing rows as
+   *                          they are. If this is Update, we will use the
+   *                          SQL code in onDuplicateKeySql. If this is
+   *                          None, we will throw an error if there are any
+   *                          duplicate key errors.
    * @param onDuplicateKeySql Optional SQL to include in the
-   *                          "ON DUPLICATE KEY UPDATE" clause of the INSERT queries we generate.
+   *                          "ON DUPLICATE KEY UPDATE" clause of the INSERT
+   *                          queries we generate. If this is a non-empty
+   *                          string, onDuplicateKeyBehavior must be Update.
    * @param upsertBatchSize How many rows to insert per INSERT query.  Has no effect if onDuplicateKeySql is not specified.
    * @param useKeylessShardedOptimization if set, data is loaded directly into leaf partitions.
    *                                      Can increased performance at the expense of higher variance sharding.
@@ -54,10 +70,18 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     dbPort: Int,
     user: String,
     password: String,
+    onDuplicateKeyBehavior: Option[OnDupKeyBehavior] = None,
     onDuplicateKeySql: String = "",
-    useInsertIgnore: Boolean = false,
     upsertBatchSize: Int = RDDFunctions.DEFAULT_UPSERT_BATCH_SIZE,
     useKeylessShardedOptimization: Boolean = false): Long = {
+
+    if (!onDuplicateKeySql.isEmpty && onDuplicateKeyBehavior != Some(OnDupKeyBehavior.Update)) {
+      throw new IllegalArgumentException("If onDuplicateKeySql is set, then onDuplicateKeyBehavior must be set to Update")
+    }
+    if (onDuplicateKeyBehavior == Some(OnDupKeyBehavior.Update) && onDuplicateKeySql.isEmpty) {
+      throw new IllegalArgumentException("If onDuplicateKeyBehavior is set to Update, then onDuplicateKeySql must be set")
+    }
+
     var compression = "gzip"
 
     var availableNodes = MemSQLContext.getMemSQLNodesAvailableForIngest(dbHost, dbPort, user, password)
@@ -98,11 +122,11 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
         if (onDuplicateKeySql.isEmpty) {
           numRowsAffected = loadPartitionInMemSQL(
             node.targetHost, node.targetPort, user, password, node.targetDb, tableName,
-            useInsertIgnore, part, compression=compression)
+            onDuplicateKeyBehavior, part, compression=compression)
         } else { // LOAD DATA ... ON DUPLICATE KEY REPLACE is not currently supported by memsql, so we still use insert in this case
           numRowsAffected = insertPartitionInMemSQL(
             node.targetHost, node.targetPort, user, password, node.targetDb, tableName, onDuplicateKeySql,
-            upsertBatchSize, useInsertIgnore, part)
+            upsertBatchSize, onDuplicateKeyBehavior, part)
         }
         numRowsAccumulator += numRowsAffected
       }
@@ -165,7 +189,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
                                        tableName: String,
                                        onDuplicateKeySql: String,
                                        upsertBatchSize: Int,
-                                       useInsertIgnore: Boolean,
+                                       onDuplicateKeyBehavior: Option[OnDupKeyBehavior] = None,
                                        iter: Iterator[Row]): Int = {
     var conn: Connection = null
     var stmt: PreparedStatement = null
@@ -194,9 +218,11 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
           numOutputRows = rowGroup.length
           numOutputColumns = rowGroup(0).length
           val sql = new StringBuilder()
-          sql.append("INSERT ")
-          if (useInsertIgnore) {
-            sql.append("IGNORE ")
+          onDuplicateKeyBehavior match {
+            case Some(OnDupKeyBehavior.Replace) => sql.append("REPLACE ")
+            case Some(OnDupKeyBehavior.Ignore) => sql.append("INSERT IGNORE ")
+            case Some(OnDupKeyBehavior.Update) => sql.append("INSERT ")
+            case None => sql.append("INSERT ")
           }
           sql.append("INTO ").append(tableName).append(" VALUES")
           for (rowId <- 0 until numOutputRows) {
@@ -270,7 +296,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
                                     password: String,
                                     dbName: String,
                                     tableName: String,
-                                    useInsertIgnore: Boolean,
+                                    onDuplicateKeyBehavior: Option[OnDupKeyBehavior] = None,
                                     iter: Iterator[Row],
                                     compression:String = "gzip"): Int = {
 
@@ -300,7 +326,12 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       case default => { }
     }
 
-    val q = "LOAD DATA LOCAL INFILE '###." + ext + "' " + (if (useInsertIgnore) "IGNORE " else "") + "INTO TABLE " + tableName
+    val onDupKeyStr = onDuplicateKeyBehavior match {
+      case Some(OnDupKeyBehavior.Replace) => "REPLACE "
+      case Some(OnDupKeyBehavior.Ignore) => "IGNORE "
+      case None => ""
+    }
+    val q = "LOAD DATA LOCAL INFILE '###." + ext + "' " + onDupKeyStr + "INTO TABLE " + tableName
 
     @volatile var writerException: Exception = null
 
