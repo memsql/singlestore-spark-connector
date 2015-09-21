@@ -10,8 +10,8 @@ import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 case class JsonTransformConfig(column_name: String) extends PhaseConfig
 
 // A Transformer which produces dataframes with a single StringType column containing the json data.
-// Appropriate for working with Loaders which load into tables with a single (Parquette) JSON column and possibly a key column or columns with default/computed/timestamp columns
-//
+// Appropriate for working with Loaders which load into tables with a single (Parquette) JSON column
+// and possibly a key column or columns with default/computed/timestamp columns
 class JSONTransformer extends ByteArrayTransformer {
   var columnName: String = null
 

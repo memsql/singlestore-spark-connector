@@ -32,7 +32,7 @@ object ApiActor {
 }
 
 class ApiActor extends Actor with ApiService {
-  override def receive = handleMessage
+  override def receive: Receive = handleMessage
 }
 
 trait ApiService {
@@ -117,7 +117,8 @@ trait ApiService {
             // update all fields in the pipeline and respond with success
             if (updated) {
               val newLastUpdated = clock.currentTimeMillis
-              val newPipeline = Pipeline(pipeline_id, state=newState, batch_interval=newBatchInterval, last_updated=newLastUpdated, config=newConfig, error=newError)
+              val newPipeline = Pipeline(pipeline_id, state=newState, batch_interval=newBatchInterval,
+                                         last_updated=newLastUpdated, config=newConfig, error=newError)
               newPipeline.traceBatchCount = newTraceBatchCount
               newPipeline.metricsQueue = pipeline.metricsQueue
               pipelines = pipelines + (pipeline_id -> newPipeline)

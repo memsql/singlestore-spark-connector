@@ -1,6 +1,6 @@
 package com.memsql.spark.interface.server
 
-import akka.actor.Actor
+import akka.actor.{ActorContext, Actor}
 import akka.event.Logging._
 import akka.pattern.ask
 import com.memsql.spark.interface._
@@ -8,7 +8,7 @@ import com.memsql.spark.interface.api._
 import com.memsql.spark.etl.api.configs.PipelineConfig
 import spray.http.{HttpRequest, HttpResponse, StatusCodes}
 import spray.httpx.SprayJsonSupport._
-import spray.routing.HttpService
+import spray.routing.{Route, Directive0, HttpService}
 import spray.json._
 import spray.routing.directives.LogEntry
 import scala.concurrent.duration._
@@ -17,8 +17,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Success, Failure, Try}
 
 class WebServer(val appWebUIPort: Int) extends Actor with WebService {
-  def actorRefFactory = context
-  def receive = runRoute(routeWithLogging)
+  def actorRefFactory: ActorContext = context
+  def receive: Receive = runRoute(routeWithLogging)
 }
 
 trait WebService extends HttpService {
@@ -36,7 +36,7 @@ trait WebService extends HttpService {
     case _ => None // other kind of responses
   }
 
-  def routeWithLogging = logRequestResponse(requestMethodAndResponseStatusAsDebug _)(route)
+  def routeWithLogging: Route = logRequestResponse(requestMethodAndResponseStatusAsDebug _)(route)
 
   val route = {
     path("version") {
@@ -90,7 +90,8 @@ trait WebService extends HttpService {
       }
     } ~
     path("pipeline" / "update") {
-      parameter('pipeline_id.as[String], 'active.as[Boolean].?, 'batch_interval.as[Long].?, 'trace_batch_count.as[Int].?) { (pipeline_id, active, batch_interval, trace_batch_count) =>
+      parameter('pipeline_id.as[String], 'active.as[Boolean].?, 'batch_interval.as[Long].?, 'trace_batch_count.as[Int].?) {
+        (pipeline_id, active, batch_interval, trace_batch_count) =>
         entity(as[Option[PipelineConfig]]) { configMaybe =>
           patch { ctx =>
             val state = active match {
@@ -102,7 +103,8 @@ trait WebService extends HttpService {
               case Some(PipelineState.RUNNING) => Some("")
               case default => None
             }
-            val future = (api ? PipelineUpdate(pipeline_id, state, batch_interval, configMaybe, error=error, trace_batch_count=trace_batch_count, _validate = true)).mapTo[Try[Boolean]]
+            val future = (api ? PipelineUpdate(pipeline_id, state, batch_interval, configMaybe, error=error,
+                                               trace_batch_count=trace_batch_count, _validate = true)).mapTo[Try[Boolean]]
             future.map {
               case Success(resp) => ctx.complete(Map[String, Boolean]("success" -> resp).toJson.toString)
               case Failure(error) => ctx.complete(StatusCodes.NotFound, error.toString)

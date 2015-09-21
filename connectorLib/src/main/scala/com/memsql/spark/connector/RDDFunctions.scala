@@ -21,6 +21,11 @@ import com.memsql.spark.connector.rdd.MemSQLRDD
 
 class SaveToMemSQLException(var exception: SparkException, var count: Long) extends Exception
 
+object RDDFunctions {
+  val DEFAULT_UPSERT_BATCH_SIZE = 10000
+  val LZ4_BLOCK_SIZE = 1024 * 1024 // bytes
+}
+
 class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
   /**
    * Saves an RDD's contents to a MemSQL database.  The RDD's elements should
@@ -39,7 +44,8 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
    * @param onDuplicateKeySql Optional SQL to include in the
    *                          "ON DUPLICATE KEY UPDATE" clause of the INSERT queries we generate.
    * @param upsertBatchSize How many rows to insert per INSERT query.  Has no effect if onDuplicateKeySql is not specified.
-   * @param useKeylessShardedOptimization if set, data is loaded directly into leaf partitions.  Can increased performance at the expense of higher variance sharding.
+   * @param useKeylessShardedOptimization if set, data is loaded directly into leaf partitions.
+   *                                      Can increased performance at the expense of higher variance sharding.
    */
   def saveToMemSQL(
     dbName: String,
@@ -50,7 +56,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     password: String,
     onDuplicateKeySql: String = "",
     useInsertIgnore: Boolean = false,
-    upsertBatchSize: Int = 10000,
+    upsertBatchSize: Int = RDDFunctions.DEFAULT_UPSERT_BATCH_SIZE,
     useKeylessShardedOptimization: Boolean = false): Long = {
     var compression = "gzip"
 
@@ -175,7 +181,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       for (group <- groupedPartitionContents) {
         val rowGroup = group.toList
         if (rowGroup.isEmpty) {
-          return 0
+          return 0 // scalastyle:ignore
         }
         if (numOutputColumns != rowGroup(0).length || numOutputRows != rowGroup.length) {
           try {
@@ -288,7 +294,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
         // blocksize for lz4 can be tween 16k (default) and 32 meg.
         // we set to 1 meg, and have no data to support that this is faster.
         //
-        outstream = new LZ4BlockOutputStream(outstream, 1048576, LZ4Factory.fastestInstance.fastCompressor)
+        outstream = new LZ4BlockOutputStream(outstream, RDDFunctions.LZ4_BLOCK_SIZE, LZ4Factory.fastestInstance.fastCompressor)
         assert(false, "we don't quite have lz4 working yet")
       }
       case default => { }

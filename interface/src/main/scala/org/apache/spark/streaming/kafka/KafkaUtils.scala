@@ -65,16 +65,13 @@ object MemSQLKafkaUtils {
    * @param batchInterval Batch interval for this pipeline. NOTE: Modified for MemSQL Streamliner
    */
   @Experimental
-  def createDirectStream[
-  K: ClassTag,
-  V: ClassTag,
-  KD <: Decoder[K]: ClassTag,
-  VD <: Decoder[V]: ClassTag] (
-                                ssc: StreamingContext,
-                                kafkaParams: Map[String, String],
-                                topics: Set[String],
-                                batchInterval: Long
-                                ): InputDStream[V] = {
+  def createDirectStream[K: ClassTag,
+                         V: ClassTag,
+                         KD <: Decoder[K]: ClassTag,
+                         VD <: Decoder[V]: ClassTag] (ssc: StreamingContext,
+                                                      kafkaParams: Map[String, String],
+                                                      topics: Set[String],
+                                                      batchInterval: Long): InputDStream[V] = {
     val messageHandler = (mmd: MessageAndMetadata[K, V]) => mmd.message
     val kc = new KafkaCluster(kafkaParams)
     val reset = kafkaParams.get("auto.offset.reset").map(_.toLowerCase)

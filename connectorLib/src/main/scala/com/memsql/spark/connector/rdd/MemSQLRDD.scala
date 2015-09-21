@@ -1,20 +1,13 @@
 package com.memsql.spark.connector.rdd
 
-import java.sql.{Connection, DriverManager, ResultSet, ResultSetMetaData, Statement}
-import scala.util.control.Breaks
+import java.sql.{Connection, DriverManager, ResultSet, Statement}
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Logging, Partition, SparkContext, SparkException, TaskContext, Partitioner}
+import org.apache.spark.{Logging, Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.sources._
 import com.memsql.spark.connector.util.NextIterator
 
-import org.apache.spark.sql.types._
-import org.apache.spark.sql._
-
-private class MemSQLRDDPartition(idx: Int, val host: String, val port: Int) extends Partition {
-  override def index = idx
-}
+private class MemSQLRDDPartition(override val index: Int, val host: String, val port: Int) extends Partition
 
 /**
   * An RDD that can read data from a MemSQL database based on a SQL query.
@@ -67,7 +60,7 @@ case class MemSQLRDD[T: ClassTag](
       val versions = MemSQLRDD.resultSetToIterator(versionRs).map(r => r.getString("Value")).toArray
       val version = versions(0).split('.')(0).toInt
       var explainQuery = ""
-  
+
       // In MemSQL v4.0 the EXPLAIN command no longer returns the query, so
       // we run a version check.
       if (version > 3) {
@@ -75,12 +68,12 @@ case class MemSQLRDD[T: ClassTag](
       } else {
           explainQuery = "EXPLAIN "
       }
-  
+
       explainStmt = conn.createStatement
       val explainRs = explainStmt.executeQuery(explainQuery + sql)
       // TODO: this won't work with MarkoExplain
       // TODO: this could be optimized work for distributed joins, but thats not the primary usecase (especially since joins aren't pushed down)
-      usePerPartitionSql = (0 until explainRs.getMetaData.getColumnCount).exists((i:Int) => explainRs.getMetaData.getColumnName(i+1).equals("Query"))
+      usePerPartitionSql = (0 until explainRs.getMetaData.getColumnCount).exists((i:Int) => explainRs.getMetaData.getColumnName(i + 1).equals("Query"))
       if (usePerPartitionSql) {
         val extraAndQueries = MemSQLRDD.resultSetToIterator(explainRs)
           .map(r => (r.getString("Extra"), r.getString("Query")))
@@ -92,23 +85,24 @@ case class MemSQLRDD[T: ClassTag](
           usePerPartitionSql = false
         }
       }
+
       if (!usePerPartitionSql){
-        return Array[Partition](new MemSQLRDDPartition(0, dbHost, dbPort))
+        Array[Partition](new MemSQLRDDPartition(0, dbHost, dbPort))
+      } else {
+
+        val partitionsStmt = conn.createStatement
+        val partitionRs = partitionsStmt.executeQuery("SHOW PARTITIONS")
+
+        def createPartition(row: ResultSet): MemSQLRDDPartition = {
+          new MemSQLRDDPartition(row.getInt("Ordinal"), row.getString("Host"), row.getInt("Port"))
+        }
+
+        MemSQLRDD.resultSetToIterator(partitionRs)
+          .filter(r => r.getString("Role") == "Master")
+          .map(createPartition)
+          .toArray
       }
-  
-  
-      val partitionsStmt = conn.createStatement
-      val partitionRs = partitionsStmt.executeQuery("SHOW PARTITIONS")
-  
-      def createPartition(row: ResultSet): MemSQLRDDPartition = {
-        new MemSQLRDDPartition(row.getInt("Ordinal"), row.getString("Host"), row.getInt("Port"))
-      }
-  
-     return MemSQLRDD.resultSetToIterator(partitionRs)
-      .filter(r => r.getString("Role") == "Master")
-      .map(createPartition)
-      .toArray
-    } finally {      
+    } finally {
       if (null != versionStmt && ! versionStmt.isClosed()) {
         versionStmt.close()
       }
@@ -121,7 +115,7 @@ case class MemSQLRDD[T: ClassTag](
     }
   }
 
-  override def compute(thePart: Partition, context: TaskContext) = new NextIterator[T] {
+  override def compute(thePart: Partition, context: TaskContext): Iterator[T] = new NextIterator[T] {
     context.addTaskCompletionListener(context => closeIfNeeded())
     val part = thePart.asInstanceOf[MemSQLRDDPartition]
     var partitionDb = dbName
@@ -132,7 +126,7 @@ case class MemSQLRDD[T: ClassTag](
     val stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
 
     val rs = stmt.executeQuery(getPerPartitionSql(part.index))
-    
+
     override def getNext: T = {
       if (rs.next()) {
         mapRow(rs)
@@ -163,7 +157,7 @@ case class MemSQLRDD[T: ClassTag](
 
   override def getPreferredLocations(split: Partition): Seq[String] = {
     val memSqlSplit = split.asInstanceOf[MemSQLRDDPartition]
-    return Seq(memSqlSplit.host)
+    Seq(memSqlSplit.host)
   }
 
   private def getPerPartitionSql(idx: Int): String = {
@@ -183,11 +177,10 @@ case class MemSQLRDD[T: ClassTag](
 }
 
 object MemSQLRDD {
-
   def resultSetToObjectArray(rs: ResultSet): Array[Object] = {
-    return Array.tabulate[Object](rs.getMetaData.getColumnCount)(i => rs.getObject(i + 1))
+    Array.tabulate[Object](rs.getMetaData.getColumnCount)(i => rs.getObject(i + 1))
   }
-  
+
   def getConnection(
     host: String,
     port: Int,
@@ -202,6 +195,4 @@ object MemSQLRDD {
     def hasNext = rs.next()
     def next() = rs
   }
-
 }
-

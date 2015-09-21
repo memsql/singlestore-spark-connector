@@ -49,11 +49,11 @@ class CSVTransformer extends ByteArrayTransformer {
         .map{ case (value, column) => value }
       Row.fromSeq(values)
     })
-    return sqlContext.createDataFrame(rowRDD, schema)
+    sqlContext.createDataFrame(rowRDD, schema)
   }
 
   private def getCSVFormat(config: CSVTransformerConfig): CSVFormat = {
-    return CSVFormat.newFormat(config.delimiter.getOrElse(','))
+    CSVFormat.newFormat(config.delimiter.getOrElse(','))
       .withIgnoreSurroundingSpaces()
       .withIgnoreEmptyLines(false)
       .withRecordSeparator('\n')
@@ -63,6 +63,6 @@ class CSVTransformer extends ByteArrayTransformer {
 
   // TODO: support non-standard line delimiters
   private def parseCSVLines(s: String, format: CSVFormat): Iterable[List[String]] = {
-    return CSVParser.parse(s, format).map(record => record.toList)
+    CSVParser.parse(s, format).map(record => record.toList)
   }
 }

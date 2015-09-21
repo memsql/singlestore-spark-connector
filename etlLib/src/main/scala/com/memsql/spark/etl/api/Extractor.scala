@@ -23,7 +23,8 @@ abstract class SimpleByteArrayExtractor extends ByteArrayExtractor {
 
       override def stop(): Unit = SimpleByteArrayExtractor.this.cleanup(ssc.sparkContext, userConfig, batchInterval, logger)
 
-      override def compute(validTime: Time): Option[RDD[Array[Byte]]] = SimpleByteArrayExtractor.this.nextRDD(ssc.sparkContext, userConfig, batchInterval, logger)
+      override def compute(validTime: Time): Option[RDD[Array[Byte]]] =
+        SimpleByteArrayExtractor.this.nextRDD(ssc.sparkContext, userConfig, batchInterval, logger)
     }
   }
 

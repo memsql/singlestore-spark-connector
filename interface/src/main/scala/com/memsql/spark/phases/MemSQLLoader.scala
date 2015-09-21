@@ -15,16 +15,18 @@ class MemSQLLoader extends Loader {
     val options = memSQLLoadConfig.options.getOrElse(memSQLLoadConfig.getDefaultOptions)
 
     if (!hasInserted) {
+      val extraColumns = options.table_extra_columns.getOrElse(List[MemSQLExtraColumnConfig]())
+                         .map((k: MemSQLExtraColumnConfig) => k.toMemSQLExtraColumn)
       df.createMemSQLTableFromSchema(memSQLLoadConfig.db_name,
                                      memSQLLoadConfig.table_name,
                                      keys = options.table_keys.getOrElse(List[MemSQLKeyConfig]()).map((k: MemSQLKeyConfig) => k.toMemSQLKey),
-                                     extraCols = options.table_extra_columns.getOrElse(List[MemSQLExtraColumnConfig]()).map((k: MemSQLExtraColumnConfig) => k.toMemSQLExtraColumn),
+                                     extraCols = extraColumns,
                                      ifNotExists = true)
       hasInserted = true
     }
 
     if (memSQLLoadConfig.dry_run) {
-      df.rdd.map(x => 0).reduce(_+_)
+      df.rdd.map(x => 0).reduce(_ + _)
     } else {
       df.saveToMemSQL(memSQLLoadConfig.db_name,
         memSQLLoadConfig.table_name,

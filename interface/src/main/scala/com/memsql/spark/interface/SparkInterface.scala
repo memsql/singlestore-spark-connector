@@ -1,5 +1,6 @@
 package com.memsql.spark.interface
 
+import com.memsql.spark.context.MemSQLContext
 import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api.{Pipeline, PipelineState, ApiActor}
 
@@ -21,13 +22,18 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Try, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case class Config(port:Int = 10001,
-                  dataDir:String = "",
-                  dbHost:String = "127.0.0.1",
-                  dbPort:Int = 3306,
-                  dbUser:String = "root",
-                  dbPassword:String = "",
-                  debug:Boolean = false)
+object Config {
+  val DEFAULT_PORT = 10001
+  val DEFAULT_DATA_DIR = ""
+  val DEFAULT_DEBUG = false
+}
+case class Config(port: Int = Config.DEFAULT_PORT,
+                  dataDir: String = Config.DEFAULT_DATA_DIR,
+                  dbHost: String = MemSQLContext.DEFAULT_HOST,
+                  dbPort: Int = MemSQLContext.DEFAULT_PORT,
+                  dbUser: String = MemSQLContext.DEFAULT_USER,
+                  dbPassword: String = MemSQLContext.DEFAULT_PASSWORD,
+                  debug: Boolean = Config.DEFAULT_DEBUG)
 
 class SparkInterface(val providedConfig: Config) extends Application {
   override lazy val config = providedConfig
@@ -63,7 +69,7 @@ class SparkInterface(val providedConfig: Config) extends Application {
   }
 
   override val sparkContext = new SparkContext(sparkConf)
-  override val streamingContext = new StreamingContext(sparkContext, new Duration(5000))
+  override val streamingContext = new StreamingContext(sparkContext, new Duration(PIPELINE_UPDATE_INTERVAL.toMillis))
   override val jobProgressListener = new JobProgressListener(sparkConf)
   sparkContext.addSparkListener(jobProgressListener)
 

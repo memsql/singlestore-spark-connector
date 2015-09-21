@@ -3,7 +3,7 @@ package com.memsql.spark.etl.utils
 import spray.json._
 
 class JsonEnumProtocol extends DefaultJsonProtocol {
-  def jsonEnum[T <: Enumeration](enu: T) = new JsonFormat[T#Value] {
+  def jsonEnum[T <: Enumeration](enu: T): JsonFormat[T#Value] = new JsonFormat[T#Value] {
     def write(obj: T#Value) = JsString(obj.toString)
 
     def read(json: JsValue) = json match {

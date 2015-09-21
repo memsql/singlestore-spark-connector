@@ -36,7 +36,7 @@ case class PhaseResult(count: Option[Long] = None,
 
 trait PipelineMonitor {
   def api: ActorRef
-  def pipeline_id: String
+  def pipeline_id: String // scalastyle:ignore
   def batchInterval: Long
   def lastUpdated: Long
   def config: PipelineConfig
@@ -395,7 +395,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   private[interface] def getTaskErrors(batch_id: String): Option[List[TaskErrorRecord]] = {
     if (jobProgressListener == null) {
-      return None
+      return None // scalastyle:ignore
     }
 
     val maybeJobAndStageIds = jobProgressListener.jobGroupToJobIds.get(batch_id) match {
@@ -470,7 +470,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     }
   }
 
-  override def ensureStarted() = {
+  override def ensureStarted(): Unit = {
     try {
       thread.start
     } catch {
@@ -486,7 +486,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     error != null
   }
 
-  def stop() = {
+  def stop(): Unit = {
     logDebug(s"Stopping pipeline thread $pipeline_id")
     isStopping.set(true)
     if (currentBatchId != null) {

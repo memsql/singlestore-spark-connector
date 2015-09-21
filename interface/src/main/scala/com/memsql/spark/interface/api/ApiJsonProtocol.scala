@@ -9,7 +9,7 @@ object ApiJsonProtocol extends JsonEnumProtocol {
   implicit val transformPhaseKindFormat = jsonEnum(TransformPhaseKind)
   implicit val loadPhaseKindFormat = jsonEnum(LoadPhaseKind)
 
-  implicit def phaseFormat[T :JsonFormat] = jsonFormat2(Phase.apply[T])
+  implicit def phaseFormat[T: JsonFormat]: RootJsonFormat[Phase[T]] = jsonFormat2(Phase.apply[T])
 
   implicit val pipelineConfigFormat = jsonFormat4(PipelineConfig)
 
@@ -23,12 +23,12 @@ object ApiJsonProtocol extends JsonEnumProtocol {
   val basePipelineFormat = jsonFormat(Pipeline.apply, "pipeline_id", "state", "batch_interval", "config", "last_updated", "error")
 
   implicit object pipelineFormat extends RootJsonFormat[Pipeline] {
-    def write(p: Pipeline) =
+    def write(p: Pipeline): JsValue =
       JsObject(
         basePipelineFormat.write(p).asJsObject.fields + ("trace_batch_count" -> p.traceBatchCount.toJson)
       )
 
     // Note: This method doesn't support reading in traceBatchCount
-    def read(value: JsValue) = basePipelineFormat.read(value)
+    def read(value: JsValue): Pipeline = basePipelineFormat.read(value)
   }
 }

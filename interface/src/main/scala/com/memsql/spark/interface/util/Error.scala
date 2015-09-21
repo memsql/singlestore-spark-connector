@@ -6,7 +6,7 @@ class BaseException(message:String, nestedException:Exception) extends Exception
   def this() = this("", null)
   def this(message:String) = this(message, null)
   def this(nestedException:Exception) = this(null, nestedException)
-  override def toString() = message
+  override def toString(): String = message
 }
 
 object ErrorUtils {

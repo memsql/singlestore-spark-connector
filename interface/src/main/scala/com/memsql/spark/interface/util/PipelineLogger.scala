@@ -28,27 +28,27 @@ class PipelineLogger(override val name: String, val keepEntries: Boolean=true) e
   }
 
   def getLogEntries(): List[String] = logEntries.toList
-  def clearLogEntries() = logEntries.clear
+  def clearLogEntries(): Unit = logEntries.clear
 
   private def enqueueMessage(level: Level, message: String, ex: Throwable = null): Unit = {
-    if (!logLevelAllowed(level)) return
+    if (logLevelAllowed(level)) {
+      val buf = new StringBuffer()
 
-    val buf = new StringBuffer()
+      // This is the same logging layout we use in
+      // com.memsql.spark.etl.utils.Logging, but without newlines at the end and
+      // without the logger name.
+      buf.append(dateFormatter.format(new Date()))
+      buf.append(" ").append(level).append(": ").append(message)
 
-    // This is the same logging layout we use in
-    // com.memsql.spark.etl.utils.Logging, but without newlines at the end and
-    // without the logger name.
-    buf.append(dateFormatter.format(new Date()))
-    buf.append(" ").append(level).append(": ").append(message)
+      if (ex != null) {
+        val sw = new StringWriter()
+        val exBuf = new PrintWriter(sw)
+        ex.printStackTrace(exBuf)
+        exBuf.flush()
+        buf.append("\n").append(sw.toString)
+      }
 
-    if (ex != null) {
-      val sw = new StringWriter()
-      val exBuf = new PrintWriter(sw)
-      ex.printStackTrace(exBuf)
-      exBuf.flush()
-      buf.append("\n").append(sw.toString)
+      logEntries.enqueue(buf.toString)
     }
-
-    logEntries.enqueue(buf.toString)
   }
 }

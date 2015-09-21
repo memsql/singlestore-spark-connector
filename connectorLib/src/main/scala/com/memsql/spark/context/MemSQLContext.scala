@@ -17,12 +17,17 @@ import MemSQLRole._
 case class MemSQLNode(host: String, port: Int, role: MemSQLRole)
 
 object MemSQLContext {
-  def apply(sparkContext: SparkContext) = {
+  val DEFAULT_HOST = "127.0.0.1"
+  val DEFAULT_PORT = 3306
+  val DEFAULT_USER = "root"
+  val DEFAULT_PASSWORD = ""
+
+  def apply(sparkContext: SparkContext): MemSQLContext = {
     val conf = sparkContext.getConf
-    val dbHost = conf.get("memsql.host", "127.0.0.1")
-    val dbPort = conf.getInt("memsql.port", 3306)
-    val dbUser = conf.get("memsql.user", "root")
-    val dbPassword = conf.get("memsql.password", "")
+    val dbHost = conf.get("memsql.host", DEFAULT_HOST)
+    val dbPort = conf.getInt("memsql.port", DEFAULT_PORT)
+    val dbUser = conf.get("memsql.user", DEFAULT_USER)
+    val dbPassword = conf.get("memsql.password", DEFAULT_PASSWORD)
     new MemSQLContext(sparkContext, dbHost, dbPort, dbUser, dbPassword)
   }
 

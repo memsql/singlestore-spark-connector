@@ -9,7 +9,7 @@ import org.apache.spark.SparkException
 
 /**
  * A DataFrameBuilder is a utility for creating DataFrames in a mistake-resistant way from the executors.
- * The schema is specified up front, and the row producing code sets values in its row.  
+ * The schema is specified up front, and the row producing code sets values in its row.
  * Unset columns are left as null.
  * Attempting to set a column not found in the schema will throw a SparkException.
  *

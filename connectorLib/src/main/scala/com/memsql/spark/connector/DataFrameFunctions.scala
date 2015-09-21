@@ -24,7 +24,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
                    password: String = null,
                    onDuplicateKeySql: String = "",
                    useInsertIgnore: Boolean = false,
-                   upsertBatchSize: Int = 10000,
+                   upsertBatchSize: Int = RDDFunctions.DEFAULT_UPSERT_BATCH_SIZE,
                    useKeylessShardedOptimization: Boolean = false): Long = {
     val (theHost, thePort, theUser, thePassword) = getMemSQLCredentials(dbHost, dbPort, user, password)
 
@@ -40,7 +40,8 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
     }
     val insertTableString = insertTable.append(")").toString
 
-    df.rdd.saveToMemSQL(dbName, insertTableString, theHost, thePort, theUser, thePassword, onDuplicateKeySql, useInsertIgnore, upsertBatchSize, useKeylessShardedOptimization)
+    df.rdd.saveToMemSQL(dbName, insertTableString, theHost, thePort, theUser, thePassword, onDuplicateKeySql,
+                        useInsertIgnore, upsertBatchSize, useKeylessShardedOptimization)
   }
 
   /*
@@ -130,7 +131,8 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
               memsqlContext.getMemSQLUserName,
               memsqlContext.getMemSQLPassword)
           }
-          case default => throw new SparkException("saveToMemSQL requires creating the DataFrame with a MemSQLContext or explicitly setting dbName, dbHost, user, and password")
+          case default => throw new SparkException("saveToMemSQL requires creating the DataFrame with a MemSQLContext " +
+            "or explicitly setting dbName, dbHost, user, and password")
         }
       }
       case false => (dbHost, dbPort, user, password)

@@ -3,7 +3,7 @@ package com.memsql.spark.connector.dataframe
 case class MemSQLExtraColumn(name: String, colType: String, nullable: Boolean =true, defaultValue: Any = null, persisted: String = null)
 {
   def toSQL: String = {
-    var sql = new StringBuilder
+    val sql = new StringBuilder
     sql.append("`").append(name).append("` ")
     if (persisted != null) {
       sql.append("AS ").append(persisted).append(" PERSISTED ")

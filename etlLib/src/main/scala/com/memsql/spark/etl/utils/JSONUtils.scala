@@ -17,7 +17,7 @@ case class JSONExtractObject(objName: String, pathTail: JSONPath) extends JSONPa
   override def get(obj: Map[String,Any], mapper: ObjectMapper): String = {
     obj.getOrElse(objName, null) match {
       case nextObj: Map[_,_] => pathTail.get(nextObj.asInstanceOf[Map[String,Any]], mapper)
-      case _ => null     
+      case _ => null
     }
   }
   override def getName: String = {
@@ -57,7 +57,7 @@ object JSONPath {
     {
         result = JSONExtractObject(pathArray(i), result)
     }
-    return result
+    result
   }
 
 }
@@ -71,7 +71,7 @@ object JSONUtils {
     rdd.mapPartitions{ part =>
       val mapper = new ObjectMapper()
       mapper.registerModule(DefaultScalaModule)
-      part.map { r => 
+      part.map { r =>
         val json = mapper.readValue(r, classOf[Map[String,Any]])
         Row.fromSeq(flattenedPaths.map(_.get(json, mapper)))
       }
@@ -79,10 +79,11 @@ object JSONUtils {
   }
 
   /**
-   * A utility which transforms a JSON RDD[String] 
+   * A utility which transforms a JSON RDD[String]
    * to a DataFrame of flattened JSON from a provided array of paths.
    *
-   * NOTE: The resulting dataframe is suitable for loading to a target table that has additional columns with defaults (including `TIMESTAMP default CURRENT_TIME` and computed columns).
+   * NOTE: The resulting dataframe is suitable for loading to a target table that has additional columns with defaults
+   * (including `TIMESTAMP default CURRENT_TIME` and computed columns).
    *
    * For instance, given JSON blobs of the form
    *    { "a" : value1,
@@ -114,7 +115,7 @@ object JSONUtils {
    * Any nonexisting paths will yield null.
    * Unparseable JSON will throw a runtime com.xml.jackson.core.JsonParseException on the executors.
    * This Transformer currently does not support flattening JSON lists.
-   * 
+   *
    */
   def JSONRDDToDataFrame(flattenedPaths: Array[JSONPath], sqlContext: SQLContext, rdd: RDD[String]): DataFrame = {
     val transformedRDD: RDD[Row] = JSONRDDToRows(flattenedPaths, rdd)

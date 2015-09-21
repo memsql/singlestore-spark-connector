@@ -329,7 +329,7 @@ object TestSaveToMemSQLVeryBasic {
         Row(8,"\"berry\" 'dave'")))
 
     val schema = StructType(Array(StructField("a",IntegerType,true),
-      StructField("b",StringType,false)))
+      StructField("b",StringType,true)))
     val df1 = sqlContext.createDataFrame(rdd, schema)
 
     df1.createMemSQLTableAs(dbName, "t", host, port, user, password)

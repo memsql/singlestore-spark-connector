@@ -38,7 +38,7 @@ object SimpleJsonSchemaProtocol extends JsonEnumProtocol {
       case _ => throw new DeserializationException("ColumnType must be a string")
     }
 
-    def write(d: DataType) = throw new Exception("Writing ColumnTypes is not supported")
+    def write(d: DataType): JsValue = throw new Exception("Writing ColumnTypes is not supported")
   }
 
   implicit val columnDefinitionFormat = jsonFormat3(ColumnDefinition)
@@ -49,7 +49,7 @@ object SimpleJsonSchemaProtocol extends JsonEnumProtocol {
       case _ => throw new DeserializationException("JSON array expected.")
     }
 
-    def write(l: List[ColumnDefinition]) = throw new Exception("Writing Columns is not supported")
+    def write(l: List[ColumnDefinition]): JsValue = throw new Exception("Writing Columns is not supported")
   }
 }
 
@@ -68,6 +68,6 @@ object SimpleJsonSchema {
         val columnType = c.column_type.getOrElse(StringType)
         StructField(c.name.get, columnType, true)
       })
-    return StructType(fields)
+    StructType(fields)
   }
 }

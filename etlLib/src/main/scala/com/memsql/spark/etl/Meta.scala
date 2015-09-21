@@ -16,6 +16,6 @@ object Meta {
   }
 
   def main(args: Array[String]): Unit = {
-    println(version)
+    println(version) // scalastyle:ignore
   }
 }

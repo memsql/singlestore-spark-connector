@@ -25,6 +25,12 @@ clean:
 		"project tests" clean
 	rm -rf distribution/
 
+.PHONY: style
+style:
+	sbt "project etlLib" scalastyle \
+	    "project connectorLib" scalastyle \
+	    "project interface" scalastyle
+
 .PHONY: build
 build: clean
 	sbt assembly

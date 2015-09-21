@@ -9,7 +9,7 @@ import DefaultJsonProtocol._
 import scala.util.Try
 
 trait UserConfig {
-  def class_name: String
+  def class_name: String // scalastyle:ignore
   def value: JsValue
 
   def getConfigAsMap: Map[String, Any] = {
