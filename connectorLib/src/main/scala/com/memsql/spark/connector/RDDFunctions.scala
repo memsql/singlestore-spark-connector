@@ -222,7 +222,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
             case Some(OnDupKeyBehavior.Replace) => sql.append("REPLACE ")
             case Some(OnDupKeyBehavior.Ignore) => sql.append("INSERT IGNORE ")
             case Some(OnDupKeyBehavior.Update) => sql.append("INSERT ")
-            case None => sql.append("INSERT ")
+            case _ => sql.append("INSERT ")
           }
           sql.append("INTO ").append(tableName).append(" VALUES")
           for (rowId <- 0 until numOutputRows) {
@@ -329,7 +329,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     val onDupKeyStr = onDuplicateKeyBehavior match {
       case Some(OnDupKeyBehavior.Replace) => "REPLACE "
       case Some(OnDupKeyBehavior.Ignore) => "IGNORE "
-      case None => ""
+      case _ => ""
     }
     val q = "LOAD DATA LOCAL INFILE '###." + ext + "' " + onDupKeyStr + "INTO TABLE " + tableName
 
