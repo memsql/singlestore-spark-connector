@@ -13,6 +13,7 @@ import ExtractPhaseKind._
 import TransformPhaseKind._
 import LoadPhaseKind._
 
+// scalastyle:off magic.number
 class PipelineJsonSpec extends UnitSpec {
   "Pipeline" should "serialize to JSON" in {
     val config = PipelineConfig(

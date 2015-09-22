@@ -2,6 +2,7 @@ package com.memsql.spark.interface.util
 
 import com.memsql.spark.interface.UnitSpec
 
+// scalastyle:off magic.number
 class BoundedQueueSpec extends UnitSpec {
   "BoundedQueue" should "let items be queued and dequeued" in {
     val boundedQueue = new BoundedQueue[String](10)

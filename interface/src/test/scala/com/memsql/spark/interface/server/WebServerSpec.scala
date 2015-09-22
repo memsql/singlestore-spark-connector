@@ -1,6 +1,6 @@
 package com.memsql.spark.interface.server
 
-import akka.actor.Props
+import akka.actor.{ActorSystem, Props}
 import com.memsql.spark.etl.api.UserExtractConfig
 import com.memsql.spark.etl.api.configs._
 import ExtractPhaseKind._
@@ -18,10 +18,11 @@ import spray.http.StatusCodes._
 import com.memsql.spark.etl.api.configs.PipelineConfigVersion.CurrentPipelineConfigVersion
 import ApiJsonProtocol._
 
+// scalastyle:off magic.number
 class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   override val appWebUIPort = -1
 
-  def actorRefFactory = system
+  def actorRefFactory: ActorSystem = system
   val apiRef = system.actorOf(Props[ApiActor], "api")
 
   val kafkaConfig = PipelineConfig(Phase[ExtractPhaseKind](

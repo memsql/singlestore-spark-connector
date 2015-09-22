@@ -17,6 +17,7 @@ import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
 import spray.json._
 
+// scalastyle:off magic.number
 class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSparkContext {
   var mockTime = new MockTime()
   val apiRef = system.actorOf(Props(classOf[TestApiActor], mockTime))
@@ -47,10 +48,10 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
                             override val streamingContext: StreamingContext,
                             override val sqlContext: SQLContext) extends PipelineMonitor {
 
-    override def pipeline_id = pipeline.pipeline_id
-    override def batchInterval = pipeline.batch_interval
-    override def config = pipeline.config
-    override def lastUpdated = pipeline.last_updated
+    override def pipeline_id: String = pipeline.pipeline_id // scalastyle:ignore
+    override def batchInterval: Long = pipeline.batch_interval
+    override def config: PipelineConfig = pipeline.config
+    override def lastUpdated: Long = pipeline.last_updated
     override def hasError: Boolean = error != null
     override var error: Throwable = null
     override def traceBatchCount(): Int = pipeline.traceBatchCount
@@ -78,14 +79,14 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
 
     // use the TestKit actors
     override val system = SparkInterfaceSpec.this.system
-    override def api = apiRef
-    override def web = null
+    override def api: ActorRef = apiRef
+    override def web: ActorRef = null
 
-    override def sparkConf = new SparkConf().setAppName("test").setMaster("local")
+    override def sparkConf: SparkConf = new SparkConf().setAppName("test").setMaster("local")
     override def sparkContext: SparkContext = sc
     override def streamingContext: StreamingContext = new StreamingContext(sc, new Duration(5000))
 
-    override def newPipelineMonitor(pipeline: Pipeline) = {
+    override def newPipelineMonitor(pipeline: Pipeline): Try[PipelineMonitor] = {
       try {
         if (pipeline.pipeline_id == "fail") {
           throw new TestException("Pipeline monitor instantiation failed")
@@ -93,17 +94,13 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
         Success(new MockPipelineMonitor(api, pipeline, null, sparkContext, streamingContext, new SQLContext(sparkContext)))
       } catch {
         case e: Exception => {
-          {
-            val errorMessage = s"Failed to initialize pipeline ${pipeline.pipeline_id}: $e"
-            Console.println(errorMessage)
-            e.printStackTrace
-            Failure(e)
-          }
+          e.printStackTrace
+          Failure(e)
         }
       }
     }
 
-    override def update = {
+    override def update: Unit = {
       super.update()
       mockTime.tick()
     }

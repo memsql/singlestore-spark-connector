@@ -15,11 +15,11 @@ class TestJSONPath extends FlatSpec {
 
   "JSONPath" should "extract the path" in {
     assert(testPathExtract(JSONPath("a"),"""{}""") == null)
-    
+
     assert(testPathExtract(JSONPath("a"),    """{"b":1}""") == null)
     assert(testPathExtract(JSONPath("b","a"),"""{"b":1}""") == null)
     assert(testPathExtract(JSONPath("a","b"),"""{"b":1}""") == null)
-    
+
     assert(testPathExtract(JSONPath("a"),"""{"a":1}""") == "1")
     assert(testPathExtract(JSONPath("a"),"""{"a":"gbop"}""") == "gbop")
     assert(testPathExtract(JSONPath("a"),"""{"a":[1,2,3,4]}""") == "[1,2,3,4]")
@@ -27,22 +27,21 @@ class TestJSONPath extends FlatSpec {
     assert(testPathExtract(JSONPath("a","1"),"""{"a":[1,2,3,4]}""") == null)
     assert(testPathExtract(JSONPath("a","b"),"""{"a":[1,2,3,4]}""") == null)
 
-    
+
     assert(testPathExtract(JSONPath("a","b"),    """{"a": { "b" : 1 } }""") == "1")
     assert(testPathExtract(JSONPath("a","b"),    """{"a": { "b" : "gbop" } }""") == "gbop")
     assert(testPathExtract(JSONPath("a","b","c"),"""{"a": { "b" : 1 } }""") == null)
     assert(testPathExtract(JSONPath("b","a"),    """{"a": { "b" : 1 } }""") == null)
     assert(testPathExtract(JSONPath("a","a"),    """{"a": { "b" : 1 } }""") == null)
     assert(testPathExtract(JSONPath("a"),        """{"a": { "b" : 1 } }""") == """{"b":1}""")
-    
+
     assert(testPathExtract(JSONPath("a","a"),    """{"a": { "a" : 1 } }""") == "1")
     assert(testPathExtract(JSONPath("a","a"),    """{"a": { "a" : "gbop" } }""") == "gbop")
     assert(testPathExtract(JSONPath("a","a","a"),"""{"a": { "a" : 1 } }""") == null)
     assert(testPathExtract(JSONPath("a","b"),    """{"a": { "a" : 1 } }""") == null)
-    
+
     assert(testPathExtract(JSONPath("a","b","c"),"""{"a": { "b" : {"c" : 1 } } }""") == "1")
     assert(testPathExtract(JSONPath("a"),        """{"a": { "b" : {"c" : 1 } } }""") == """{"b":{"c":1}}""")
     assert(testPathExtract(JSONPath("a","b","c"),"""{"a": { "b" : {"c" : "gbop" } } }""") == "gbop")
   }
-  
 }

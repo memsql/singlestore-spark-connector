@@ -4,6 +4,7 @@ import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.streaming.dstream.InputDStream
 import com.memsql.spark.etl.utils.PhaseLogger
 
+// scalastyle:off magic.number
 class HangingExtractor extends Extractor[String] {
   override def extract(ssc: StreamingContext, config: PhaseConfig, interval: Long, logger: PhaseLogger): InputDStream[String] = {
     while (true) {

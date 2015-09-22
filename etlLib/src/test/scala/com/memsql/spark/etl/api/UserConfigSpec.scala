@@ -4,6 +4,7 @@ import org.scalatest._
 import spray.json._
 import com.memsql.spark.etl.api._
 
+// scalastyle:off magic.number
 class UserConfigSpec extends FlatSpec {
   val extractConfig = UserExtractConfig("com.test.Extract", JsObject(
     "a" -> JsObject(
@@ -14,9 +15,9 @@ class UserConfigSpec extends FlatSpec {
           JsFalse,
           JsNumber(12),
           JsArray(JsNumber(1), JsString("true"), JsTrue, JsNull),
-          JsNumber(12345l),
+          JsNumber(12345L),
           JsNumber(1234.5f),
-          JsNumber(1234567890123456789l)
+          JsNumber(1234567890123456789L)
         )
       )
     )
@@ -42,9 +43,9 @@ class UserConfigSpec extends FlatSpec {
             false,
             12,
             List(1, "true", true, null),
-            12345l,
+            12345L,
             1234.5f,
-            1234567890123456789l
+            1234567890123456789L
           )
         )
       )
@@ -69,12 +70,12 @@ class UserConfigSpec extends FlatSpec {
     assert(extractConfig.getConfigBoolean("a", "foo", "bar", "2").get == false)
 
     assert(extractConfig.getConfigInt("a", "foo", "bar", "3").get == 12)
-    assert(extractConfig.getConfigLong("a", "foo", "bar", "3").get == 12l)
+    assert(extractConfig.getConfigLong("a", "foo", "bar", "3").get == 12L)
     assert(extractConfig.getConfigFloat("a", "foo", "bar", "3").get == 12f)
     assert(extractConfig.getConfigDouble("a", "foo", "bar", "3").get == 12d)
 
     assert(extractConfig.getConfigInt("a", "foo", "bar", "4", "0").get == 1)
-    assert(extractConfig.getConfigLong("a", "foo", "bar", "4", "0").get == 1l)
+    assert(extractConfig.getConfigLong("a", "foo", "bar", "4", "0").get == 1L)
     assert(extractConfig.getConfigFloat("a", "foo", "bar", "4", "0").get == 1f)
     assert(extractConfig.getConfigDouble("a", "foo", "bar", "4", "0").get == 1d)
 
@@ -85,17 +86,17 @@ class UserConfigSpec extends FlatSpec {
     assert(extractConfig.getConfigString("a", "foo", "bar", "4", "3").get == null)
 
     assert(extractConfig.getConfigInt("a", "foo", "bar", "5").get == 12345)
-    assert(extractConfig.getConfigLong("a", "foo", "bar", "5").get == 12345l)
+    assert(extractConfig.getConfigLong("a", "foo", "bar", "5").get == 12345L)
     assert(extractConfig.getConfigFloat("a", "foo", "bar", "5").get == 12345f)
     assert(extractConfig.getConfigDouble("a", "foo", "bar", "5").get == 12345d)
 
     assert(extractConfig.getConfigInt("a", "foo", "bar", "6").get == 1234)
-    assert(extractConfig.getConfigLong("a", "foo", "bar", "6").get == 1234l)
+    assert(extractConfig.getConfigLong("a", "foo", "bar", "6").get == 1234L)
     assert(extractConfig.getConfigFloat("a", "foo", "bar", "6").get == 1234.5f)
     assert(extractConfig.getConfigDouble("a", "foo", "bar", "6").get == 1234.5d)
 
-    assert(extractConfig.getConfigInt("a", "foo", "bar", "7").get == (1234567890123456789l & Math.pow(2, 32).toLong - 1))
-    assert(extractConfig.getConfigLong("a", "foo", "bar", "7").get == 1234567890123456789l)
+    assert(extractConfig.getConfigInt("a", "foo", "bar", "7").get == (1234567890123456789L & Math.pow(2, 32).toLong - 1))
+    assert(extractConfig.getConfigLong("a", "foo", "bar", "7").get == 1234567890123456789L)
     assert(extractConfig.getConfigFloat("a", "foo", "bar", "7").get == 1234567890123456789f)
     assert(extractConfig.getConfigDouble("a", "foo", "bar", "7").get == 1234567890123456789d)
   }

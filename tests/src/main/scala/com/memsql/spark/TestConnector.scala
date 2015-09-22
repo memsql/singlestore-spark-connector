@@ -13,6 +13,7 @@ import com.memsql.spark.connector.OnDupKeyBehavior._
 import com.memsql.spark.connector.dataframe._
 import com.memsql.spark.connector.rdd._
 
+// scalastyle:off magic.number file.size.limit regex
 object MemSQLTestSetup {
   def SetupBasic() {
     val host = TestUtils.GetHostname
@@ -83,7 +84,7 @@ object MemSQLTestSetup {
       insertQuery = insertQuery + ", (" + Types.MemSQLTypes.map((a:Any) => "null").mkString(",") + ")"
     }
     stmt.execute(insertQuery)
-    return TestUtils.MemSQLDF(sqlContext, dbName, tbname)
+    TestUtils.MemSQLDF(sqlContext, dbName, tbname)
   }
 
 }
@@ -132,25 +133,26 @@ object TestUtils {
     val df2_sorted = CollectAndSort(df2, asString)
     if (df1_sorted.size != df2_sorted.size) {
       println("len df1 = " + df1_sorted.size + ", len df2 = " + df2_sorted.size)
-      return false
-    }
-    for (i <- 0 until df1_sorted.size) {
-      if (!df1_sorted(i).equals(df2_sorted(i))) {
-        println("row " + i + " is different.")
-        if (df1_sorted(i).size != df2_sorted(i).size) {
-          println("row sizes are different, " + df1_sorted(i).size + " vs " + df2_sorted(i).size)
-          return false
-        }
-        for (r <- 0 until df1_sorted(i).size) {
-          if ((df1_sorted(i)(r) == null) != (df2_sorted(i)(r) == null)
-            || ((df1_sorted(i)(r) != null)  && !df1_sorted(i)(r).equals(df2_sorted(i)(r)))) {
-            println("difference : " + df1_sorted(i)(r) + " vs " + df2_sorted(i)(r))
+      false
+    } else {
+      for (i <- 0 until df1_sorted.size) {
+        if (!df1_sorted(i).equals(df2_sorted(i))) {
+          println("row " + i + " is different.")
+          if (df1_sorted(i).size != df2_sorted(i).size) {
+            println("row sizes are different, " + df1_sorted(i).size + " vs " + df2_sorted(i).size)
+          } else {
+            for (r <- 0 until df1_sorted(i).size) {
+              if ((df1_sorted(i)(r) == null) != (df2_sorted(i)(r) == null)
+                || ((df1_sorted(i)(r) != null) && !df1_sorted(i)(r).equals(df2_sorted(i)(r)))) {
+                println("difference : " + df1_sorted(i)(r) + " vs " + df2_sorted(i)(r))
+              }
+            }
           }
+          return false // scalastyle:ignore
         }
-        return false
       }
+      true
     }
-    true
   }
 
   def connectToMA: Connection = {
@@ -196,7 +198,7 @@ object Types {
 }
 
 object TestSparkSQLTypes {
-  def main(args: Array[String]) = {
+  def main(args: Array[String]): Unit = {
     val conn = TestUtils.connectToMA
     val conf = new SparkConf().setAppName("TestSparkSQLTypes")
     val sc = new SparkContext(conf)
@@ -486,30 +488,42 @@ object TestCreateWithKeys {
     assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t1'")).toArray.size==0)
 
     assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t2'")).toArray.size==1)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t2' and index_type='SHARD'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t2' and index_type='SHARD'")).toArray.size==1)
 
     assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t3'")).toArray.size==2)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t3' and index_type='SHARD'")).toArray.size==2)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t3' and index_type='SHARD'")).toArray.size==2)
 
     assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4'")).toArray.size==3)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4' and index_type='SHARD'")).toArray.size==1)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t4' and index_name='PRIMARY'")).toArray.size==2)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t4' and index_type='SHARD'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t4' and index_name='PRIMARY'")).toArray.size==2)
 
     assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5'")).toArray.size==3)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5' and index_type='SHARD'")).toArray.size==1)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t5' and index_name='PRIMARY'")).toArray.size==0)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t5' and index_type='SHARD'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t5' and index_name='PRIMARY'")).toArray.size==0)
 
     assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6'")).toArray.size==5)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6' and index_type='SHARD'")).toArray.size==2)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t6' and index_name='PRIMARY'")).toArray.size==4)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t6' and index_type='SHARD'")).toArray.size==2)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t6' and index_name='PRIMARY'")).toArray.size==4)
 
     assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7'")).toArray.size==2)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='SHARD'")).toArray.size==1)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='CLUSTERED COLUMN'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='SHARD'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t7' and index_type='CLUSTERED COLUMN'")).toArray.size==1)
 
     assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8'")).toArray.size==1)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8' and index_type='SHARD'")).toArray.size==0)
-    assert(MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.statistics where table_name='t8' and index_type='CLUSTERED COLUMN'")).toArray.size==1)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t8' and index_type='SHARD'")).toArray.size==0)
+    assert(MemSQLRDD.resultSetToIterator(
+      stmt.executeQuery("select * from information_schema.statistics where table_name='t8' and index_type='CLUSTERED COLUMN'")).toArray.size==1)
   }
 }
 
@@ -592,7 +606,8 @@ object TestSaveToMemSQLErrors {
 
       for (df <- Array(df1, df2)) {
         try {
-          df.select(df("a") as "a", df("b") as "b", df("a") as "c").saveToMemSQL("x_db", "t", onDuplicateKeyBehavior = onDuplicateKeyBehavior, onDuplicateKeySql = dupKeySql)
+          df.select(df("a") as "a", df("b") as "b", df("a") as "c")
+            .saveToMemSQL("x_db", "t", onDuplicateKeyBehavior = onDuplicateKeyBehavior, onDuplicateKeySql = dupKeySql)
         } catch {
           case e: SaveToMemSQLException => {
             assert(e.exception.getMessage.contains("Unknown column 'c' in 'field list'"))
@@ -787,7 +802,8 @@ object TestLeakedConns {
     val result = MemSQLRDD.resultSetToIterator(stmt.executeQuery(q)).map((r:ResultSet) => r.getString("Value")).toArray
     println("num conns = " + result(0).toInt)
     for (r <- MemSQLRDD.resultSetToIterator(stmt.executeQuery("show processlist"))) {
-      println("    processlist " + r.getString("Id") + " " + r.getString("db") + " " + r.getString("Command") + " "+ r.getString("State") + " " + r.getString("Info"))
+      println("    processlist " + r.getString("Id") + " " + r.getString("db") + " " + r.getString("Command") + " " +
+        r.getString("State") + " " + r.getString("Info"))
     }
     stmt.close()
     result(0).toInt

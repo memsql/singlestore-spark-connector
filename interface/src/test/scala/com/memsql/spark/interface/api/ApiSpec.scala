@@ -17,6 +17,7 @@ import ExtractPhaseKind._
 import TransformPhaseKind._
 import LoadPhaseKind._
 
+// scalastyle:off magic.number
 class ApiSpec extends TestKitSpec("ApiActorSpec") {
   var mockTime = new MockTime()
   val apiRef = system.actorOf(Props(classOf[TestApiActor], mockTime))
@@ -334,8 +335,10 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case Failure(err) => fail(s"unexpected response $err")
       }
 
-      val record1 = PipelineMetricRecord(batch_id = "batch1", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1", timestamp = 100, success = true, task_errors = None, extract = None, transform = None, load = None)
-      val record2 = PipelineMetricRecord(batch_id = "batch2", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1", timestamp = 110, success = false, task_errors = None, extract = None, transform = None, load = None)
+      val record1 = PipelineMetricRecord(batch_id = "batch1", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1",
+                                         timestamp = 100, success = true, task_errors = None, extract = None, transform = None, load = None)
+      val record2 = PipelineMetricRecord(batch_id = "batch2", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1",
+                                         timestamp = 110, success = false, task_errors = None, extract = None, transform = None, load = None)
 
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {

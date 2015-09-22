@@ -26,6 +26,7 @@ import spray.json._
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
 
+// scalastyle:off magic.number
 class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalSparkContext {
   val apiRef = system.actorOf(Props[ApiActor], "api")
   var sqlContext: SQLContext = _

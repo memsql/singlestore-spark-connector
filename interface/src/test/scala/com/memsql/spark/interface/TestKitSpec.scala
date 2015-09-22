@@ -6,11 +6,10 @@ import com.memsql.spark.interface.api.ApiService
 import com.memsql.spark.interface.util.{Clock, Paths}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll, Matchers}
-import org.scalamock.scalatest.MockFactory
 import scala.sys.process._
 
 class TestApiActor(mockTime: Clock) extends Actor with ApiService {
-  override def clock = mockTime
+  override def clock: Clock = mockTime
   override def receive: Receive = handleMessage
 }
 
@@ -20,8 +19,7 @@ abstract class TestKitSpec(name: String)
   with Matchers
   with BeforeAndAfterAll
   with ImplicitSender
-  with ScalaFutures
-  with MockFactory {
+  with ScalaFutures {
 
   override protected def beforeAll() {
     "rm -rf test_root" !!
