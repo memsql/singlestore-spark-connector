@@ -105,11 +105,11 @@ object MemSQLContext {
 /**
  * A MemSQL cluster aware version of the SQLContext.
  *
- * @param sparkContext the SparkContext
- * @param masterAggHost the host of the master agg
- * @param masterAggPort the port of the master agg
- * @param userName the user name for the master agg
- * @param password the password for the master agg
+ * @param sparkContext The SparkContext used to create this SQLContext.
+ * @param masterAggHost The host of the master aggregator.
+ * @param masterAggPort The port of the master aggregator.
+ * @param userName The user name for the master aggregator.
+ * @param password The password for the master aggregator.
  */
 class MemSQLContext(sparkContext: SparkContext,
                     masterAggHost: String,

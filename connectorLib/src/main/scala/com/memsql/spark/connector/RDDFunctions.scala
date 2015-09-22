@@ -34,34 +34,28 @@ import com.memsql.spark.connector.OnDupKeyBehavior._
 
 class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
   /**
-   * Saves an RDD's contents to a MemSQL database.  The RDD's elements should
-   * consist of arrays of objects; each array should be the same length, and
+   * Saves an [[org.apache.spark.rdd.RDD]]'s contents to a MemSQL database. The elements should
+   * consist of [[org.apache.spark.sql.Row]]s of objects; each row should be the same length, and
    * the table specified in tableName should have as many columns as the arrays
    * have elements.
    *
-   * If the Spark executors are colocated with writable MemSQL nodes,
-   * then each Spark partition will insert into a randomly chosen colocated writable MemSQL node.
+   * If dbHost, dbPort, user and password are not specified, the [[com.memsql.spark.context.MemSQLContext]] will determine
+   * where each partition's data is sent. If the Spark executors are colocated with writable MemSQL nodes, then each Spark
+   * partition will insert into a randomly chosen colocated writable MemSQL node. If the Spark executors are not colocated
+   * with writable MemSQL nodes, Spark partitions will insert writable MemSQL nodes round robin.
    *
-   * If the Spark executors are not colocated with writable MemSQL nodes,
-   * Spark partitions will insert writable MemSQL nodes round robin.
-   *
-   * @param dbName the name of the database we're working in.
-   * @param tableName the name of the table we're saving the data in.
-   * @param onDuplicateKeyBehavior How to handle duplicate key errors when
-   *                          inserting rows. If this is Replace, we will
-   *                          replace existing rows with the ones in rdd. If
-   *                          this is Ignore, we will leave existing rows as
-   *                          they are. If this is Update, we will use the
-   *                          SQL code in onDuplicateKeySql. If this is
-   *                          None, we will throw an error if there are any
-   *                          duplicate key errors.
-   * @param onDuplicateKeySql Optional SQL to include in the
-   *                          "ON DUPLICATE KEY UPDATE" clause of the INSERT
-   *                          queries we generate. If this is a non-empty
-   *                          string, onDuplicateKeyBehavior must be Update.
+   * @param dbName The name of the database.
+   * @param tableName The name of the table.
+   * @param onDuplicateKeyBehavior How to handle duplicate key errors when inserting rows. If this is [[OnDupKeyBehavior.Replace]],
+   *                               we will replace existing rows with the ones in rdd. If this is [[OnDupKeyBehavior.Ignore]],
+   *                               we will leave existing rows as they are. If this is Update, we will use the SQL code
+   *                               in onDuplicateKeySql. If this is None, we will throw an error if there are any duplicate key errors.
+   * @param onDuplicateKeySql Optional SQL to include in the "ON DUPLICATE KEY UPDATE" clause of the INSERT queries we generate.
+   *                          If this is a non-empty string, onDuplicateKeyBehavior must be [[OnDupKeyBehavior.Update]].
    * @param upsertBatchSize How many rows to insert per INSERT query.  Has no effect if onDuplicateKeySql is not specified.
-   * @param useKeylessShardedOptimization if set, data is loaded directly into leaf partitions.
-   *                                      Can increased performance at the expense of higher variance sharding.
+   * @param useKeylessShardedOptimization If set, data is loaded directly into leaf partitions. Can increase performance
+   *                                      at the expense of higher variance sharding.
+   * @return The number of rows inserted into MemSQL.
    */
   def saveToMemSQL(
     dbName: String,
@@ -172,7 +166,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
    * Returns a List of MemSQLTarget structs, one for each Spark partition.
    * Represents one possibility for the Spark -> MemSQL mapping created by calling saveToMemSQL.
    */
-  def saveToMemSQLDryRun(memSQLContext: MemSQLContext) : List[MemSQLTarget] = {
+  def saveToMemSQLDryRun(memSQLContext: MemSQLContext): List[MemSQLTarget] = {
     val availableNodes = memSQLContext.getMemSQLNodesAvailableForIngest.map(node => (node.host, node.port, null: String))
     val randomIndex = Random.nextInt(availableNodes.size)
     rdd.mapPartitions{ part =>
@@ -289,6 +283,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
       }
     }
   }
+
   private def loadPartitionInMemSQL(
                                     dbHost: String,
                                     dbPort: Int,

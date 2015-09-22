@@ -17,9 +17,9 @@
 
 package com.memsql.spark.connector.util
 
-/** Provides a basic/boilerplate Iterator implementation. */
-/** NOTE: This is a copy of NextIterator from the Spark codebase.  It's been
-  *  copied into this package so that we can use it in our MemSQL RDD.
+/** Provides a basic/boilerplate Iterator implementation.
+  * NOTE: This is a copy of [[org.apache.spark.util.NextIterator]] from the Spark codebase.
+  * It's been copied into this package so that we can use it in our [[com.memsql.spark.connector.rdd.MemSQLRDD]].
   */
 private[spark] abstract class NextIterator[U] extends Iterator[U] {
 

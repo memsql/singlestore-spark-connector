@@ -5,8 +5,9 @@ import java.util.Properties
 import org.apache.log4j._
 import org.apache.log4j.Level._
 
-/*
- * Logger interface used for user defined Extractors, Transformers, and Loaders
+/**
+ * Logger interface for user defined Extractors, Transformers, and Loaders. Mirrors some of the
+ * [[org.apache.log4j.Logger]] api.
  */
 abstract class PhaseLogger {
   protected val logger: Logger

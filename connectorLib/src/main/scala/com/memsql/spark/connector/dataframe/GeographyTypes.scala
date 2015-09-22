@@ -8,6 +8,9 @@ class GeographyValue(val value: String) extends Serializable {
   override def toString: String = value
 }
 
+/**
+ * Spark SQL [[org.apache.spark.sql.types.UserDefinedType]] for MemSQL's `GEOGRAPHY` column type.
+ */
 class GeographyType private() extends UserDefinedType[GeographyValue] {
   override def sqlType: DataType = StringType
 
@@ -38,6 +41,9 @@ class GeographyPointValue(val value: String) extends Serializable {
   override def toString: String = value
 }
 
+/**
+ * Spark SQL [[org.apache.spark.sql.types.UserDefinedType]] for MemSQL's `GEOGRAPHYPOINT` column type.
+ */
 class GeographyPointType private() extends UserDefinedType[GeographyPointValue] {
   override def sqlType: DataType = StringType
 

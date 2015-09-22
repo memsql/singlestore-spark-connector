@@ -12,7 +12,7 @@ import com.memsql.spark.connector.rdd.MemSQLRDD
 import org.apache.commons.lang.StringEscapeUtils
 
 object MemSQLDataFrameUtils {
-  def DataFrameTypeToMemSQLTypeString(dataType : DataType) : String = {
+  def DataFrameTypeToMemSQLTypeString(dataType: DataType): String = {
     // we match types having _.typeName not a MemSQL type (for instance ShortType.typeName  is "SHORT", but MemSQL calls it "TINYINT")
     dataType match {
       case ShortType => "TINYINT"
@@ -27,7 +27,7 @@ object MemSQLDataFrameUtils {
   }
 
 
-  def JDBCTypeToDataFrameType(rsmd: ResultSetMetaData, ix: Int) : DataType = {
+  def JDBCTypeToDataFrameType(rsmd: ResultSetMetaData, ix: Int): DataType = {
     rsmd.getColumnType(ix) match {
       case java.sql.Types.CHAR => ByteType
       case java.sql.Types.INTEGER => IntegerType
@@ -53,7 +53,7 @@ object MemSQLDataFrameUtils {
     }
   }
 
-  def GetJDBCValue(dataType : Int, ix : Int, row : ResultSet) : Any = {
+  def GetJDBCValue(dataType: Int, ix: Int, row: ResultSet): Any = {
     val result = dataType match {
       case java.sql.Types.INTEGER => row.getInt(ix)
       case java.sql.Types.BIGINT => row.getLong(ix)
@@ -87,7 +87,7 @@ object MemSQLDataFrame {
     user: String,
     password: String,
     dbName: String,
-    query: String) : MemSQLRDD[Row] = {
+    query: String): MemSQLRDD[Row] = {
     new MemSQLRDD(sc, dbHost, dbPort, user, password, dbName, query, (r:ResultSet) => {
       val count = r.getMetaData.getColumnCount
       Row.fromSeq(Range(0, count)
@@ -102,7 +102,7 @@ object MemSQLDataFrame {
     user: String,
     password: String,
     dbName: String,
-    query: String) : DataFrame = {
+    query: String): DataFrame = {
     sqlContext.load("com.memsql.spark.connector.dataframe.MemSQLRelationProvider", Map(
       "dbHost" -> dbHost,
       "dbPort" -> dbPort.toString,
@@ -118,7 +118,7 @@ object MemSQLDataFrame {
     user: String,
     password: String,
     dbName: String,
-    query: String) : StructType = {
+    query: String): StructType = {
 
     var conn: Connection = null
     var schemaStmt: Statement = null

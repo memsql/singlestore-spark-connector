@@ -11,11 +11,30 @@ import com.memsql.spark.connector.rdd._
 import com.memsql.spark.connector.dataframe._
 
 class DataFrameFunctions(df: DataFrame) extends Serializable {
-  /*
-   * Saves a Spark dataframe to a memsql table with the same column names.
-   * If dbHost, dbPort, user and password are not specified,
-   * the MemSQLContext will determine where each partition's data is sent.
-   * Otherwise, all partitions will load into the node specified by MemSQLContext
+  /**
+   * Saves a Spark [[org.apache.spark.sql.DataFrame]] to a MemSQL table with the same column names.
+   *
+   * If dbHost, dbPort, user and password are not specified, the [[com.memsql.spark.context.MemSQLContext]] will determine
+   * where each partition's data is sent. If the Spark executors are colocated with writable MemSQL nodes, then each Spark
+   * partition will insert into a randomly chosen colocated writable MemSQL node. If the Spark executors are not colocated
+   * with writable MemSQL nodes, Spark partitions will insert writable MemSQL nodes round robin.
+   *
+   * @param dbName The name of the database.
+   * @param tableName The name of the table.
+   * @param dbHost The host of the database.
+   * @param dbPort The port of the database.
+   * @param user The user for the database.
+   * @param password The password for the database.
+   * @param onDuplicateKeyBehavior How to handle duplicate key errors when inserting rows. If this is [[OnDupKeyBehavior.Replace]],
+   *                               we will replace existing rows with the ones in rdd. If this is [[OnDupKeyBehavior.Ignore]],
+   *                               we will leave existing rows as they are. If this is Update, we will use the SQL code
+   *                               in onDuplicateKeySql. If this is None, we will throw an error if there are any duplicate key errors.
+   * @param onDuplicateKeySql Optional SQL to include in the "ON DUPLICATE KEY UPDATE" clause of the INSERT queries we generate.
+   *                          If this is a non-empty string, onDuplicateKeyBehavior must be [[OnDupKeyBehavior.Update]].
+   * @param upsertBatchSize How many rows to insert per INSERT query.  Has no effect if onDuplicateKeySql is not specified.
+   * @param useKeylessShardedOptimization If set, data is loaded directly into leaf partitions. Can increase performance
+   *                                      at the expense of higher variance sharding.
+   * @return The number of rows inserted into MemSQL.
    */
   def saveToMemSQL(dbName: String,
                    tableName: String,
@@ -46,11 +65,28 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
                         upsertBatchSize, useKeylessShardedOptimization)
   }
 
-  /*
-   * Creates a MemSQL table with the schema matching the Spark dataframe and loads the data into it.
-   * If dbHost, dbPort, user and password are not specified,
-   * the MemSQLContext will determine where each partition's data is sent.
-   * Otherwise, all partitions will load into the node specified by MemSQLContext
+  /**
+   * Creates a MemSQL table with a schema matching the provided [[org.apache.spark.sql.DataFrame]] and loads the data into it.
+   *
+   * If dbHost, dbPort, user and password are not specified, the [[com.memsql.spark.context.MemSQLContext]] will determine
+   * where each partition's data is sent. If the Spark executors are colocated with writable MemSQL nodes, then each Spark
+   * partition will insert into a randomly chosen colocated writable MemSQL node. If the Spark executors are not colocated
+   * with writable MemSQL nodes, Spark partitions will insert writable MemSQL nodes round robin.
+   *
+   * @param dbName The name of the database.
+   * @param tableName The name of the table.
+   * @param dbHost The host of the database.
+   * @param dbPort The port of the database.
+   * @param user The user for the database.
+   * @param password The password for the database.
+   * @param ifNotExists Use `CREATE TABLE IF NOT EXISTS`
+   * @param keys A [[scala.List]] of [[com.memsql.spark.connector.dataframe.MemSQLKey]] specifications to add to the
+   *             `CREATE TABLE` statement.
+   * @param extraCols A [[scala.List]] of [[com.memsql.spark.connector.dataframe.MemSQLExtraColumn]] specifications to
+   *                  add to the `CREATE TABLE` statement.
+   * @param useKeylessShardedOptimization If set, data is loaded directly into leaf partitions. Can increase performance
+   *                                      at the expense of higher variance sharding.
+   * @return A [[org.apache.spark.sql.DataFrame]] containing the schema and inserted rows in MemSQL.
    */
   def createMemSQLTableAs(dbName: String,
                           tableName: String,
@@ -67,6 +103,22 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
     resultDf
   }
 
+  /**
+   * Creates a MemSQL table with a schema matching the provided [[org.apache.spark.sql.DataFrame]].
+   *
+   * @param dbName The name of the database.
+   * @param tableName The name of the table.
+   * @param dbHost The master aggregator host.
+   * @param dbPort The master aggregator port.
+   * @param user The user for the database.
+   * @param password The password for the database.
+   * @param ifNotExists Use `CREATE TABLE IF NOT EXISTS`
+   * @param keys A [[scala.List]] of [[com.memsql.spark.connector.dataframe.MemSQLKey]] specifications to add to the
+   *             `CREATE TABLE` statement.
+   * @param extraCols A [[scala.List]] of [[com.memsql.spark.connector.dataframe.MemSQLExtraColumn]] specifications to
+   *                  add to the `CREATE TABLE` statement.
+   * @return A [[org.apache.spark.sql.DataFrame]] containing the schema and inserted rows in MemSQL.
+   */
   def createMemSQLTableFromSchema(dbName: String,
                                   tableName: String,
                                   dbHost: String = null,

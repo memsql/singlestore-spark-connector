@@ -8,6 +8,9 @@ class JsonValue(val value: String) extends Serializable {
   override def toString: String = value
 }
 
+/**
+ * Spark SQL [[org.apache.spark.sql.types.UserDefinedType]] for MemSQL's `JSON` column type.
+ */
 class JsonType private() extends UserDefinedType[JsonValue] {
   override def sqlType: DataType = StringType
 

@@ -1,3 +1,5 @@
+import UnidocKeys._
+
 lazy val sparkVersion = "1.4.1"
 lazy val mysqlConnectorVersion = "5.1.34"
 lazy val akkaVersion = "2.3.9"
@@ -38,7 +40,8 @@ lazy val connectorLib = (project in file("connectorLib")).
         } yield entry.data).headOption
       }
       val links = Seq(
-        findManagedDependency("org.apache.spark", "spark-core").map(d => d -> url(s"https://spark.apache.org/docs/$sparkVersion/api/scala/"))
+        findManagedDependency("org.apache.spark", "spark-core").map(d => d -> url(s"https://spark.apache.org/docs/$sparkVersion/api/scala/")),
+        findManagedDependency("org.apache.spark", "spark-sql").map(d => d -> url(s"https://spark.apache.org/docs/$sparkVersion/api/scala/"))
       )
       links.collect { case Some(d) => d }.toMap
     }
@@ -64,7 +67,9 @@ lazy val etlLib = (project in file("etlLib")).
         } yield entry.data).headOption
       }
       val links = Seq(
-        findManagedDependency("org.apache.spark", "spark-core").map(d => d -> url(s"https://spark.apache.org/docs/$sparkVersion/api/scala/"))
+        findManagedDependency("org.apache.spark", "spark-core").map(d => d -> url(s"https://spark.apache.org/docs/$sparkVersion/api/scala/")),
+        findManagedDependency("org.apache.spark", "spark-streaming").map(d => d -> url(s"https://spark.apache.org/docs/$sparkVersion/api/scala/")),
+        findManagedDependency("org.apache.spark", "spark-sql").map(d => d -> url(s"https://spark.apache.org/docs/$sparkVersion/api/scala/"))
       )
       links.collect { case Some(d) => d }.toMap
     }
@@ -159,5 +164,6 @@ lazy val root = (project in file(".")).
       "org.apache.spark" %% "spark-sql" % sparkVersion  % Provided,
       "org.apache.spark" %% "spark-streaming" % sparkVersion % Provided,
       "mysql" % "mysql-connector-java" % mysqlConnectorVersion
-    )
+    ),
+    unidocProjectFilter in (ScalaUnidoc, unidoc) := inAnyProject -- inProjects(tests, jarInspector)
   )

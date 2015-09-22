@@ -10,7 +10,7 @@ import com.memsql.spark.connector.util.NextIterator
 private class MemSQLRDDPartition(override val index: Int, val host: String, val port: Int) extends Partition
 
 /**
-  * An RDD that can read data from a MemSQL database based on a SQL query.
+  * An [[org.apache.spark.rdd.RDD]] that can read data from a MemSQL database based on a SQL query.
   *
   * If the given query supports it, this RDD will read data directly from the
   * MemSQL cluster's leaf nodes rather than from the master aggregator, which
@@ -18,17 +18,17 @@ private class MemSQLRDDPartition(override val index: Int, val host: String, val 
   * not support this (e.g. queries involving joins or GROUP BY operations), the
   * results will be returned in a single partition.
   *
-  * @param dbHost the host to connect to for the master aggregator of the MemSQL
+  * @param dbHost The host to connect to for the master aggregator of the MemSQL
   *   cluster.
-  * @param dbPort the port to connect to for the master aggregator of the MemSQL
+  * @param dbPort The port to connect to for the master aggregator of the MemSQL
   *   cluster.
-  * @param user the username to use when connecting to the databases in the
+  * @param user The username to use when connecting to the databases in the
   *   MemSQL cluster.  All the nodes in the cluster should use the same user.
-  * @param password the password to use when connecting to the databases in the
+  * @param password The password to use when connecting to the databases in the
   *   MemSQL cluster.  All the nodes in the cluster should use the same password.
-  * @param dbName the name of the database we're working in.
-  * @param sql the text of the query.
-  * @param mapRow a function from a ResultSet to a single row of the desired
+  * @param dbName The name of the database we're working in.
+  * @param sql The text of the query.
+  * @param mapRow A function from a ResultSet to a single row of the desired
   *   result type(s).  This should only call getInt, getString, etc; the RDD
   *   takes care of calling next.  The default maps a ResultSet to an array of
   *   Object.

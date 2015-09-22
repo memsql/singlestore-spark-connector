@@ -8,6 +8,9 @@ class BigIntUnsignedValue(val value: Long) extends Serializable {
   override def toString: String = value.toString
 }
 
+/**
+ * Spark SQL [[org.apache.spark.sql.types.UserDefinedType]] for MemSQL's `BIGINT UNSIGNED` column type.
+ */
 class BigIntUnsignedType private() extends UserDefinedType[BigIntUnsignedValue] {
   override def sqlType: DataType = LongType
 

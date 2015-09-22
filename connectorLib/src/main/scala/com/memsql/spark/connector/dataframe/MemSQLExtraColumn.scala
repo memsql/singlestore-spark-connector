@@ -1,5 +1,16 @@
 package com.memsql.spark.connector.dataframe
 
+/**
+ * Representation for an extra column in MemSQL.
+ *
+ * @param name Name of the column.
+ * @param colType SQL type for this column. See
+ *                <a href="http://docs.memsql.com/latest/ref/CREATE_TABLE/#create-table">MemSQL CREATE TABLE docs</a>
+ *                for the full list of supported types.
+ * @param nullable Allow `NULL` values for this column.
+ * @param defaultValue Default value for this column.
+ * @param persisted Persist this column if it is computed.
+ */
 case class MemSQLExtraColumn(name: String, colType: String, nullable: Boolean =true, defaultValue: Any = null, persisted: String = null)
 {
   def toSQL: String = {
