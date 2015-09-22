@@ -1,7 +1,7 @@
 package com.memsql.spark.interface
 
 object Main {
-  val VERSION = "0.2.2"
+  val VERSION = "0.2.3"
 
   def main(args: Array[String]): Unit = {
     val parser = new scopt.OptionParser[Config]("memsql-spark-interface") {
