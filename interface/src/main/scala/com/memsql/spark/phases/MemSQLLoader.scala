@@ -30,7 +30,7 @@ class MemSQLLoader extends Loader {
       case Some(MemSQLDupKeyBehavior.Replace) => Some(OnDupKeyBehavior.Replace)
       case Some(MemSQLDupKeyBehavior.Ignore) => Some(OnDupKeyBehavior.Ignore)
       case Some(MemSQLDupKeyBehavior.Update) => Some(OnDupKeyBehavior.Update)
-      case None => None
+      case _ => None
     }
 
     if (memSQLLoadConfig.dry_run) {
