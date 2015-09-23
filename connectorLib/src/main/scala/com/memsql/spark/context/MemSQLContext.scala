@@ -173,7 +173,7 @@ class MemSQLContext(sparkContext: SparkContext,
   /**
    * Returns a JDBC Connection to a MemSQLNode.
    *
-   * @param: node The node to connect to.  If ommited or null, will return a connection to the Master Aggregator
+   * @param: node The node to connect to.  If omited or null, will return a connection to the Master Aggregator
    * @param dbName The optional name of the database to connect to.  
    */
   def getMemSQLConnection(node: MemSQLNode = null, dbName: String = null): Connection = {
