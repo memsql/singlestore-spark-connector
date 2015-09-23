@@ -1,4 +1,5 @@
 import UnidocKeys._
+import com.amazonaws.auth._
 
 lazy val sparkVersion = "1.4.1"
 lazy val mysqlConnectorVersion = "5.1.34"
@@ -18,7 +19,8 @@ lazy val commonSettings = Seq(
   assembly <<= assembly dependsOn assemblyScalastyle,
   testScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Test).toTask("").value,
   (test in Test) <<= (test in Test) dependsOn testScalastyle,
-  publishTo := Some(Resolver.file("file",  new File(Path.userHome.absolutePath+"/.m2/repository")))
+  s3credentials := new EnvironmentVariableCredentialsProvider(),
+  publishTo := Some(s3resolver.value("Releases", s3("maven.memsql.com")))
 )
 
 lazy val connectorLib = (project in file("connectorLib")).

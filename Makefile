@@ -60,8 +60,8 @@ package: docs build
 psytest: build-test build-sample
 	psy dockertest dockertest/.psyduck
 
-.PHONY: publish-local
-publish-local:
+.PHONY: publish
+publish:
 	sbt "project connectorLib" publish \
 	"project etlLib" publish \
 	"project interface" publish \
