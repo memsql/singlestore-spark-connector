@@ -1,7 +1,7 @@
 package com.memsql.spark
 
 import com.memsql.spark.context.MemSQLContext
-import java.sql.{DriverManager, ResultSet, Connection}
+import java.sql.{DriverManager, ResultSet, Connection, Timestamp}
 
 import org.apache.spark._
 import org.apache.spark.sql._
@@ -527,6 +527,48 @@ object TestCreateWithKeys {
   }
 }
 
+object TestCreateWithExtraColumns {
+  def main(args: Array[String]) {
+    val conf = new SparkConf().setAppName("TestCreateWithExtraColumns")
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
+    TestUtils.DropAndCreate("x_db")
+
+    val rdd = sc.parallelize(Array(Row(1)))
+    val schema = StructType(Array(StructField("a", IntegerType, true)))
+    val df = sqlContext.createDataFrame(rdd, schema)
+    df.createMemSQLTableAs("x_db", "t",
+      extraCols=List(
+        MemSQLExtraColumn("b", "integer", false, defaultSql = "42"),
+        MemSQLExtraColumn("c", "timestamp", false, defaultSql = "CURRENT_TIMESTAMP"),
+        MemSQLExtraColumn("d", "timestamp", false, defaultSql = "CURRENT_TIMESTAMP")
+      )
+    )
+
+    val schema1 = StructType(
+      Array(
+        StructField("a", IntegerType, true),
+        StructField("b", IntegerType, true),
+        StructField("c", TimestampType, true),
+        StructField("d", TimestampType, true)
+      )
+    )
+    val df_t = TestUtils.MemSQLDF(sqlContext, "x_db", "t")
+    assert(df_t.schema.equals(schema1))
+    assert(df_t.count == 1)
+    assert(df_t.head.getInt(0) == 1)
+    assert(df_t.head.getInt(1) == 42)
+    // Both of the timestamp columns should have had the current timestamp
+    // inserted as the default value.
+    val cValue = df_t.head.getString(2)
+    println(cValue)
+    assert(Timestamp.valueOf(cValue).getTime > 0)
+    val dValue = df_t.head.getString(3)
+    println(dValue)
+    assert(Timestamp.valueOf(dValue).getTime > 0)
+  }
+}
+
 object TestMemSQLContextVeryBasic {
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")
@@ -824,7 +866,7 @@ object TestEscapedColumnNames {
 
     df.createMemSQLTableAs("x_db","t",
       keys=List(PrimaryKey("index")),
-      extraCols=List(MemSQLExtraColumn("table", "varchar(200)", defaultValue="")))
+      extraCols=List(MemSQLExtraColumn("table", "varchar(200)")))
   }
 }
 

@@ -8,10 +8,11 @@ package com.memsql.spark.connector.dataframe
  *                <a href="http://docs.memsql.com/latest/ref/CREATE_TABLE/#create-table">MemSQL CREATE TABLE docs</a>
  *                for the full list of supported types.
  * @param nullable Allow `NULL` values for this column.
- * @param defaultValue Default value for this column.
+ * @param defaultSql A SQL expression to put in the DEFAULT definition of this
+ *                   column.
  * @param persisted Persist this column if it is computed.
  */
-case class MemSQLExtraColumn(name: String, colType: String, nullable: Boolean =true, defaultValue: Any = null, persisted: String = null)
+case class MemSQLExtraColumn(name: String, colType: String, nullable: Boolean = true, defaultSql: String = null, persisted: String = null)
 {
   def toSQL: String = {
     val sql = new StringBuilder
@@ -24,18 +25,15 @@ case class MemSQLExtraColumn(name: String, colType: String, nullable: Boolean =t
       sql.append("NOT NULL").append(" ")
     }
     if (persisted == null) {
-      if (defaultValue == null && colType.toLowerCase() != "timestamp") {
+      if (defaultSql == null && colType.toLowerCase() != "timestamp") {
         if (nullable) {
           sql.append("DEFAULT null")
         } else {
           sql.append("DEFAULT '0'")
         }
-      } else if (defaultValue != null) {
+      } else if (defaultSql != null) {
         sql.append("DEFAULT ")
-        defaultValue match {
-          case dvs : String => sql.append("'").append(dvs).append("'")
-          case dva : Any => sql.append(dva.toString)
-        }
+        sql.append(defaultSql)
       }
     }
     sql.toString

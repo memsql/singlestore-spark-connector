@@ -31,6 +31,9 @@ def test_memsql_dataframe_very_basic(local_context):
 def test_create_with_keys(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestCreateWithKeys")
 
+def test_create_with_extra_cols(local_context):
+    do_test_spark_submit(local_context, "com.memsql.spark.TestCreateWithExtraColumns")
+
 def test_memsql_types(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLTypes")
 

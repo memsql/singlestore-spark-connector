@@ -39,10 +39,10 @@ case class MemSQLKeyConfig(key_type: MemSQLKeyType, column_names: List[String]) 
 case class MemSQLExtraColumnConfig(name: String,
                                    col_type: String,
                                    nullable: Option[Boolean],
-                                   default_value: Option[String],
+                                   default_sql: Option[String],
                                    persisted: Option[String]) {
   def toMemSQLExtraColumn: MemSQLExtraColumn = {
-    MemSQLExtraColumn(name, col_type, nullable.getOrElse(true), default_value.orNull, persisted.orNull)
+    MemSQLExtraColumn(name, col_type, nullable.getOrElse(true), default_sql.orNull, persisted.orNull)
   }
 }
 
@@ -72,7 +72,7 @@ case class MemSQLLoadConfig(
         name="memsql_insert_time",
         col_type="TIMESTAMP",
         nullable=Some(false),
-        default_value=None,
+        default_sql=Some("CURRENT_TIMESTAMP"),
         persisted=None
       ))),
       table_keys=Some(List(
