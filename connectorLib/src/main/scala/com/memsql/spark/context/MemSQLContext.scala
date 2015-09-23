@@ -31,8 +31,13 @@ object MemSQLContext {
     new MemSQLContext(sparkContext, dbHost, dbPort, dbUser, dbPassword)
   }
 
-  def getMemSQLConnection(host: String, port: Int, userName: String, password: String): Connection = {
-    val dbAddress = "jdbc:mysql://" + host + ":" + port
+  def getMemSQLConnection(host: String, port: Int, userName: String, password: String, dbName: String = null): Connection = {
+    val dbAddress = "jdbc:mysql://" + host + ":" + port + (if (dbName != null)
+      {
+        "/" + dbName
+      } else {
+        ""
+      })
     DriverManager.getConnection(dbAddress, userName, password)
   }
 
@@ -164,4 +169,14 @@ class MemSQLContext(sparkContext: SparkContext,
     val agg = aggs(Random.nextInt(aggs.size))
     MemSQLDataFrame.MakeMemSQLRowRDD(sparkContext, agg.host, agg.port, userName, password, dbName, query)
   }
+
+  def getMemSQLConnection(node: MemSQLNode = null, dbName: String = null): Connection = {
+    val theNode = if (node == null) {
+      masterAgg
+    } else {
+      node
+    }
+    MemSQLContext.getMemSQLConnection(node.host, node.port, userName, password, dbName)
+  }
+
 }
