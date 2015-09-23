@@ -1,3 +1,3 @@
-resolvers += "Era7 maven releases" at "https://s3-eu-west-1.amazonaws.com/releases.era7.com"
+lazy val s3Plugin = uri("git://github.com/ohnosequences/sbt-s3-resolver#v0.13.0")
 
-addSbtPlugin("ohnosequences" % "sbt-s3-resolver" % "0.13.0")
+lazy val root = (project in file(".")).dependsOn(s3Plugin)
