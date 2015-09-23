@@ -569,6 +569,30 @@ object TestCreateWithExtraColumns {
   }
 }
 
+object TestSaveToMemSQLEmptyRows {
+  def main(args: Array[String]) {
+    val conf = new SparkConf().setAppName("TestSaveToMemSQLEmptyRows")
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
+    TestUtils.DropAndCreate("x_db")
+
+    val rdd = sc.parallelize(Array(Row()))
+    val schema = StructType(Array[StructField]())
+    val df = sqlContext.createDataFrame(rdd, schema)
+    df.createMemSQLTableAs("x_db", "t",
+      extraCols=List(MemSQLExtraColumn("a", "integer", false, defaultSql = "42"))
+    )
+
+    val rdd1 = sc.parallelize(Array(Row(42)))
+    val schema1 = StructType(Array(StructField("a", IntegerType, true)))
+    val df1 = sqlContext.createDataFrame(rdd1, schema1)
+    val df_t = TestUtils.MemSQLDF(sqlContext, "x_db", "t")
+    assert(df_t.schema.equals(schema1))
+    assert(df_t.count == 1)
+    assert(TestUtils.EqualDFs(df_t, df1))
+  }
+}
+
 object TestMemSQLContextVeryBasic {
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")

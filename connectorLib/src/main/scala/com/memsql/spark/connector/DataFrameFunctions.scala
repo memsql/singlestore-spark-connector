@@ -60,9 +60,12 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
     }
     val insertTableString = insertTable.append(")").toString
 
+    val forceInsert = df.schema.size == 0
+
     df.rdd.saveToMemSQL(dbName, insertTableString, theHost, thePort, theUser,
                         thePassword, onDuplicateKeyBehavior, onDuplicateKeySql,
-                        upsertBatchSize, useKeylessShardedOptimization)
+                        upsertBatchSize, useKeylessShardedOptimization,
+                        forceInsert = forceInsert)
   }
 
   /**

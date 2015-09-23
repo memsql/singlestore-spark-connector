@@ -55,6 +55,8 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
    * @param upsertBatchSize How many rows to insert per INSERT query.  Has no effect if onDuplicateKeySql is not specified.
    * @param useKeylessShardedOptimization If set, data is loaded directly into leaf partitions. Can increase performance
    *                                      at the expense of higher variance sharding.
+   * @param forceInsert If set, always use INSERT queries, not LOAD DATA, when
+   *                    inserting data into MemSQL.
    * @return The number of rows inserted into MemSQL.
    */
   def saveToMemSQL(
@@ -67,7 +69,8 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     onDuplicateKeyBehavior: Option[OnDupKeyBehavior] = None,
     onDuplicateKeySql: String = "",
     upsertBatchSize: Int = RDDFunctions.DEFAULT_UPSERT_BATCH_SIZE,
-    useKeylessShardedOptimization: Boolean = false): Long = {
+    useKeylessShardedOptimization: Boolean = false,
+    forceInsert: Boolean = false): Long = {
 
     if (!onDuplicateKeySql.isEmpty && onDuplicateKeyBehavior != Some(OnDupKeyBehavior.Update)) {
       throw new IllegalArgumentException("If onDuplicateKeySql is set, then onDuplicateKeyBehavior must be set to Update")
@@ -113,7 +116,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
         }
 
         var numRowsAffected = 0
-        if (onDuplicateKeySql.isEmpty) {
+        if (onDuplicateKeySql.isEmpty && !forceInsert) {
           numRowsAffected = loadPartitionInMemSQL(
             node.targetHost, node.targetPort, user, password, node.targetDb, tableName,
             onDuplicateKeyBehavior, part, compression=compression)

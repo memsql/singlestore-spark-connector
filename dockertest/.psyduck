@@ -3,6 +3,7 @@
  -s dockertest/spark_submit_test.py::test_memsql_dataframe_very_basic --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_create_with_keys --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_create_with_extra_cols --psyduck-time-limit=16
+ -s dockertest/spark_submit_test.py::test_save_to_memsql_empty_rows --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_memsql_types --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_memsql_types_keyless --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_memsql_context --psyduck-time-limit=16
