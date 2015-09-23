@@ -66,3 +66,7 @@ publish:
 	"project etlLib" publish \
 	"project interface" publish \
 	"project root" publish
+
+.PHONY: publish-docs
+publish-docs:
+	sbt unidoc makeSite ghpagesPushSite

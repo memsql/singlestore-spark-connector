@@ -21,7 +21,7 @@ lazy val commonSettings = Seq(
   (test in Test) <<= (test in Test) dependsOn testScalastyle,
   s3credentials := new EnvironmentVariableCredentialsProvider(),
   publishTo := Some(s3resolver.value("Releases", s3("maven.memsql.com")))
-)
+) ++ S3Resolver.defaults
 
 lazy val connectorLib = (project in file("connectorLib")).
   settings(commonSettings: _*).
@@ -159,6 +159,7 @@ lazy val root = (project in file(".")).
   dependsOn(interface).
   settings(commonSettings: _*).
   settings(unidocSettings: _*).
+  settings(site.settings ++ ghpages.settings: _*).
   settings(
     name := "MemSQL",
     libraryDependencies  ++= Seq(
@@ -167,5 +168,8 @@ lazy val root = (project in file(".")).
       "org.apache.spark" %% "spark-streaming" % sparkVersion % Provided,
       "mysql" % "mysql-connector-java" % mysqlConnectorVersion
     ),
-    unidocProjectFilter in (ScalaUnidoc, unidoc) := inAnyProject -- inProjects(tests, jarInspector)
+    unidocProjectFilter in (ScalaUnidoc, unidoc) := inAnyProject -- inProjects(tests, jarInspector),
+    site.includeScaladoc(),
+    site.addMappingsToSiteDir(mappings in (ScalaUnidoc, packageDoc), "latest/api"),
+    git.remoteRepo := s"ssh://git@vinyl.memsql.com:2222/engineering/memsql-spark-connector-private.git"
   )
