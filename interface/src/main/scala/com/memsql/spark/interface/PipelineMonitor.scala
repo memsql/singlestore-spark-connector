@@ -23,6 +23,7 @@ import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.{Time, StreamingContext}
 import org.apache.spark.ui.jobs.JobProgressListener
 import scala.collection.mutable.HashSet
+import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.{ControlThrowable, NonFatal}
@@ -106,7 +107,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       try {
         logInfo(s"Starting pipeline $pipeline_id")
         val future = (api ? PipelineUpdate(pipeline_id, Some(PipelineState.RUNNING), error = Some(""))).mapTo[Try[Boolean]]
-        future.map {
+        Await.result[Try[Boolean]](future, 5.seconds) match {
           case Success(resp) => runPipeline
           case Failure(error) => logError(s"Failed to update pipeline $pipeline_id state to RUNNING", error)
         }
