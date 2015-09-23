@@ -170,6 +170,12 @@ class MemSQLContext(sparkContext: SparkContext,
     MemSQLDataFrame.MakeMemSQLRowRDD(sparkContext, agg.host, agg.port, userName, password, dbName, query)
   }
 
+  /**
+   * Returns a JDBC Connection to a MemSQLNode.
+   *
+   * @param: node The node to connect to.  If ommited or null, will return a connection to the Master Aggregator
+   * @param dbName The optional name of the database to connect to.  
+   */
   def getMemSQLConnection(node: MemSQLNode = null, dbName: String = null): Connection = {
     val theNode = if (node == null) {
       masterAgg
