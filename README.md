@@ -32,9 +32,38 @@ MemSQL Spark Connector
 The MemSQL Spark connector provides tools for reading from and writing to
 MemSQL databases in Spark.
 
-There are two parts to the connector; the MemSQLRDD and the saveToMemsql
-function.  The former allows users to read data out of a MemSQL database; the
-latter allows users to write to a MemSQL database.
+The connector provides a number of integrations with Apache Spark including a custom RDD type, DataFrame helpers and a MemSQL Context.
+
+###MemSQLContext
+
+The MemSQL Context maintains metadata about a MemSQL cluster and extends the Spark SQLContext.
+
+```
+import com.memsql.spark.context.MemSQLContext
+
+// note: The connection details below should point at your MemSQL Master Aggregator
+val memsqlContext = new MemSQLContext(sparkContext, dbHost, dbPort, dbUser, dbPass)
+
+val myTableDF = memsqlContext.createDataFrameFromMemSQLTable("my_database", "my_table")
+// myTableDF now is a Spark DataFrame which represents the specified MemSQL table
+// and can be queried using Spark DataFrame query functions
+```
+
+###MemSQL Data Frame Support
+
+You can use the constructor `MemSQLDataFrame.MakeMemSQLDF` to construct a Spark DataFrame from a MemSQL table.
+
+```
+import com.memsql.spark.connector.dataframe.MemSQLDataFrame
+
+val df = MemSQLDataFrame.MakeMemSQLDF(
+    sqlContext, dbHost, dbPort,
+    dbUser, dbPassword, dbName,
+    "SELECT * FROM test_table")
+
+val result = df.select(df("test_column")).where(df("other_column") === 1).limit(1)
+// Result now contains the first row where other_column == 1
+```
 
 ###MemSQLRDD
 
@@ -46,14 +75,11 @@ import com.memsql.spark.connector.rdd.MemSQLRDD
 ...
 
 val rdd = new MemSQLRDD(
-    sc,
-    dbHost,
-    dbPort,
-    dbUser,
-    dbPassword,
-    dbName,
+    sparkContext, dbHost, dbPort,
+    dbUser, dbPassword, dbName,
     "SELECT * FROM test_table",
     (r: ResultSet) => { r.getString("test_column") })
+
 rdd.first()  // Contains the value of "test_column" for the first row
 ```
 
