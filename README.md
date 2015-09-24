@@ -1,6 +1,31 @@
 MemSQL Spark Library
 ====================
 
+This git repository contains a number of Scala projects that provide interoperation between [MemSQL](www.memsql.com) and a Spark cluster.
+
+| Name | Description |
+| ---- | ----------- |
+| [MemSQL Spark Interface](#memsql-spark-interface) | A Spark app providing an API to run MemSQL Streamliner Pipelines on Spark |
+| [MemSQL etlLib](#memsql-etllib) | A library of interfaces for building custom MemSQL Streamliner Pipelines |
+| [MemSQL Spark Connector](#memsql-spark-connector) | Scala tools for connecting to MemSQL from Spark |
+
+Documentation
+-------------
+
+You can find Scala documentation for everything exposed in this repo here: [memsql.github.io/memsql-spark-connector](memsql.github.io/memsql-spark-connector)
+
+You can find MemSQL documentation on our Spark ecosystem here: [docs.memsql.com/latest/spark/](docs.memsql.com/latest/spark/)
+
+MemSQL Spark Interface
+----------------------
+
+The MemSQL Spark Interface is a Spark application that runs in a Spark cluster. The Interface provides an HTTP API to run real-time pipelines on Spark.  It is also required to interface [MemSQL Ops](http://docs.memsql.com/latest/ops/) with a Spark cluster.
+
+MemSQL etlLib
+-------------
+
+The MemSQL ETL library provides interfaces and utilities required when writing custom pipeline JARs.  You can learn more about doing this [on our docs](http://docs_staging.memsql.com/latest/spark/memsql-spark-interface/).
+
 MemSQL Spark Connector
 ----------------------
 
@@ -48,25 +73,46 @@ val rdd = sc.parallelize(Array(Array("foo", "bar"), Array("baz", "qux")))
 rdd.saveToMemsql(dbHost, dbPort, dbUser, dbPassword, dbName, outputTableName, insertBatchSize=1000)
 ```
 
-MemSQL Spark ETL
-----------------
-The MemSQL Spark ETL library provides tools for defining a Spark Streaming job that
-integrates with MemSQL Ops.
+Using
+-----
 
-Examples
---------
+The recommended way to depend on the above projects is via our private Maven repository [maven.memsql.com](maven.memsql.com).  You can do this in your build.sbt file for [Simple Build
+Tool (aka sbt)](http://www.scala-sbt.org/) integration.  Add the following line at the top level of your build.sbt to add our repo:
 
-Building
---------
-Run ``make package`` to compile this connector.  This will create a
-directory called ``distribution/dist/memsql-<version number>``, which will
-contain a .jar file.  Simply put this .jar file in your class path to
-use this library.
+```
+resolvers += "memsql" at "http://maven.memsql.com"
+```
 
-This directory will also contain HTML documentation for the library.
+Then inside a project definition you can depend on our libraries like so:
+
+```
+libraryDependencies  += "com.memsql" %% "memsqletl" % "VERSION"
+```
+
+We also support packaging the MemSQL Spark Connector from source. Run ``make package`` to compile this connector.  This will create a directory called ``distribution/dist/memsql-<version number>``, which will contain a .jar file. Simply put this .jar file in your class path to use this library.
 
 In order to compile this library you must have the [Simple Build
 Tool (aka sbt)](http://www.scala-sbt.org/) installed.
+
+Building
+--------
+
+You can use SBT to compile all of the projects in this repo.  To build all of the projects you can use:
+
+```
+sbt "project etlLib" build \
+    "project connectorLib" build \
+    "project interface" build
+```
+
+Testing
+-------
+
+All unit tests can be run via sbt.  They will also run at build time automatically.
+
+```
+sbt test
+```
 
 Tweaks
 ------
