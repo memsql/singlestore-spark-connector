@@ -74,7 +74,12 @@ lazy val etlLib = (project in file("etlLib")).
         findManagedDependency("org.apache.spark", "spark-sql").map(d => d -> url(s"https://spark.apache.org/docs/$sparkVersion/api/scala/"))
       )
       links.collect { case Some(d) => d }.toMap
-    }
+    },
+    resourceGenerators in Compile += Def.task {
+      val file = (resourceManaged in Compile).value / "MemSQLETLVersion"
+      IO.write(file, version.value)
+      Seq(file)
+    }.taskValue
   )
 
 lazy val jarInspector = (project in file("jarInspector")).
