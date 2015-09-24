@@ -111,7 +111,7 @@ Testing
 All unit tests can be run via sbt.  They will also run at build time automatically.
 
 ```
-sbt test
+sbt 'project interface' test
 ```
 
 Tweaks
