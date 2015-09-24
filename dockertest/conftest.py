@@ -238,15 +238,15 @@ class LocalContext:
 
     def deploy_memsql_cluster(self, num_aggs, num_leaves, port = 3306):        
         print "Deploying MemSQL master to %d" % port
-        self._shell.run(["memsql-ops", "memsql-deploy", "--role", "master", "--port", str(port)])
+        self._shell.run(["memsql-ops", "memsql-deploy", "--community-edition", "--role", "master", "--port", str(port)])
         for i in range(num_leaves):
             port += 1
             print "Deploying MemSQL leaf to %d" % port
-            self._shell.run(["memsql-ops", "memsql-deploy", "--role", "leaf", "--port", str(port)])
+            self._shell.run(["memsql-ops", "memsql-deploy", "--community-edition", "--role", "leaf", "--port", str(port)])
         for i in range(num_aggs):
             port += 1
             print "Deploying MemSQL child agg to %d" % port
-            self._shell.run(["memsql-ops", "memsql-deploy", "--role", "aggregator", "--port", str(port)])
+            self._shell.run(["memsql-ops", "memsql-deploy", "--community-edition", "--role", "aggregator", "--port", str(port)])
 
     def run_ops(self):
         print "Running MemSQL Ops"

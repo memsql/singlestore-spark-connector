@@ -35,13 +35,13 @@ RUN sudo tar zxvf /tmp/kafka.tar.gz -C /storage/testroot
 RUN sudo mkdir /data && sudo chown -R memsql:memsql /data
 
 # install memsql ops
-RUN wget -q -O /tmp/memsql-ops.tar.gz http://s3.amazonaws.com/spark-memsql/memsql-ops-4.1.2.tar.gz
+ENV MEMSQL_OPS_VERSION 4.1.7
+RUN wget -q -O /tmp/memsql-ops.tar.gz http://download.memsql.com/memsql-ops-$MEMSQL_OPS_VERSION/memsql-ops-$MEMSQL_OPS_VERSION.tar.gz
 RUN sudo tar zxvf /tmp/memsql-ops.tar.gz -C /tmp
-RUN sudo /tmp/memsql-ops-4.1.2/install.sh -n
+RUN sudo /tmp/memsql-ops-$MEMSQL_OPS_VERSION/install.sh -n
 
 # prepare memsql
-ENV MEMSQL_LICENSE_KEY 636df1618e694d2bb785fe0093e6f486
-RUN wget -q -O /tmp/memsqlbin_amd64.tar.gz http://download.memsql.com/$MEMSQL_LICENSE_KEY/memsqlbin_amd64.tar.gz
+RUN wget -q -O /tmp/memsqlbin_amd64.tar.gz http://download.memsql.com/releases/version/4.1.0/memsqlbin_amd64.tar.gz
 RUN sudo rm -f /var/lib/memsql-ops/data/memsql-ops.pid && \
     sudo memsql-ops start && \
     sudo memsql-ops file-add -t memsql /tmp/memsqlbin_amd64.tar.gz && \
@@ -54,10 +54,10 @@ RUN sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/* /tmp/*
 # download spark distribution and update spark interface jar
 RUN sudo mkdir -p /storage/testroot/memsql-spark
 RUN sudo wget -q -O /storage/testroot/memsql-spark/memsql-spark.tar.gz \
-    http://download.memsql.com/memsql-spark-1.4.1-distribution-0.2.4/memsql-spark-1.4.1-distribution-0.2.4.tar.gz && \
+    http://download.memsql.com/memsql-spark-1.4.1-distribution-1.0.0/memsql-spark-1.4.1-distribution-1.0.0.tar.gz && \
     sudo tar zxvf /storage/testroot/memsql-spark/memsql-spark.tar.gz -C /storage/testroot/memsql-spark && \
     sudo rm /storage/testroot/memsql-spark/memsql-spark.tar.gz
-ADD tests/target/scala-2.10/tests-assembly-0.2.4.jar /storage/testroot/memsql-spark/interface/memsql_spark_interface.jar
+ADD tests/target/scala-2.10/tests-assembly-1.0.0.jar /storage/testroot/memsql-spark/interface/memsql_spark_interface.jar
 ADD dockertest/sample_pipelines/target/scala-2.10/sample-pipelines-assembly-0.0.1.jar /storage/testroot/sample_pipelines.jar
 
 # prepare java for tests
