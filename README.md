@@ -1,7 +1,7 @@
 MemSQL Spark Library
 ====================
 
-This git repository contains a number of Scala projects that provide interoperation between [MemSQL](www.memsql.com) and a Spark cluster.
+This git repository contains a number of Scala projects that provide interoperation between [MemSQL](http://www.memsql.com) and a Spark cluster.
 
 | Name | Description |
 | ---- | ----------- |
@@ -12,9 +12,9 @@ This git repository contains a number of Scala projects that provide interoperat
 Documentation
 -------------
 
-You can find Scala documentation for everything exposed in this repo here: [memsql.github.io/memsql-spark-connector](memsql.github.io/memsql-spark-connector)
+You can find Scala documentation for everything exposed in this repo here: [memsql.github.io/memsql-spark-connector](http://memsql.github.io/memsql-spark-connector)
 
-You can find MemSQL documentation on our Spark ecosystem here: [docs.memsql.com/latest/spark/](docs.memsql.com/latest/spark/)
+You can find MemSQL documentation on our Spark ecosystem here: [docs.memsql.com/latest/spark/](http://docs.memsql.com/latest/spark/)
 
 MemSQL Spark Interface
 ----------------------
