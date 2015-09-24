@@ -32,14 +32,14 @@ MemSQL Spark Connector
 The MemSQL Spark connector provides tools for reading from and writing to
 MemSQL databases in Spark.
 
-The connector provides a number of intergrations with Apache Spark including a custom RDD type, dataframe helpers and a MemSQL Context.
+The connector provides a number of integrations with Apache Spark including a custom RDD type, DataFrame helpers and a MemSQL Context.
 
 ###MemSQLContext
 
 The MemSQL Context maintains metadata about a MemSQL cluster and extends the Spark SQLContext.
 
 ```
-import com.memsql.spark.connector.context.MemSQLContext
+import com.memsql.spark.context.MemSQLContext
 
 // note: The connection details below should point at your MemSQL Master Aggregator
 val memsqlContext = new MemSQLContext(sparkContext, dbHost, dbPort, dbUser, dbPass)
