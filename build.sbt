@@ -174,5 +174,5 @@ lazy val root = (project in file(".")).
     unidocProjectFilter in (ScalaUnidoc, unidoc) := inAnyProject -- inProjects(tests, jarInspector),
     site.includeScaladoc(),
     site.addMappingsToSiteDir(mappings in (ScalaUnidoc, packageDoc), "latest/api"),
-    git.remoteRepo := s"ssh://git@vinyl.memsql.com:2222/engineering/memsql-spark-connector-private.git"
+    git.remoteRepo := s"git@github.com:memsql/memsql-spark-connector.git"
   )
