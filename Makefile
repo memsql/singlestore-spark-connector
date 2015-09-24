@@ -64,8 +64,9 @@ psytest: build-test build-sample
 publish:
 	sbt "project connectorLib" publish \
 	"project etlLib" publish \
-	"project interface" publish \
-	"project root" publish
+	"project interface" assembly
+	s3cmd put interface/target/scala-2.10/MemSQLSparkInterface-assembly-$(VERSION).jar s3://download.memsql.com/memsql-spark-interface-$(VERSION)/memsql-spark-interface-$(VERSION).jar --disable-multipart
+	s3cmd setacl --acl-public s3://download.memsql.com/memsql-spark-interface-$(VERSION)/memsql-spark-interface-$(VERSION).jar
 
 .PHONY: publish-docs
 publish-docs:

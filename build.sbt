@@ -13,7 +13,7 @@ lazy val testScalastyle = taskKey[Unit]("testScalastyle")
 
 lazy val commonSettings = Seq(
   organization := "com.memsql",
-  version := "0.2.4",
+  version := "0.2.4-SNAPSHOT",
   scalaVersion := "2.10.5",
   assemblyScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Compile).toTask("").value,
   assembly <<= assembly dependsOn assemblyScalastyle,
@@ -95,9 +95,12 @@ lazy val interface = (project in file("interface")).
   dependsOn(etlLib).
   dependsOn(jarInspector).
   settings(commonSettings: _*).
+  enablePlugins(BuildInfoPlugin).
   settings(
     name := "MemSQLSparkInterface",
     parallelExecution in Test := false,
+    buildInfoKeys := Seq[BuildInfoKey](version),
+    buildInfoPackage := "com.memsql.spark.interface.meta",
     libraryDependencies ++= {
       Seq(
         "io.spray" %% "spray-json" % sprayVersion,
