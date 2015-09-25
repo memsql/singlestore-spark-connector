@@ -32,8 +32,10 @@ object MemSQLDataFrameUtils {
       case java.sql.Types.CHAR => ByteType
       case java.sql.Types.INTEGER => IntegerType
       case java.sql.Types.TINYINT => ShortType
+      case java.sql.Types.SMALLINT => ShortType
       case java.sql.Types.BIGINT => LongType  // TODO: This will prevent inequalities for some dumb reason
       case java.sql.Types.DOUBLE => DoubleType
+      case java.sql.Types.NUMERIC => DoubleType
       case java.sql.Types.REAL => FloatType
       case java.sql.Types.BIT => BooleanType
       case java.sql.Types.CLOB => StringType
@@ -55,10 +57,13 @@ object MemSQLDataFrameUtils {
 
   def GetJDBCValue(dataType: Int, ix: Int, row: ResultSet): Any = {
     val result = dataType match {
+      case java.sql.Types.CHAR => row.getString(ix)
       case java.sql.Types.INTEGER => row.getInt(ix)
       case java.sql.Types.BIGINT => row.getLong(ix)
       case java.sql.Types.TINYINT => row.getShort(ix)
+      case java.sql.Types.SMALLINT => row.getShort(ix)
       case java.sql.Types.DOUBLE => row.getDouble(ix)
+      case java.sql.Types.NUMERIC => row.getDouble(ix)
       case java.sql.Types.REAL => row.getDouble(ix)
       case java.sql.Types.BIT => row.getBoolean(ix)
       case java.sql.Types.CLOB => row.getString(ix)
@@ -73,6 +78,7 @@ object MemSQLDataFrameUtils {
       case java.sql.Types.NVARCHAR => row.getString(ix)
       case java.sql.Types.LONGVARBINARY => row.getString(ix)
       case java.sql.Types.VARBINARY => row.getString(ix)
+      case java.sql.Types.BINARY => row.getString(ix)
       case _ => throw new IllegalArgumentException("Can't translate type " + dataType.toString)
     }
     if (row.wasNull) null else result

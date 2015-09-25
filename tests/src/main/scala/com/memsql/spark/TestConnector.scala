@@ -174,6 +174,7 @@ object Types {
     ("tinyint",Array("7","8","9")),
     ("text",Array("a","b","c")),
     ("blob",Array("e","f","g")),
+    ("char(1)",Array("a","b","c")),
     ("varchar(100)",Array("do","rae","me")),
     ("varbinary(100)",Array("one","two","three")),
     ("decimal(5,1)",Array("1.1","2.2","3.3")),
