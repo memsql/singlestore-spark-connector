@@ -52,8 +52,6 @@ case class MemSQLRDD[T: ClassTag](
     var versionStmt: Statement = null
     var explainStmt: Statement = null
     try {
-      // Prepare the MySQL JDBC driver.
-      Class.forName("com.mysql.jdbc.Driver").newInstance()
       conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)
       versionStmt = conn.createStatement
       val versionRs = versionStmt.executeQuery("SHOW VARIABLES LIKE 'memsql_version'")
@@ -187,6 +185,8 @@ object MemSQLRDD {
     user: String,
     password: String,
     dbName: String = "information_schema"): Connection = {
+    // Prepare the MySQL JDBC driver.
+    Class.forName("com.mysql.jdbc.Driver").newInstance()
     val dbAddress = "jdbc:mysql://" + host + ":" + port + "/" + dbName
     DriverManager.getConnection(dbAddress, user, password)
   }
