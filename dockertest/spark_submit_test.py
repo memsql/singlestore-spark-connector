@@ -66,3 +66,6 @@ def test_escaped_cols(local_context):
 
 def test_dup_keys(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestSaveToMemSQLWithDupKeys")
+
+def test_dataframe_conjunctions(local_context):
+    do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLDataFrameConjunction")

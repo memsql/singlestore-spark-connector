@@ -29,7 +29,7 @@ object MemSQLDataFrameUtils {
 
   def JDBCTypeToDataFrameType(rsmd: ResultSetMetaData, ix: Int): DataType = {
     rsmd.getColumnType(ix) match {
-      case java.sql.Types.CHAR => ByteType
+      case java.sql.Types.CHAR => StringType
       case java.sql.Types.INTEGER => IntegerType
       case java.sql.Types.TINYINT => ShortType
       case java.sql.Types.SMALLINT => ShortType
@@ -152,13 +152,15 @@ case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlCont
    extends BaseRelation with PrunedFilteredScan {
   val schema : StructType = MemSQLDataFrame.getQuerySchema(rdd.dbHost, rdd.dbPort, rdd.user, rdd.password, rdd.dbName, rdd.sql)
 
-  private def getWhere(filters: Array[Filter]): String = {
-    val result = new StringBuilder
+  private def getWhere(filters: Array[Filter], result: StringBuilder, conjunction: String): StringBuilder = {
     for (i <- 0 to (filters.size - 1)) {
       if (i != 0) { // scala apparently has no "pythonic" join
-        result.append(" AND ")
+        result.append(conjunction)
       }
+      result.append("(")
       filters(i) match {
+        case And(p1, p2) => getWhere(Array(p1,p2), result, " AND ")
+        case Or(p1, p2) => getWhere(Array(p1,p2), result, " OR ")
         case EqualTo(attr, v) =>  result.append(attr).append(" = '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
         case GreaterThan(attr, v) =>  result.append(attr).append(" > '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
         case LessThan(attr, v) =>  result.append(attr).append(" < '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
@@ -175,8 +177,9 @@ case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlCont
           result.append(" )")
         }
       }
+      result.append(")")
     }
-    result.toString
+    result
   }
   private def getProject(requiredColumns: Array[String]): String = {
     if (requiredColumns.size == 0) { // for df.count, df.is_empty
@@ -189,7 +192,7 @@ case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlCont
   def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
     var sql = "SELECT " + getProject(requiredColumns) + " FROM (" + rdd.sql + ") tab_alias"
     if (filters.size != 0) {
-      sql = sql + " WHERE " + getWhere(filters)
+      sql = sql + " WHERE " + getWhere(filters, new StringBuilder, " AND ").toString
     }
     MemSQLDataFrame.MakeMemSQLRowRDD(sqlContext.sparkContext, rdd.dbHost, rdd.dbPort, rdd.user, rdd.password, rdd.dbName, sql)
   }

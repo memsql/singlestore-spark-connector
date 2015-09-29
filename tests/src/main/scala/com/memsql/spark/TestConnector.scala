@@ -968,3 +968,47 @@ object TestSaveToMemSQLWithDupKeys {
     assert(TestUtils.EqualDFs(df_t, df4))
   }
 }
+
+object TestMemSQLDataFrameConjunction {
+  def main(args: Array[String]) {
+    val conf = new SparkConf().setAppName("MemSQLRDD Application")
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
+
+    TestUtils.DropAndCreate("x_db")
+
+    val rdd1 = sc.parallelize(
+      Array(Row(1,"test 1"),
+        Row(2,"test 2"),
+        Row(3,"test 3")))
+
+    val schema = StructType(Array(StructField("a",IntegerType,true),
+                                  StructField("b",StringType,true)))
+    val df1 = sqlContext.createDataFrame(rdd1, schema).createMemSQLTableAs("x_db","t")
+
+    assert(df1.where(df1("a") === 1 and df1("a") === 2).count == 0)
+    assert(df1.where(df1("a") === 1 and df1("a") === 2).collect().size == 0)
+
+    assert(df1.where(df1("a") === 1 and df1("a") === 2 and df1("a") === 3).count == 0)
+    assert(df1.where(df1("a") === 1 and df1("a") === 2 and df1("a") === 3).collect().size == 0)
+
+    assert(df1.where(df1("a") === 1 or df1("a") === 2 or df1("a") === 3).count == 3)
+    assert(df1.where(df1("a") === 1 or df1("a") === 2 or df1("a") === 3).collect().size == 3)
+
+    assert(df1.where(df1("a") === 1 and df1("b") === "test 1").count == 1)
+    assert(df1.where(df1("a") === 1 and df1("b") === "test 1").collect().size == 1)
+
+    assert(df1.where(df1("a") === 1 or df1("b") === "test 2").count == 2)
+    assert(df1.where(df1("a") === 1 or df1("b") === "test 2").collect().size == 2)
+
+    assert(df1.where((df1("a") === 1 and df1("a") === 2) or (df1("a") === 2 and df1("b") === "test 2")).count == 1)
+    assert(df1.where((df1("a") === 1 and df1("a") === 2) or (df1("a") === 2 and df1("b") === "test 2")).collect().size == 1)
+
+    assert(df1.where((df1("a") === 1 and df1("b") === "test 1") or (df1("a") === 2 and df1("b") === "test 2")).count == 2)
+    assert(df1.where((df1("a") === 1 and df1("b") === "test 1") or (df1("a") === 2 and df1("b") === "test 2")).collect().size == 2)
+
+    assert(df1.where((df1("a") === 1 or df1("b") === "test 2") and (df1("a") === 2 or df1("b") === "test 1")).count == 2)
+    assert(df1.where((df1("a") === 1 or df1("b") === "test 2") and (df1("a") === 2 or df1("b") === "test 1")).collect().size == 2)
+
+  }
+}
