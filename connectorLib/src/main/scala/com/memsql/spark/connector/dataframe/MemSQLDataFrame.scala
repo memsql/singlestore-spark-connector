@@ -185,7 +185,7 @@ case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlCont
     if (requiredColumns.size == 0) { // for df.count, df.is_empty
       "1"
     } else {
-      requiredColumns.mkString(",")
+      requiredColumns.map("`" + _ + "`").mkString(",")
     }
   }
 

@@ -69,3 +69,7 @@ def test_dup_keys(local_context):
 
 def test_dataframe_conjunctions(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLDataFrameConjunction")
+
+def test_dist_joins(local_context):
+    do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLRDDDistributedJoins")
+

@@ -135,8 +135,10 @@ object TestUtils {
       println("len df1 = " + df1_sorted.size + ", len df2 = " + df2_sorted.size)
       false
     } else {
+      var fail = false
       for (i <- 0 until df1_sorted.size) {
         if (!df1_sorted(i).equals(df2_sorted(i))) {
+          fail = true
           println("row " + i + " is different.")
           if (df1_sorted(i).size != df2_sorted(i).size) {
             println("row sizes are different, " + df1_sorted(i).size + " vs " + df2_sorted(i).size)
@@ -144,14 +146,13 @@ object TestUtils {
             for (r <- 0 until df1_sorted(i).size) {
               if ((df1_sorted(i)(r) == null) != (df2_sorted(i)(r) == null)
                 || ((df1_sorted(i)(r) != null) && !df1_sorted(i)(r).equals(df2_sorted(i)(r)))) {
-                println("difference : " + df1_sorted(i)(r) + " vs " + df2_sorted(i)(r))
+                println("difference in column " + r.toString + " : " + df1_sorted(i)(r) + " vs " + df2_sorted(i)(r))
               }
             }
           }
-          return false // scalastyle:ignore
         }
       }
-      true
+      !fail
     }
   }
 
@@ -1010,5 +1011,105 @@ object TestMemSQLDataFrameConjunction {
     assert(df1.where((df1("a") === 1 or df1("b") === "test 2") and (df1("a") === 2 or df1("b") === "test 1")).count == 2)
     assert(df1.where((df1("a") === 1 or df1("b") === "test 2") and (df1("a") === 2 or df1("b") === "test 1")).collect().size == 2)
 
+  }
+}
+
+object TestMemSQLRDDDistributedJoins {
+  def main(args: Array[String]) {
+    val host = TestUtils.GetHostname
+    val port = 3306
+    val user = "root"
+    val password = ""
+    val dbName = "x_db"
+
+    val dbAddress = "jdbc:mysql://" + host + ":" + port
+    val conn = DriverManager.getConnection(dbAddress, user, password)
+    val stmt = conn.createStatement
+    stmt.execute("DROP DATABASE IF EXISTS " + dbName)
+    stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName)
+    stmt.execute("USE " + dbName)
+
+    stmt.execute("CREATE TABLE t(a bigint primary key, b bigint)")
+    stmt.execute("CREATE TABLE s(c bigint primary key, d bigint)")
+    stmt.execute("CREATE REFERENCE TABLE r(e bigint primary key, f bigint)")
+
+    var insertQuery = ""
+    for (i <- 0 until 999) {
+      insertQuery = insertQuery + "(" + i + "," + i + "),"
+    }
+    insertQuery = insertQuery + "(1000,1000)"
+    stmt.execute("INSERT INTO t values" + insertQuery)
+    stmt.execute("INSERT INTO s values" + insertQuery)
+    stmt.execute("INSERT INTO r values" + insertQuery)
+
+    val conf = new SparkConf().setAppName("MemSQLRDD Application")
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
+
+    val pushedDownQueries = Array("SELECT * FROM t JOIN s ON t.a = s.c",
+                                  "SELECT * FROM t LEFT JOIN s ON t.a = s.c",
+                                  "SELECT a, count(*) FROM t GROUP BY a",
+                                  "SELECT s.c, sum(t.a) FROM t JOIN s on t.a = s.c GROUP BY s.c",
+                                  "SELECT s.c, t.a, sum(t.b) FROM t JOIN s on t.a = s.c GROUP BY s.c, t.a",
+                                  "SELECT s.c, t.b, sum(t.a) FROM t JOIN s on t.a = s.c GROUP BY s.c, t.b",
+                                  "SELECT * FROM t join r on t.a = r.e",
+                                  "SELECT * FROM t join r on t.a = r.f",
+                                  "SELECT * FROM t join r on t.b = r.e",
+                                  "SELECT * FROM t join r on t.b = r.e")
+
+    val aggregatorQueries = Array("SELECT * FROM t JOIN s ON t.a = s.d",
+                                  "SELECT * FROM t JOIN s ON t.b = s.d",
+                                  "SELECT * FROM t LEFT JOIN s ON t.a = s.d",
+                                  "SELECT * FROM t LEFT JOIN s ON t.a = s.d",
+                                  "SELECT * FROM t RIGHT JOIN s ON t.b = s.d",
+                                  "SELECT b, count(*) FROM t GROUP BY b",
+                                  "SELECT s.d, sum(t.a) FROM t JOIN s on t.a = s.c GROUP BY s.d",
+                                  "SELECT s.d, t.b, sum(t.a) FROM t JOIN s on t.a = s.c GROUP BY s.d, t.b",
+                                  "SELECT s.d, sum(t.a) FROM t JOIN s on t.a = s.c GROUP BY s.d",
+                                  "SELECT * FROM t JOIN s ON t.a = s.c WHERE c = 4",
+                                  "SELECT * FROM t JOIN s ON t.a = s.c WHERE a = 4",
+                                  "SELECT * FROM t LEFT JOIN s ON t.a = s.c WHERE c = 4",
+                                  "SELECT * FROM t RIGHT JOIN s ON t.a = s.c WHERE c = 4",
+                                  "SELECT * FROM t LEFT JOIN s ON t.a = s.c WHERE a = 4",
+                                  "SELECT * FROM t RIGHT JOIN s ON t.a = s.c WHERE a = 4",
+                                  "SELECT e, count(*) FROM t JOIN r on t.a = r.e GROUP BY r.e",
+                                  "SELECT f, count(*) FROM t JOIN r on t.a = r.e GROUP BY r.f",
+                                  "SELECT e, count(*) FROM t JOIN r on t.a = r.f GROUP BY r.e",
+                                  "SELECT f, count(*) FROM t JOIN r on t.a = r.f GROUP BY r.f")
+
+
+    val queries = Array(pushedDownQueries,aggregatorQueries)
+    var fail = false
+    for (i <- (0 until 2)) {
+      for (q <- queries(i)) {
+        println(q)
+        val df = sqlContext.createDataFrameFromMemSQLQuery("x_db", q)
+        // if the query must go through the agg, we have 1 spark partition else we have 1 per memsql partition
+        //
+        if (i == 0) {
+          if (!(df.rdd.partitions.size > 1)) {
+            fail = true
+            println("PROBLEM WITH " + q)
+            println("SHOULD HAVE BEEN DISTRIBUTED")
+          }
+        } else {
+          if (!(df.rdd.partitions.size == 1)) {
+            fail = true
+            println("PROBLEM WITH " + q)
+            println("SHOULD HAVE BEEN AGGREGATOR")
+          }
+        }
+
+        // queries with a limit always go through the aggregator, so we use this to compare.
+        //
+        val compare_df = sqlContext.createDataFrameFromMemSQLQuery("x_db", q + " LIMIT 999999999999")
+        assert (compare_df.rdd.partitions.size == 1)
+        if (!TestUtils.EqualDFs(df, compare_df)) {
+          println("PROBLEM WITH " + q)
+          fail = true
+        }
+      }
+    }
+    assert (!fail)
   }
 }

@@ -74,9 +74,11 @@ case class MemSQLRDD[T: ClassTag](
       usePerPartitionSql = (0 until explainRs.getMetaData.getColumnCount).exists((i:Int) => explainRs.getMetaData.getColumnName(i + 1).equals("Query"))
       if (usePerPartitionSql) {
         val extraAndQueries = MemSQLRDD.resultSetToIterator(explainRs)
-          .map(r => (r.getString("Extra"), r.getString("Query")))
+          .map(r => (r.getString("Extra"), r.getString("Query"), r.getString("select_type")))
           .toArray
-        if (extraAndQueries(0)._1 == "memsql: Simple Iterator -> Network" && extraAndQueries.length > 1) {
+        if (extraAndQueries(0)._1 == "memsql: Simple Iterator -> Network"
+            && extraAndQueries.length > 1
+            && !extraAndQueries.exists(_._3 == "DRESULT")) {
           usePerPartitionSql = true
           perPartitionSqlTemplate = extraAndQueries(1)._2
         } else {
