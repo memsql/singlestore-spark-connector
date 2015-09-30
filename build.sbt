@@ -20,13 +20,37 @@ lazy val commonSettings = Seq(
   testScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Test).toTask("").value,
   (test in Test) <<= (test in Test) dependsOn testScalastyle,
   s3credentials := new EnvironmentVariableCredentialsProvider(),
-  publishTo := Some(s3resolver.value("Releases", s3("maven.memsql.com")))
+  publishTo := Some(s3resolver.value("Releases", s3("maven.memsql.com"))),
+  pomExtra := {
+    <url>http://memsql.github.io/spark-streamliner</url>
+    <licenses>
+      <license>
+        <name>Apache 2</name>
+        <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      </license>
+    </licenses>
+    <scm>
+      <connection>scm:git:github.com/memsql/memsql-spark-connector.git</connection>
+      <developerConnection>scm:git:git@github.com:memsql/memsql-spark-connector.git</developerConnection>
+      <url>github.com/memsql/memsql-spark-connector</url>
+    </scm>
+    <developers>
+      <developer>
+        <name>MemSQL</name>
+        <email>ops@memsql.com</email>
+        <url>http://www.memsql.com</url>
+        <organization>MemSQL</organization>
+        <organizationUrl>http://www.memsql.com</organizationUrl>
+      </developer>
+    </developers>
+  }
 ) ++ S3Resolver.defaults
 
 lazy val connectorLib = (project in file("connectorLib")).
   settings(commonSettings: _*).
   settings(
     name := "MemSQLRDD",
+    description := "Spark MemSQL Connector",
     libraryDependencies  ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion  % Provided,
@@ -54,6 +78,7 @@ lazy val etlLib = (project in file("etlLib")).
   settings(commonSettings: _*).
   settings(
     name := "MemSQLETL",
+    description := "Spark MemSQL ETL Library",
     libraryDependencies  ++= Seq(
       "io.spray" %% "spray-json" % sprayVersion,
       "org.apache.spark" %% "spark-streaming" % sparkVersion % Provided,
