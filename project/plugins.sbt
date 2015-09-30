@@ -10,8 +10,6 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-ghpages" % "0.5.4")
 
 addSbtPlugin("org.scalastyle" %% "scalastyle-sbt-plugin" % "0.7.0" excludeAll(ExclusionRule(organization = "com.danieltrinh")))
 
-addSbtPlugin("ohnosequences" % "sbt-s3-resolver" % "0.12.0")
-
 addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.5.0")
 
 addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "0.5.1")
@@ -19,8 +17,6 @@ addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "0.5.1")
 addSbtPlugin("com.jsuereth" % "sbt-pgp" % "1.0.0")
 
 libraryDependencies += "org.scalariform" %% "scalariform" % "0.1.7"
-
-resolvers += "Era7 maven releases" at "https://s3-eu-west-1.amazonaws.com/releases.era7.com"
 
 resolvers += "jgit-repo" at "http://download.eclipse.org/jgit/maven"
 

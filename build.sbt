@@ -20,7 +20,13 @@ lazy val commonSettings = Seq(
   testScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Test).toTask("").value,
   (test in Test) <<= (test in Test) dependsOn testScalastyle,
   s3credentials := new EnvironmentVariableCredentialsProvider(),
-  publishTo := Some(s3resolver.value("Releases", s3("maven.memsql.com"))),
+  publishTo := {
+    val nexus = "https://oss.sonatype.org/"
+    if (isSnapshot.value)
+      Some("snapshots" at nexus + "content/repositories/snapshots")
+    else
+      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+  },
   pomExtra := {
     <url>http://memsql.github.io/spark-streamliner</url>
     <licenses>
@@ -43,8 +49,11 @@ lazy val commonSettings = Seq(
         <organizationUrl>http://www.memsql.com</organizationUrl>
       </developer>
     </developers>
-  }
-) ++ S3Resolver.defaults
+  },
+  publishMavenStyle := true,
+  publishArtifact in Test := false,
+  pomIncludeRepository := { _ => false }
+)
 
 lazy val connectorLib = (project in file("connectorLib")).
   settings(commonSettings: _*).
