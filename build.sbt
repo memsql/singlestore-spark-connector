@@ -1,5 +1,4 @@
 import UnidocKeys._
-import com.amazonaws.auth._
 
 lazy val sparkVersion = "1.4.1"
 lazy val mysqlConnectorVersion = "5.1.34"
@@ -19,7 +18,6 @@ lazy val commonSettings = Seq(
   assembly <<= assembly dependsOn assemblyScalastyle,
   testScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Test).toTask("").value,
   (test in Test) <<= (test in Test) dependsOn testScalastyle,
-  s3credentials := new EnvironmentVariableCredentialsProvider(),
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
     if (isSnapshot.value)
