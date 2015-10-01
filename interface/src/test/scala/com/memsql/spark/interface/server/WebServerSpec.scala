@@ -8,7 +8,7 @@ import TransformPhaseKind._
 import LoadPhaseKind._
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface._
-import com.memsql.spark.phases.{JsonTransformConfig, KafkaExtractConfig}
+import com.memsql.spark.phases.{ZookeeperManagedKafkaExtractConfig, JsonTransformConfig}
 import com.memsql.spark.phases.configs._
 import spray.http.HttpEntity
 import spray.http.ContentTypes._
@@ -26,9 +26,9 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   val apiRef = system.actorOf(Props[ApiActor], "api")
 
   val kafkaConfig = PipelineConfig(Phase[ExtractPhaseKind](
-                                    ExtractPhaseKind.Kafka,
+                                    ExtractPhaseKind.ZookeeperManagedKafka,
                                     ExtractPhase.writeConfig(
-                                      ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic"))),
+                                      ExtractPhaseKind.ZookeeperManagedKafka, ZookeeperManagedKafkaExtractConfig(List("test1:2181", "asdf:1000"), "topic"))),
                                    Phase[TransformPhaseKind](
                                     TransformPhaseKind.Json,
                                     TransformPhase.writeConfig(
@@ -413,10 +413,10 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
 
     // updating only the config should return true
     val newConfig = kafkaConfig.copy(extract = Phase[ExtractPhaseKind](
-                                                ExtractPhaseKind.Kafka,
+                                                ExtractPhaseKind.ZookeeperManagedKafka,
                                                 ExtractPhase.writeConfig(
-                                                  ExtractPhaseKind.Kafka,
-                                                  KafkaExtractConfig("test1", 9092, "topic1"))))
+                                                  ExtractPhaseKind.ZookeeperManagedKafka,
+                                                  ZookeeperManagedKafkaExtractConfig(List("test1:2181"), "topic1"))))
     val newConfigEntity = HttpEntity(`application/json`, newConfig.toJson.toString)
 
     Patch("/pipeline/update?pipeline_id=asdf&active=true", newConfigEntity) ~> route ~> check {

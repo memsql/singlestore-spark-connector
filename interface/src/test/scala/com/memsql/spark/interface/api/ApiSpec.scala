@@ -5,8 +5,8 @@ import com.memsql.spark.etl.api.{UserTransformConfig, UserExtractConfig}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.interface._
 import ApiActor._
-import com.memsql.spark.phases.{JsonTransformConfig, KafkaExtractConfig}
-import com.memsql.spark.phases.configs.{ExtractPhase}
+import com.memsql.spark.phases.{ZookeeperManagedKafkaExtractConfig, JsonTransformConfig}
+import com.memsql.spark.phases.configs.ExtractPhase
 import scala.concurrent.duration._
 import spray.json._
 
@@ -24,9 +24,9 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
   "Api actor" should {
     val config = PipelineConfig(
       Phase[ExtractPhaseKind](
-        ExtractPhaseKind.Kafka,
+        ExtractPhaseKind.ZookeeperManagedKafka,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic"))),
+          ExtractPhaseKind.ZookeeperManagedKafka, ZookeeperManagedKafkaExtractConfig(List("test1:2181"), "topic"))),
       Phase[TransformPhaseKind](
         TransformPhaseKind.Json,
         TransformPhase.writeConfig(
@@ -114,9 +114,9 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.batch_interval == 10)
           assert(pipeline.config == config)
           assert(pipeline.last_updated == 0)
-          val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config).asInstanceOf[KafkaExtractConfig]
-          assert(kafkaConfig.host == "test1")
-          assert(kafkaConfig.port == 9092)
+          val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config)
+                            .asInstanceOf[ZookeeperManagedKafkaExtractConfig]
+          assert(kafkaConfig.zk_quorum == List("test1:2181"))
           assert(kafkaConfig.topic == "topic")
         case Failure(err) => fail(s"unexpected response $err")
       }
@@ -126,7 +126,8 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       expectMsg(Success(true))
 
       // error if config is invalid
-      val badConfig = config.copy(extract = Phase[ExtractPhaseKind](ExtractPhaseKind.Kafka, """{ "bad_kafka_config": 42 }""".parseJson))
+      val badConfig = config.copy(extract = Phase[ExtractPhaseKind](ExtractPhaseKind.ZookeeperManagedKafka,
+        """{ "bad_kafka_config": 42 }""".parseJson))
       apiRef ! PipelinePut("pipeline3", batch_interval=10, config=badConfig)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
@@ -275,9 +276,9 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       // Updating configs should be allowed
       val newConfig = PipelineConfig(
         Phase[ExtractPhaseKind](
-          ExtractPhaseKind.Kafka,
+          ExtractPhaseKind.ZookeeperManagedKafka,
           ExtractPhase.writeConfig(
-            ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "test2"))),
+            ExtractPhaseKind.ZookeeperManagedKafka, ZookeeperManagedKafkaExtractConfig(List("test2:2181/chroot", "test1:2182"), "test2"))),
         Phase[TransformPhaseKind](
           TransformPhaseKind.User,
           TransformPhase.writeConfig(
@@ -295,10 +296,10 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.config == newConfig)
-          assert(pipeline.config.extract.kind == ExtractPhaseKind.Kafka)
-          val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config).asInstanceOf[KafkaExtractConfig]
-          assert(kafkaConfig.host == "test1")
-          assert(kafkaConfig.port == 9092)
+          assert(pipeline.config.extract.kind == ExtractPhaseKind.ZookeeperManagedKafka)
+          val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config)
+                            .asInstanceOf[ZookeeperManagedKafkaExtractConfig]
+          assert(kafkaConfig.zk_quorum == List("test2:2181/chroot", "test1:2182"))
           assert(kafkaConfig.topic == "test2")
           assert(pipeline.last_updated == 8)
         case Failure(err) => fail(s"unexpected response $err")

@@ -4,7 +4,7 @@ import com.memsql.spark.etl.api.{UserTransformConfig, UserExtractConfig}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.interface._
 import com.memsql.spark.interface.api.ApiJsonProtocol._
-import com.memsql.spark.phases.{KafkaExtractConfig, JsonTransformConfig, TestLinesExtractConfig}
+import com.memsql.spark.phases.{ZookeeperManagedKafkaExtractConfig, JsonTransformConfig, TestLinesExtractConfig}
 import com.memsql.spark.phases.configs.ExtractPhase
 import ooyala.common.akka.web.JsonUtils._
 import spray.json._
@@ -85,9 +85,9 @@ class PipelineJsonSpec extends UnitSpec {
   it should "serialize to JSON with configs" in {
     var config = PipelineConfig(
       Phase[ExtractPhaseKind](
-        ExtractPhaseKind.Kafka,
+        ExtractPhaseKind.ZookeeperManagedKafka,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "test2"))),
+          ExtractPhaseKind.ZookeeperManagedKafka, ZookeeperManagedKafkaExtractConfig(List("test1:2181"), "test2"))),
       Phase[TransformPhaseKind](
         TransformPhaseKind.User,
         TransformPhase.writeConfig(
@@ -108,10 +108,9 @@ class PipelineJsonSpec extends UnitSpec {
     var jsonMap = mapFromJson(jsonString)
     var configMap = jsonMap("config").asInstanceOf[Map[String, Any]]
     var extractConfigMap = configMap("extract").asInstanceOf[Map[String, Any]]
-    assert(extractConfigMap("kind") == "Kafka")
+    assert(extractConfigMap("kind") == "ZookeeperManagedKafka")
     val kafkaConfigMap = extractConfigMap("config").asInstanceOf[Map[String, Any]]
-    assert(kafkaConfigMap("host") == "test1")
-    assert(kafkaConfigMap("port") == 9092)
+    assert(kafkaConfigMap("zk_quorum") == List("test1:2181"))
     assert(kafkaConfigMap("topic") == "test2")
     val transformConfigMap = configMap("transform").asInstanceOf[Map[String, Any]]
     assert(transformConfigMap("kind") == "User")
@@ -151,10 +150,9 @@ class PipelineJsonSpec extends UnitSpec {
   it should "deserialize from JSON" in {
     var config_json = """{
           "extract": {
-              "kind": "Kafka",
+              "kind": "ZookeeperManagedKafka",
               "config": {
-                  "host": "test1",
-                  "port": 9091,
+                  "zk_quorum": ["test2:2181", "asdf:1000/asdf"],
                   "topic": "test2"
               }
           },
@@ -195,10 +193,9 @@ class PipelineJsonSpec extends UnitSpec {
     assert(pipeline.error.get == "test error")
     assert(pipeline.config.config_version == 42)
     assert(pipeline.config.enable_checkpointing == true)
-    assert(pipeline.config.extract.kind == ExtractPhaseKind.Kafka)
-    val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config).asInstanceOf[KafkaExtractConfig]
-    assert(kafkaConfig.host == "test1")
-    assert(kafkaConfig.port == 9091)
+    assert(pipeline.config.extract.kind == ExtractPhaseKind.ZookeeperManagedKafka)
+    val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config).asInstanceOf[ZookeeperManagedKafkaExtractConfig]
+    assert(kafkaConfig.zk_quorum == List("test2:2181", "asdf:1000/asdf"))
     assert(kafkaConfig.topic == "test2")
     assert(pipeline.config.transform.kind == TransformPhaseKind.User)
     val userTransformConfig = TransformPhase.readConfig(pipeline.config.transform.kind, pipeline.config.transform.config).asInstanceOf[UserTransformConfig]
@@ -261,9 +258,9 @@ class PipelineJsonSpec extends UnitSpec {
   it should "be preserved through a round trip" in {
     var config = PipelineConfig(
       Phase[ExtractPhaseKind](
-        ExtractPhaseKind.Kafka,
+        ExtractPhaseKind.ZookeeperManagedKafka,
         ExtractPhase.writeConfig(
-          ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9090, "test2"))),
+          ExtractPhaseKind.ZookeeperManagedKafka, ZookeeperManagedKafkaExtractConfig(List("test1:2181"), "test2"))),
       Phase[TransformPhaseKind](
         TransformPhaseKind.User,
         TransformPhase.writeConfig(

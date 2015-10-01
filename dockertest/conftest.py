@@ -224,7 +224,7 @@ class LocalContext:
     def kill_spark_interface(self):
         return self._shell.sudo(["pkill", "-f", "com.memsql.spark.interface.Main"], None)
 
-    def deploy_memsql_cluster(self, num_aggs, num_leaves, port = 3306):        
+    def deploy_memsql_cluster(self, num_aggs, num_leaves, port = 3306):
         print "Deploying MemSQL master to %d" % port
         self._shell.run(["memsql-ops", "memsql-deploy", "--community-edition", "--role", "master", "--port", str(port)])
         for i in range(num_leaves):
@@ -244,12 +244,13 @@ class LocalContext:
         print "Stopping MemSQL Ops"
         return self._shell.sudo(["memsql-ops", "stop"], None)
 
-    def run_kafka(self, broker_id=0):
+    def run_kafka(self, broker_id=0, port=9092):
         print "Running zookeeper"
         self._shell.sudo(["/storage/testroot/zookeeper/bin/zkServer.sh", "start"], DockerFactory.password)
         print "Running kafka"
         return self._shell.spawn(["/storage/testroot/kafka/start.sh"], update_env={
             "EXPOSED_HOST": self.external_ip,
+            "EXPOSED_PORT": str(port),
             "ZOOKEEPER_IP": self.external_ip,
             "BROKER_ID": str(broker_id)
         })
@@ -264,12 +265,12 @@ class LocalContext:
 
         })
 
-    def get_kafka_topic(self, topic, timeout=30):
+    def get_kafka_topic(self, topic, port=9092, timeout=30):
         start = time.time()
         last_exception = None
         while time.time() < start + timeout:
             try:
-                kc = KafkaClient("%s:9092" % self.external_ip)
+                kc = KafkaClient("%s:%d" % (self.external_ip, port))
                 return kc.topics[topic]
             except KafkaException as e:
                 last_exception = e

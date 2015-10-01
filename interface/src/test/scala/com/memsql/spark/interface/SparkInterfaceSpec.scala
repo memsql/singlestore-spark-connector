@@ -8,8 +8,8 @@ import TransformPhaseKind._
 import LoadPhaseKind._
 import com.memsql.spark.interface.api.{PipelineInstance, Pipeline, PipelineState, ApiActor}
 import ApiActor._
-import com.memsql.spark.phases.{JsonTransformConfig, KafkaExtractConfig}
-import com.memsql.spark.phases.configs.{ExtractPhase}
+import com.memsql.spark.phases.{JsonTransformConfig, ZookeeperManagedKafkaExtractConfig}
+import com.memsql.spark.phases.configs.ExtractPhase
 import org.apache.spark.{SparkContext, SparkConf}
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.streaming.{StreamingContext, Duration}
@@ -29,9 +29,9 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
 
   val config = PipelineConfig(
     Phase[ExtractPhaseKind](
-      ExtractPhaseKind.Kafka,
+      ExtractPhaseKind.ZookeeperManagedKafka,
       ExtractPhase.writeConfig(
-        ExtractPhaseKind.Kafka, KafkaExtractConfig("test1", 9092, "topic"))),
+        ExtractPhaseKind.ZookeeperManagedKafka, ZookeeperManagedKafkaExtractConfig(List("test1:2181"), "topic"))),
     Phase[TransformPhaseKind](
       TransformPhaseKind.Json,
       TransformPhase.writeConfig(
