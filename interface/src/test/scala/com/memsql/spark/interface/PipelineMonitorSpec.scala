@@ -69,24 +69,6 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
         case Failure(error) => fail(s"Expected pipeline pipeline2 to exist: $error")
       }
     }
-
-    "fail to create a monitor if the class cannot be loaded" in {
-      val config2 = config.copy(extract = Phase[ExtractPhaseKind](
-        ExtractPhaseKind.User,
-        ExtractPhase.writeConfig(
-          ExtractPhaseKind.User, UserExtractConfig("com.test.Extract", JsNull))))
-
-      //create pipeline which requires a user defined class and try to load in a PipelineMonitor
-      apiRef ! PipelinePut("pipeline1", batch_interval=100, config=config2)
-      whenReady((apiRef ? PipelineGet("pipeline1")).mapTo[Try[Pipeline]]) {
-        case Success(pipeline) => {
-          intercept[ClassNotFoundException] {
-            new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
-          }
-        }
-        case Failure(error) => fail(s"Expected pipeline pipeline1 to exist: $error")
-      }
-    }
   }
 
   "getExtractRecords" should {
