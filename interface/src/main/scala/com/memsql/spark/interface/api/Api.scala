@@ -4,12 +4,16 @@ import akka.actor.Actor.Receive
 import akka.actor.{ActorRef, Actor}
 import akka.util.Timeout
 import com.memsql.spark.interface.util.{Clock, BaseException}
+import com.memsql.spark.phases.configs.ExtractPhase
+import com.memsql.spark.etl.api.configs.TransformPhase
 import scala.concurrent.duration._
 import com.memsql.spark.etl.api.configs._
 import spray.json._
 
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
+import com.memsql.spark.etl.api.UserExtractConfig
+import com.memsql.spark.etl.api.UserTransformConfig
 
 import PipelineState._
 
@@ -57,12 +61,23 @@ trait ApiService {
         pipelines.get(pipeline_id) match {
           case p: Some[Pipeline] => sender ! Failure(ApiException(s"pipeline with id $pipeline_id already exists"))
           case _ => {
+            if (config.extract.kind == ExtractPhaseKind.User) {
+              val extractConfig = ExtractPhase.readConfig(config.extract.kind, config.extract.config)
+              val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
+              Class.forName(className)
+            }
+            if (config.transform.kind == TransformPhaseKind.User) {
+              val transformConfig = TransformPhase.readConfig(config.transform.kind, config.transform.config)
+              val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
+              Class.forName(className)
+            }
             pipelines = pipelines + (pipeline_id -> Pipeline(pipeline_id, RUNNING, batch_interval, config, clock.currentTimeMillis))
             sender ! Success(true)
           }
         }
       } catch {
         case e: ApiException => sender ! Failure(e)
+        case e: ClassNotFoundException => sender ! Failure(ApiException(e.toString))
         case NonFatal(e) => sender ! Failure(ApiException(s"unexpected exception: $e"))
       }
     }
@@ -96,6 +111,17 @@ trait ApiService {
 
             if (config.isDefined) {
               newConfig = config.get
+
+              if (newConfig.extract.kind == ExtractPhaseKind.User) {
+                val extractConfig = ExtractPhase.readConfig(newConfig.extract.kind, newConfig.extract.config)
+                val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
+                Class.forName(className)
+              }
+              if (newConfig.transform.kind == TransformPhaseKind.User) {
+                val transformConfig = TransformPhase.readConfig(newConfig.transform.kind, newConfig.transform.config)
+                val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
+                Class.forName(className)
+              }
               updated |= newConfig != pipeline.config
             }
 
@@ -132,6 +158,7 @@ trait ApiService {
             }
           } catch {
             case e: ApiException => sender ! Failure(e)
+            case e: ClassNotFoundException => sender ! Failure(ApiException(e.toString))
             case NonFatal(e) => sender ! Failure(ApiException(s"unexpected exception: $e"))
           }
         }

@@ -39,7 +39,17 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
     val config2 = config.copy(extract = Phase[ExtractPhaseKind](
       ExtractPhaseKind.User,
       ExtractPhase.writeConfig(
-        ExtractPhaseKind.User, UserExtractConfig("com.user.ExtractClass", JsString("test")))))
+        ExtractPhaseKind.User, UserExtractConfig("com.memsql.spark.interface.supportClasses.DummyExtractor", JsString("test")))))
+
+    val nonExistingExtractConfig = config.copy(extract = Phase[ExtractPhaseKind](
+      ExtractPhaseKind.User,
+      ExtractPhase.writeConfig(
+        ExtractPhaseKind.User, UserExtractConfig("com.memsql.spark.interface.supportClasses.DumDumDum", JsString("test")))))
+
+    val nonExistingTransformConfig = config.copy(transform = Phase[TransformPhaseKind](
+      TransformPhaseKind.User,
+      TransformPhase.writeConfig(
+        TransformPhaseKind.User, UserTransformConfig("com.memsql.spark.interface.supportClasses.DumDumDum", JsString("test")))))
 
     "respond to ping" in {
       apiRef ! Ping
@@ -57,6 +67,20 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       }
 
       apiRef ! PipelineUpdate("pipelinenotthere", Some(PipelineState.STOPPED))
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
+    }
+
+    "fail with a non-existing class" in {
+      apiRef ! PipelinePut("pipeline1", batch_interval=10, config=nonExistingExtractConfig)
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
+
+      apiRef ! PipelinePut("pipeline1", batch_interval=10, config=nonExistingTransformConfig)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
@@ -133,6 +157,20 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           val userConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config).asInstanceOf[UserExtractConfig]
           assert(userConfig.value.toString == "\"test\"")
         case Failure(err) => fail(s"unexpected response $err")
+      }
+    }
+
+    "fail with a non-existing class for update" in {
+      apiRef ! PipelineUpdate("pipeline1", config=Some(nonExistingExtractConfig))
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
+
+      apiRef ! PipelineUpdate("pipeline1", config=Some(nonExistingTransformConfig))
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
     }
 
@@ -243,7 +281,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         Phase[TransformPhaseKind](
           TransformPhaseKind.User,
           TransformPhase.writeConfig(
-            TransformPhaseKind.User, UserTransformConfig("com.user.TransformClass", JsString("test1")))),
+            TransformPhaseKind.User, UserTransformConfig("com.memsql.spark.interface.supportClasses.DummyTransformer", JsString("test1")))),
         Phase[LoadPhaseKind](
           LoadPhaseKind.MemSQL,
           LoadPhase.writeConfig(
