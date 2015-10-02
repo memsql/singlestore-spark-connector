@@ -7,9 +7,6 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{StructType, StructField, IntegerType}
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
-/**
- * Created by marin on 10/1/15.
- */
 class DummyExtractor extends SimpleByteArrayExtractor {
   override def nextRDD(sparkContext: SparkContext, config: UserExtractConfig, batchInterval: Long, logger: PhaseLogger): Option[RDD[Array[Byte]]] = None
 }
