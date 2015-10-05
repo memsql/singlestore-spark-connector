@@ -11,7 +11,7 @@ lazy val assemblyScalastyle = taskKey[Unit]("assemblyScalastyle")
 lazy val testScalastyle = taskKey[Unit]("testScalastyle")
 
 lazy val commonSettings = Seq(
-  organization := "com.memsql",
+  organization := "com.memsql.spark",
   version := "1.0.1-SNAPSHOT",
   scalaVersion := "2.10.5",
   assemblyScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Compile).toTask("").value,
@@ -56,7 +56,7 @@ lazy val commonSettings = Seq(
 lazy val connectorLib = (project in file("connectorLib")).
   settings(commonSettings: _*).
   settings(
-    name := "MemSQLRDD",
+    name := "MemSQL Connector",
     description := "Spark MemSQL Connector",
     libraryDependencies  ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
@@ -84,7 +84,7 @@ lazy val etlLib = (project in file("etlLib")).
   dependsOn(connectorLib).
   settings(commonSettings: _*).
   settings(
-    name := "MemSQLETL",
+    name := "MemSQL ETL",
     description := "Spark MemSQL ETL Library",
     libraryDependencies  ++= Seq(
       "io.spray" %% "spray-json" % sprayVersion,
