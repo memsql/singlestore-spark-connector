@@ -134,7 +134,7 @@ lazy val interface = (project in file("interface")).
   settings(commonSettings: _*).
   enablePlugins(BuildInfoPlugin).
   settings(
-    name := "MemSQLSparkInterface",
+    name := "MemSQL Spark Interface",
     parallelExecution in Test := false,
     buildInfoKeys := Seq[BuildInfoKey](version),
     buildInfoPackage := "com.memsql.spark.interface.meta",
