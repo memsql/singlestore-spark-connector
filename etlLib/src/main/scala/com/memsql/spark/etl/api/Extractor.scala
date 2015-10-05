@@ -7,6 +7,12 @@ import org.apache.spark.streaming.{Time, StreamingContext}
 import com.memsql.spark.etl.utils.{PhaseLogger, ByteUtils}
 
 /**
+ * Thrown when an Extractor is checkpointed without overriding [[Extractor.batchCheckpoint]]
+ * and [[Extractor.batchRetry)]]
+ */
+class ExtractorCheckpointException(message: String) extends Exception(message: String)
+
+/**
  * Pipeline Extractor interface.
  *
  * @tparam S type parameter of the generated [[org.apache.spark.streaming.dstream.InputDStream]].
@@ -31,19 +37,25 @@ abstract class Extractor[S] extends Serializable {
 
   /**
    * Called at the end of a pipeline batch if it has succeeded. Override this and [[batchRetry]] to implement
-   * checkpointing for your Extractor. Default implementation does nothing.
+   * checkpointing for your Extractor. The default implementation will throw a [[ExtractorCheckpointException]]
+   * if the Extractor is run with checkpointing enabled.
    *
    * @return The serialized data to be saved in the checkpoint database for the successful batch.
    */
-  def batchCheckpoint(): Option[Map[String, Any]] = None
+  def batchCheckpoint(): Option[Map[String, Any]] = {
+    throw new ExtractorCheckpointException("In order to use checkpointing on this extractor, it must override batchCheckpoint.")
+  }
 
   /**
    * Called at the end of a pipeline batch if it has failed. Override this and [[batchCheckpoint]] to implement
-   * checkpointing for your Extractor. Default implementation does nothing.
+   * checkpointing for your Extractor. The default implementation will throw a [[ExtractorCheckpointException]]
+   * if the Extractor is run with checkpointing enabled.
    *
    * Use this to reset the Extractor state so it will retry the failed batch on the next call to [[extract]].
    */
-  def batchRetry(): Unit = {}
+  def batchRetry(): Unit = {
+    throw new ExtractorCheckpointException("In order to use checkpointing on this extractor, it must override batchRetry.")
+  }
 }
 
 /**
