@@ -52,6 +52,9 @@ def test_leaked_conns(local_context):
 def test_save_errors(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestSaveToMemSQLErrors")
 
+def test_save_no_nodes_available_error(local_context):
+    do_test_spark_submit(local_context, "com.memsql.spark.TestSaveToMemSQLNoNodesAvailableError")
+
 def test_save_rdd_errors(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestSaveToMemSQLWithRDDErrors")
 

@@ -13,6 +13,8 @@ import com.memsql.spark.connector.OnDupKeyBehavior._
 import com.memsql.spark.connector.dataframe._
 import com.memsql.spark.connector.rdd._
 
+import scala.util.control.NonFatal
+
 // scalastyle:off magic.number file.size.limit regex
 object MemSQLTestSetup {
   def SetupBasic() {
@@ -153,6 +155,18 @@ object TestUtils {
         }
       }
       !fail
+    }
+  }
+
+  def DetachPartitions(dbName: String): Unit = {
+    val conn = connectToMA
+    val stmt = conn.createStatement()
+    val iter = MemSQLRDD.resultSetToIterator(stmt.executeQuery(s"SHOW PARTITIONS ON `$dbName`"))
+    iter.foreach { rs =>
+      val host = rs.getString("Host")
+      val port = rs.getInt("Port")
+      val ordinal = rs.getString("Ordinal")
+      conn.createStatement.execute(s"DETACH PARTITION `$dbName`:$ordinal ON `$host`:$port")
     }
   }
 
@@ -688,6 +702,40 @@ object TestSaveToMemSQLErrors {
             assert(e.exception.getMessage.contains("Column 'a' specified twice"))
           }
         }
+      }
+    }
+  }
+}
+
+object TestSaveToMemSQLNoNodesAvailableError {
+  def main(args: Array[String]): Unit = {
+    val conn = TestUtils.connectToMA
+    val conf = new SparkConf().setAppName("TestSaveToMemSQLNoNodesAvailableError")
+    val sc = new SparkContext(conf)
+    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
+    TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
+
+    val rdd = sc.parallelize(
+      Array(Row(1,"pieguy"),
+        Row(2,"gbop"),
+        Row(3,"berry\ndave"),
+        Row(4,"psy\tduck")))
+
+    val schema = StructType(Array(StructField("a",IntegerType,true),
+      StructField("b",StringType,true)))
+    val df = sqlContext.createDataFrame(rdd, schema)
+    df.createMemSQLTableAs("x_db","t")
+
+    TestUtils.DetachPartitions("x_db")
+    try {
+      df.saveToMemSQL("x_db", "t", useKeylessShardedOptimization = true)
+      assert(false)
+    } catch {
+      case e: NoMemSQLNodesAvailableException =>
+      case NonFatal(e) => {
+        println(e.getMessage)
+        println("Expected NoMemSQLNodesAvailableException")
+        assert(false)
       }
     }
   }

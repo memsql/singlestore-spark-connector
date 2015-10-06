@@ -19,7 +19,9 @@ import java.io.{PipedOutputStream, PipedInputStream}
 import net.jpountz.lz4._
 import com.memsql.spark.connector.rdd.MemSQLRDD
 
-class SaveToMemSQLException(var exception: SparkException, var count: Long) extends Exception
+class MemSQLException extends Exception
+class NoMemSQLNodesAvailableException(message: String) extends MemSQLException
+class SaveToMemSQLException(val exception: SparkException, val count: Long) extends MemSQLException
 
 object RDDFunctions {
   val DEFAULT_UPSERT_BATCH_SIZE = 10000
@@ -92,10 +94,18 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
         val dbAddress = "jdbc:mysql://" + availableNodes(randomIndex)._1 + ":" + availableNodes(randomIndex)._2
         conn = DriverManager.getConnection(dbAddress, user, password)
         stmt = conn.createStatement
+
+        // NOTE: when a leaf is not online, its partitions will have Host, Port and Role set to NULL
         availableNodes = MemSQLRDD.resultSetToIterator(stmt.executeQuery("SHOW PARTITIONS FROM " + dbName))
-                        .filter(_.getString("Role").equals("Master"))
-                        .map(r => (r.getString("Host"), r.getInt("Port"), dbName + "_" + r.getString("Ordinal")))
+                        .filter { row =>
+                          val role = row.getString("Role")
+                          role != null && role.equals("Master")
+                        }.map(r => (r.getString("Host"), r.getInt("Port"), dbName + "_" + r.getString("Ordinal")))
                         .toList
+
+        if (availableNodes.isEmpty) {
+          throw new NoMemSQLNodesAvailableException("No MemSQL nodes are available for ingest. Are the MemSQL leaves online?")
+        }
       } finally {
         if (stmt != null && !stmt.isClosed()) {
           stmt.close()
