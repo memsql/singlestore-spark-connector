@@ -1,5 +1,6 @@
 package com.memsql.spark.interface
 
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.UUID
 
@@ -29,7 +30,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.control.{ControlThrowable, NonFatal}
 import scala.util.{Failure, Success, Try}
 
-class PipelineMonitorException(message:String) extends BaseException(message)
+class PipelineMonitorException(message: String) extends BaseException(message)
 
 case class PhaseResult(count: Option[Long] = None,
                        columns: Option[List[(String, String)]] = None,
@@ -114,6 +115,9 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         }
       } catch {
         case e: InterruptedException => //exit
+        case e: TimeoutException => {
+          throw new PipelineMonitorException(s"Timed out updating pipeline $pipeline_id state to RUNNING")
+        }
       }
     }
   })

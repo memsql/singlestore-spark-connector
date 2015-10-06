@@ -134,9 +134,13 @@ trait Application extends Logging {
   }
 
   def update(): Unit = {
-    val pipelines = Await.result[List[Pipeline]]((api ? PipelineQuery).mapTo[List[Pipeline]], 5.seconds)
-    pipelines.foreach(updatePipeline)
-    cleanupPipelineMonitors(pipelines)
+    try {
+      val pipelines = Await.result[List[Pipeline]]((api ? PipelineQuery).mapTo[List[Pipeline]], 5.seconds)
+      pipelines.foreach(updatePipeline)
+      cleanupPipelineMonitors(pipelines)
+    } catch {
+      case e: TimeoutException => logWarn("Timed out retrieving pipelines from API")
+    }
   }
 
   private[interface] def updatePipeline(pipeline: Pipeline): Unit = {
