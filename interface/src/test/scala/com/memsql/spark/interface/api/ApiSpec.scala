@@ -368,14 +368,14 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       apiRef ! PipelineMetrics("pipeline1", None)
       receiveOne(1.second) match {
         case resp: Success[_] =>
-          val l = resp.get.asInstanceOf[List[PipelineMetricRecord]]
+          val l = resp.get.asInstanceOf[List[BatchEndEvent]]
           assert(l.size == 0)
         case Failure(err) => fail(s"unexpected response $err")
       }
 
-      val record1 = PipelineMetricRecord(batch_id = "batch1", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1",
+      val record1 = BatchEndEvent(batch_id = "batch1", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1",
                                          timestamp = 100, success = true, task_errors = None, extract = None, transform = None, load = None)
-      val record2 = PipelineMetricRecord(batch_id = "batch2", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1",
+      val record2 = BatchEndEvent(batch_id = "batch2", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1",
                                          timestamp = 110, success = false, task_errors = None, extract = None, transform = None, load = None)
 
       apiRef ! PipelineGet("pipeline1")
@@ -391,7 +391,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       apiRef ! PipelineMetrics("pipeline1", None)
       receiveOne(1.second) match {
         case resp: Success[_] =>
-          val l = resp.get.asInstanceOf[List[PipelineMetricRecord]]
+          val l = resp.get.asInstanceOf[List[BatchEndEvent]]
           assert(l == List(record1, record2))
         case Failure(err) => fail(s"unexpected response $err")
       }
@@ -399,7 +399,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       apiRef ! PipelineMetrics("pipeline1", last_timestamp = Some(105))
       receiveOne(1.second) match {
         case resp: Success[_] =>
-          val l = resp.get.asInstanceOf[List[PipelineMetricRecord]]
+          val l = resp.get.asInstanceOf[List[BatchEndEvent]]
           assert(l == List(record2))
         case Failure(err) => fail(s"unexpected response $err")
       }

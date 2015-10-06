@@ -140,6 +140,10 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       pipelineInstance.transformer.initialize(sqlContext, pipelineInstance.transformConfig, transformLogger)
 
       var time: Long = 0
+      val pipelineStartEvent = PipelineStartEvent(
+        pipeline_id = pipeline_id,
+        timestamp = System.currentTimeMillis)
+      pipeline.enqueueMetricRecord(pipelineStartEvent)
 
       // manually compute the next RDD in the DStream so that we can sidestep issues with
       // adding inputs to the streaming context at runtime
@@ -164,6 +168,17 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
         val batch_id = UUID.randomUUID.toString
         currentBatchId = batch_id
+        var batch_type = PipelineBatchType.Normal
+        if (trace) {
+          batch_type = PipelineBatchType.Traced
+        }
+
+        val batchStartEvent = BatchStartEvent(
+          batch_id = batch_id,
+          batch_type = batch_type,
+          pipeline_id = pipeline_id,
+          timestamp = time)
+        pipeline.enqueueMetricRecord(batchStartEvent)
         sparkContext.setJobGroup(batch_id, s"Batch for MemSQL Pipeline $pipeline_id", interruptOnCancel = true)
         var tracedRdd: RDD[Array[Byte]] = null
         var extractedRdd: RDD[Array[Byte]] = null
@@ -254,11 +269,6 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           })
         }
 
-        var batch_type = PipelineBatchType.Normal
-        if (trace) {
-          batch_type = PipelineBatchType.Traced
-        }
-
         val task_errors = getTaskErrors(batch_id)
 
         val success = (
@@ -270,7 +280,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
         saveExtractorCheckpoint(batch_id, success)
 
-        val metric = PipelineMetricRecord(
+        val batchEndEvent = BatchEndEvent(
           batch_id = batch_id,
           batch_type = batch_type,
           pipeline_id = pipeline_id,
@@ -280,7 +290,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           extract = extractRecord,
           transform = transformRecord,
           load = loadRecord)
-        pipeline.enqueueMetricRecord(metric)
+        pipeline.enqueueMetricRecord(batchEndEvent)
 
         val sleepTimeMillis = Math.max(batchIntervalMillis  - (System.currentTimeMillis - time), 0)
         logDebug(s"Sleeping for $sleepTimeMillis milliseconds for pipeline $pipeline_id")
@@ -294,6 +304,10 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       }
     } finally {
       logInfo(s"Stopping pipeline $pipeline_id")
+      val pipelineEndEvent = PipelineEndEvent(
+        pipeline_id = pipeline_id,
+        timestamp = System.currentTimeMillis)
+      pipeline.enqueueMetricRecord(pipelineEndEvent)
       try {
         if (inputDStream != null) inputDStream.stop()
       } catch {

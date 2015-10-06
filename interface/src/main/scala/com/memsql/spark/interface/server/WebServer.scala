@@ -116,7 +116,7 @@ trait WebService extends HttpService {
     path("pipeline" / "metrics") {
       parameter('pipeline_id.as[String], 'last_timestamp.as[Long].?) { (pipeline_id, last_timestamp) =>
         get { ctx =>
-          val future = (api ? PipelineMetrics(pipeline_id, last_timestamp)).mapTo[Try[List[PipelineMetricRecord]]]
+          val future = (api ? PipelineMetrics(pipeline_id, last_timestamp)).mapTo[Try[List[PipelineEvent]]]
           future.map {
             case Success(resp) => ctx.complete(resp.toJson.toString)
             case Failure(error) => ctx.complete(StatusCodes.NotFound, error.toString)

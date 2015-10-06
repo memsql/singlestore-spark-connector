@@ -16,11 +16,27 @@ object ApiJsonProtocol extends JsonEnumProtocol {
   implicit val pipelineBatchTypeFormat = jsonEnum(PipelineBatchType)
   implicit val phaseMetricRecordFormat = jsonFormat7(PhaseMetricRecord)
   implicit val taskErrorRecordFormat = jsonFormat5(TaskErrorRecord)
-  implicit val pipelineMetricRecordFormat = jsonFormat9(PipelineMetricRecord)
+
+  implicit val pipelineEventTypeFormat = jsonEnum(PipelineEventType)
+  implicit val batchStartEventFormat = jsonFormat5(BatchStartEvent)
+  implicit val batchEndEventFormat = jsonFormat10(BatchEndEvent)
+  implicit val pipelineStartEventFormat = jsonFormat3(PipelineStartEvent)
+  implicit val pipelineEndEventFormat = jsonFormat3(PipelineEndEvent)
 
   implicit val pipelineStateFormat = jsonEnum(PipelineState)
 
   val basePipelineFormat = jsonFormat(Pipeline.apply, "pipeline_id", "state", "batch_interval", "config", "last_updated", "error")
+
+  implicit object pipelineEventFormat extends RootJsonFormat[PipelineEvent] {
+    def write(e: PipelineEvent): JsValue = e match {
+      case batchStartEvent: BatchStartEvent => batchStartEvent.toJson
+      case batchEndEvent: BatchEndEvent => batchEndEvent.toJson
+      case pipelineStartEvent: PipelineStartEvent => pipelineStartEvent.toJson
+      case pipelineEndEvent: PipelineEndEvent => pipelineEndEvent.toJson
+    }
+
+    def read(value: JsValue): PipelineEvent = null
+  }
 
   implicit object pipelineFormat extends RootJsonFormat[Pipeline] {
     def write(p: Pipeline): JsValue =
