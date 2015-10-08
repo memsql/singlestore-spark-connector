@@ -1,15 +1,13 @@
 package com.memsql.spark
 
 import com.memsql.spark.context.MemSQLContext
-import java.sql.{DriverManager, ResultSet, Connection, Timestamp}
+import java.sql.{DriverManager, ResultSet, Connection, Timestamp, Date}
 
 import org.apache.spark._
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.catalyst.expressions.RowOrdering
 
 import com.memsql.spark.connector._
-import com.memsql.spark.connector.OnDupKeyBehavior._
 import com.memsql.spark.connector.dataframe._
 import com.memsql.spark.connector.rdd._
 
@@ -55,7 +53,7 @@ object MemSQLTestSetup {
     stmt.close()
   }
 
-  def SetupAllMemSQLTypes(sqlContext: SQLContext, nullable: Boolean): DataFrame = {
+  def SetupAllMemSQLTypes(sqlContext: SQLContext, nullable: Boolean, types: List[(String, Array[String])]): DataFrame = {
     val host = TestUtils.GetHostname
     val port = 3306
     val user = "root"
@@ -71,19 +69,19 @@ object MemSQLTestSetup {
     val tbname = if (nullable) "alltypes_nullable" else "alltypes_not_null"
     stmt.execute("drop table if exists " + tbname)
 
-    val create = "create table " + tbname + " (" + Types.MemSQLTypes.map(_._1).map((t:String) => Types.ToCol(t)
+    val create = "create table " + tbname + " (" + types.map(_._1).map((t:String) => Types.ToCol(t)
       + " " + t + (if (!nullable) " not null" else " null default null")).mkString(",") + ",shard())"
     stmt.execute(create)
 
     var insertQuery = "insert into " + tbname + " values"
     for (i <- 0 until 3) {
-      insertQuery = insertQuery + "(" + Types.MemSQLTypes.map("'" + _._2(i) + "'").mkString(",") + ")"
+      insertQuery = insertQuery + "(" + types.map("'" + _._2(i) + "'").mkString(",") + ")"
       if (i < 2) {
         insertQuery = insertQuery + ","
       }
     }
     if (nullable) {
-      insertQuery = insertQuery + ", (" + Types.MemSQLTypes.map((a:Any) => "null").mkString(",") + ")"
+      insertQuery = insertQuery + ", (" + types.map((a:Any) => "null").mkString(",") + ")"
     }
     stmt.execute(insertQuery)
     TestUtils.MemSQLDF(sqlContext, dbName, tbname)
@@ -108,7 +106,7 @@ object TestUtils {
     stmt.execute("CREATE DATABASE " + dbName)
     stmt.close()
   }
-  def MemSQLDF(sqlContext : SQLContext, dbName : String, tableName : String) : DataFrame = {
+  def MemSQLDF(sqlContext: SQLContext, dbName: String, tableName: String): DataFrame = {
     MemSQLDataFrame.MakeMemSQLDF(
       sqlContext,
       TestUtils.GetHostname,
@@ -118,27 +116,47 @@ object TestUtils {
       dbName,
       "SELECT * FROM " + tableName)
   }
-  def CollectAndSort(df: DataFrame, asString: Boolean = false): Seq[Row] = {
+  def CollectAndSort(df: DataFrame, asString: Boolean = false, convertBooleans: Boolean = false): Seq[Row] = {
     val rdd = if (asString) {
-      df.rdd.map((r: Row) =>
-        Row.fromSeq(r.toSeq.map(_.toString)))
+      df.rdd.map((r: Row) => Row.fromSeq(r.toSeq.map { x =>
+        (convertBooleans, x) match {
+          case (true, bool: Boolean) => if (bool) "1" else "0"
+          case (_, bytes: Array[Byte]) => bytes.toList.toString
+          case default => x.toString
+        }
+      }))
     } else {
-      df.rdd
+      df.rdd.map((r: Row) => Row.fromSeq(r.toSeq.map {
+        // byte arrays cannot be compared with equals, so we convert them to lists for comparison purposes
+        case bytes: Array[Byte] => bytes.toList
+        case default => default
+      }))
     }
 
-    rdd.collect.sorted(RowOrdering.forSchema(
-      df.schema.map((sf:StructField) =>
-        if (asString) { StringType } else sf.dataType)))
+    rdd.collect.sorted(new Ordering[Row] {
+      def stringify(x: Any): String = {
+        x match {
+          case null => "null"
+          case default => x.toString
+        }
+      }
+
+      override def compare(row1: Row, row2: Row): Int = {
+        if (row1 == null) assert(false)
+        if (row2 == null) assert(false)
+        row1.toSeq.map(stringify).mkString(", ").compareTo(row2.toSeq.map(stringify).mkString(", "))
+      }
+    })
   }
-  def EqualDFs(df1: DataFrame, df2: DataFrame, asString: Boolean = false): Boolean = {
-    val df1_sorted = CollectAndSort(df1, asString)
-    val df2_sorted = CollectAndSort(df2, asString)
+  def EqualDFs(df1: DataFrame, df2: DataFrame, asString: Boolean = false, convertBooleans: Boolean = false): Boolean = {
+    val df1_sorted = CollectAndSort(df1, asString, convertBooleans)
+    val df2_sorted = CollectAndSort(df2, asString, convertBooleans)
     if (df1_sorted.size != df2_sorted.size) {
       println("len df1 = " + df1_sorted.size + ", len df2 = " + df2_sorted.size)
       false
     } else {
       var fail = false
-      for (i <- 0 until df1_sorted.size) {
+      for (i <- df1_sorted.indices) {
         if (!df1_sorted(i).equals(df2_sorted(i))) {
           fail = true
           println("row " + i + " is different.")
@@ -183,34 +201,37 @@ object TestUtils {
 object Types {
   // We intentionally don't include memsql specific types (spatial+json),
   // and times that don't map to sparksql (time, unsigned)...
-  val MemSQLTypes: Array[(String,Array[String])] = Array(
-    ("int", Array("1","2","3")),
-    ("bigint",Array("4","5","6")),
-    ("tinyint",Array("7","8","9")),
-    ("text",Array("a","b","c")),
-    ("blob",Array("e","f","g")),
-    ("char(1)",Array("a","b","c")),
-    ("varchar(100)",Array("do","rae","me")),
-    ("varbinary(100)",Array("one","two","three")),
-    ("decimal(5,1)",Array("1.1","2.2","3.3")),
-    ("double",Array("4.4","5.5","6.6")),
-    ("float",Array("7.7","8.8","9.9")),
-    ("datetime",Array("1990-08-23 01:01:01.0","1990-08-23 01:01:02.0","1990-08-23 01:01:03.0")),
-    ("timestamp",Array("1990-08-23 01:01:04.0","1990-08-23 01:01:05.0","1990-08-23 01:01:06.0")),
-    ("date",Array("1990-08-23","1990-09-23","1990-10-23")))
-  def ToCol(tp: String): String = "val_" + tp.replace("(","_").replace(")","").replace(",","_")
-  val SparkSQLTypes: Array[(DataType,Array[Any])] = Array(
-    (IntegerType,Array(1,2,3)),
-    (LongType,Array(4,5,6)),
-    (DoubleType,Array(7.8,9.1,1.2)),
-    (FloatType,Array(2.8,3.1,4.2)),
-    (ShortType,Array(7,8,9)),
-    (ByteType,Array(10,11,12)),
-    (BooleanType,Array(1,0,0)),
-    (StringType,Array("hi","there","buddy")),
-    (BinaryType,Array("how","are","you")),
-    (TimestampType,Array("1990-08-23 01:01:04.0","1990-08-23 01:01:05.0","1990-08-23 01:01:06.0")),
-    (DateType,Array("1990-08-23","1990-09-23","1990-10-23")))
+  val MemSQLTypes: Array[(String, Array[String])] = Array(
+    ("int", Array("1", "2", "3")),
+    ("bigint", Array("4", "5", "6")),
+    ("tinyint", Array("7", "8", "9")),
+    ("text", Array("a", "b", "c")),
+    ("blob", Array("e", "f", "g")),
+    ("char(1)", Array("a", "b", "c")),
+    ("varchar(100)", Array("do", "rae", "me")),
+    ("varbinary(100)", Array("one", "two", "three")),
+    ("decimal(5,1)", Array("1.1", "2.2", "3.3")),
+    ("double", Array("4.4", "5.5", "6.6")),
+    ("float", Array("7.7", "8.8", "9.9")),
+    ("datetime", Array("1990-08-23 01:01:01.0", "1990-08-23 01:01:02.0", "1990-08-23 01:01:03.0")),
+    ("timestamp", Array("1990-08-23 01:01:04.0", "1990-08-23 01:01:05.0", "1990-08-23 01:01:06.0")),
+    ("date", Array("1990-08-23", "1990-09-23", "1990-10-23")))
+
+  def ToCol(tp: String): String = "val_" + tp.replace("(", "_").replace(")", "").replace(",", "_")
+
+  val SparkSQLTypes: Array[(DataType, Array[Any])] = Array(
+    (IntegerType, Array(1, 2, 3)),
+    (LongType, Array(4L, 5L, 6L)),
+    (DoubleType, Array(7.8, 9.1, 1.2)),
+    (FloatType, Array(2.8f, 3.1f, 4.2f)),
+    (ShortType, Array(7.toShort, 8.toShort, 9.toShort)),
+    (ByteType, Array(10.toByte, 11.toByte, 12.toByte)),
+    (BooleanType, Array(true, false, false)),
+    (StringType, Array("hi", "there", "buddy")),
+    (BinaryType, Array("how".map(_.toByte).toArray, "are".map(_.toByte).toArray, "you".map(_.toByte).toArray)),
+    //java.sql time structures expect the year minus 1900
+    (TimestampType, Array(new Timestamp(90, 8, 23, 1, 1, 4, 0), new Timestamp(90, 8, 23, 1, 1, 5, 0), new Timestamp(90, 8, 23, 1, 1, 6, 0))),
+    (DateType, Array(new Date(90, 8, 23), new Date(90, 9, 23), new Date(90, 10, 23))))
 }
 
 object TestSparkSQLTypes {
@@ -231,9 +252,10 @@ object TestSparkSQLTypes {
       Row.fromSeq(Types.SparkSQLTypes.map(_._2(i)).toSeq))
     val df = sqlContext.createDataFrame(sc.parallelize(rows), schema)
 
-    df.createMemSQLTableAs("x_db","t")
-    val df2 = sqlContext.createDataFrameFromMemSQLTable("x_db","t")
-    assert(TestUtils.EqualDFs(df, df2, asString=true))
+    df.createMemSQLTableAs("x_db", "t")
+    val df2 = sqlContext.createDataFrameFromMemSQLTable("x_db", "t")
+    // NOTE: Because MemSQL aliases boolean to tinyint(1), we allow the comparison to check that
+    assert(TestUtils.EqualDFs(df, df2, asString = true, convertBooleans = true))
   }
 }
 
@@ -376,8 +398,10 @@ object TestMemSQLTypes {
   def main(args: Array[String]) {
     Class.forName("com.mysql.jdbc.Driver")
     val keyless = args.indexOf("keyless") != -1
+    val includeBinary = args.indexOf("includeBinary") != -1
     println("args.size = " + args.size)
     println("keyless = " + keyless)
+    println("includeBinary = " + includeBinary)
     val conf = new SparkConf().setAppName("MemSQLRDD Application")
     val sc = new SparkContext(conf)
     val sqlContext = new SQLContext(sc)
@@ -398,25 +422,30 @@ object TestMemSQLTypes {
 
     TestUtils.DropAndCreate(dbName)
 
-    val df_not_null = MemSQLTestSetup.SetupAllMemSQLTypes(sqlContext, false)
-    val df_nullable = MemSQLTestSetup.SetupAllMemSQLTypes(sqlContext, true)
+    val types = includeBinary match {
+      case true => Types.MemSQLTypes.toList
+      case false => Types.MemSQLTypes.toList.filterNot(_._1.contains("blob")).filterNot(_._1.contains("varbinary"))
+    }
+
+    val df_not_null = MemSQLTestSetup.SetupAllMemSQLTypes(sqlContext, false, types)
+    val df_nullable = MemSQLTestSetup.SetupAllMemSQLTypes(sqlContext, true, types)
 
     assert(df_not_null.count == 3)
     assert(df_nullable.count == 4)
-    assert(df_not_null.schema.size == Types.MemSQLTypes.size)
-    assert(df_nullable.schema.size == Types.MemSQLTypes.size)
+    assert(df_not_null.schema.size == types.size)
+    assert(df_nullable.schema.size == types.size)
 
-    for (i <- 0 until Types.MemSQLTypes.size) {
-      val colname = Types.ToCol(Types.MemSQLTypes(i)._1)
+    for (i <- types.indices) {
+      val colname = Types.ToCol(types(i)._1)
       println(colname)
 
       assert(df_not_null.schema(i).dataType.equals(df_nullable.schema(i).dataType))
       assert(df_not_null.schema(i).name.equals(df_nullable.schema(i).name))
-      assert( df_not_null.schema(i).nullable)
-      assert( df_nullable.schema(i).nullable)
+      assert(df_not_null.schema(i).nullable)
+      assert(df_nullable.schema(i).nullable)
 
-      var cd_nn = df_not_null.select(colname).collect.map(_(0))
-      var cd_na = df_nullable.select(colname).collect.map(_(0))
+      val cd_nn = df_not_null.select(colname).collect.map(_(0))
+      val cd_na = df_nullable.select(colname).collect.map(_(0))
       println("not null")
       for (r <- cd_nn) {
         println(r)
@@ -426,20 +455,27 @@ object TestMemSQLTypes {
         println(r)
       }
       println("reference")
-      for (r <- Types.MemSQLTypes(i)._2) {
+      for (r <- types(i)._2) {
         println(r)
       }
       assert(cd_na.indexOf(null) != -1)
       assert(cd_nn.indexOf(null) == -1)
 
-      assert(cd_na.filter(_ != null).map(_.toString).indexOf(Types.MemSQLTypes(i)._2(0)) != -1)
-      assert(cd_na.filter(_ != null).map(_.toString).indexOf(Types.MemSQLTypes(i)._2(1)) != -1)
-      assert(cd_na.filter(_ != null).map(_.toString).indexOf(Types.MemSQLTypes(i)._2(2)) != -1)
+      // special case byte arrays returned by blob columns
+      def stringify(v: Any): String = {
+        v match {
+          case bytes: Array[Byte] => new String(bytes)
+          case default => v.toString
+        }
+      }
 
-      assert(cd_nn.map(_.toString).indexOf(Types.MemSQLTypes(i)._2(0)) != -1)
-      assert(cd_nn.map(_.toString).indexOf(Types.MemSQLTypes(i)._2(1)) != -1)
-      assert(cd_nn.map(_.toString).indexOf(Types.MemSQLTypes(i)._2(2)) != -1)
+      assert(cd_na.filter(_ != null).map(stringify).indexOf(types(i)._2(0)) != -1)
+      assert(cd_na.filter(_ != null).map(stringify).indexOf(types(i)._2(1)) != -1)
+      assert(cd_na.filter(_ != null).map(stringify).indexOf(types(i)._2(2)) != -1)
 
+      assert(cd_nn.map(stringify).indexOf(types(i)._2(0)) != -1)
+      assert(cd_nn.map(stringify).indexOf(types(i)._2(1)) != -1)
+      assert(cd_nn.map(stringify).indexOf(types(i)._2(2)) != -1)
     }
 
     val df_not_null2 = df_not_null.createMemSQLTableAs(dbName, "alltypes_not_null2", host, port, user, password, useKeylessShardedOptimization=keyless)
@@ -465,11 +501,15 @@ object TestMemSQLTypes {
     assert(df_not_null3.schema.equals(df_not_null2.schema))
     assert(df_nullable3.schema.equals(df_nullable2.schema))
 
-    // If we are in keyless mode, the agg should have received no load data queries, since the loads should happen directly on the leaves.
-    // Conversely, if we are not in keyless mode, the loads should happen on the agg.
-    //
     val plans = MemSQLRDD.resultSetToIterator(stmt.executeQuery("select * from information_schema.plancache where query_text like 'LOAD%'")).toArray
-    assert(keyless == (plans.size == 0))
+    if (includeBinary) {
+      // If there are BINARY columns, we always use insert so no load data queries should have been run.
+      assert(plans.size == 0)
+    } else {
+      // If we are in keyless mode, the agg should have received no load data queries, since the loads should happen directly on the leaves.
+      // Conversely, if we are not in keyless mode, the loads should happen on the agg.
+      assert(keyless == (plans.size == 0))
+    }
   }
 }
 
@@ -576,12 +616,12 @@ object TestCreateWithExtraColumns {
     assert(df_t.head.getInt(1) == 42)
     // Both of the timestamp columns should have had the current timestamp
     // inserted as the default value.
-    val cValue = df_t.head.getString(2)
+    val cValue = df_t.head.getTimestamp(2)
     println(cValue)
-    assert(Timestamp.valueOf(cValue).getTime > 0)
-    val dValue = df_t.head.getString(3)
+    assert(cValue.getTime > 0)
+    val dValue = df_t.head.getTimestamp(3)
     println(dValue)
-    assert(Timestamp.valueOf(dValue).getTime > 0)
+    assert(dValue.getTime > 0)
   }
 }
 

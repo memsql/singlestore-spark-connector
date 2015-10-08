@@ -43,6 +43,12 @@ def test_memsql_types(local_context):
 def test_memsql_types_keyless(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLTypes", args=["keyless"])
 
+def test_memsql_types_include_binary(local_context):
+    do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLTypes", args=["includeBinary"])
+
+def test_memsql_types_keyless_include_binary(local_context):
+    do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLTypes", args=["keyless", "includeBinary"])
+
 def test_memsql_context(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLContextVeryBasic", num_aggs=2, num_leaves=2)
 

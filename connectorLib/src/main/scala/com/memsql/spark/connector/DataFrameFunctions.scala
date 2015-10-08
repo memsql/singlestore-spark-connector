@@ -9,6 +9,7 @@ import org.apache.spark.sql.DataFrame
 
 import com.memsql.spark.connector.rdd._
 import com.memsql.spark.connector.dataframe._
+import org.apache.spark.sql.types.BinaryType
 
 class DataFrameFunctions(df: DataFrame) extends Serializable {
   /**
@@ -60,7 +61,8 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
     }
     val insertTableString = insertTable.append(")").toString
 
-    val forceInsert = df.schema.size == 0
+    // NOTE: If the schema is empty or there are binary columns, we will fall back to insert instead of LOAD DATA.
+    val forceInsert = df.schema.isEmpty || df.schema.exists(_.dataType == BinaryType)
 
     df.rdd.saveToMemSQL(dbName, insertTableString, theHost, thePort, theUser,
                         thePassword, onDuplicateKeyBehavior, onDuplicateKeySql,

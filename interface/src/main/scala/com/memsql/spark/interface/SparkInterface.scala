@@ -54,6 +54,7 @@ class SparkInterface(val providedConfig: Config) extends Application {
   //TODO verify we have sane defaults for spark conf
   override val sparkConf = {
     new SparkConf().setAppName("MemSQL Spark Interface")
+      .set("spark.app.id", "memsql_spark_interface")
       .set("spark.ui.port", (config.port + 1).toString)
       .set("spark.blockManager.port", (config.port + 2).toString)
       .set("spark.broadcast.port", (config.port + 3).toString)

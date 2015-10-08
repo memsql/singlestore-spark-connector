@@ -1,6 +1,6 @@
 import UnidocKeys._
 
-lazy val sparkVersion = "1.4.1"
+lazy val sparkVersion = "1.5.1"
 lazy val mysqlConnectorVersion = "5.1.34"
 lazy val akkaVersion = "2.3.9"
 lazy val sprayVersion = "1.3.2"

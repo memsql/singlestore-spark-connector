@@ -3,6 +3,7 @@ package com.memsql.spark.connector.dataframe
 import java.sql.{Connection, ResultSet, ResultSetMetaData, Statement}
 
 import com.memsql.spark.connector.{MemSQLConnectionWrapper, MemSQLConnectionPoolMap}
+import org.apache.commons.io.IOUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
@@ -40,19 +41,28 @@ object MemSQLDataFrameUtils {
       case java.sql.Types.REAL => FloatType
       case java.sql.Types.BIT => BooleanType
       case java.sql.Types.CLOB => StringType
-      case java.sql.Types.BLOB => BinaryType
       case java.sql.Types.TIMESTAMP => TimestampType
       case java.sql.Types.DATE => DateType
-      case java.sql.Types.TIME => TimestampType  //srsly?
+      case java.sql.Types.TIME => TimestampType
       case java.sql.Types.DECIMAL => DecimalType(rsmd.getPrecision(ix), rsmd.getScale(ix))
       case java.sql.Types.LONGNVARCHAR => StringType
       case java.sql.Types.LONGVARCHAR => StringType
       case java.sql.Types.VARCHAR => StringType
       case java.sql.Types.NVARCHAR => StringType
+      case java.sql.Types.BLOB => BinaryType
       case java.sql.Types.LONGVARBINARY => BinaryType
       case java.sql.Types.VARBINARY => BinaryType
       case java.sql.Types.BINARY => BinaryType
       case _ => throw new IllegalArgumentException("Can't translate type " + rsmd.getColumnTypeName(ix))
+    }
+  }
+
+  private def getByteArrayFromBlob(row: ResultSet, ix: Int): Array[Byte] = {
+    // get the blob and then check if the read value was null.
+    val blob = row.getBlob(ix)
+    row.wasNull match {
+      case true => null
+      case false => IOUtils.toByteArray(blob.getBinaryStream)
     }
   }
 
@@ -65,11 +75,10 @@ object MemSQLDataFrameUtils {
       case java.sql.Types.SMALLINT => row.getShort(ix)
       case java.sql.Types.DOUBLE => row.getDouble(ix)
       case java.sql.Types.NUMERIC => row.getDouble(ix)
-      case java.sql.Types.REAL => row.getDouble(ix)
+      case java.sql.Types.REAL => row.getFloat(ix)
       case java.sql.Types.BIT => row.getBoolean(ix)
       case java.sql.Types.CLOB => row.getString(ix)
-      case java.sql.Types.BLOB => row.getClob(ix)
-      case java.sql.Types.TIMESTAMP => row.getString(ix)
+      case java.sql.Types.TIMESTAMP => row.getTimestamp(ix)
       case java.sql.Types.DATE => row.getDate(ix)
       case java.sql.Types.TIME => row.getTime(ix)
       case java.sql.Types.DECIMAL => row.getBigDecimal(ix)
@@ -77,9 +86,11 @@ object MemSQLDataFrameUtils {
       case java.sql.Types.LONGVARCHAR => row.getString(ix)
       case java.sql.Types.VARCHAR => row.getString(ix)
       case java.sql.Types.NVARCHAR => row.getString(ix)
-      case java.sql.Types.LONGVARBINARY => row.getString(ix)
-      case java.sql.Types.VARBINARY => row.getString(ix)
-      case java.sql.Types.BINARY => row.getString(ix)
+      // NOTE: java.sql.Blob isn't serializable so we return a byte array instead
+      case java.sql.Types.BLOB => getByteArrayFromBlob(row, ix)
+      case java.sql.Types.LONGVARBINARY => getByteArrayFromBlob(row, ix)
+      case java.sql.Types.VARBINARY => getByteArrayFromBlob(row, ix)
+      case java.sql.Types.BINARY => getByteArrayFromBlob(row, ix)
       case _ => throw new IllegalArgumentException("Can't translate type " + dataType.toString)
     }
     if (row.wasNull) null else result
@@ -126,13 +137,14 @@ object MemSQLDataFrame {
     password: String,
     dbName: String,
     query: String): DataFrame = {
-    sqlContext.load("com.memsql.spark.connector.dataframe.MemSQLRelationProvider", Map(
+    val reader = sqlContext.read.format("com.memsql.spark.connector.dataframe.MemSQLRelationProvider").options(Map(
       "dbHost" -> dbHost,
       "dbPort" -> dbPort.toString,
       "user" -> user,
       "password" -> password,
       "dbName" -> dbName,
       "query" -> query))
+    reader.load
   }
 
   def getQuerySchema(
@@ -167,12 +179,12 @@ object MemSQLDataFrame {
   def limitZero(q: String): String = "SELECT * FROM (" + q + ") tab_alias LIMIT 0"
 }
 
-case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlContext: SQLContext)
-   extends BaseRelation with PrunedFilteredScan {
-  val schema : StructType = MemSQLDataFrame.getQuerySchema(rdd.dbHost, rdd.dbPort, rdd.user, rdd.password, rdd.dbName, rdd.sql)
+case class MemSQLScan(@transient rdd: MemSQLRDD[Row], @transient sqlContext: SQLContext)
+  extends BaseRelation with PrunedFilteredScan {
+  val schema: StructType = MemSQLDataFrame.getQuerySchema(rdd.dbHost, rdd.dbPort, rdd.user, rdd.password, rdd.dbName, rdd.sql)
 
   private def getWhere(filters: Array[Filter], result: StringBuilder, conjunction: String): StringBuilder = {
-    for (i <- 0 to (filters.size - 1)) {
+    for (i <- filters.indices) {
       if (i != 0) { // scala apparently has no "pythonic" join
         result.append(conjunction)
       }
@@ -187,7 +199,7 @@ case class MemSQLScan(@transient val rdd: MemSQLRDD[Row], @transient val sqlCont
         case LessThanOrEqual(attr, v) => result.append(attr).append(" <= '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
         case In(attr, vs) => {
           result.append(" in (")
-          for (j <- 0 to (vs.size - 1)) {
+          for (j <- vs.indices) {
             if (j != 0) {
               result.append(",")
             }

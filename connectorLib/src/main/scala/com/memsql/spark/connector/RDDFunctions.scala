@@ -262,12 +262,9 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
           }
           for (j <- 0 until row.size) {
             val x = row.get(j)
-            if (x == null)
-            {
+            if (x == null) {
               stmt.setNull(i, Types.NULL)
-            }
-            else
-            {
+            } else {
               stmt.setObject(i, x)
             }
             i = i + 1
@@ -356,14 +353,19 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
               // We tried using off the shelf CSVWriter, but found it qualitatively slower.
               // The csv writer below has been benchmarked at 90 Mps going to a null output stream
               //
-              var elt = ""
-              if (row(i) == null) {
-                elt = "\\N"
-              } else {
-                elt = row(i).toString
-                if (elt.indexOf('\\') != -1) { elt = elt.replace("\\","\\\\") }
-                if (elt.indexOf('\n') != -1) { elt = elt.replace("\n","\\n")  }
-                if (elt.indexOf('\t') != -1) { elt = elt.replace("\t","\\t")  }
+              val elt = row(i) match {
+                case null => "\\N"
+                // NOTE: We special case booleans because MemSQL/MySQL's LOAD DATA semantics only accept "1" as true
+                // in boolean/tinyint(1) columns
+                case true => "1"
+                case false => "0"
+                case default => {
+                  var eltString = row(i).toString
+                  if (eltString.indexOf('\\') != -1) { eltString = eltString.replace("\\","\\\\") }
+                  if (eltString.indexOf('\n') != -1) { eltString = eltString.replace("\n","\\n")  }
+                  if (eltString.indexOf('\t') != -1) { eltString = eltString.replace("\t","\\t")  }
+                  eltString
+                }
               }
               outstream.write(elt.getBytes)
               outstream.write(if (i== row.size - 1) '\n' else '\t')

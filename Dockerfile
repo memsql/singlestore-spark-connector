@@ -41,7 +41,7 @@ RUN sudo tar zxvf /tmp/memsql-ops.tar.gz -C /tmp
 RUN sudo /tmp/memsql-ops-$MEMSQL_OPS_VERSION/install.sh -n
 
 # prepare memsql
-RUN wget -q -O /tmp/memsqlbin_amd64.tar.gz http://download.memsql.com/releases/version/4.1.0/memsqlbin_amd64.tar.gz
+RUN wget -q -O /tmp/memsqlbin_amd64.tar.gz http://download.memsql.com/releases/version/4.1.1/memsqlbin_amd64.tar.gz
 RUN sudo rm -f /var/lib/memsql-ops/data/memsql-ops.pid && \
     sudo memsql-ops start && \
     sudo memsql-ops file-add -t memsql /tmp/memsqlbin_amd64.tar.gz && \
@@ -54,10 +54,10 @@ RUN sudo apt-get clean && sudo rm -rf /var/lib/apt/lists/* /tmp/*
 # download spark distribution and update spark interface jar
 RUN sudo mkdir -p /storage/testroot/memsql-spark
 RUN sudo wget -q -O /storage/testroot/memsql-spark/memsql-spark.tar.gz \
-    http://download.memsql.com/memsql-spark-1.4.1-distribution-1.1.1/memsql-spark-1.4.1-distribution-1.1.1.tar.gz && \
+    http://download.memsql.com/memsql-spark-1.5.1-distribution-1.1.1-SNAPSHOT/memsql-spark-1.5.1-distribution-1.1.1-SNAPSHOT.tar.gz && \
     sudo tar zxvf /storage/testroot/memsql-spark/memsql-spark.tar.gz -C /storage/testroot/memsql-spark && \
     sudo rm /storage/testroot/memsql-spark/memsql-spark.tar.gz
-ADD tests/target/scala-2.10/tests-assembly-1.1.1.jar /storage/testroot/memsql-spark/interface/memsql_spark_interface.jar
+ADD tests/target/scala-2.10/tests-assembly-1.1.1-SNAPSHOT.jar /storage/testroot/memsql-spark/interface/memsql_spark_interface.jar
 ADD dockertest/sample_pipelines/target/scala-2.10/sample-pipelines-assembly-0.0.1.jar /storage/testroot/sample_pipelines.jar
 
 # prepare java for tests
