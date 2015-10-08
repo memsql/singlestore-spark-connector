@@ -13,7 +13,7 @@ class CSVTransformerException(message: String) extends Exception(message)
 
 case class CSVTransformerConfig(
   delimiter: Option[Char],
-  escape: Option[Char],
+  escape: Option[String],
   quote: Option[Char],
   null_string: Option[String],
   columns: JsValue) extends PhaseConfig
@@ -53,12 +53,18 @@ class CSVTransformer extends ByteArrayTransformer {
   }
 
   private def getCSVFormat(config: CSVTransformerConfig): CSVFormat = {
-    CSVFormat.newFormat(config.delimiter.getOrElse(','))
+    val format = CSVFormat.newFormat(config.delimiter.getOrElse(','))
       .withIgnoreSurroundingSpaces()
       .withIgnoreEmptyLines(false)
       .withRecordSeparator('\n')
-      .withEscape(config.escape.getOrElse('\\'))
       .withQuote(config.quote.getOrElse('"'))
+
+    config.escape match {
+      case None => format.withEscape('\\')
+      case Some("") => format
+      case Some(x) if x.size == 1 => format.withEscape(x.head)
+      case _ => throw new CSVTransformerException("Escape is not a single character")
+    }
   }
 
   // TODO: support non-standard line delimiters
