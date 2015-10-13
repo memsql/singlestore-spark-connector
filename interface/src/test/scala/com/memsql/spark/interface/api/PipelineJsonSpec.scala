@@ -183,7 +183,8 @@ class PipelineJsonSpec extends UnitSpec {
         "batch_interval": 100,
         "last_updated": 145,
         "error": "test error",
-        "active": true
+        "active": true,
+        "thread_state": "THREAD_RUNNING"
       }"""
     var pipeline = jsonString.parseJson.convertTo[Pipeline]
     assert(pipeline.pipeline_id == "pipeline1")
@@ -240,7 +241,8 @@ class PipelineJsonSpec extends UnitSpec {
         "batch_interval": 100,
         "last_updated": 145,
         "error": "test error",
-        "active": true
+        "active": true,
+        "thread_state": "THREAD_RUNNING"
       }"""
     pipeline = jsonString.parseJson.convertTo[Pipeline]
     assert(pipeline.pipeline_id == "pipeline1")

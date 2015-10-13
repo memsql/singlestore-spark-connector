@@ -3,6 +3,7 @@ package com.memsql.spark.interface.api
 import akka.actor.Actor.Receive
 import akka.actor.{ActorRef, Actor}
 import akka.util.Timeout
+import com.memsql.spark.interface.api.PipelineThreadState.PipelineThreadState
 import com.memsql.spark.interface.util.{Clock, BaseException}
 import com.memsql.spark.phases.configs.ExtractPhase
 import com.memsql.spark.etl.api.configs.TransformPhase
@@ -28,7 +29,8 @@ object ApiActor {
                             batch_interval: Option[Long] = None,
                             config: Option[PipelineConfig] = None,
                             trace_batch_count: Option[Int] = None,
-                            error: Option[String] = None, _validate: Boolean = false)
+                            error: Option[String] = None, _validate: Boolean = false,
+                            threadState: PipelineThreadState = PipelineThreadState.THREAD_STOPPED)
   case class PipelineMetrics(pipeline_id: String, last_timestamp: Option[Long])
   case class PipelineTraceBatchDecrement(pipeline_id: String)
   case class PipelineDelete(pipeline_id: String)
@@ -81,7 +83,7 @@ trait ApiService {
         case NonFatal(e) => sender ! Failure(ApiException(s"unexpected exception: $e"))
       }
     }
-    case PipelineUpdate(pipeline_id, state, batch_interval, config, trace_batch_count, error, _validate) => {
+    case PipelineUpdate(pipeline_id, state, batch_interval, config, trace_batch_count, error, _validate, threadState) => {
       pipelines.get(pipeline_id) match {
         case Some(pipeline) => {
           var updated = false
@@ -140,11 +142,14 @@ trait ApiService {
               newTraceBatchCount = trace_batch_count.get
             }
 
+            val runningStatusChanged = (pipeline.thread_state != threadState)
+
             // update all fields in the pipeline and respond with success
-            if (updated) {
-              val newLastUpdated = clock.currentTimeMillis
+            if (updated || runningStatusChanged) {
+              val newLastUpdated = if (updated) clock.currentTimeMillis else pipeline.last_updated
               val newPipeline = Pipeline(pipeline_id, state=newState, batch_interval=newBatchInterval,
-                                         last_updated=newLastUpdated, config=newConfig, error=newError)
+                                         last_updated=newLastUpdated, config=newConfig, error=newError,
+                                         thread_state = threadState)
               newPipeline.traceBatchCount = newTraceBatchCount
               newPipeline.metricsQueue = pipeline.metricsQueue
               pipelines = pipelines + (pipeline_id -> newPipeline)

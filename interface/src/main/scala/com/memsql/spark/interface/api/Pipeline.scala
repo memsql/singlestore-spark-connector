@@ -1,6 +1,7 @@
 package com.memsql.spark.interface.api
 
 import com.memsql.spark.etl.api.configs._
+import com.memsql.spark.interface.api.PipelineThreadState.PipelineThreadState
 import com.memsql.spark.interface.util.BoundedQueue
 import com.memsql.spark.phases.configs.ExtractPhase
 import spray.json.DeserializationException
@@ -10,6 +11,11 @@ object PipelineState extends Enumeration {
   val RUNNING, STOPPED, ERROR = Value
 }
 
+object PipelineThreadState extends Enumeration {
+  type PipelineThreadState = Value
+  val THREAD_RUNNING, THREAD_STOPPED = Value
+}
+
 import PipelineState._
 
 case class Pipeline(pipeline_id: String,
@@ -17,7 +23,8 @@ case class Pipeline(pipeline_id: String,
                     batch_interval: Long,
                     config: PipelineConfig,
                     last_updated: Long,
-                    error: Option[String] = None) {
+                    error: Option[String] = None,
+                    thread_state: PipelineThreadState = PipelineThreadState.THREAD_STOPPED) {
   Pipeline.validate(batch_interval, config)
 
   val MAX_METRICS_QUEUE_SIZE = 1000
