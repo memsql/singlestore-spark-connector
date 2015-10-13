@@ -1,26 +1,33 @@
 package com.memsql.spark.interface
 
+import java.util.concurrent.TimeoutException
+
 import akka.actor.{ActorRef, Props}
+import akka.pattern.ask
+import akka.util.Timeout
 import com.memsql.spark.etl.api.UserExtractConfig
 import com.memsql.spark.etl.api.configs._
 import ExtractPhaseKind._
 import TransformPhaseKind._
 import LoadPhaseKind._
-import com.memsql.spark.interface.api.{PipelineInstance, Pipeline, PipelineState, ApiActor}
+import com.memsql.spark.etl.utils.Logging
+import com.memsql.spark.interface.api._
 import ApiActor._
 import com.memsql.spark.phases.{JsonTransformConfig, ZookeeperManagedKafkaExtractConfig}
 import com.memsql.spark.phases.configs.ExtractPhase
 import org.apache.spark.{SparkContext, SparkConf}
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.streaming.{StreamingContext, Duration}
+import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
 import spray.json._
 
 // scalastyle:off magic.number
-class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSparkContext {
+class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSparkContext with Logging {
   var mockTime = new MockTime()
   val apiRef = system.actorOf(Props(classOf[TestApiActor], mockTime))
+  implicit val timeout = Timeout(5.seconds)
 
   override def beforeEach(): Unit = {
     val conf = new SparkConf().setMaster("local").setAppName("Test")
@@ -42,11 +49,11 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
         LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))))
 
   class MockPipelineMonitor(override val api: ActorRef,
-                                         pipeline: Pipeline,
+                                     val pipeline: Pipeline,
                             override val pipelineInstance: PipelineInstance,
                             override val sparkContext: SparkContext,
                             override val streamingContext: StreamingContext,
-                            override val sqlContext: SQLContext) extends PipelineMonitor {
+                            override val sqlContext: SQLContext) extends PipelineMonitor with Logging {
 
     override def pipeline_id: String = pipeline.pipeline_id // scalastyle:ignore
     override def batchInterval: Long = pipeline.batch_interval
@@ -56,21 +63,46 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     override var error: Throwable = null
     override def traceBatchCount(): Int = pipeline.traceBatchCount
 
-    var running = false
+    val thread = new Thread(new Runnable {
+      override def run(): Unit = {
+        try {
+          logInfo(s"Starting pipeline $pipeline_id")
+          val future = (apiRef ? PipelineUpdate(pipeline_id, error = Some(if (error == null) "" else error.toString),
+            threadState = Some(PipelineThreadState.THREAD_RUNNING))).mapTo[Try[Boolean]]
+          Await.result[Try[Boolean]](future, 1.seconds) match {
+            case Success(resp) => runPipeline
+            case Failure(error) => logError(s"Failed to update pipeline $pipeline_id state to RUNNING", error)
+          }
+        } catch {
+          case e: InterruptedException => //exit
+          case e: TimeoutException => {
+            throw new PipelineMonitorException(s"Timed out updating pipeline $pipeline_id state to RUNNING")
+          }
+        }
+      }
+    })
 
-    override def runPipeline(): Unit = {}
-
-    override def ensureStarted(): Unit = {
-      running = true
+    override def runPipeline(): Unit = {
+      while (true) {
+        Thread.sleep(1)
+      }
     }
 
-    override def isAlive: Boolean = running
+    override def ensureStarted(): Unit = {
+      try {
+        thread.start
+      } catch {
+        case e: Throwable => logInfo(e.toString)
+      }
+    }
+
+    override def isAlive: Boolean = thread.isAlive
 
     override def stop(): Unit = {
-      running match {
-        case false => fail("pipeline is not running")
-        case true => running = false
-      }
+      thread.interrupt
+      thread.join
+      (apiRef ? PipelineUpdate(pipeline_id, error = Some(if (error == null) "" else error.toString),
+        threadState = Some(PipelineThreadState.THREAD_STOPPED))).mapTo[Try[Boolean]]
     }
   }
 
@@ -103,6 +135,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     override def update: Unit = {
       super.update()
       mockTime.tick()
+      Thread.sleep(1000)
     }
   }
 
@@ -144,6 +177,33 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       assert(pipelineMonitor.isAlive)
       pipeline = getPipeline("pipeline1")
       assert(pipeline.state == PipelineState.RUNNING)
+      assert(pipeline.thread_state == PipelineThreadState.THREAD_RUNNING)
+
+      pipelineMonitor.stop
+    }
+
+    "set thread_state for a new pipeline" in {
+      putPipeline("running_pipeline", batch_interval = 1200, config = config)
+      sparkInterface.update
+      val pipelineInitial = getPipeline("running_pipeline")
+      val pipelineMonitor = sparkInterface.pipelineMonitors.get(pipelineInitial.pipeline_id)
+      sparkInterface.update
+      val pipelineRunning = getPipeline("running_pipeline")
+      assert(pipelineRunning.thread_state == PipelineThreadState.THREAD_RUNNING)
+      assert(pipelineRunning.state == PipelineState.RUNNING)
+
+      apiRef ! PipelineUpdate("running_pipeline", Some(PipelineState.STOPPED),
+        Some(pipelineRunning.batch_interval), Some(pipelineRunning.config),
+        Some(0), Some(""), false, Some(PipelineThreadState.THREAD_STOPPED))
+      receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
+        case Success(resp) => assert(resp)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      sparkInterface.update
+      val pipelineFinal = getPipeline("running_pipeline")
+      assert(pipelineFinal.thread_state == PipelineThreadState.THREAD_STOPPED)
+      pipelineMonitor.get.stop
     }
 
     "set pipeline to ERROR state if monitor failed on instantiation" in {
@@ -213,16 +273,18 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       sparkInterface.update
 
       val pipelineMonitor = sparkInterface.pipelineMonitors.get("pipeline2").get
+      pipelineMonitor.error = new Exception("random error")
       pipelineMonitor.stop
-      assert(!pipelineMonitor.isAlive)
 
+      assert(!pipelineMonitor.isAlive)
       pipeline = getPipeline("pipeline2")
       assert(pipeline.state == PipelineState.RUNNING)
+      assert(pipeline.thread_state == PipelineThreadState.THREAD_STOPPED)
 
       sparkInterface.update
 
-      //now monitor should be started again
-      assert(pipelineMonitor.isAlive)
+      val pipelineNext = getPipeline("pipeline2")
+      assert(pipelineNext.thread_state == PipelineThreadState.THREAD_RUNNING)
     }
 
     "clear monitors when pipelines are deleted" in {
@@ -305,14 +367,18 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
         case Failure(err) => fail(s"unexpected response $err")
       }
       pipeline = getPipeline("pipeline3")
-      sparkInterface.update
 
+      sparkInterface.update
       oldPipelineMonitor = newPipelineMonitor
       newPipelineMonitor = sparkInterface.pipelineMonitors.get("pipeline3").get
       assert(newPipelineMonitor == oldPipelineMonitor)
       assert(newPipelineMonitor.isAlive)
       assert(newPipelineMonitor.config == newConfig)
       assert(newPipelineMonitor.traceBatchCount == 0)
+
+      assert(pipeline.traceBatchCount == 0)
+      assert(pipeline eq newPipelineMonitor.asInstanceOf[MockPipelineMonitor].pipeline)
+      assert(pipeline.thread_state == PipelineThreadState.THREAD_RUNNING)
 
       // updating the trace_batch_count should not restart the pipeline monitor
       apiRef ! PipelineUpdate("pipeline3", trace_batch_count = Some(10))
@@ -325,6 +391,8 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
 
       oldPipelineMonitor = newPipelineMonitor
       newPipelineMonitor = sparkInterface.pipelineMonitors.get("pipeline3").get
+      assert(newPipelineMonitor.asInstanceOf[MockPipelineMonitor].pipeline eq pipeline)
+      assert(pipeline.thread_state == PipelineThreadState.THREAD_RUNNING)
       assert(newPipelineMonitor == oldPipelineMonitor)
       assert(newPipelineMonitor.isAlive)
       assert(newPipelineMonitor.traceBatchCount == 10)

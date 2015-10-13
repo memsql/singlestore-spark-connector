@@ -26,7 +26,7 @@ object ApiJsonProtocol extends JsonEnumProtocol {
   implicit val pipelineStateFormat = jsonEnum(PipelineState)
   implicit val pipelineThreadStateFormat = jsonEnum(PipelineThreadState)
 
-  val basePipelineFormat = jsonFormat(Pipeline.apply, "pipeline_id", "state", "batch_interval", "config", "last_updated", "error", "thread_state")
+  val basePipelineFormat = jsonFormat(Pipeline.apply, "pipeline_id", "state", "batch_interval", "config", "last_updated", "error")
 
   implicit object pipelineEventFormat extends RootJsonFormat[PipelineEvent] {
     def write(e: PipelineEvent): JsValue = e match {
@@ -43,6 +43,7 @@ object ApiJsonProtocol extends JsonEnumProtocol {
     def write(p: Pipeline): JsValue =
       JsObject(
         basePipelineFormat.write(p).asJsObject.fields + ("trace_batch_count" -> p.traceBatchCount.toJson)
+          + ("thread_state" -> p.thread_state.toJson)
       )
 
     // Note: This method doesn't support reading in traceBatchCount

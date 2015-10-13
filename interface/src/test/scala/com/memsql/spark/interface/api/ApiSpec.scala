@@ -362,6 +362,42 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.traceBatchCount == 10)
         case Failure(err) => fail(s"unexpected response $err")
       }
+
+      mockTime.tick
+      apiRef ! PipelineUpdate("pipeline1", threadState=Some(PipelineThreadState.THREAD_RUNNING))
+      expectMsg(Success(true))
+      apiRef ! PipelineGet("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val pipeline = resp.get.asInstanceOf[Pipeline]
+          assert(pipeline.thread_state == PipelineThreadState.THREAD_RUNNING)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      mockTime.tick
+      apiRef ! PipelineUpdate("pipeline1", trace_batch_count=Some(3), threadState=Some(PipelineThreadState.THREAD_STOPPED))
+      expectMsg(Success(true))
+      apiRef ! PipelineGet("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val pipeline = resp.get.asInstanceOf[Pipeline]
+          assert(pipeline.thread_state == PipelineThreadState.THREAD_STOPPED)
+          assert(pipeline.traceBatchCount == 3)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      mockTime.tick
+      apiRef ! PipelineUpdate("pipeline1", batch_interval = Some(2), threadState=Some(PipelineThreadState.THREAD_RUNNING))
+      expectMsg(Success(true))
+      apiRef ! PipelineGet("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val pipeline = resp.get.asInstanceOf[Pipeline]
+          assert(pipeline.thread_state == PipelineThreadState.THREAD_RUNNING)
+          assert(pipeline.traceBatchCount == 3)
+          assert(pipeline.batch_interval == 2)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
     }
 
     "return metrics when available" in {

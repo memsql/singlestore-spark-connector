@@ -30,7 +30,7 @@ object ApiActor {
                             config: Option[PipelineConfig] = None,
                             trace_batch_count: Option[Int] = None,
                             error: Option[String] = None, _validate: Boolean = false,
-                            threadState: PipelineThreadState = PipelineThreadState.THREAD_STOPPED)
+                            threadState: Option[PipelineThreadState] = None)
   case class PipelineMetrics(pipeline_id: String, last_timestamp: Option[Long])
   case class PipelineTraceBatchDecrement(pipeline_id: String)
   case class PipelineDelete(pipeline_id: String)
@@ -92,6 +92,7 @@ trait ApiService {
           var newConfig = pipeline.config
           var newError = pipeline.error
           var newTraceBatchCount = pipeline.traceBatchCount
+          var newThreadState = pipeline.thread_state
 
           try {
             if (state.isDefined) {
@@ -142,20 +143,23 @@ trait ApiService {
               newTraceBatchCount = trace_batch_count.get
             }
 
-            val runningStatusChanged = (pipeline.thread_state != threadState)
+            if (threadState.isDefined) {
+              newThreadState = threadState.get
+            }
 
+            val threadStateChanged = (newThreadState != pipeline.thread_state)
             // update all fields in the pipeline and respond with success
-            if (updated || runningStatusChanged) {
+            if (updated) {
               val newLastUpdated = if (updated) clock.currentTimeMillis else pipeline.last_updated
               val newPipeline = Pipeline(pipeline_id, state=newState, batch_interval=newBatchInterval,
-                                         last_updated=newLastUpdated, config=newConfig, error=newError,
-                                         thread_state = threadState)
+                                         last_updated=newLastUpdated, config=newConfig, error=newError)
+              newPipeline.thread_state = newThreadState
               newPipeline.traceBatchCount = newTraceBatchCount
               newPipeline.metricsQueue = pipeline.metricsQueue
               pipelines = pipelines + (pipeline_id -> newPipeline)
               sender ! Success(true)
-            } else if (newTraceBatchCount != pipeline.traceBatchCount) {
-              // in the case where only the batch count has changed, update it in place
+            } else if (threadStateChanged || newTraceBatchCount != pipeline.traceBatchCount) {
+              pipeline.thread_state = newThreadState
               pipeline.traceBatchCount = newTraceBatchCount
               sender ! Success(true)
             } else {

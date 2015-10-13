@@ -23,13 +23,13 @@ case class Pipeline(pipeline_id: String,
                     batch_interval: Long,
                     config: PipelineConfig,
                     last_updated: Long,
-                    error: Option[String] = None,
-                    thread_state: PipelineThreadState = PipelineThreadState.THREAD_STOPPED) {
+                    error: Option[String] = None) {
   Pipeline.validate(batch_interval, config)
 
   val MAX_METRICS_QUEUE_SIZE = 1000
   @volatile private[interface] var metricsQueue = new BoundedQueue[PipelineEvent](MAX_METRICS_QUEUE_SIZE)
   @volatile private[interface] var traceBatchCount = 0
+  @volatile private[interface] var thread_state = PipelineThreadState.THREAD_STOPPED
 
   private[interface] def enqueueMetricRecord(records: PipelineEvent*) = {
     metricsQueue.enqueue(records: _*)

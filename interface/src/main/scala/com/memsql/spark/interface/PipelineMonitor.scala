@@ -109,7 +109,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       try {
         logInfo(s"Starting pipeline $pipeline_id")
         val future = (api ? PipelineUpdate(pipeline_id, Some(PipelineState.RUNNING), error = Some(""),
-          threadState = PipelineThreadState.THREAD_RUNNING)).mapTo[Try[Boolean]]
+          threadState = Some(PipelineThreadState.THREAD_RUNNING))).mapTo[Try[Boolean]]
         Await.result[Try[Boolean]](future, 5.seconds) match {
           case Success(resp) => runPipeline
           case Failure(error) => logError(s"Failed to update pipeline $pipeline_id state to RUNNING", error)
@@ -304,7 +304,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         error = e
       }
     } finally {
-      (api ? PipelineUpdate(pipeline_id, Some(PipelineState.STOPPED), error = Some(""), threadState = PipelineThreadState.THREAD_STOPPED)).mapTo[Try[Boolean]]
+      (api ? PipelineUpdate(pipeline_id, Some(PipelineState.STOPPED), error = Some(""),
+        threadState = Some(PipelineThreadState.THREAD_STOPPED))).mapTo[Try[Boolean]]
       logInfo(s"Stopping pipeline $pipeline_id")
       val pipelineEndEvent = PipelineEndEvent(
         pipeline_id = pipeline_id,
