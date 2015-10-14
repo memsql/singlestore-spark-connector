@@ -6,25 +6,39 @@ import java.sql.Timestamp
 import akka.pattern.ask
 import akka.actor.Props
 import akka.util.Timeout
-import com.memsql.spark.etl.api.UserExtractConfig
+import com.memsql.spark.connector.dataframe.{JsonType, JsonValue}
+import com.memsql.spark.etl.api.{UserTransformConfig, PhaseConfig, ByteArrayTransformer, UserExtractConfig}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.ByteUtils._
 import ExtractPhaseKind._
 import TransformPhaseKind._
 import LoadPhaseKind._
-import com.memsql.spark.interface.api.{Pipeline, PipelineState, ApiActor}
+import com.memsql.spark.etl.utils.PhaseLogger
+import com.memsql.spark.interface.api._
 import ApiActor._
-import com.memsql.spark.interface.util.Paths
-import com.memsql.spark.phases.{ZookeeperManagedKafkaExtractConfig, JsonTransformConfig}
+import com.memsql.spark.interface.util.{PipelineLogger, Paths}
+import com.memsql.spark.phases.{TestLinesExtractConfig, ZookeeperManagedKafkaExtractConfig, JsonTransformConfig}
 import com.memsql.spark.phases.configs.ExtractPhase
+import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkConf}
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.sql.types._
 import org.apache.spark.streaming.{Duration, StreamingContext}
 import spray.json._
 import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
+import com.memsql.spark.etl.utils.Logging
+
+class DuplicateTransformer extends ByteArrayTransformer {
+  var columnName: String = "testcol"
+  val DUPLICATION_FACTOR = 100
+
+  override def transform(sqlContext: SQLContext, rdd: RDD[Array[Byte]], transformConfig: PhaseConfig, logger: PhaseLogger): DataFrame = {
+    val transformedRDD = rdd.flatMap(r => List.fill(DUPLICATION_FACTOR)(Row(new JsonValue(byteUtils.bytesToUTF8String(r)))))
+    val schema = StructType(Array(StructField(columnName, JsonType, true)))
+    sqlContext.createDataFrame(transformedRDD, schema)
+  }
+}
 
 // scalastyle:off magic.number
 class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalSparkContext {
@@ -117,7 +131,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
           )
           val df = sqlContext.createDataFrame(sc.parallelize(rows), schema)
 
-          val (columns, records) = pm.getTransformRecords(df)
+          val (columns, records) = pm.getTransformRecords(df, rows.size)
           assert(columns.get == List(("val_int", "integer"), ("val_string", "string"), ("val_datetime", "timestamp"), ("val_bool", "boolean")))
           // We should take the first 10 records from the above RDD.
           val record1 = records.get(0)
@@ -137,6 +151,64 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
           assert(record3(3) == "false")
         }
         case Failure(error) => fail(s"Expected pipeline pipeline2 to exist: $error")
+      }
+    }
+  }
+
+  "Transform truncation test" should {
+    "truncate the transformed result" in {
+      val transformTestConfig = PipelineConfig(
+        Phase[ExtractPhaseKind](
+          ExtractPhaseKind.TestLines,
+          ExtractPhase.writeConfig(
+            ExtractPhaseKind.TestLines, TestLinesExtractConfig("testtest\ntest\ntest\ntest\ntest\ntest"))),
+        Phase[TransformPhaseKind](
+          TransformPhaseKind.User,
+          TransformPhase.writeConfig(
+            TransformPhaseKind.User, UserTransformConfig(class_name = "com.memsql.spark.interface.DuplicateTransformer", value = JsString("test")))),
+        Phase[LoadPhaseKind](
+          LoadPhaseKind.MemSQL,
+          LoadPhase.writeConfig(
+            LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))))
+
+      apiRef ? PipelinePut("pipeline3", batch_interval = 1, config = transformTestConfig)
+
+      apiRef ! PipelineUpdate("pipeline3", trace_batch_count = Some(5))
+      receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
+        case Success(resp) => assert(resp)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      whenReady((apiRef ? PipelineGet("pipeline3")).mapTo[Try[Pipeline]]) {
+        case Success(pipeline) => {
+          val pm = new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
+          pm.ensureStarted
+          assert(pm.isAlive())
+
+          Thread.sleep(2000)
+          val q = pipeline.metricsQueue
+
+          while (!q.isEmpty) {
+            val event = q.dequeue
+            event.event_type match {
+              case PipelineEventType.BatchEnd => {
+                event.asInstanceOf[BatchEndEvent].transform match {
+                  case None => fail("BatchEndEvent does not contain a transform record")
+                  case Some(x) => {
+                    x.records match {
+                      case None => fail("transform does not contain records")
+                      case Some(y) => assert(y.size < 20)
+                    }
+                  }
+                }
+              }
+              case _ =>
+            }
+          }
+
+          pm.stop
+        }
+        case Failure(error) => fail(s"Expected pipeline pipeline3 to exist: $error")
       }
     }
   }

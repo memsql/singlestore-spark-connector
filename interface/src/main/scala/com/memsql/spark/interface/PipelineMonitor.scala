@@ -183,6 +183,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         sparkContext.setJobGroup(batch_id, s"Batch for MemSQL Pipeline $pipeline_id", interruptOnCancel = true)
         var tracedRdd: RDD[Array[Byte]] = null
         var extractedRdd: RDD[Array[Byte]] = null
+        var upperBound: Long = 0
         extractRecord = runPhase(extractLogger, trace, () => {
           val maybeRdd = inputDStream.compute(Time(time))
           maybeRdd match {
@@ -196,6 +197,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
                 tracedRdd = rdds(0)
                 extractedRdd = rdds(1)
                 val (columns, records) = getExtractRecords(tracedRdd)
+                upperBound = math.max(TRACED_RECORDS_PER_BATCH, tracedRdd.count)
                 PhaseResult(count = count, columns = columns, records = records)
               } else {
                 extractedRdd = rdd
@@ -243,7 +245,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
               var records: Option[List[List[String]]] = None
               if (tracedDf != null) {
                 count = Some(tracedCount + df.count)
-                val columnsAndRecords = getTransformRecords(tracedDf)
+                val columnsAndRecords = getTransformRecords(tracedDf, upperBound)
                 columns = columnsAndRecords._1
                 records = columnsAndRecords._2
               }
@@ -417,11 +419,11 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     (Some(fields), Some(values))
   }
 
-  private[interface] def getTransformRecords(df: DataFrame): (Option[List[(String, String)]], Option[List[List[String]]]) = {
+  private[interface] def getTransformRecords(df: DataFrame, truncCount: Long): (Option[List[(String, String)]], Option[List[List[String]]]) = {
     val fields = df.schema.fields.map(field => (field.name, field.dataType.typeName)).toList
     // Create a list of lists, where each inner list represents the values of
     // each column in fieldNames for a given row.
-    val values: List[List[String]] = df.map(row => {
+    val values: List[List[String]] = df.take(truncCount.toInt).map(row => {
       try {
         fields.map(field => {
           row.getAs[Any](field._1) match {
@@ -432,7 +434,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       } catch {
         case e: Exception => List(s"Could not get string representation of row: $e")
       }
-    }).collect.toList
+    }).toList
     (Some(fields), Some(values))
   }
 
