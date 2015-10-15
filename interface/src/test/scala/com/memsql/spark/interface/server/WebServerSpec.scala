@@ -432,7 +432,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == OK)
     }
 
-    val userConfigWithCheckpointing = userConfig.copy(enable_checkpointing = true)
+    val userConfigWithCheckpointing = userConfig.copy(enable_checkpointing = Some(true))
     val userConfigWithCheckpointingEntity = HttpEntity(`application/json`, userConfigWithCheckpointing.toJson.toString)
     Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigWithCheckpointingEntity) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
@@ -442,7 +442,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     // pipeline should be running with checkpointing enabled
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
-      assert(pipeline.config.enable_checkpointing == true)
+      assert(pipeline.config.enable_checkpointing.get == true)
       assert(status == OK)
     }
 
@@ -455,7 +455,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     // pipeline should still be running with checkpointing enabled
     Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
       val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
-      assert(pipeline.config.enable_checkpointing == true)
+      assert(pipeline.config.enable_checkpointing.get == true)
       assert(status == OK)
     }
   }

@@ -365,7 +365,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   }
 
   private[interface] def initializeExtractorCheckpoint: Unit = {
-    if (config.enable_checkpointing) {
+    if (config.enable_checkpointing.getOrElse(false)) {
       logDebug(s"Retrieving checkpoint data for pipeline $pipeline_id")
       val checkpointData = Checkpoint.getCheckpointData(pipeline_id)
       extractor.lastCheckpoint = checkpointData
@@ -373,7 +373,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   }
 
   private[interface] def saveExtractorCheckpoint(batchId: String, success: Boolean): Unit = {
-    if (config.enable_checkpointing) {
+    if (config.enable_checkpointing.getOrElse(false)) {
       //NOTE: if we error because of malformed data, the batch will be retried indefinitely
       if (success) {
         extractor.batchCheckpoint match {
