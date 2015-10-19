@@ -94,10 +94,26 @@ object MemSQLDataFrame {
     password: String,
     dbName: String,
     query: String): MemSQLRDD[Row] = {
-    new MemSQLRDD(sc, dbHost, dbPort, user, password, dbName, query, (r:ResultSet) => {
+    new MemSQLRDD(sc, dbHost, dbPort, user, password, dbName, query, Array[Object](), (r:ResultSet) => {
       val count = r.getMetaData.getColumnCount
       Row.fromSeq(Range(0, count)
          .map(i => MemSQLDataFrameUtils.GetJDBCValue(r.getMetaData.getColumnType(i + 1), i + 1, r)))
+    })
+  }
+
+  def MakeMemSQLRowRDDFromTemplate(
+    sc: SparkContext,
+    dbHost: String,
+    dbPort: Int,
+    user: String,
+    password: String,
+    dbName: String,
+    queryTemplate: String,
+    queryParams: Seq[Object]): MemSQLRDD[Row] = {
+      new MemSQLRDD(sc, dbHost, dbPort, user, password, dbName, queryTemplate, queryParams, (r:ResultSet) => {
+        val count = r.getMetaData.getColumnCount
+        Row.fromSeq(Range(0, count)
+          .map(i => MemSQLDataFrameUtils.GetJDBCValue(r.getMetaData.getColumnType(i + 1), i + 1, r)))
     })
   }
 

@@ -75,10 +75,14 @@ import com.memsql.spark.connector.rdd.MemSQLRDD
 ...
 
 val rdd = new MemSQLRDD(
-    sparkContext, dbHost, dbPort,
-    dbUser, dbPassword, dbName,
-    "SELECT * FROM test_table",
-    (r: ResultSet) => { r.getString("test_column") })
+    sc = sparkContext,
+    dbHost = dbHost,
+    dbPort = dbPort,
+    user = dbUser,
+    password = dbPassword,
+    dbName = dbName,
+    sql = "SELECT * FROM test_table",
+    mapRow = (r: ResultSet) => { r.getString("test_column") })
 
 rdd.first()  // Contains the value of "test_column" for the first row
 ```

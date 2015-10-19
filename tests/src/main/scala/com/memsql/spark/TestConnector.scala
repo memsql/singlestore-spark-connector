@@ -1161,3 +1161,106 @@ object TestMemSQLRDDDistributedJoins {
     assert (!fail)
   }
 }
+
+object TestMemSQLRDDFromSqlTemplate {
+  def main(args: Array[String]) {
+    val host = TestUtils.GetHostname
+    val port = 3306
+    val user = "root"
+    val password = ""
+    val dbName = "x_db"
+
+    val dbAddress = "jdbc:mysql://" + host + ":" + port
+    val conn = DriverManager.getConnection(dbAddress, user, password)
+    val stmt = conn.createStatement
+    stmt.execute("DROP DATABASE IF EXISTS " + dbName)
+    stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName)
+    stmt.execute("USE " + dbName)
+
+    stmt.execute("CREATE TABLE t(a bigint primary key, b bigint)")
+    var insertQuery = ""
+    for (i <- (0 until 300)) {
+      insertQuery = insertQuery + "(" + i.toString + ", 3000),"
+    }
+    insertQuery = insertQuery + "(300, 3000)"
+    stmt.execute("INSERT INTO t values " + insertQuery)
+
+    val conf = new SparkConf().setAppName("MemSQLRDD Application")
+    val sc = new SparkContext(conf)
+    val params: Array[Object] = Seq(3000.asInstanceOf[Object]).toArray
+    val rdd = MemSQLDataFrame.MakeMemSQLRowRDDFromTemplate(sc, host, port, user, password, dbName, "SELECT a FROM t WHERE b = ?", params)
+    assert(rdd.count == 301)
+  }
+}
+
+object TestMemSQLRDDFromSqlTemplateComplex {
+  def main(args: Array[String]) {
+    val host = TestUtils.GetHostname
+    val port = 3306
+    val user = "root"
+    val password = ""
+    val dbName = "x_db"
+
+    val dbAddress = "jdbc:mysql://" + host + ":" + port
+    val conn = DriverManager.getConnection(dbAddress, user, password)
+    val stmt = conn.createStatement
+    stmt.execute("DROP DATABASE IF EXISTS " + dbName)
+    stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName)
+    stmt.execute("USE " + dbName)
+
+    stmt.execute("CREATE TABLE t(a bigint primary key, b bigint, c char(10))")
+    var insertQuery = ""
+    for (i <- (0 until 300)) {
+      insertQuery = insertQuery + "(" + i.toString + """, 3000, "test1"),"""
+    }
+
+    for (i <- (300 until 600)) {
+      insertQuery = insertQuery + "(" + i.toString + """, 5000, NULL),"""
+    }
+
+    for (i <- (600 until 900)) {
+      insertQuery = insertQuery + "(" + i.toString + """, 4000, "test3"),"""
+    }
+
+    insertQuery = insertQuery + """(900, 3000, "test1")"""
+    stmt.execute("INSERT INTO t values " + insertQuery)
+
+    val conf = new SparkConf().setAppName("MemSQLRDD Application")
+    val sc = new SparkContext(conf)
+
+    val params: Array[Object] = Array(3000, 4000, "test1").asInstanceOf[Array[Object]]
+    val rdd = MemSQLDataFrame.MakeMemSQLRowRDDFromTemplate(sc, host, port, user, password, dbName, "SELECT a FROM t WHERE (b = ? OR b = ?) and (c = ?)", params)
+    assert(rdd.count == 301)
+
+    val nullParams: Array[Object] = Array(3000, 4000, null).asInstanceOf[Array[Object]]
+    val nullRdd = MemSQLDataFrame.MakeMemSQLRowRDDFromTemplate(
+      sc, host, port, user, password, dbName, "SELECT a FROM t WHERE (b = ? OR b = ?) and (c IS NOT ?)", nullParams)
+    assert(nullRdd.count == 301)
+
+    stmt.execute("CREATE TABLE s(a bigint primary key, b timestamp)")
+    stmt.execute("INSERT INTO s values (1, '1992-06-14 00:00:01')")
+    val timestampParams = Array(new Timestamp(92, 5, 14, 0, 0, 1, 0)).asInstanceOf[Array[Object]]
+    val timestampRdd =
+      MemSQLDataFrame.MakeMemSQLRowRDDFromTemplate(sc, host, port, user, password, dbName, "SELECT a FROM s WHERE (b = ?)", timestampParams)
+    assert(timestampRdd.count == 1)
+
+    stmt.execute("CREATE TABLE p(a bigint primary key, b decimal(7, 3), c timestamp NULL)")
+    for (i <- (0 until 5)) {
+      stmt.execute(s"INSERT INTO p values (${i}, NULL, '1992-06-14 00:00:01')")
+    }
+
+    for (i <- (0 until 5)) {
+      stmt.execute(s"INSERT INTO p values (${i + 5}, 2.5, NULL)")
+    }
+
+    val nullDecimalParams = Array(null).asInstanceOf[Array[Object]]
+    val nullTimestampParams = nullDecimalParams
+    val nullDecimalRdd = MemSQLDataFrame.MakeMemSQLRowRDDFromTemplate(
+      sc, host, port, user, password, dbName, "SELECT a FROM p WHERE (b IS NOT ?)", nullDecimalParams)
+    assert(nullDecimalRdd.count == 5)
+
+    val nullTimestampRdd = MemSQLDataFrame.MakeMemSQLRowRDDFromTemplate(
+      sc, host, port, user, password, dbName, "SELECT a FROM p WHERE (c IS NOT ?)", nullTimestampParams)
+    assert(nullTimestampRdd.count == 5)
+  }
+}

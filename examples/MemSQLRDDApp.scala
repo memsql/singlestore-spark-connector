@@ -43,6 +43,7 @@ object MemSQLRDDApp {
       password,
       dbName,
       "SELECT * FROM x",
+      Array[Object](),
       (r: ResultSet) => { r.getString(2) })
     rdd.saveAsTextFile("memsql_read_rdd_output.txt")
   }

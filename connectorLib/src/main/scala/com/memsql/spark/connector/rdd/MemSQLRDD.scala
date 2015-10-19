@@ -1,6 +1,6 @@
 package com.memsql.spark.connector.rdd
 
-import java.sql.{Connection, DriverManager, ResultSet, Statement}
+import java.sql.{Connection, DriverManager, ResultSet, Statement, PreparedStatement, Types}
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Logging, Partition, SparkContext, TaskContext}
@@ -27,7 +27,9 @@ private class MemSQLRDDPartition(override val index: Int, val host: String, val 
   * @param password The password to use when connecting to the databases in the
   *   MemSQL cluster.  All the nodes in the cluster should use the same password.
   * @param dbName The name of the database we're working in.
-  * @param sql The text of the query.
+  * @param sql The text of the query. Can be a prepared statement template,
+ *    in which case parameters from sqlParams are substituted.
+ *  @param sqlParams The parameters of the query if sql is a template.
   * @param mapRow A function from a ResultSet to a single row of the desired
   *   result type(s).  This should only call getInt, getString, etc; the RDD
   *   takes care of calling next.  The default maps a ResultSet to an array of
@@ -41,6 +43,7 @@ case class MemSQLRDD[T: ClassTag](
   password: String,
   dbName: String,
   sql: String,
+  sqlParams: Seq[Object] = Seq[Object](),
   mapRow: (ResultSet) => T = MemSQLRDD.resultSetToObjectArray _)
     extends RDD[T](sc, Nil) with Logging {
 
@@ -50,7 +53,7 @@ case class MemSQLRDD[T: ClassTag](
   override def getPartitions: Array[Partition] = {
     var conn: Connection = null
     var versionStmt: Statement = null
-    var explainStmt: Statement = null
+    var explainStmt: PreparedStatement = null
     try {
       conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)
       versionStmt = conn.createStatement
@@ -67,8 +70,10 @@ case class MemSQLRDD[T: ClassTag](
           explainQuery = "EXPLAIN "
       }
 
-      explainStmt = conn.createStatement
-      val explainRs = explainStmt.executeQuery(explainQuery + sql)
+      explainStmt = conn.prepareStatement(explainQuery + sql)
+      fillParams(explainStmt)
+
+      val explainRs = explainStmt.executeQuery
       // TODO: this won't work with MarkoExplain
       // TODO: this could be optimized work for distributed joins, but thats not the primary usecase (especially since joins aren't pushed down)
       usePerPartitionSql = (0 until explainRs.getMetaData.getColumnCount).exists((i:Int) => explainRs.getMetaData.getColumnName(i + 1).equals("Query"))
@@ -123,9 +128,14 @@ case class MemSQLRDD[T: ClassTag](
       partitionDb = dbName + '_' + part.index
     }
     val conn = MemSQLRDD.getConnection(part.host, part.port, user, password, partitionDb)
-    val stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
+    val stmtSql = getPerPartitionSql(part.index)
+    val stmt = conn.prepareStatement(stmtSql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
 
-    val rs = stmt.executeQuery(getPerPartitionSql(part.index))
+    if (!usePerPartitionSql) {
+      fillParams(stmt)
+    }
+
+    val rs = stmt.executeQuery
 
     override def getNext: T = {
       if (rs.next()) {
@@ -174,6 +184,19 @@ case class MemSQLRDD[T: ClassTag](
     }
   }
 
+  def fillParams(stmt: PreparedStatement): Unit = {
+    sqlParams.zipWithIndex.foreach {
+      case (el, i) => {
+        if (el == null) {
+          // Arbitrary type. The type doesn't matter
+          // for null values in MemSQL.
+          stmt.setNull(i + 1, Types.CHAR)
+        } else {
+          stmt.setObject(i + 1, el)
+        }
+      }
+    }
+  }
 }
 
 object MemSQLRDD {
