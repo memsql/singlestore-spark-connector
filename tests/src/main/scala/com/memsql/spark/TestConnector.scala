@@ -1235,7 +1235,7 @@ object TestMemSQLRDDFromSqlTemplateComplex {
     val nullParams: Array[Object] = Array(3000, 4000, null).asInstanceOf[Array[Object]]
     val nullRdd = MemSQLDataFrame.MakeMemSQLRowRDDFromTemplate(
       sc, host, port, user, password, dbName, "SELECT a FROM t WHERE (b = ? OR b = ?) and (c IS NOT ?)", nullParams)
-    assert(nullRdd.count == 301)
+    assert(nullRdd.count == 601)
 
     stmt.execute("CREATE TABLE s(a bigint primary key, b timestamp)")
     stmt.execute("INSERT INTO s values (1, '1992-06-14 00:00:01')")
