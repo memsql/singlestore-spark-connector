@@ -2,6 +2,7 @@ package com.memsql.spark.connector.dataframe
 
 import java.sql.{Connection, ResultSet, ResultSetMetaData, Statement}
 
+import com.memsql.spark.connector.{MemSQLConnectionWrapper, MemSQLConnectionPoolMap}
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
@@ -142,10 +143,12 @@ object MemSQLDataFrame {
     dbName: String,
     query: String): StructType = {
 
+    var wrapper: MemSQLConnectionWrapper = null
     var conn: Connection = null
     var schemaStmt: Statement = null
     try {
-      conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)
+      wrapper = MemSQLConnectionPoolMap(dbHost, dbPort, user, password, dbName)
+      conn = wrapper.conn
       schemaStmt = conn.createStatement
       val metadata = schemaStmt.executeQuery(limitZero(query)).getMetaData
       val count = metadata.getColumnCount
@@ -156,7 +159,7 @@ object MemSQLDataFrame {
         schemaStmt.close()
       }
       if (null != conn && !conn.isClosed()) {
-        conn.close()
+        MemSQLConnectionPoolMap.returnConnection(wrapper)
       }
     }
   }

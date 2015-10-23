@@ -161,8 +161,10 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
 
     var conn: Connection = null
     var stmt: Statement = null
-    try {
-      conn = MemSQLRDD.getConnection(theHost, thePort, theUser, thePassword)
+    var wrapper: MemSQLConnectionWrapper = null
+      try {
+      wrapper = MemSQLConnectionPoolMap(theHost, thePort, theUser, thePassword, "information_schema")
+      conn = wrapper.conn
       stmt = conn.createStatement
       stmt.execute(s"CREATE DATABASE IF NOT EXISTS `$dbName`")
       stmt.execute(s"USE `$dbName`")
@@ -172,7 +174,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
         stmt.close()
       }
       if (null != conn && !conn.isClosed()) {
-        conn.close()
+        MemSQLConnectionPoolMap.returnConnection(wrapper)
       }
     }
     MemSQLDataFrame.MakeMemSQLDF(df.sqlContext, theHost, thePort, theUser, thePassword, dbName, "SELECT * FROM " + tableName)

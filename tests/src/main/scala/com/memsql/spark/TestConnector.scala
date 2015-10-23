@@ -823,93 +823,100 @@ object TestLeakedConns {
     TestUtils.doDDL(conn, "CREATE DATABASE IF NOT EXISTS x_db")
     println("sleeping for ten seconds while we let memsql set up the reference db")
     Thread.sleep(10000)
-    val baseConns = numConns(conn)
-    println ("base number connections = " + baseConns)
-    val conf = new SparkConf().setAppName("TestSaveToMemLeakedConns")
-    val sc = new SparkContext(conf)
-    val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
-    assert (baseConns == numConns(conn)) // creating the MemSQLContext shouldn't leak a connection
+    val upperBound = 20
 
-    TestUtils.doDDL(conn, "CREATE TABLE x_db.t(a bigint primary key, b bigint)")
+    for (i <- 0 until 20) {
+      val conf = new SparkConf().setAppName("TestSaveToMemLeakedConns")
+      val sc = new SparkContext(conf)
+      val sqlContext = new MemSQLContext(sc, TestUtils.GetHostname, 3306, "root", "")
+      assert(numConns(conn) < upperBound) // creating the MemSQLContext shouldn't leak a connection
 
-    val rdd1 = sc.parallelize(Array(Row(1,1), Row(2,2), Row(3,3)))
-    rdd1.saveToMemSQL("x_db",
-                      "t",
-                      sqlContext.getMemSQLMasterAggregator.host,
-                      sqlContext.getMemSQLMasterAggregator.port,
-                      sqlContext.getMemSQLUserName,
-                      sqlContext.getMemSQLPassword)
-    assert (baseConns == numConns(conn)) // successful saveToMemSQL shouldn't leak a connection
-    rdd1.saveToMemSQL("x_db",
-                      "t",
-                      sqlContext.getMemSQLMasterAggregator.host,
-                      sqlContext.getMemSQLMasterAggregator.port,
-                      sqlContext.getMemSQLUserName,
-                      sqlContext.getMemSQLPassword,
-                      onDuplicateKeyBehavior = Some(OnDupKeyBehavior.Update),
-                      onDuplicateKeySql = "b = 1")
-    assert (baseConns == numConns(conn)) // successful saveToMemSQL with upsert shouldn't leak a connection
+      TestUtils.doDDL(conn, "DROP TABLE IF EXISTS x_db.t")
+      TestUtils.doDDL(conn, "DROP TABLE IF EXISTS x_db.s")
+      TestUtils.doDDL(conn, "CREATE TABLE x_db.t(a bigint primary key, b bigint)")
 
-    val rddnull = sc.parallelize(Array(Row(null,3)))
-    for (dupKeySql <- Array("","b = 1")) {
+      val rdd1 = sc.parallelize(Array(Row(1, 1), Row(2, 2), Row(3, 3)))
+      rdd1.saveToMemSQL("x_db",
+        "t",
+        sqlContext.getMemSQLMasterAggregator.host,
+        sqlContext.getMemSQLMasterAggregator.port,
+        sqlContext.getMemSQLUserName,
+        sqlContext.getMemSQLPassword)
+      assert(numConns(conn) < upperBound) // successful saveToMemSQL shouldn't leak a connection
+
+      rdd1.saveToMemSQL("x_db",
+        "t",
+        sqlContext.getMemSQLMasterAggregator.host,
+        sqlContext.getMemSQLMasterAggregator.port,
+        sqlContext.getMemSQLUserName,
+        sqlContext.getMemSQLPassword,
+        onDuplicateKeyBehavior = Some(OnDupKeyBehavior.Update),
+        onDuplicateKeySql = "b = 1")
+      assert(numConns(conn) < upperBound) // successful saveToMemSQL with upsert shouldn't leak a connection
+
+      val rddnull = sc.parallelize(Array(Row(null, 3)))
+      for (dupKeySql <- Array("", "b = 1")) {
+        try {
+          val onDuplicateKeyBehavior = if (dupKeySql.isEmpty) {
+            None
+          } else {
+            Some(OnDupKeyBehavior.Update)
+          }
+          rddnull.saveToMemSQL("x_db",
+            "t",
+            sqlContext.getMemSQLMasterAggregator.host,
+            sqlContext.getMemSQLMasterAggregator.port,
+            sqlContext.getMemSQLUserName,
+            sqlContext.getMemSQLPassword,
+            onDuplicateKeyBehavior = onDuplicateKeyBehavior,
+            onDuplicateKeySql = dupKeySql)
+          assert(false)
+        } catch {
+          case e: SaveToMemSQLException => {
+            assert(e.exception.getMessage.contains("NULL supplied to NOT NULL column 'a' at row 0")
+              || e.exception.getMessage.contains("Column 'a' cannot be null"))
+          }
+        }
+        assert(numConns(conn) < upperBound) // failed saveToMemSQL shouldn't leak a connection
+      }
+
+      val memrdd = sqlContext.createRDDFromMemSQLQuery("x_db", "SELECT * FROM t")
+      println(memrdd.collect()(0))
+      assert(numConns(conn) < upperBound) // reading from MemSQLRDD shouldn't leak a connection
+
+      val q = "SELECT a FROM t WHERE a < (SELECT a FROM t)" // query has runtime error because t has two rows
+      val memrddfail = sqlContext.createRDDFromMemSQLQuery("x_db", q)
       try {
-        val onDuplicateKeyBehavior = if (dupKeySql.isEmpty) {
-          None
-        } else {
-          Some(OnDupKeyBehavior.Update)
-        }
-        rddnull.saveToMemSQL("x_db",
-                             "t",
-                             sqlContext.getMemSQLMasterAggregator.host,
-                             sqlContext.getMemSQLMasterAggregator.port,
-                             sqlContext.getMemSQLUserName,
-                             sqlContext.getMemSQLPassword,
-                             onDuplicateKeyBehavior = onDuplicateKeyBehavior,
-                             onDuplicateKeySql = dupKeySql)
-        assert (false)
+        println("before collect")
+        println(memrddfail.collect()(0))
+        println("after collect")
+        assert(false)
       } catch {
-        case e: SaveToMemSQLException => {
-          assert(e.exception.getMessage.contains("NULL supplied to NOT NULL column 'a' at row 0")
-            || e.exception.getMessage.contains("Column 'a' cannot be null"))
+        case e: SparkException => {
+          println("in catch")
+          assert(e.getMessage.contains("Subquery returns more than 1 row"))
         }
       }
-      assert (baseConns == numConns(conn)) // failed saveToMemSQL shouldn't leak a connection
-    }
+      assert(numConns(conn) < upperBound) // failed reading from MemSQLRDD shouldn't leak a connection
 
-    val memrdd = sqlContext.createRDDFromMemSQLQuery("x_db","SELECT * FROM t")
-    println(memrdd.collect()(0))
-    assert (baseConns == numConns(conn)) // reading from MemSQLRDD shouldn't leak a connection
+      val df = sqlContext.createDataFrameFromMemSQLTable("x_db", "t")
+      assert(numConns(conn) < upperBound) // getting metadata for dataframe shouldn't leak a connection
 
-    val q = "SELECT a FROM t WHERE a < (SELECT a FROM t)" // query has runtime error because t has two rows
-    val memrddfail = sqlContext.createRDDFromMemSQLQuery("x_db",q)
-    try {
-      println("before collect")
-      println(memrddfail.collect()(0))
-      println("after collect")
-      assert(false)
-    } catch {
-      case e: SparkException => {
-        println("in catch")
-        assert(e.getMessage.contains("Subquery returns more than 1 row"))
+      df.createMemSQLTableFromSchema("x_db", "s")
+      assert(numConns(conn) < upperBound) // creating a table shouldn't leak a connection
+
+      try {
+        df.createMemSQLTableFromSchema("x_db", "r", keys = List(PrimaryKey("a"), PrimaryKey("b")))
+        assert(false)
+      } catch {
+        case e: Exception => {
+          assert(e.getMessage.contains("Multiple primary key defined"))
+        }
       }
+      assert(numConns(conn) < upperBound) // failing to create a table shouldn't leak a connection
+      sc.stop
     }
-    assert (baseConns == numConns(conn)) // failed reading from MemSQLRDD shouldn't leak a connection
-
-    val df = sqlContext.createDataFrameFromMemSQLTable("x_db", "t")
-    assert (baseConns == numConns(conn)) // getting metadata for dataframe shouldn't leak a connection
-
-    df.createMemSQLTableFromSchema("x_db","s")
-    assert (baseConns == numConns(conn)) // creating a table shouldn't leak a connection
-
-    try {
-      df.createMemSQLTableFromSchema("x_db","r",keys=List(PrimaryKey("a"), PrimaryKey("b")))
-      assert(false)
-    } catch {
-      case e: Exception => {
-        assert(e.getMessage.contains("Multiple primary key defined"))
-      }
-    }
-    assert (baseConns == numConns(conn)) // failing to create a table shouldn't leak a connection
+    assert(numConns(conn) < upperBound)
   }
 
   def numConns(conn: Connection) : Int = {

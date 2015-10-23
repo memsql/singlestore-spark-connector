@@ -1,6 +1,8 @@
 package com.memsql.spark.connector.rdd
 
-import java.sql.{Connection, DriverManager, ResultSet, Statement, PreparedStatement, Types}
+import java.sql.{Connection, ResultSet, Statement, PreparedStatement, Types}
+import com.memsql.spark.connector.{MemSQLConnectionWrapper, MemSQLConnectionPoolMap}
+
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Logging, Partition, SparkContext, TaskContext}
@@ -51,11 +53,13 @@ case class MemSQLRDD[T: ClassTag](
   var usePerPartitionSql = false
 
   override def getPartitions: Array[Partition] = {
+    var wrapper: MemSQLConnectionWrapper = null
     var conn: Connection = null
     var versionStmt: Statement = null
     var explainStmt: PreparedStatement = null
     try {
-      conn = MemSQLRDD.getConnection(dbHost, dbPort, user, password, dbName)
+      wrapper = MemSQLConnectionPoolMap(dbHost, dbPort, user, password, dbName)
+      conn = wrapper.conn
       versionStmt = conn.createStatement
       val versionRs = versionStmt.executeQuery("SHOW VARIABLES LIKE 'memsql_version'")
       val versions = MemSQLRDD.resultSetToIterator(versionRs).map(r => r.getString("Value")).toArray
@@ -115,7 +119,7 @@ case class MemSQLRDD[T: ClassTag](
         explainStmt.close()
       }
       if (null != conn && ! conn.isClosed()) {
-        conn.close()
+        MemSQLConnectionPoolMap.returnConnection(wrapper)
       }
     }
   }
@@ -127,7 +131,8 @@ case class MemSQLRDD[T: ClassTag](
     if (usePerPartitionSql) {
       partitionDb = dbName + '_' + part.index
     }
-    val conn = MemSQLRDD.getConnection(part.host, part.port, user, password, partitionDb)
+    val wrapper = MemSQLConnectionPoolMap(part.host, part.port, user, password, partitionDb)
+    val conn = wrapper.conn
     val stmtSql = getPerPartitionSql(part.index)
     val stmt = conn.prepareStatement(stmtSql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
 
@@ -156,7 +161,7 @@ case class MemSQLRDD[T: ClassTag](
       }
       try {
         if (null != conn && ! conn.isClosed()) {
-          conn.close()
+          MemSQLConnectionPoolMap.returnConnection(wrapper)
         }
         logInfo("closed connection")
       } catch {
@@ -202,18 +207,6 @@ case class MemSQLRDD[T: ClassTag](
 object MemSQLRDD {
   def resultSetToObjectArray(rs: ResultSet): Array[Object] = {
     Array.tabulate[Object](rs.getMetaData.getColumnCount)(i => rs.getObject(i + 1))
-  }
-
-  def getConnection(
-    host: String,
-    port: Int,
-    user: String,
-    password: String,
-    dbName: String = "information_schema"): Connection = {
-    // Prepare the MySQL JDBC driver.
-    Class.forName("com.mysql.jdbc.Driver").newInstance()
-    val dbAddress = "jdbc:mysql://" + host + ":" + port + "/" + dbName
-    DriverManager.getConnection(dbAddress, user, password)
   }
 
   def resultSetToIterator(rs: ResultSet): Iterator[ResultSet] = new Iterator[ResultSet] {

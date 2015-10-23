@@ -6,6 +6,7 @@ lazy val akkaVersion = "2.3.9"
 lazy val sprayVersion = "1.3.2"
 lazy val scoptVersion = "3.2.0"
 lazy val scalatestVersion = "2.2.5"
+lazy val commonsPoolVersion = "2.4.2"
 
 lazy val assemblyScalastyle = taskKey[Unit]("assemblyScalastyle")
 lazy val testScalastyle = taskKey[Unit]("testScalastyle")
@@ -62,6 +63,7 @@ lazy val connectorLib = (project in file("connectorLib")).
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion  % Provided,
       "mysql" % "mysql-connector-java" % mysqlConnectorVersion,
+      "org.apache.commons" % "commons-pool2" % commonsPoolVersion,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test
     ),
     autoAPIMappings := true,
