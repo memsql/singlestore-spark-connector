@@ -18,10 +18,10 @@ object ApiJsonProtocol extends JsonEnumProtocol {
   implicit val taskErrorRecordFormat = jsonFormat5(TaskErrorRecord)
 
   implicit val pipelineEventTypeFormat = jsonEnum(PipelineEventType)
-  implicit val batchStartEventFormat = jsonFormat5(BatchStartEvent)
-  implicit val batchEndEventFormat = jsonFormat10(BatchEndEvent)
-  implicit val pipelineStartEventFormat = jsonFormat3(PipelineStartEvent)
-  implicit val pipelineEndEventFormat = jsonFormat3(PipelineEndEvent)
+  implicit val batchStartEventFormat = jsonFormat6(BatchStartEvent)
+  implicit val batchEndEventFormat = jsonFormat11(BatchEndEvent)
+  implicit val pipelineStartEventFormat = jsonFormat4(PipelineStartEvent)
+  implicit val pipelineEndEventFormat = jsonFormat4(PipelineEndEvent)
 
   implicit val pipelineStateFormat = jsonEnum(PipelineState)
   implicit val pipelineThreadStateFormat = jsonEnum(PipelineThreadState)

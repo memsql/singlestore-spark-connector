@@ -1,5 +1,7 @@
 package com.memsql.spark.interface.api
 
+import java.util.UUID
+
 import com.memsql.spark.etl.api.{UserTransformConfig, UserExtractConfig}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.interface._
@@ -303,44 +305,53 @@ class PipelineJsonSpec extends UnitSpec {
   }
 
   "PipelineStartEvent" should "serialize to JSON" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = PipelineStartEvent(
       pipeline_id = "pipeline1",
-      timestamp = 42
+      timestamp = 42,
+      event_id = uuid
     )
     val jsonString = metricRecord.toJson.toString
     val jsonMap = mapFromJson(jsonString)
     val expectedMap = Map(
       "pipeline_id" -> "pipeline1",
       "timestamp" -> 42,
-      "event_type" -> "PipelineStart"
+      "event_type" -> "PipelineStart",
+      "event_id" -> uuid
     )
     assert(jsonMap == expectedMap)
   }
 
   "PipelineStartEvent" should "serialize with no phases" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = PipelineStartEvent(
       pipeline_id = "pipeline1",
-      timestamp = 42
+      timestamp = 42,
+      event_id = uuid
     )
     val jsonString = metricRecord.toJson.toString
     val jsonMap = mapFromJson(jsonString)
     val expectedMap = Map(
       "pipeline_id" -> "pipeline1",
       "timestamp" -> 42,
-      "event_type" -> "PipelineStart"
+      "event_type" -> "PipelineStart",
+      "event_id" -> uuid
     )
     assert(jsonMap == expectedMap)
   }
 
   "PipelineStartEvent" should "deserialize from JSON" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = PipelineStartEvent(
       pipeline_id = "pipeline1",
-      timestamp = 42
+      timestamp = 42,
+      event_id = uuid
     )
-    val jsonString = """{
+    val jsonString = s"""{
         "pipeline_id": "pipeline1",
         "timestamp": 42,
-        "event_type": "PipelineStart"
+        "event_type": "PipelineStart",
+        "event_id": "${uuid}"
     }"""
     val parsedMetricRecord = jsonString.parseJson.convertTo[PipelineStartEvent]
     assert(parsedMetricRecord == metricRecord)
@@ -348,55 +359,66 @@ class PipelineJsonSpec extends UnitSpec {
 
 
   "PipelineEndEvent" should "serialize to JSON" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = PipelineEndEvent(
       pipeline_id = "pipeline1",
-      timestamp = 42
+      timestamp = 42,
+      event_id = uuid
     )
     val jsonString = metricRecord.toJson.toString
     val jsonMap = mapFromJson(jsonString)
     val expectedMap = Map(
       "pipeline_id" -> "pipeline1",
       "timestamp" -> 42,
-      "event_type" -> "PipelineEnd"
+      "event_type" -> "PipelineEnd",
+      "event_id" -> uuid
     )
     assert(jsonMap == expectedMap)
   }
 
   "PipelineEndEvent" should "serialize with no phases" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = PipelineEndEvent(
       pipeline_id = "pipeline1",
-      timestamp = 42
+      timestamp = 42,
+      event_id = uuid
     )
     val jsonString = metricRecord.toJson.toString
     val jsonMap = mapFromJson(jsonString)
     val expectedMap = Map(
       "pipeline_id" -> "pipeline1",
       "timestamp" -> 42,
-      "event_type" -> "PipelineEnd"
+      "event_type" -> "PipelineEnd",
+      "event_id" -> uuid
     )
     assert(jsonMap == expectedMap)
   }
 
   "PipelineEndEvent" should "deserialize from JSON" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = PipelineEndEvent(
       pipeline_id = "pipeline1",
-      timestamp = 42
+      timestamp = 42,
+      event_id = uuid
     )
-    val jsonString = """{
+    val jsonString = s"""{
         "pipeline_id": "pipeline1",
         "timestamp": 42,
-        "event_type": "PipelineEnd"
+        "event_type": "PipelineEnd",
+        "event_id": "${uuid}"
     }"""
     val parsedMetricRecord = jsonString.parseJson.convertTo[PipelineEndEvent]
     assert(parsedMetricRecord == metricRecord)
   }
 
   "BatchStartEvent" should "serialize to JSON" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = BatchStartEvent(
       batch_id = "batch1",
       batch_type = PipelineBatchType.Normal,
       pipeline_id = "pipeline1",
-      timestamp = 42
+      timestamp = 42,
+      event_id = uuid
     )
     val jsonString = metricRecord.toJson.toString
     val jsonMap = mapFromJson(jsonString)
@@ -405,17 +427,20 @@ class PipelineJsonSpec extends UnitSpec {
       "batch_type" -> "Normal",
       "pipeline_id" -> "pipeline1",
       "timestamp" -> 42,
-      "event_type" -> "BatchStart"
+      "event_type" -> "BatchStart",
+      "event_id" -> uuid
       )
     assert(jsonMap == expectedMap)
   }
 
   "BatchStartEvent" should "serialize with no phases" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = BatchStartEvent(
       batch_id = "batch1",
       batch_type = PipelineBatchType.Normal,
       pipeline_id = "pipeline1",
-      timestamp = 42
+      timestamp = 42,
+      event_id = uuid
     )
     val jsonString = metricRecord.toJson.toString
     val jsonMap = mapFromJson(jsonString)
@@ -424,43 +449,51 @@ class PipelineJsonSpec extends UnitSpec {
       "batch_type" -> "Normal",
       "pipeline_id" -> "pipeline1",
       "timestamp" -> 42,
-      "event_type" -> "BatchStart"
+      "event_type" -> "BatchStart",
+      "event_id" -> uuid
     )
     assert(jsonMap == expectedMap)
   }
 
   "BatchStartEvent" should "deserialize from JSON" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = BatchStartEvent(
       batch_id = "batch1",
       batch_type = PipelineBatchType.Normal,
       pipeline_id = "pipeline1",
-      timestamp = 42
+      timestamp = 42,
+      event_id = uuid
     )
 
-    val jsonString = """{
+    val jsonString = s"""{
         "batch_id": "batch1",
         "batch_type": "Normal",
         "pipeline_id": "pipeline1",
         "timestamp": 42,
-        "event_type": "BatchStart"
+        "event_type": "BatchStart",
+        "event_id": "${uuid}"
     }"""
     val parsedMetricRecord = jsonString.parseJson.convertTo[BatchStartEvent]
     assert(parsedMetricRecord == metricRecord)
   }
 
   "BatchStartEvent" should "be preserved through a round trip" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord1 = BatchStartEvent(
       batch_id = "batch1",
       batch_type = PipelineBatchType.Normal,
       pipeline_id = "pipeline1",
-      timestamp = 42
+      timestamp = 42,
+      event_id = uuid
     )
     val metricRecord2 = metricRecord1.toJson.toString.parseJson.convertTo[BatchStartEvent]
     assert(metricRecord1 == metricRecord2)
   }
 
   "BatchEndEvent" should "serialize to JSON" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = BatchEndEvent(
+      event_id = uuid,
       batch_id = "batch1",
       batch_type = PipelineBatchType.Normal,
       pipeline_id = "pipeline1",
@@ -539,12 +572,14 @@ class PipelineJsonSpec extends UnitSpec {
         "records" -> List(List("load record 1", "load record 2")),
         "logs" -> List("load log 1")
       ),
-      "event_type" -> "BatchEnd"
+      "event_type" -> "BatchEnd",
+      "event_id" -> uuid
     )
     assert(jsonMap == expectedMap)
   }
 
   "BatchEndEvent" should "serialize with no phases" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = BatchEndEvent(
       batch_id = "batch1",
       batch_type = PipelineBatchType.Normal,
@@ -554,7 +589,8 @@ class PipelineJsonSpec extends UnitSpec {
       task_errors = None,
       extract = None,
       transform = None,
-      load = None
+      load = None,
+      event_id = uuid
     )
     val jsonString = metricRecord.toJson.toString
     val jsonMap = mapFromJson(jsonString)
@@ -564,13 +600,16 @@ class PipelineJsonSpec extends UnitSpec {
       "pipeline_id" -> "pipeline1",
       "timestamp" -> 42,
       "success" -> true,
-      "event_type" -> "BatchEnd"
+      "event_type" -> "BatchEnd",
+      "event_id" -> uuid
     )
     assert(jsonMap == expectedMap)
   }
 
   it should "deserialize from JSON" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord = BatchEndEvent(
+      event_id = uuid,
       batch_id = "batch1",
       batch_type = PipelineBatchType.Normal,
       pipeline_id = "pipeline1",
@@ -606,7 +645,7 @@ class PipelineJsonSpec extends UnitSpec {
       ))
     )
 
-    val jsonString = """{
+    val jsonString = s"""{
         "batch_id": "batch1",
         "batch_type": "Normal",
         "pipeline_id": "pipeline1",
@@ -651,14 +690,17 @@ class PipelineJsonSpec extends UnitSpec {
                 "load log 1"
             ]
         },
-        "event_type": "BatchEnd"
+        "event_type": "BatchEnd",
+        "event_id": "${uuid}"
     }"""
     val parsedMetricRecord = jsonString.parseJson.convertTo[BatchEndEvent]
     assert(parsedMetricRecord == metricRecord)
   }
 
   it should "be preserved through a round trip" in {
+    val uuid = UUID.randomUUID.toString
     val metricRecord1 = BatchEndEvent(
+      event_id = uuid,
       batch_id = "batch1",
       batch_type = PipelineBatchType.Normal,
       pipeline_id = "pipeline1",

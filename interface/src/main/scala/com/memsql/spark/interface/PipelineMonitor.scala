@@ -143,7 +143,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       var time: Long = 0
       val pipelineStartEvent = PipelineStartEvent(
         pipeline_id = pipeline_id,
-        timestamp = System.currentTimeMillis)
+        timestamp = System.currentTimeMillis,
+        event_id = UUID.randomUUID.toString)
       pipeline.enqueueMetricRecord(pipelineStartEvent)
 
       // manually compute the next RDD in the DStream so that we can sidestep issues with
@@ -178,7 +179,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           batch_id = batch_id,
           batch_type = batch_type,
           pipeline_id = pipeline_id,
-          timestamp = time)
+          timestamp = time,
+          event_id = UUID.randomUUID.toString)
         pipeline.enqueueMetricRecord(batchStartEvent)
         sparkContext.setJobGroup(batch_id, s"Batch for MemSQL Pipeline $pipeline_id", interruptOnCancel = true)
         var tracedRdd: RDD[Array[Byte]] = null
@@ -292,7 +294,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           task_errors = task_errors,
           extract = extractRecord,
           transform = transformRecord,
-          load = loadRecord)
+          load = loadRecord,
+          event_id = UUID.randomUUID.toString)
         pipeline.enqueueMetricRecord(batchEndEvent)
 
         val sleepTimeMillis = Math.max(batchIntervalMillis  - (System.currentTimeMillis - time), 0)
@@ -311,7 +314,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       logInfo(s"Stopping pipeline $pipeline_id")
       val pipelineEndEvent = PipelineEndEvent(
         pipeline_id = pipeline_id,
-        timestamp = System.currentTimeMillis)
+        timestamp = System.currentTimeMillis,
+        event_id = UUID.randomUUID.toString)
       pipeline.enqueueMetricRecord(pipelineEndEvent)
       try {
         if (inputDStream != null) inputDStream.stop()

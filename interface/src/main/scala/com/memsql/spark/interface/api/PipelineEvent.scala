@@ -27,13 +27,15 @@ abstract class PipelineEvent {
   val pipeline_id: String
   val timestamp: Long
   val event_type: PipelineEventType
+  val event_id: String
 }
 
 case class BatchStartEvent(batch_id: String,
                            batch_type: PipelineBatchType,
                            pipeline_id: String,
                            timestamp: Long,
-                           event_type: PipelineEventType = PipelineEventType.BatchStart) extends PipelineEvent
+                           event_type: PipelineEventType = PipelineEventType.BatchStart,
+                           event_id: String) extends PipelineEvent
 
 case class BatchEndEvent(batch_id: String,
                          batch_type: PipelineBatchType,
@@ -44,12 +46,15 @@ case class BatchEndEvent(batch_id: String,
                          extract: Option[PhaseMetricRecord],
                          transform: Option[PhaseMetricRecord],
                          load: Option[PhaseMetricRecord],
-                         event_type: PipelineEventType = PipelineEventType.BatchEnd) extends PipelineEvent
+                         event_type: PipelineEventType = PipelineEventType.BatchEnd,
+                         event_id: String) extends PipelineEvent
 
 case class PipelineStartEvent(pipeline_id: String,
                               timestamp: Long,
-                              event_type: PipelineEventType = PipelineEventType.PipelineStart) extends PipelineEvent
+                              event_type: PipelineEventType = PipelineEventType.PipelineStart,
+                              event_id: String) extends PipelineEvent
 
 case class PipelineEndEvent(pipeline_id: String,
                             timestamp: Long,
-                            event_type: PipelineEventType = PipelineEventType.PipelineEnd) extends PipelineEvent
+                            event_type: PipelineEventType = PipelineEventType.PipelineEnd,
+                            event_id: String) extends PipelineEvent

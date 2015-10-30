@@ -1,5 +1,7 @@
 package com.memsql.spark.interface.api
 
+import java.util.UUID
+
 import akka.actor.Props
 import com.memsql.spark.etl.api.{UserTransformConfig, UserExtractConfig}
 import com.memsql.spark.etl.api.configs._
@@ -410,9 +412,11 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       }
 
       val record1 = BatchEndEvent(batch_id = "batch1", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1",
-                                         timestamp = 100, success = true, task_errors = None, extract = None, transform = None, load = None)
+                                         timestamp = 100, success = true, task_errors = None, extract = None, transform = None,
+                                         load = None, event_id = UUID.randomUUID.toString)
       val record2 = BatchEndEvent(batch_id = "batch2", batch_type = PipelineBatchType.Normal, pipeline_id = "pipeline1",
-                                         timestamp = 110, success = false, task_errors = None, extract = None, transform = None, load = None)
+                                         timestamp = 110, success = false, task_errors = None, extract = None, transform = None,
+                                         load = None, event_id = UUID.randomUUID.toString)
 
       apiRef ! PipelineGet("pipeline1")
       receiveOne(1.second) match {
