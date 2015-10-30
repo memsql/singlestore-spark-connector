@@ -179,7 +179,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           batch_id = batch_id,
           batch_type = batch_type,
           pipeline_id = pipeline_id,
-          timestamp = time,
+          timestamp = System.currentTimeMillis,
           event_id = UUID.randomUUID.toString)
         pipeline.enqueueMetricRecord(batchStartEvent)
         sparkContext.setJobGroup(batch_id, s"Batch for MemSQL Pipeline $pipeline_id", interruptOnCancel = true)
@@ -289,7 +289,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           batch_id = batch_id,
           batch_type = batch_type,
           pipeline_id = pipeline_id,
-          timestamp = time,
+          timestamp = System.currentTimeMillis,
           success = success,
           task_errors = task_errors,
           extract = extractRecord,
