@@ -1,4 +1,4 @@
-resolvers += "memsql" at "http://maven.memsql.com"
+resolvers += Resolver.sonatypeRepo("snapshots")
 
 lazy val root = (project in file(".")).
   settings(
@@ -9,6 +9,6 @@ lazy val root = (project in file(".")).
         "org.apache.spark" %% "spark-core" % "1.4.1" % "provided",
         "org.apache.spark" %% "spark-sql" % "1.4.1"  % "provided",
         "org.apache.spark" %% "spark-streaming" % "1.4.1" % "provided",
-        "com.memsql" %% "memsqletl" % "1.0.1-SNAPSHOT"
+        "com.memsql.spark" %% "memsql-etl" % "1.1.0-SNAPSHOT"
     )
 )
