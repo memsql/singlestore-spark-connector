@@ -46,7 +46,6 @@ class PipelineJsonSpec extends UnitSpec {
     assert(jsonMap("state") == "RUNNING")
     assert(jsonMap("batch_interval") == 100)
     assert(jsonMap("config").asInstanceOf[Map[String, Any]]("config_version") == 42)
-    assert(!jsonMap("config").asInstanceOf[Map[String, Any]].contains("enable_checkpointing"))
     assert(!(jsonMap contains "error"))
 
     // Errors should be included.
@@ -63,8 +62,7 @@ class PipelineJsonSpec extends UnitSpec {
         transform = Phase[TransformPhaseKind](
           TransformPhaseKind.Json,
           TransformPhase.writeConfig(TransformPhaseKind.Json, JsonTransformConfig("data"))
-        ),
-        enable_checkpointing = Some(true)
+        )
       ),
       last_updated = 15,
       error = Some("Test error"))
@@ -73,7 +71,6 @@ class PipelineJsonSpec extends UnitSpec {
     jsonMap = mapFromJson(jsonString)
     assert(jsonMap("error") == "Test error")
     val configMap = jsonMap("config").asInstanceOf[Map[String, Any]]
-    assert(configMap("enable_checkpointing") == true)
     val extractMap = configMap("extract").asInstanceOf[Map[String, Any]]
     assert(extractMap("kind") == "TestLines")
     val extractConfigMap = extractMap("config").asInstanceOf[Map[String, Any]]
@@ -173,8 +170,7 @@ class PipelineJsonSpec extends UnitSpec {
                   "dry_run": true
               }
           },
-          "config_version": 42,
-          "enable_checkpointing": true
+          "config_version": 42
       }
       """
 
@@ -195,7 +191,6 @@ class PipelineJsonSpec extends UnitSpec {
     assert(pipeline.last_updated == 145)
     assert(pipeline.error.get == "test error")
     assert(pipeline.config.config_version == 42)
-    assert(pipeline.config.enable_checkpointing.get == true)
     assert(pipeline.config.extract.kind == ExtractPhaseKind.ZookeeperManagedKafka)
     val kafkaConfig = ExtractPhase.readConfig(pipeline.config.extract.kind, pipeline.config.extract.config).asInstanceOf[ZookeeperManagedKafkaExtractConfig]
     assert(kafkaConfig.zk_quorum == List("test2:2181", "asdf:1000/asdf"))
@@ -232,8 +227,7 @@ class PipelineJsonSpec extends UnitSpec {
                   "dry_run": false
               }
           },
-          "config_version": 42,
-          "enable_checkpointing": false
+          "config_version": 42
       }"""
 
     jsonString = s"""{
@@ -253,7 +247,6 @@ class PipelineJsonSpec extends UnitSpec {
     assert(pipeline.last_updated == 145)
     assert(pipeline.error.get  == "test error")
     assert(pipeline.config.config_version == 42)
-    assert(pipeline.config.enable_checkpointing.get == false)
     assert(pipeline.config.extract.kind == ExtractPhaseKind.TestLines)
     val testLinesConfig = ExtractPhase.readConfig(ExtractPhaseKind.TestLines, pipeline.config.extract.config).asInstanceOf[TestLinesExtractConfig]
     assert(testLinesConfig.value == "test")

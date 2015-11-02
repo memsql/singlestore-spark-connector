@@ -31,5 +31,4 @@ import com.memsql.spark.etl.api.configs.LoadPhaseKind._
 case class PipelineConfig(var extract: Phase[ExtractPhaseKind],
                           var transform: Phase[TransformPhaseKind],
                           var load: Phase[LoadPhaseKind],
-                          var enable_checkpointing: Option[Boolean] = None,
                           var config_version: Int = PipelineConfigVersion.CurrentPipelineConfigVersion)

@@ -47,9 +47,6 @@ class MemSQLDirectKafkaInputDStream[K: ClassTag, V: ClassTag, U <: Decoder[K]: C
     }
   }
 
-  //Track the previous batch's offsets so we can retry the batch if it fails
-  var prevOffsets: Map[TopicAndPartition, Long] = null
-
   //NOTE: We override this to suppress input info tracking because the StreamingContext has not been started.
   override def compute(validTime: Time): Option[KafkaRDD[K, V, U, T, R]] = {
     val untilOffsets = clamp(latestLeaderOffsets(maxRetries))
@@ -64,17 +61,12 @@ class MemSQLDirectKafkaInputDStream[K: ClassTag, V: ClassTag, U <: Decoder[K]: C
      * ssc.scheduler.inputInfoTracker.reportInfo(validTime, inputInfo)
      */
 
-    prevOffsets = currentOffsets
+    val prevOffsets = currentOffsets
     currentOffsets = untilOffsets.map(kv => kv._1 -> kv._2.offset)
 
     prevOffsets == currentOffsets match {
       case false => Some(rdd)
       case true => None
     }
-  }
-
-  def getCurrentOffsets(): Map[TopicAndPartition, Long] = currentOffsets
-  def setCurrentOffsets(offsets: Map[TopicAndPartition, Long]): Unit = {
-    currentOffsets = offsets
   }
 }

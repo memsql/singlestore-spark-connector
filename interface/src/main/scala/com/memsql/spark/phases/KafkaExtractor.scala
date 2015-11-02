@@ -13,7 +13,6 @@ case class ZookeeperManagedKafkaExtractConfig(zk_quorum: List[String], topic: St
 class ZookeeperManagedKafkaExtractor extends ByteArrayExtractor {
   var CHECKPOINT_DATA_VERSION = 1
 
-  var dstream: MemSQLDirectKafkaInputDStream[String, Array[Byte], StringDecoder, DefaultDecoder, Array[Byte]] = null
   var zkQuorum: String = null
 
   def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchDuration: Long, logger: PhaseLogger): InputDStream[Array[Byte]] = {
@@ -24,27 +23,7 @@ class ZookeeperManagedKafkaExtractor extends ByteArrayExtractor {
     )
     val topics = Set(kafkaConfig.topic)
 
-    dstream = MemSQLKafkaUtils.createDirectStreamFromZookeeper[String, Array[Byte], StringDecoder, DefaultDecoder](
-      ssc, kafkaParams, topics, batchDuration, lastCheckpoint)
-    dstream
-  }
-
-  override def batchCheckpoint: Option[Map[String, Any]] = {
-    dstream match {
-      case null => None
-      case default => {
-        val currentOffsets = dstream.getCurrentOffsets.map { case (tp, offset) =>
-          Map("topic" -> tp.topic, "partition" -> tp.partition, "offset" -> offset)
-        }
-        Some(Map("offsets" -> currentOffsets, "zookeeper" -> zkQuorum, "version" -> CHECKPOINT_DATA_VERSION))
-      }
-    }
-  }
-
-  override def batchRetry: Unit = {
-    if (dstream.prevOffsets != null) {
-      dstream.setCurrentOffsets(dstream.prevOffsets)
-    }
+    MemSQLKafkaUtils.createDirectStreamFromZookeeper[String, Array[Byte], StringDecoder, DefaultDecoder](ssc, kafkaParams, topics, batchDuration)
   }
 }
 
@@ -53,7 +32,6 @@ class ZookeeperManagedKafkaExtractor extends ByteArrayExtractor {
 case class KafkaExtractConfig(host: String, port: Int, topic: String) extends PhaseConfig
 
 class KafkaExtractor extends ByteArrayExtractor {
-  var dstream: MemSQLDirectKafkaInputDStream[String, Array[Byte], StringDecoder, DefaultDecoder, Array[Byte]] = null
   var broker: String = null
 
   def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchDuration: Long, logger: PhaseLogger): InputDStream[Array[Byte]] = {
@@ -64,7 +42,6 @@ class KafkaExtractor extends ByteArrayExtractor {
     )
     val topics = Set(kafkaConfig.topic)
 
-    dstream = MemSQLKafkaUtils.createDirectStream[String, Array[Byte], StringDecoder, DefaultDecoder](ssc, kafkaParams, topics, batchDuration, lastCheckpoint)
-    dstream
+    MemSQLKafkaUtils.createDirectStream[String, Array[Byte], StringDecoder, DefaultDecoder](ssc, kafkaParams, topics, batchDuration)
   }
 }

@@ -431,33 +431,6 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(pipeline.config == newConfig)
       assert(status == OK)
     }
-
-    val userConfigWithCheckpointing = userConfig.copy(enable_checkpointing = Some(true))
-    val userConfigWithCheckpointingEntity = HttpEntity(`application/json`, userConfigWithCheckpointing.toJson.toString)
-    Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigWithCheckpointingEntity) ~> route ~> check {
-      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
-      assert(status == OK)
-    }
-
-    // pipeline should be running with checkpointing enabled
-    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
-      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
-      assert(pipeline.config.enable_checkpointing.get == true)
-      assert(status == OK)
-    }
-
-    // no-op updates to enable_checkpointing should return false
-    Patch("/pipeline/update?pipeline_id=asdf&active=true", userConfigWithCheckpointingEntity) ~> route ~> check {
-      assert(responseAs[String] == JsObject("success" -> JsBoolean(false)).toString)
-      assert(status == OK)
-    }
-
-    // pipeline should still be running with checkpointing enabled
-    Get("/pipeline/get?pipeline_id=asdf") ~> route ~> check {
-      val pipeline = responseAs[String].parseJson.convertTo[Pipeline]
-      assert(pipeline.config.enable_checkpointing.get == true)
-      assert(status == OK)
-    }
   }
 
   it should "reject PATCH if pipeline id doesn't exist" in {
