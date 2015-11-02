@@ -309,7 +309,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         error = e
       }
     } finally {
-      (api ? PipelineUpdate(pipeline_id, Some(PipelineState.STOPPED), error = Some(""),
+      (api ? PipelineUpdate(pipeline_id,
         threadState = Some(PipelineThreadState.THREAD_STOPPED))).mapTo[Try[Boolean]]
       logInfo(s"Stopping pipeline $pipeline_id")
       val pipelineEndEvent = PipelineEndEvent(

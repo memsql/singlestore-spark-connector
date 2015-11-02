@@ -150,7 +150,7 @@ trait ApiService {
             val threadStateChanged = (newThreadState != pipeline.thread_state)
             // update all fields in the pipeline and respond with success
             if (updated) {
-              val newLastUpdated = if (updated) clock.currentTimeMillis else pipeline.last_updated
+              val newLastUpdated = clock.currentTimeMillis
               val newPipeline = Pipeline(pipeline_id, state=newState, batch_interval=newBatchInterval,
                                          last_updated=newLastUpdated, config=newConfig, error=newError)
               newPipeline.thread_state = newThreadState
