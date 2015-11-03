@@ -11,7 +11,7 @@ lazy val assemblyScalastyle = taskKey[Unit]("assemblyScalastyle")
 lazy val testScalastyle = taskKey[Unit]("testScalastyle")
 
 lazy val commonSettings = Seq(
-  organization := "com.memsql.spark",
+  organization := "com.memsql",
   version := "1.1.0-SNAPSHOT",
   scalaVersion := "2.10.5",
   assemblyScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Compile).toTask("").value,
