@@ -1,3 +1,8 @@
+2015-11-02  Version 1.1.0
+
+	* More events for batches
+	* Robustness and bug fixes
+
 2015-09-24  Version 1.0.0
 
 	* Initial release of MemSQL Streamliner
