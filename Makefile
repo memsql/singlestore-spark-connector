@@ -73,6 +73,6 @@ publish-docs:
 	sbt unidoc makeSite ghpagesPushSite
 
 .PHONY: release
-release: publish
+release: publish publish-docs
 	sbt "project connectorLib" sonatypeRelease \
 	"project etlLib" sonatypeRelease
