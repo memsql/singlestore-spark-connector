@@ -1,5 +1,6 @@
 package com.memsql.spark.interface
 
+import com.memsql.spark.etl.LocalSparkContext
 import com.memsql.spark.etl.api.PhaseConfig
 import com.memsql.spark.etl.utils.ByteUtils._
 import com.memsql.spark.etl.utils.PhaseLogger

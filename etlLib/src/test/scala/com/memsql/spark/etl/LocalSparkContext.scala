@@ -15,12 +15,10 @@
  * limitations under the License.
  */
 
-package com.memsql.spark.interface
+package com.memsql.spark.etl
 
 import org.apache.spark.SparkContext
-import org.scalatest.BeforeAndAfterAll
-import org.scalatest.BeforeAndAfterEach
-import org.scalatest.Suite
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, Suite}
 
 /** Manages a local `sc` {@link SparkContext} variable, correctly stopping it after each test. */
 trait LocalSparkContext extends BeforeAndAfterEach with BeforeAndAfterAll { self: Suite =>

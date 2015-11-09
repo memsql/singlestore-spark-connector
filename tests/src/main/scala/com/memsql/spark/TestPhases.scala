@@ -29,13 +29,30 @@ class Extractor2 extends ByteArrayExtractor {
   }
 }
 
-class Extractor3 extends Extractor[String] {
-  override def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchInterval: Long, logger: PhaseLogger): InputDStream[String] = {
-    new InputDStream[String](ssc) {
+class Extractor3 extends Extractor {
+  var dStream: InputDStream[String] = null
+
+  override def initialize(ssc: StreamingContext, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long, logger: PhaseLogger): Unit = {
+    dStream = new InputDStream[String](ssc) {
       override def start(): Unit = {}
       override def stop(): Unit = {}
       override def compute(validTime: Time): Option[RDD[String]] = None
     }
+    dStream.start()
+  }
+
+  override def cleanup(ssc: StreamingContext, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long, logger: PhaseLogger): Unit = {
+    if (dStream != null) {
+      dStream.stop()
+    }
+  }
+
+  override def next(ssc: StreamingContext, time: Long, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long,
+                    logger: PhaseLogger): Option[DataFrame] = {
+    dStream.compute(Time(time)).map(rdd => {
+      val rowRDD = rdd.map(Row(_))
+      sqlContext.createDataFrame(rowRDD, StructType(StructField("value", StringType, false) :: Nil))
+    })
   }
 }
 
@@ -56,14 +73,31 @@ class Extractor5 extends AbstractExtractor5 {
   }
 }
 
-abstract class AbstractExtractor6 extends Extractor[String]
+abstract class AbstractExtractor6 extends Extractor
 class Extractor6 extends AbstractExtractor6 {
-  override def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchInterval: Long, logger: PhaseLogger): InputDStream[String] = {
-    new InputDStream[String](ssc) {
+  var dStream: InputDStream[String] = null
+
+  override def initialize(ssc: StreamingContext, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long, logger: PhaseLogger): Unit = {
+    dStream = new InputDStream[String](ssc) {
       override def start(): Unit = {}
       override def stop(): Unit = {}
       override def compute(validTime: Time): Option[RDD[String]] = None
     }
+    dStream.start()
+  }
+
+  override def cleanup(ssc: StreamingContext, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long, logger: PhaseLogger): Unit = {
+    if (dStream != null) {
+      dStream.stop()
+    }
+  }
+
+  override def next(ssc: StreamingContext, time: Long, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long,
+                    logger: PhaseLogger): Option[DataFrame] = {
+    dStream.compute(Time(time)).map(rdd => {
+      val rowRDD = rdd.map(Row(_))
+      sqlContext.createDataFrame(rowRDD, StructType(StructField("value", StringType, false) :: Nil))
+    })
   }
 }
 
@@ -87,9 +121,9 @@ class Transformer2 extends ByteArrayTransformer {
   }
 }
 
-class Transformer3 extends Transformer[String] {
-  override def transform(sqlContext: SQLContext, rdd: RDD[String], config: PhaseConfig, logger: PhaseLogger): DataFrame = {
-    sqlContext.createDataFrame(sqlContext.sparkContext.emptyRDD[Row], StructType(Array(StructField("a", IntegerType, true))))
+class Transformer3 extends Transformer {
+  override def transform(sqlContext: SQLContext, df: DataFrame, config: PhaseConfig, logger: PhaseLogger): DataFrame = {
+    df.select(df("a") as "b")
   }
 }
 
@@ -107,10 +141,10 @@ class Transformer5 extends AbstractTransformer5 {
   }
 }
 
-abstract class AbstractTransformer6 extends Transformer[String]
+abstract class AbstractTransformer6 extends Transformer
 class Transformer6 extends AbstractTransformer6 {
-  override def transform(sqlContext: SQLContext, rdd: RDD[String], config: PhaseConfig, logger: PhaseLogger): DataFrame = {
-    sqlContext.createDataFrame(sqlContext.sparkContext.emptyRDD[Row], StructType(Array(StructField("a", IntegerType, true))))
+  override def transform(sqlContext: SQLContext, df: DataFrame, config: PhaseConfig, logger: PhaseLogger): DataFrame = {
+    df.select(df("a") as "b")
   }
 }
 

@@ -7,6 +7,7 @@ import akka.pattern.ask
 import akka.actor.Props
 import akka.util.Timeout
 import com.memsql.spark.connector.dataframe.{JsonType, JsonValue}
+import com.memsql.spark.etl.LocalSparkContext
 import com.memsql.spark.etl.api.{UserTransformConfig, PhaseConfig, ByteArrayTransformer, UserExtractConfig}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.ByteUtils._

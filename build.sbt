@@ -13,12 +13,13 @@ lazy val testScalastyle = taskKey[Unit]("testScalastyle")
 
 lazy val commonSettings = Seq(
   organization := "com.memsql",
-  version := "1.1.1-SNAPSHOT",
+  version := "1.2.0-SNAPSHOT",
   scalaVersion := "2.10.5",
   assemblyScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Compile).toTask("").value,
   assembly <<= assembly dependsOn assemblyScalastyle,
   testScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Test).toTask("").value,
   (test in Test) <<= (test in Test) dependsOn testScalastyle,
+  parallelExecution in Test := false,
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
     if (isSnapshot.value)
@@ -131,13 +132,12 @@ lazy val jarInspector = (project in file("jarInspector")).
 
 lazy val interface = (project in file("interface")).
   dependsOn(connectorLib).
-  dependsOn(etlLib).
+  dependsOn(etlLib % "test->test;compile->compile").
   dependsOn(jarInspector).
   settings(commonSettings: _*).
   enablePlugins(BuildInfoPlugin).
   settings(
     name := "MemSQL Spark Interface",
-    parallelExecution in Test := false,
     buildInfoKeys := Seq[BuildInfoKey](version),
     buildInfoPackage := "com.memsql.spark.interface.meta",
     libraryDependencies ++= {
@@ -184,7 +184,6 @@ lazy val tests = (project in file("tests")).
   settings(commonSettings: _*).
   settings(
     name := "tests",
-    parallelExecution in Test := false,
     libraryDependencies ++= {
       Seq(
         "mysql" % "mysql-connector-java" % mysqlConnectorVersion,

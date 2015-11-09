@@ -5,6 +5,7 @@ import java.util.concurrent.TimeoutException
 import akka.actor.{ActorRef, Props}
 import akka.pattern.ask
 import akka.util.Timeout
+import com.memsql.spark.etl.LocalSparkContext
 import com.memsql.spark.etl.api.UserExtractConfig
 import com.memsql.spark.etl.api.configs._
 import ExtractPhaseKind._

@@ -1,7 +1,8 @@
 package com.memsql.spark.interface.phases
 
+import com.memsql.spark.etl.LocalSparkContext
 import com.memsql.spark.etl.utils.ByteUtils._
-import com.memsql.spark.interface.{LocalSparkContext, TestKitSpec}
+import com.memsql.spark.interface.TestKitSpec
 import com.memsql.spark.interface.util.PipelineLogger
 import com.memsql.spark.phases.{CSVTransformerConfig, CSVTransformer, CSVTransformerException}
 import org.apache.spark.{SparkConf, SparkContext}
