@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind._
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import org.scalatest._
 
-class TestJSONPath extends FlatSpec {
+class JSONPathSpec extends FlatSpec {
   def testPathExtract(path: JSONPath, json: String) : String = {
     val mapper = new ObjectMapper()
     mapper.registerModule(DefaultScalaModule)
