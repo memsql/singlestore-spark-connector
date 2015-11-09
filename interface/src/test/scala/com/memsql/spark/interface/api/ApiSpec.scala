@@ -41,17 +41,17 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
     val config2 = config.copy(extract = Phase[ExtractPhaseKind](
       ExtractPhaseKind.User,
       ExtractPhase.writeConfig(
-        ExtractPhaseKind.User, UserExtractConfig("com.memsql.spark.interface.supportClasses.DummyExtractor", JsString("test")))))
+        ExtractPhaseKind.User, UserExtractConfig("com.memsql.spark.interface.support.DummyExtractor", JsString("test")))))
 
     val nonExistingExtractConfig = config.copy(extract = Phase[ExtractPhaseKind](
       ExtractPhaseKind.User,
       ExtractPhase.writeConfig(
-        ExtractPhaseKind.User, UserExtractConfig("com.memsql.spark.interface.supportClasses.DumDumDum", JsString("test")))))
+        ExtractPhaseKind.User, UserExtractConfig("com.memsql.spark.interface.support.DumDumDum", JsString("test")))))
 
     val nonExistingTransformConfig = config.copy(transform = Phase[TransformPhaseKind](
       TransformPhaseKind.User,
       TransformPhase.writeConfig(
-        TransformPhaseKind.User, UserTransformConfig("com.memsql.spark.interface.supportClasses.DumDumDum", JsString("test")))))
+        TransformPhaseKind.User, UserTransformConfig("com.memsql.spark.interface.support.DumDumDum", JsString("test")))))
 
     "respond to ping" in {
       apiRef ! Ping
@@ -284,7 +284,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         Phase[TransformPhaseKind](
           TransformPhaseKind.User,
           TransformPhase.writeConfig(
-            TransformPhaseKind.User, UserTransformConfig("com.memsql.spark.interface.supportClasses.DummyTransformer", JsString("test1")))),
+            TransformPhaseKind.User, UserTransformConfig("com.memsql.spark.interface.support.DummyTransformer", JsString("test1")))),
         Phase[LoadPhaseKind](
           LoadPhaseKind.MemSQL,
           LoadPhase.writeConfig(

@@ -43,7 +43,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
                                                 ExtractPhaseKind.User,
                                                 ExtractPhase.writeConfig(
                                                   ExtractPhaseKind.User, UserExtractConfig(
-                                                    "com.memsql.spark.interface.supportClasses.DummyExtractor",
+                                                    "com.memsql.spark.interface.support.DummyExtractor",
                                                     JsString("")))))
   val kafkaConfigEntity = HttpEntity(`application/json`, kafkaConfig.toJson.toString)
   val basicPipeline = Pipeline("asdf", state=PipelineState.RUNNING, batch_interval=100, config=kafkaConfig, last_updated=0)

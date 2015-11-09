@@ -1,10 +1,9 @@
-package com.memsql.spark.interface.supportClasses
+package com.memsql.spark.interface.support
 
 import com.memsql.spark.etl.api._
-import com.memsql.spark.etl.utils.{SimpleJsonSchema, PhaseLogger}
+import com.memsql.spark.etl.utils.PhaseLogger
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.types.{StructType, StructField, IntegerType}
 import org.apache.spark.sql.{DataFrame, SQLContext}
 
 class DummyExtractor extends SimpleByteArrayExtractor {

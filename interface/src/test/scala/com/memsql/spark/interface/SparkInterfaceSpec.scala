@@ -341,7 +341,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
         ExtractPhaseKind.User,
         ExtractPhase.writeConfig(
           ExtractPhaseKind.User,
-          UserExtractConfig("com.memsql.spark.interface.supportClasses.DummyExtractor", JsNull))))
+          UserExtractConfig("com.memsql.spark.interface.support.DummyExtractor", JsNull))))
 
       apiRef ! PipelineUpdate("pipeline3", config = Some(newConfig))
       receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
