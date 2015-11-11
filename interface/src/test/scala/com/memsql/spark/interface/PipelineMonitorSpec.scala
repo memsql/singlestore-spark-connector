@@ -92,20 +92,29 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
       whenReady((apiRef ? PipelineGet("pipeline2")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
           val pm = new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
-          val rdd1 = sc.parallelize(0 until 10).map(x => utf8StringToBytes(x.toString))
-          val (columns1, records1) = pm.getExtractRecords(rdd1)
+          val rdd1 = sc.parallelize(0 until 10).map(x => Row(x.toString))
+          val schema1 = StructType(StructField("value", StringType, false) :: Nil)
+          val df1 = sqlContext.createDataFrame(rdd1, schema1)
+          val (columns1, records1) = pm.getExtractRecords(df1)
           assert(columns1.get == List(("value", "string")))
           assert(records1.get.map(record => record(0).toInt) == (0 until 10))
 
-          val rdd2 = sc.parallelize(Array(utf8StringToBytes("test 1")))
-          val (columns2, records2) = pm.getExtractRecords(rdd2)
-          assert(columns1.get == List(("value", "string")))
-          assert(records2.get == List(List("test 1")))
+          val rdd2 = sc.parallelize(Array(Row("test 1", 1, false, null)))
+          val schema2 = StructType(Seq(StructField("col1", StringType, false),
+                                       StructField("col2", IntegerType, false),
+                                       StructField("col3", BooleanType, false),
+                                       StructField("col4", StringType, true)))
+          val df2 = sqlContext.createDataFrame(rdd2, schema2)
+          val (columns2, records2) = pm.getExtractRecords(df2)
+          assert(columns2.get == List(("col1", "string"), ("col2", "integer"), ("col3", "boolean"), ("col4", "string")))
+          assert(records2.get == List(List("test 1", "1", "false", "null")))
 
-          val rdd3 = sc.parallelize(Array(Array(127.toByte, 127.toByte)))
-          val (columns3, records3) = pm.getExtractRecords(rdd3)
-          assert(columns1.get == List(("value", "string")))
-          assert(records3.get == List(List("\\x7f\\x7f")))
+          val rdd3 = sc.parallelize(Array(Row(Array(127.toByte, 127.toByte), null)))
+          val schema3 = StructType(Seq(StructField("bytes1", BinaryType, false), StructField("bytes2", BinaryType, true)))
+          val df3 = sqlContext.createDataFrame(rdd3, schema3)
+          val (columns3, records3) = pm.getExtractRecords(df3)
+          assert(columns3.get == List(("bytes1", "binary"), ("bytes2", "binary")))
+          assert(records3.get == List(List("\\x7f\\x7f", "null")))
         }
         case Failure(error) => fail(s"Expected pipeline pipeline2 to exist: $error")
       }
