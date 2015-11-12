@@ -116,7 +116,7 @@ resolvers += "memsql" at "http://maven.memsql.com"
 Then inside a project definition you can depend on our libraries like so:
 
 ```
-libraryDependencies  += "com.memsql" %% "memsqletl" % "VERSION"
+libraryDependencies  += "com.memsql" %% "memsql-etl" % "VERSION"
 ```
 
 We also support packaging the MemSQL Spark Connector from source. Run ``make package`` to compile this connector.  This will create a directory called ``distribution/dist/memsql-<version number>``, which will contain a .jar file. Simply put this .jar file in your class path to use this library.

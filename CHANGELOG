@@ -1,8 +1,10 @@
 2015-11-02  Version 1.1.0
 
+	* Available on Maven Central Repository
 	* More events for batches
 	* Deprecated the old Kafka extractor and replaced it with a new one that takes in a Zookeeper quorum address
 	* Added a new field to pipeline API responses indicating whether or not a pipeline is currently running
+	* Renamed projects: memsqlsparkinterface -> memsql-spark-interface, memsqletl -> memsql-etl, memsqlrdd -> memsql-connector. 
 	* Robustness and bug fixes
 
 2015-09-24  Version 1.0.0
