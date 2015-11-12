@@ -3,7 +3,6 @@ package com.memsql.spark.interface
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.UUID
-
 import akka.pattern.ask
 import akka.actor.ActorRef
 import com.memsql.spark.SaveToMemSQLException
@@ -74,6 +73,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   private[interface] val transformConfig = TransformPhase.readConfig(config.transform.kind, config.transform.config)
   private[interface] val loadConfig = LoadPhase.readConfig(config.load.kind, config.load.config)
 
+  override val sqlContext = new MemSQLContext(sparkContext)
+
   private[interface] val extractor: Extractor = config.extract.kind match {
     case ExtractPhaseKind.Kafka => new KafkaExtractor()
     case ExtractPhaseKind.ZookeeperManagedKafka => new ZookeeperManagedKafkaExtractor()
@@ -81,6 +82,9 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     case ExtractPhaseKind.User => {
       val className = extractConfig.asInstanceOf[UserExtractConfig].class_name
       Class.forName(className).newInstance.asInstanceOf[Extractor]
+    }
+    case ExtractPhaseKind.Python => {
+      new PythonExtractor(sparkContext, pipeline_id, extractConfig.asInstanceOf[PythonExtractConfig])
     }
   }
   private[interface] val transformer: Transformer = config.transform.kind match {
@@ -90,14 +94,15 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
       Class.forName(className).newInstance.asInstanceOf[Transformer]
     }
+    case TransformPhaseKind.Python => {
+      new PythonTransformer(sparkContext, pipeline_id, transformConfig.asInstanceOf[PythonTransformConfig])
+    }
   }
   private[interface] val loader: Loader = config.load.kind match {
     case LoadPhaseKind.MemSQL => new MemSQLLoader
   }
 
   override val pipelineInstance = PipelineInstance(extractor, extractConfig, transformer, transformConfig, loader, loadConfig)
-
-  override val sqlContext = new MemSQLContext(sparkContext)
 
   private var currentBatchId: String = null
   private[interface] val isStopping = new AtomicBoolean()
@@ -125,14 +130,17 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     var extractorInitialized: Boolean = false
     val extractLogger = getPhaseLogger("extract")
 
+    var transformerInitialized: Boolean = false
+    val transformLogger = getPhaseLogger("transform", trackEntries=false)
+
     try {
       logDebug(s"Initializing extractor for pipeline $pipeline_id")
       pipelineInstance.extractor.initialize(streamingContext, sqlContext, pipelineInstance.extractConfig, batchIntervalMillis, extractLogger)
       extractorInitialized = true
 
-      val transformLogger = getPhaseLogger("transform", trackEntries=false)
       logDebug(s"Initializing transformer for pipeline $pipeline_id")
       pipelineInstance.transformer.initialize(sqlContext, pipelineInstance.transformConfig, transformLogger)
+      transformerInitialized = true
 
       var time: Long = 0
       val pipelineStartEvent = PipelineStartEvent(
@@ -311,6 +319,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         timestamp = System.currentTimeMillis,
         event_id = UUID.randomUUID.toString)
       pipeline.enqueueMetricRecord(pipelineEndEvent)
+
       try {
         if (extractorInitialized) {
           pipelineInstance.extractor.cleanup(streamingContext, sqlContext, pipelineInstance.extractConfig, batchInterval, extractLogger)
@@ -318,6 +327,16 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       } catch {
         case NonFatal(e) => {
           logError(s"Exception in pipeline $pipeline_id while stopping extractor", e)
+        }
+      }
+
+      try {
+        if (transformerInitialized) {
+          pipelineInstance.transformer.cleanup(sqlContext, pipelineInstance.transformConfig, transformLogger)
+        }
+      } catch {
+        case NonFatal(e) => {
+          logError(s"Exception in pipeline $pipeline_id while stopping transformer", e)
         }
       }
     }

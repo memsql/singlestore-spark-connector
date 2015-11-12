@@ -15,7 +15,6 @@ test_root/*
 *.pyc
 *~
 *.class
-python/
 *.swp
 .idea
 .DS_Store

@@ -27,6 +27,17 @@ class PipelineLogger(override val name: String, val keepEntries: Boolean=true) e
     }
   }
 
+  // Used by the Python logging implementation.
+  def Py4JLog(level: String, message: String): Unit = {
+    level match {
+      case "DEBUG" => log(Level.DEBUG, message)
+      case "INFO" => log(Level.INFO, message)
+      case "WARN" => log(Level.WARN, message)
+      case "ERROR" => log(Level.ERROR, message)
+      case "FATAL" => log(Level.FATAL, message)
+    }
+  }
+
   def getLogEntries(): List[String] = logEntries.toList
   def clearLogEntries(): Unit = logEntries.clear
 

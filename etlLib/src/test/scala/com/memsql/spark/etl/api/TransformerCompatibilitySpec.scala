@@ -59,9 +59,14 @@ class TransformerCompatibilitySpec extends FlatSpec with BeforeAndAfterEach with
 
   class TestTransformer extends Transformer {
     var initializeCalled = false
+    var cleanupCalled = false
 
     override def initialize(sqlContext: SQLContext, config: PhaseConfig, logger: PhaseLogger): Unit = {
       initializeCalled = true
+    }
+
+    override def cleanup(sqlContext: SQLContext, config: PhaseConfig, logger: PhaseLogger): Unit = {
+      cleanupCalled = true
     }
 
     override def transform(sqlContext: SQLContext, df: DataFrame, config: PhaseConfig,
@@ -125,12 +130,18 @@ class TransformerCompatibilitySpec extends FlatSpec with BeforeAndAfterEach with
     assert(values == testSequence.map("foobar" + _.toString))
   }
 
-  "Transformer" should "initialize correctly" in {
+  "Transformer" should "initialize and cleanup correctly" in {
     val transformer = new TestTransformer()
     assert(!transformer.initializeCalled)
+    assert(!transformer.cleanupCalled)
 
     transformer.initialize(sqlContext, config, logger)
     assert(transformer.initializeCalled)
+    assert(!transformer.cleanupCalled)
+
+    transformer.cleanup(sqlContext, config, logger)
+    assert(transformer.initializeCalled)
+    assert(transformer.cleanupCalled)
   }
 
   it should "correctly return DataFrames" in {

@@ -192,23 +192,6 @@ class DockerFactory(object):
             docker_client = self._get_docker_client()
             docker_client.stop(container=self.id)
 
-    def run_zookeeper(self):
-        print "Running zookeeper on %s" % (self.host)
-        # uses ports 2181, 2888, 3888
-        return self._shell.run(["/storage/testroot/zookeeper/bin/zkServer.sh", "start"])
-
-    def run_kafka(self, zookeeper_ip, broker_id):
-        print "Running kafka on %s" % (self.host)
-        # uses ports 9092 7203
-        return self._shell.spawn(["/storage/testroot/kafka/start.sh"], update_env={
-            "EXPOSED_HOST": self.host,
-            "ZOOKEEPER_IP": zookeeper_ip,
-            "BROKER_ID": str(broker_id)
-        })
-
-    def run_java_class(self, jar, className, extra_args=[]):
-        return self._shell.run(["java", "-cp", jar, className])
-
 @pytest.fixture(scope='function')
 def docker_factory(request):
     def _factory(*args, **kwargs):
@@ -223,6 +206,9 @@ class LocalContext:
 
     def __init__(self):
         self._shell = LocalShell()
+        # NOTE: we need to connect to the spark master using the correct ip
+        # so we read it from /etc/hosts which reflects the eth0 interface
+        self.external_ip = self._shell.run(["hostname", "-i"]).output
 
     def deploy_spark(self):
         with open(os.path.join(ROOT_PATH, "memsql-spark/build_receipt.json")) as f:
@@ -232,6 +218,19 @@ class LocalContext:
         self._shell.sudo(["tar", "czvf", "/tmp/memsql-spark.tar.gz", "-C", os.path.join(ROOT_PATH, "memsql-spark"), "."], None)
         self._shell.sudo(["memsql-ops", "file-add", "-t", "spark", "/tmp/memsql-spark.tar.gz"], None)
         return self._shell.run(["memsql-ops", "spark-deploy", "--version", spark_version])
+
+    def wait_for_interface(self, timeout=60):
+        for i in range(timeout):
+            time.sleep(1)
+
+            try:
+                resp = requests.get("http://%s:10009/ping" % self.external_ip)
+                if resp.status_code == 200:
+                    return
+            except Exception:
+                pass
+
+        assert False, "Spark interface did not start in %d seconds" % timeout
 
     def kill_spark_interface(self):
         return self._shell.sudo(["pkill", "-f", "com.memsql.spark.interface.Main"], None)
@@ -256,30 +255,97 @@ class LocalContext:
         print "Stopping MemSQL Ops"
         return self._shell.sudo(["memsql-ops", "stop"], None)
 
-    def run_zookeeper(self):
-        print "Running zookeeper"
-        return self._shell.run(["/storage/testroot/zookeeper/bin/zkServer.sh", "start"])
-
-    def run_kafka(self, broker_id):
-        print "Running kafka"
-        return self._shell.spawn(["/storage/testroot/kafka/start.sh"], update_env={
-            "EXPOSED_HOST": "127.0.0.1",
-            "ZOOKEEPER_IP": "127.0.0.1",
-            "BROKER_ID": str(broker_id)
-        })
-
     def spark_submit(self, className, jar=MEMSQL_JAR_PATH, extra_args=[]):
-        # NOTE: we need to connect to the spark master using the correct ip
-        # so we read it from /etc/hosts which reflects the eth0 interface
-        external_ip = self._shell.run(["awk", "NR==1 {print $1}", "/etc/hosts"]).output
         cmd = [
             os.path.join(SPARK_ROOT, "bin/spark-submit"),
-            "--master", "spark://%s:10001" % external_ip,
+            "--master", "spark://%s:10001" % self.external_ip,
             "--class", className,
             "--deploy-mode", "client",
             jar]
 
         return self._shell.run(cmd + extra_args, allow_error=True)
+
+    def pipeline_get(self, pipeline_id):
+        print "Getting pipeline %s" % pipeline_id
+        resp = requests.get(
+            "http://%s:10009/pipeline/get" % self.external_ip,
+            headers={ "Content-Type": "application/json" },
+            params={
+                "pipeline_id": pipeline_id,
+            }
+        )
+
+        assert resp.status_code == 200, "pipeline get failed: %s" % resp.text
+        return resp.json()
+
+    def pipeline_put(self, pipeline_id, config, batch_interval):
+        print "Submitting pipeline %s: %s %s" % (pipeline_id, config, batch_interval)
+        resp = requests.post(
+            "http://%s:10009/pipeline/put" % self.external_ip,
+            headers={ "Content-Type": "application/json" },
+            params={
+                "pipeline_id": pipeline_id,
+                "batch_interval": batch_interval
+            },
+            data=json.dumps(config)
+        )
+
+        assert resp.status_code == 200, "pipeline put failed: %s" % resp.text
+        return resp.json()
+
+    def pipeline_wait_for_batches(self, pipeline_id, count, timeout=60, since_timestamp=None):
+        print "Waiting for %d batches from pipeline %s" % (count, pipeline_id)
+        start = time.time()
+        last_exception = None
+        while time.time() < start + timeout:
+            try:
+                resp = requests.get(
+                    "http://%s:10009/pipeline/metrics" % self.external_ip,
+                    headers={ "Content-Type": "application/json" },
+                    params={
+                        "pipeline_id": pipeline_id
+                    }
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    batches = filter(lambda x: x['event_type'] == 'BatchEnd', data)
+                    if since_timestamp is not None:
+                        # timestamp from metrics is in millseconds
+                        batches = filter(lambda x: x['timestamp']/1000 >= since_timestamp, batches)
+
+                    if len(batches) >= count:
+                        return batches[-1]
+            except requests.exceptions.RequestException as e:
+                # retry until timeout
+                last_exception = e
+        else:
+            message = "waiting for pipeline %s to produce %d batches timed out after %s seconds" % (pipeline_id, count, timeout)
+            if last_exception is not None:
+                message = "%s: %s" % (message, str(last_exception))
+            assert False, message
+
+    def pipeline_update(self, pipeline_id, active, config=None, trace_batch_count=None):
+        print "Updating pipeline %s: %s %s" % (pipeline_id, active, config)
+        kwargs = {}
+        if config is not None:
+            kwargs['data'] = json.dumps(config)
+
+        params = {
+            "pipeline_id": pipeline_id,
+            "active": active
+        }
+        if trace_batch_count is not None:
+            params["trace_batch_count"] = trace_batch_count
+
+        resp = requests.patch(
+            "http://%s:10009/pipeline/update" % self.external_ip,
+            headers={ "Content-Type": "application/json" },
+            params=params,
+            **kwargs
+        )
+
+        assert resp.status_code == 200, "pipeline update failed: %s" % resp.text
+        return resp.json()
 
 @pytest.fixture(scope='function')
 def local_context(request):

@@ -21,6 +21,17 @@ abstract class Transformer extends Serializable {
   def initialize(sqlContext: SQLContext, config: PhaseConfig, logger: PhaseLogger): Unit = {}
 
   /**
+   * Cleanup code for your Transformer.
+   * This is called after your pipeline has stopped.
+   * The default implementation does nothing.
+   *
+   * @param sqlContext The [[org.apache.spark.sql.SQLContext]] that is used to run this pipeline.
+   * @param config The Transformer configuration passed from MemSQL Ops.
+   * @param logger A logger instance that is integrated with MemSQL Ops.
+   */
+  def cleanup(sqlContext: SQLContext, config: PhaseConfig, logger: PhaseLogger): Unit = {}
+
+  /**
    * Transforms the incoming [[org.apache.spark.sql.DataFrame]].
    *
    * @param sqlContext The SQLContext that is used to run this pipeline.

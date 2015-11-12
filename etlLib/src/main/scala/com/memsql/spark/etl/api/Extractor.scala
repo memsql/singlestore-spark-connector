@@ -28,7 +28,7 @@ abstract class Extractor extends Serializable {
 
   /**
    * Cleanup code for your Extractor.
-   * This is called after your pipeline has terminated.
+   * This is called after your pipeline has stopped.
    * The default implementation does nothing.
    *
    * @param ssc The [[org.apache.spark.streaming.StreamingContext]] that is used to run this pipeline.
@@ -53,7 +53,7 @@ abstract class Extractor extends Serializable {
    *         it will be passed through the rest of the pipeline.
    */
   def next(ssc: StreamingContext, time: Long, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long,
-           logger: PhaseLogger): Option[DataFrame] = None
+           logger: PhaseLogger): Option[DataFrame]
 }
 
 /**
@@ -137,7 +137,7 @@ abstract class SimpleByteArrayExtractor extends ByteArrayExtractor {
 
   /**
    * Cleanup code for your Extractor.
-   * This is called after your pipeline has terminated.
+   * This is called after your pipeline has stopped.
    * The default implementation does nothing.
    *
    * @param sparkContext The SparkContext that is used to run this pipeline.

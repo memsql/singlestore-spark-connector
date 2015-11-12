@@ -10,13 +10,13 @@ case class Phase[T](kind: T, config: JsValue)
 
 object ExtractPhaseKind extends Enumeration {
   type ExtractPhaseKind = Value
-  val ZookeeperManagedKafka, Kafka, TestLines, User = Value
+  val ZookeeperManagedKafka, Kafka, TestLines, User, Python = Value
 }
 import com.memsql.spark.etl.api.configs.ExtractPhaseKind._
 
 object TransformPhaseKind extends Enumeration {
   type TransformPhaseKind = Value
-  val Json, Csv, User = Value
+  val Json, Csv, User, Python = Value
 }
 import com.memsql.spark.etl.api.configs.TransformPhaseKind._
 

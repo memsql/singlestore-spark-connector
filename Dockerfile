@@ -35,13 +35,14 @@ RUN sudo tar zxvf /tmp/kafka.tar.gz -C /storage/testroot
 RUN sudo mkdir /data && sudo chown -R memsql:memsql /data
 
 # install memsql ops
-ENV MEMSQL_OPS_VERSION 4.1.7
+ENV MEMSQL_OPS_VERSION 4.2.0
 RUN wget -q -O /tmp/memsql-ops.tar.gz http://download.memsql.com/memsql-ops-$MEMSQL_OPS_VERSION/memsql-ops-$MEMSQL_OPS_VERSION.tar.gz
 RUN sudo tar zxvf /tmp/memsql-ops.tar.gz -C /tmp
 RUN sudo /tmp/memsql-ops-$MEMSQL_OPS_VERSION/install.sh -n
 
 # prepare memsql
-RUN wget -q -O /tmp/memsqlbin_amd64.tar.gz http://download.memsql.com/releases/version/4.1.2/memsqlbin_amd64.tar.gz
+ENV MEMSQL_VERSION 4.1.2
+RUN wget -q -O /tmp/memsqlbin_amd64.tar.gz http://download.memsql.com/releases/version/$MEMSQL_VERSION/memsqlbin_amd64.tar.gz
 RUN sudo rm -f /var/lib/memsql-ops/data/memsql-ops.pid && \
     sudo memsql-ops start && \
     sudo memsql-ops file-add -t memsql /tmp/memsqlbin_amd64.tar.gz && \
