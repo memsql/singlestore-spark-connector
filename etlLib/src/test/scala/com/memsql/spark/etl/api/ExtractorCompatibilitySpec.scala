@@ -225,4 +225,24 @@ class ExtractorCompatibilitySpec extends FlatSpec with BeforeAndAfterEach with L
 
     extractor.cleanup(streamingContext, sqlContext, config, batchInterval, logger)
   }
+
+  it should "only enable checkpointing if all methods are implemented" in {
+    val extractor = new TestExtractor()
+    assert(!extractor.usesCheckpointing())
+
+    class CheckpointingExtractor extends TestExtractor {
+      override def batchCheckpoint(): Option[Map[String, Any]] = None
+      override def batchRetry(): Unit = {}
+    }
+
+    val checkpointingExtractor = new CheckpointingExtractor()
+    assert(checkpointingExtractor.usesCheckpointing())
+
+    class IncompleteCheckpointingExtractor extends TestExtractor {
+      override def batchCheckpoint(): Option[Map[String, Any]] = None
+    }
+
+    val incompleteExtractor = new IncompleteCheckpointingExtractor()
+    assert(!incompleteExtractor.usesCheckpointing())
+  }
 }

@@ -12,11 +12,11 @@ import com.memsql.spark.etl.api.configs.ExtractPhaseKind._
 import com.memsql.spark.etl.api.configs.LoadPhaseKind._
 import com.memsql.spark.etl.api.configs.TransformPhaseKind._
 import com.memsql.spark.etl.api.configs._
-import com.memsql.spark.etl.api.{PhaseConfig, Transformer, UserTransformConfig}
+import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.utils.PhaseLogger
 import com.memsql.spark.interface.api.ApiActor._
 import com.memsql.spark.interface.api._
-import com.memsql.spark.interface.util.Paths
+import com.memsql.spark.interface.util.{Checkpoint, Paths}
 import com.memsql.spark.phases.configs.ExtractPhase
 import com.memsql.spark.phases._
 import org.apache.spark.sql.memsql.test.TestBase
@@ -47,6 +47,40 @@ class SlowTransformer extends Transformer {
   }
 }
 
+class CheckpointingExtractor extends Extractor {
+  var checkpointed: Boolean = false
+  var retried: Boolean = false
+
+  override def next(ssc: StreamingContext, time: Long, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long,
+                    logger: PhaseLogger): Option[DataFrame] = {
+    val rdd = ssc.sparkContext.parallelize(1.to(10).toSeq).map(Row(_))
+    val schema = StructType(Array(StructField("val_int", IntegerType, false)))
+    Some(sqlContext.createDataFrame(rdd, schema))
+  }
+
+  override def batchCheckpoint(): Option[Map[String, Any]] = {
+    checkpointed = true
+    Some(Map("foo" -> "bar"))
+  }
+
+  override def batchRetry(): Unit = {
+    retried = true
+  }
+}
+
+class BrokenCheckpointingExtractor extends CheckpointingExtractor {
+  override def next(ssc: StreamingContext, time: Long, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long,
+                    logger: PhaseLogger): Option[DataFrame] = {
+    val rdd = ssc.sparkContext.parallelize(1.to(10).toSeq).map(Row(_)).map( x => {
+      throw new Exception("this batch failed")
+      x
+    })
+    val schema = StructType(Array(StructField("val_int", IntegerType, false)))
+    Some(sqlContext.createDataFrame(rdd, schema))
+  }
+}
+
+
 class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with TestBase with BeforeAndAfterAll {
   val apiRef = system.actorOf(Props(classOf[ApiActor], new SparkProgress()), "api")
   var streamingContext: StreamingContext = _
@@ -56,6 +90,8 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with TestBa
     super.beforeAll()
     sparkUp(true)
     streamingContext = new StreamingContext(sc, new Duration(5000))
+    val interfaceConfig = Config()
+    Checkpoint.initialize(interfaceConfig)
   }
 
   override def afterAll(): Unit = {
@@ -383,6 +419,96 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with TestBa
           }
         }
         case Failure(error) => fail(s"Expected pipeline6 to exist: $error")
+      }
+    }
+  }
+
+  "PipelineMonitor" should {
+    "call batchCheckpoint on checkpointing extractors after a successful batch" in {
+      val config = PipelineConfig(
+        Phase[ExtractPhaseKind](
+          ExtractPhaseKind.User,
+          ExtractPhase.writeConfig(
+            ExtractPhaseKind.User, UserExtractConfig(class_name = "com.memsql.spark.interface.CheckpointingExtractor", value = JsString("foo")))),
+        Phase[TransformPhaseKind](
+          TransformPhaseKind.Identity,
+          TransformPhase.writeConfig(
+            TransformPhaseKind.Identity, IdentityTransformerConfig())),
+        Phase[LoadPhaseKind](
+          LoadPhaseKind.MemSQL,
+          LoadPhase.writeConfig(
+            LoadPhaseKind.MemSQL, MemSQLLoadConfig(dbName, "t7", None, None))))
+
+      apiRef ? PipelinePut("pipeline7", single_step=None, batch_interval=Some(1), config=config)
+
+      whenReady((apiRef ? PipelineGet("pipeline7")).mapTo[Try[Pipeline]]) {
+        case Success(pipeline) => {
+          val pm = new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
+          pm.ensureStarted
+          assert(pm.isAlive)
+
+          Thread.sleep(3000)
+
+          assert(!pm.hasError())
+          assert(pm.extractor.asInstanceOf[CheckpointingExtractor].checkpointed)
+          assert(!pm.extractor.asInstanceOf[CheckpointingExtractor].retried)
+
+          whenReady((apiRef ? PipelineGet("pipeline7")).mapTo[Try[Pipeline]]) {
+            case Success(pipeline) => {
+              assert(pipeline.thread_state == PipelineThreadState.THREAD_RUNNING)
+              assert(pipeline.state == PipelineState.RUNNING)
+
+              pm.stop
+            }
+            case Failure(error) => fail(s"Expected pipeline7 to exist: $error")
+          }
+        }
+        case Failure(error) => fail(s"Expected pipeline7 to exist: $error")
+      }
+    }
+  }
+
+  "PipelineMonitor" should {
+    "call batchRetry on checkpointing extractors after a failed batch" in {
+      val config = PipelineConfig(
+        Phase[ExtractPhaseKind](
+          ExtractPhaseKind.User,
+          ExtractPhase.writeConfig(
+            ExtractPhaseKind.User, UserExtractConfig(class_name = "com.memsql.spark.interface.BrokenCheckpointingExtractor", value = JsString("foo")))),
+        Phase[TransformPhaseKind](
+          TransformPhaseKind.Identity,
+          TransformPhase.writeConfig(
+            TransformPhaseKind.Identity, IdentityTransformerConfig())),
+        Phase[LoadPhaseKind](
+          LoadPhaseKind.MemSQL,
+          LoadPhase.writeConfig(
+            LoadPhaseKind.MemSQL, MemSQLLoadConfig(dbName, "t8", None, None))))
+
+      apiRef ? PipelinePut("pipeline8", single_step=None, batch_interval=Some(1), config=config)
+
+      whenReady((apiRef ? PipelineGet("pipeline8")).mapTo[Try[Pipeline]]) {
+        case Success(pipeline) => {
+          val pm = new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
+          pm.ensureStarted
+          assert(pm.isAlive)
+
+          Thread.sleep(3000)
+
+          assert(!pm.hasError())
+          assert(!pm.extractor.asInstanceOf[CheckpointingExtractor].checkpointed)
+          assert(pm.extractor.asInstanceOf[CheckpointingExtractor].retried)
+
+          whenReady((apiRef ? PipelineGet("pipeline8")).mapTo[Try[Pipeline]]) {
+            case Success(pipeline) => {
+              assert(pipeline.thread_state == PipelineThreadState.THREAD_RUNNING)
+              assert(pipeline.state == PipelineState.RUNNING)
+
+              pm.stop
+            }
+            case Failure(error) => fail(s"Expected pipeline8 to exist: $error")
+          }
+        }
+        case Failure(error) => fail(s"Expected pipeline8 to exist: $error")
       }
     }
   }

@@ -9,7 +9,7 @@ import akka.event.Logging._
 import akka.io.IO
 import com.memsql.spark.interface.server.WebServer
 import ApiActor._
-import com.memsql.spark.interface.util.Paths
+import com.memsql.spark.interface.util.{Checkpoint, Paths}
 import com.memsql.spark.interface.util.ErrorUtils._
 import org.apache.log4j.PropertyConfigurator
 import org.apache.spark.{SparkConf, SparkContext, SparkContextHelper}
@@ -18,6 +18,7 @@ import spray.can.Http
 import akka.pattern.ask
 import scala.concurrent._
 import scala.concurrent.duration._
+import scala.util.control.NonFatal
 import scala.util.{Failure, Try, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -26,6 +27,7 @@ object Config {
   val DEFAULT_PORT = 10001
   val DEFAULT_DATA_DIR = ""
   val DEFAULT_DEBUG = false
+  val DEFAULT_METADATA_DBNAME = "memsql_streamliner"
 }
 case class Config(port: Int = Config.DEFAULT_PORT,
                   dataDir: String = Config.DEFAULT_DATA_DIR,
@@ -33,6 +35,7 @@ case class Config(port: Int = Config.DEFAULT_PORT,
                   dbPort: Int = MemSQLConf.DEFAULT_PORT,
                   dbUser: String = MemSQLConf.DEFAULT_USER,
                   dbPassword: String = MemSQLConf.DEFAULT_PASS,
+                  metadatadbName: String = Config.DEFAULT_METADATA_DBNAME,
                   debug: Boolean = Config.DEFAULT_DEBUG)
 
 class SparkInterface(val providedConfig: Config) extends Application {
@@ -91,6 +94,17 @@ class SparkInterface(val providedConfig: Config) extends Application {
     case _ => {
       logError(s"Failed to bind to 0.0.0.0:${config.port}")
       system.shutdown()
+      sys.exit(1)
+    }
+  }
+
+  try {
+    logInfo(s"Initializing checkpoint database on ${config.dbHost}:${config.dbPort}")
+    Checkpoint.initialize(config)
+  } catch {
+    case NonFatal(e) => {
+      logError(s"Failed to initialize checkpoint database", e)
+      system.shutdown
       sys.exit(1)
     }
   }
