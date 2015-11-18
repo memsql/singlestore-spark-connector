@@ -182,7 +182,7 @@ class MemSQLContext(sparkContext: SparkContext,
     } else {
       node
     }
-    MemSQLContext.getMemSQLConnection(node.host, node.port, userName, password, dbName)
+    MemSQLContext.getMemSQLConnection(theNode.host, theNode.port, userName, password, dbName)
   }
 
 }
