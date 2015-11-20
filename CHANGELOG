@@ -1,3 +1,6 @@
+2015-11-19  Version 1.1.1
+        * Set JDBC login timeout to 10 seconds
+
 2015-11-02  Version 1.1.0
 
 	* Available on Maven Central Repository
