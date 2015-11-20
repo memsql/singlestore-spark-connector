@@ -41,7 +41,7 @@ RUN sudo tar zxvf /tmp/memsql-ops.tar.gz -C /tmp
 RUN sudo /tmp/memsql-ops-$MEMSQL_OPS_VERSION/install.sh -n
 
 # prepare memsql
-RUN wget -q -O /tmp/memsqlbin_amd64.tar.gz http://download.memsql.com/releases/latest/memsqlbin_amd64.tar.gz
+RUN wget -q -O /tmp/memsqlbin_amd64.tar.gz http://download.memsql.com/releases/version/4.1.1/memsqlbin_amd64.tar.gz
 RUN sudo rm -f /var/lib/memsql-ops/data/memsql-ops.pid && \
     sudo memsql-ops start && \
     sudo memsql-ops file-add -t memsql /tmp/memsqlbin_amd64.tar.gz && \
