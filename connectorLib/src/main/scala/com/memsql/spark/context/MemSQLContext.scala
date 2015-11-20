@@ -21,6 +21,7 @@ object MemSQLContext {
   val DEFAULT_PORT = 3306
   val DEFAULT_USER = "root"
   val DEFAULT_PASSWORD = ""
+  val DEFAULT_JDBC_LOGIN_TIMEOUT = 10 //seconds
 
   def apply(sparkContext: SparkContext): MemSQLContext = {
     val conf = sparkContext.getConf
@@ -38,6 +39,9 @@ object MemSQLContext {
       } else {
         ""
       })
+
+    // set a sane non-zero login timeout before connecting
+    DriverManager.setLoginTimeout(DEFAULT_JDBC_LOGIN_TIMEOUT)
     DriverManager.getConnection(dbAddress, userName, password)
   }
 
