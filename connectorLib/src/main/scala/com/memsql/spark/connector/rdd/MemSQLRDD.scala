@@ -45,7 +45,7 @@ case class MemSQLRDD[T: ClassTag](
   password: String,
   dbName: String,
   sql: String,
-  sqlParams: Seq[Object] = Seq[Object](),
+  sqlParams: Seq[Object] = Nil,
   mapRow: (ResultSet) => T = MemSQLRDD.resultSetToObjectArray _)
     extends RDD[T](sc, Nil) with Logging {
 
@@ -75,7 +75,7 @@ case class MemSQLRDD[T: ClassTag](
       }
 
       explainStmt = conn.prepareStatement(explainQuery + sql)
-      fillParams(explainStmt)
+      MemSQLRDD.fillParams(explainStmt, sqlParams)
 
       val explainRs = explainStmt.executeQuery
       // TODO: this won't work with MarkoExplain
@@ -137,7 +137,7 @@ case class MemSQLRDD[T: ClassTag](
     val stmt = conn.prepareStatement(stmtSql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
 
     if (!usePerPartitionSql) {
-      fillParams(stmt)
+      MemSQLRDD.fillParams(stmt, sqlParams)
     }
 
     val rs = stmt.executeQuery
@@ -189,7 +189,19 @@ case class MemSQLRDD[T: ClassTag](
     }
   }
 
-  def fillParams(stmt: PreparedStatement): Unit = {
+}
+
+object MemSQLRDD {
+  def resultSetToObjectArray(rs: ResultSet): Array[Object] = {
+    Array.tabulate[Object](rs.getMetaData.getColumnCount)(i => rs.getObject(i + 1))
+  }
+
+  def resultSetToIterator(rs: ResultSet): Iterator[ResultSet] = new Iterator[ResultSet] {
+    def hasNext = rs.next()
+    def next() = rs
+  }
+
+  def fillParams(stmt: PreparedStatement, sqlParams: Seq[Object]): Unit = {
     sqlParams.zipWithIndex.foreach {
       case (el, i) => {
         if (el == null) {
@@ -201,16 +213,5 @@ case class MemSQLRDD[T: ClassTag](
         }
       }
     }
-  }
-}
-
-object MemSQLRDD {
-  def resultSetToObjectArray(rs: ResultSet): Array[Object] = {
-    Array.tabulate[Object](rs.getMetaData.getColumnCount)(i => rs.getObject(i + 1))
-  }
-
-  def resultSetToIterator(rs: ResultSet): Iterator[ResultSet] = new Iterator[ResultSet] {
-    def hasNext = rs.next()
-    def next() = rs
   }
 }

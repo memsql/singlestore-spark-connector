@@ -183,7 +183,7 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
    * Represents one possibility for the Spark -> MemSQL mapping created by calling saveToMemSQL.
    */
   def saveToMemSQLDryRun(memSQLContext: MemSQLContext): List[MemSQLTarget] = {
-    val availableNodes = memSQLContext.getMemSQLNodesAvailableForIngest.map(node => (node.host, node.port, null: String))
+    val availableNodes = memSQLContext.getMemSQLNodesAvailableForIngest().map(node => (node.host, node.port, null: String))
     val randomIndex = Random.nextInt(availableNodes.size)
     rdd.mapPartitions{ part =>
       List(chooseMemSQLTarget(availableNodes, randomIndex)).toIterator

@@ -1,17 +1,17 @@
 package com.memsql.spark.connector.dataframe
 
-import java.sql.{Connection, ResultSet, ResultSetMetaData, Statement}
+import java.sql.{PreparedStatement, Connection, ResultSet, ResultSetMetaData, Types}
 
+import com.memsql.spark.connector.util.MemSQLConnectionInfo
 import com.memsql.spark.connector.{MemSQLConnectionWrapper, MemSQLConnectionPoolMap}
+import com.memsql.spark.context.MemSQLContext
+import com.memsql.spark.pushdown.MemSQLPushdownException
 import org.apache.commons.io.IOUtils
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.sources._
+import org.apache.spark.{sql, SparkContext}
 
 import org.apache.spark.sql.types._
 import org.apache.spark.sql._
 import com.memsql.spark.connector.rdd.MemSQLRDD
-import org.apache.commons.lang.StringEscapeUtils
 
 object MemSQLDataFrameUtils {
   def DataFrameTypeToMemSQLTypeString(dataType: DataType): String = {
@@ -28,6 +28,26 @@ object MemSQLDataFrameUtils {
     }
   }
 
+  /**
+   * Attempts a best effort conversion from a SparkType
+   * to a MemSQLType to be used in a Cast.
+   *
+   * @note Will raise a match error for unsupported casts
+   */
+  def DataFrameTypeToMemSQLCastType(t: DataType): String = t match {
+    case StringType => "CHAR"
+    case BinaryType => "BINARY"
+    case DateType => "DATE"
+    case TimestampType => "DATE"
+    case decimal: DecimalType => s"DECIMAL(${decimal.precision}, ${decimal.scale})"
+    case BooleanType => "INTEGER"
+    case ByteType => "CHAR"
+    case ShortType => "INTEGER"
+    case IntegerType => "SIGNED"
+    case FloatType => "DECIMAL"
+    case LongType => "SIGNED"
+    case DoubleType => "DECIMAL"
+  }
 
   def JDBCTypeToDataFrameType(rsmd: ResultSetMetaData, ix: Int): DataType = {
     rsmd.getColumnType(ix) match {
@@ -35,7 +55,7 @@ object MemSQLDataFrameUtils {
       case java.sql.Types.INTEGER => IntegerType
       case java.sql.Types.TINYINT => ShortType
       case java.sql.Types.SMALLINT => ShortType
-      case java.sql.Types.BIGINT => LongType  // TODO: This will prevent inequalities for some dumb reason
+      case java.sql.Types.BIGINT => LongType
       case java.sql.Types.DOUBLE => DoubleType
       case java.sql.Types.NUMERIC => DoubleType
       case java.sql.Types.REAL => FloatType
@@ -44,7 +64,9 @@ object MemSQLDataFrameUtils {
       case java.sql.Types.TIMESTAMP => TimestampType
       case java.sql.Types.DATE => DateType
       case java.sql.Types.TIME => TimestampType
-      case java.sql.Types.DECIMAL => DecimalType(rsmd.getPrecision(ix), rsmd.getScale(ix))
+      // Note: Spark's Decimal type only handles: (quote from comment in DecimalType code)
+      // "The precision can be up to 38, scale can also be up to 38 (less or equal to precision)."
+      case java.sql.Types.DECIMAL => DecimalType(math.min(38, rsmd.getPrecision(ix)), math.min(38, rsmd.getScale(ix)))
       case java.sql.Types.LONGNVARCHAR => StringType
       case java.sql.Types.LONGVARCHAR => StringType
       case java.sql.Types.VARCHAR => StringType
@@ -98,71 +120,82 @@ object MemSQLDataFrameUtils {
 }
 
 object MemSQLDataFrame {
-  def MakeMemSQLRowRDD(
-    sc: SparkContext,
-    dbHost: String,
-    dbPort: Int,
-    user: String,
-    password: String,
-    dbName: String,
-    query: String): MemSQLRDD[Row] = {
-    new MemSQLRDD(sc, dbHost, dbPort, user, password, dbName, query, Array[Object](), (r:ResultSet) => {
-      val count = r.getMetaData.getColumnCount
-      Row.fromSeq(Range(0, count)
-         .map(i => MemSQLDataFrameUtils.GetJDBCValue(r.getMetaData.getColumnType(i + 1), i + 1, r)))
-    })
-  }
-
-  def MakeMemSQLRowRDDFromTemplate(
-    sc: SparkContext,
-    dbHost: String,
-    dbPort: Int,
-    user: String,
-    password: String,
-    dbName: String,
-    queryTemplate: String,
-    queryParams: Seq[Object]): MemSQLRDD[Row] = {
-      new MemSQLRDD(sc, dbHost, dbPort, user, password, dbName, queryTemplate, queryParams, (r:ResultSet) => {
+  def MakeMemSQLRowRDD(sparkContext: SparkContext,
+                       info: MemSQLConnectionInfo,
+                       query: String,
+                       queryParams: Seq[Object]=Nil): MemSQLRDD[Row] =
+    new MemSQLRDD(
+      sparkContext,
+      info.dbHost, info.dbPort, info.user, info.password, info.dbName,
+      query, queryParams,
+      (r: ResultSet) => {
         val count = r.getMetaData.getColumnCount
         Row.fromSeq(Range(0, count)
           .map(i => MemSQLDataFrameUtils.GetJDBCValue(r.getMetaData.getColumnType(i + 1), i + 1, r)))
-    })
+      }
+    )
+
+  def MakeMemSQLDF(sqlContext: SQLContext,
+                   dbHost: String, dbPort: Int, user: String, password: String, dbName: String,
+                   query: String): DataFrame =
+    MakeMemSQLDF(
+      sqlContext,
+      MemSQLConnectionInfo(dbHost, dbPort, user, password, dbName),
+      query)
+
+  /**
+   * Make a DataFrame from a MemSQL query.
+   *
+   * @note If sqlContext is not a MemSQLContext, you will not get any query pushdown.
+   * @throws MemSQLPushdownException
+   */
+  def MakeMemSQLDF(sqlContext: SQLContext, info: MemSQLConnectionInfo,
+                   query: String, queryParams: Seq[Object]=Nil): DataFrame = {
+
+    if (sqlContext.isInstanceOf[MemSQLContext]) {
+      val m = sqlContext.asInstanceOf[MemSQLContext]
+      if (m.pushdownEnabled) {
+        // In the case that we are building a DataFrame with a MemSQLContext
+        // which has pushdown enabled, we must verify that the connection details
+        // correlate to one of the valid aggregators in the cluster.
+        val availableNodes = m.getMemSQLNodesAvailableForIngest(alwaysIncludeMaster = true)
+        if (!availableNodes.exists(n => info == n)) {
+          throw new MemSQLPushdownException(
+            "Specified connection info does not refer to a MemSQL node in the associated MemSQLContext's cluster")
+        }
+      }
+    }
+
+    UnsafeMakeMemSQLDF(sqlContext, info, query, queryParams)
   }
 
-  def MakeMemSQLDF(
-    sqlContext: SQLContext,
-    dbHost: String,
-    dbPort: Int,
-    user: String,
-    password: String,
-    dbName: String,
-    query: String): DataFrame = {
-    val reader = sqlContext.read.format("com.memsql.spark.connector.dataframe.MemSQLRelationProvider").options(Map(
-      "dbHost" -> dbHost,
-      "dbPort" -> dbPort.toString,
-      "user" -> user,
-      "password" -> password,
-      "dbName" -> dbName,
-      "query" -> query))
-    reader.load
+  /**
+   * Same as [[MakeMemSQLDF]] - but doesn't verify that the query is
+   * part of the same cluster as an underlying [[MemSQLContext]]
+   */
+  def UnsafeMakeMemSQLDF(sqlContext: SQLContext, info: MemSQLConnectionInfo,
+                         query: String, queryParams: Seq[Object]=Nil): DataFrame = {
+    val rdd = MakeMemSQLRowRDD(sqlContext.sparkContext, info, query, queryParams)
+    val schema = getQuerySchema(info, query, queryParams)
+
+    MemSQLLogicalRelation.buildDataFrame(sqlContext, info, rdd, schema)
   }
 
   def getQuerySchema(
-    dbHost: String,
-    dbPort: Int,
-    user: String,
-    password: String,
-    dbName: String,
-    query: String): StructType = {
+    info: MemSQLConnectionInfo,
+    query: String,
+    queryParams: Seq[Object] = Nil): StructType = {
 
     var wrapper: MemSQLConnectionWrapper = null
     var conn: Connection = null
-    var schemaStmt: Statement = null
+    var schemaStmt: PreparedStatement = null
     try {
-      wrapper = MemSQLConnectionPoolMap(dbHost, dbPort, user, password, dbName)
+      wrapper = MemSQLConnectionPoolMap(info)
       conn = wrapper.conn
-      schemaStmt = conn.createStatement
-      val metadata = schemaStmt.executeQuery(limitZero(query)).getMetaData
+      schemaStmt = conn.prepareStatement(limitZero(query))
+      MemSQLRDD.fillParams(schemaStmt, queryParams)
+
+      val metadata = schemaStmt.executeQuery.getMetaData
       val count = metadata.getColumnCount
       StructType(Range(0,count).map(i => StructField(metadata.getColumnName(i + 1),
                                                      MemSQLDataFrameUtils.JDBCTypeToDataFrameType(metadata, i + 1), true)))
@@ -177,62 +210,4 @@ object MemSQLDataFrame {
   }
 
   def limitZero(q: String): String = "SELECT * FROM (" + q + ") tab_alias LIMIT 0"
-}
-
-case class MemSQLScan(@transient rdd: MemSQLRDD[Row], @transient sqlContext: SQLContext)
-  extends BaseRelation with PrunedFilteredScan {
-  val schema: StructType = MemSQLDataFrame.getQuerySchema(rdd.dbHost, rdd.dbPort, rdd.user, rdd.password, rdd.dbName, rdd.sql)
-
-  private def getWhere(filters: Array[Filter], result: StringBuilder, conjunction: String): StringBuilder = {
-    for (i <- filters.indices) {
-      if (i != 0) { // scala apparently has no "pythonic" join
-        result.append(conjunction)
-      }
-      result.append("(")
-      filters(i) match {
-        case And(p1, p2) => getWhere(Array(p1,p2), result, " AND ")
-        case Or(p1, p2) => getWhere(Array(p1,p2), result, " OR ")
-        case EqualTo(attr, v) =>  result.append(attr).append(" = '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
-        case GreaterThan(attr, v) =>  result.append(attr).append(" > '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
-        case LessThan(attr, v) =>  result.append(attr).append(" < '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
-        case GreaterThanOrEqual(attr, v) => result.append(attr).append(" >= '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
-        case LessThanOrEqual(attr, v) => result.append(attr).append(" <= '").append(StringEscapeUtils.escapeSql(v.toString)).append("'")
-        case In(attr, vs) => {
-          result.append(" in (")
-          for (j <- vs.indices) {
-            if (j != 0) {
-              result.append(",")
-            }
-            result.append("'").append(StringEscapeUtils.escapeSql(vs(j).toString)).append("'")
-          }
-          result.append(" )")
-        }
-      }
-      result.append(")")
-    }
-    result
-  }
-  private def getProject(requiredColumns: Array[String]): String = {
-    if (requiredColumns.size == 0) { // for df.count, df.is_empty
-      "1"
-    } else {
-      requiredColumns.map("`" + _ + "`").mkString(",")
-    }
-  }
-
-  def buildScan(requiredColumns: Array[String], filters: Array[Filter]): RDD[Row] = {
-    var sql = "SELECT " + getProject(requiredColumns) + " FROM (" + rdd.sql + ") tab_alias"
-    if (filters.size != 0) {
-      sql = sql + " WHERE " + getWhere(filters, new StringBuilder, " AND ").toString
-    }
-    MemSQLDataFrame.MakeMemSQLRowRDD(sqlContext.sparkContext, rdd.dbHost, rdd.dbPort, rdd.user, rdd.password, rdd.dbName, sql)
-  }
-}
-
-class MemSQLRelationProvider extends RelationProvider {
-  def createRelation(sqlContext: SQLContext, parameters: Map[String,String]): MemSQLScan = {
-    new MemSQLScan(MemSQLDataFrame.MakeMemSQLRowRDD(sqlContext.sparkContext, parameters("dbHost"),
-                          parameters("dbPort").toInt, parameters("user"), parameters("password"),
-                          parameters("dbName"), parameters("query")), sqlContext)
-  }
 }

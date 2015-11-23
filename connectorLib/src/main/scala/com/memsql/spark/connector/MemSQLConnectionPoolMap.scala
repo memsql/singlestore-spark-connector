@@ -3,6 +3,7 @@ package com.memsql.spark.connector
 import java.sql.Connection
 import java.util.concurrent.ConcurrentHashMap
 
+import com.memsql.spark.connector.util.MemSQLConnectionInfo
 import org.apache.commons.pool2.impl.GenericObjectPool
 
 class MemSQLConnectionWrapper(val conn: Connection,
@@ -10,6 +11,9 @@ class MemSQLConnectionWrapper(val conn: Connection,
 
 object MemSQLConnectionPoolMap {
   var poolMap: ConcurrentHashMap[(String, Int, String), GenericObjectPool[Connection]] = new ConcurrentHashMap
+
+  def apply(info: MemSQLConnectionInfo): MemSQLConnectionWrapper =
+    MemSQLConnectionPoolMap(info.dbHost, info.dbPort, info.user, info.password, info.dbName)
 
   def apply(dbHost: String,
             dbPort: Int,

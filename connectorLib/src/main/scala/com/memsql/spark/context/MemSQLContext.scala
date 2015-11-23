@@ -1,5 +1,8 @@
 package com.memsql.spark.context
 
+import com.memsql.spark.connector.util.MemSQLConnectionInfo
+import com.memsql.spark.pushdown.MemSQLPushdownStrategy
+
 import scala.util.Random
 import java.sql._
 import org.apache.spark._
@@ -23,13 +26,13 @@ object MemSQLContext {
   val DEFAULT_PASSWORD = ""
   val DEFAULT_JDBC_LOGIN_TIMEOUT = 10 //seconds
 
-  def apply(sparkContext: SparkContext): MemSQLContext = {
+  def apply(sparkContext: SparkContext, enablePushdown: Boolean = true): MemSQLContext = {
     val conf = sparkContext.getConf
     val dbHost = conf.get("memsql.host", DEFAULT_HOST)
     val dbPort = conf.getInt("memsql.port", DEFAULT_PORT)
     val dbUser = conf.get("memsql.user", DEFAULT_USER)
     val dbPassword = conf.get("memsql.password", DEFAULT_PASSWORD)
-    new MemSQLContext(sparkContext, dbHost, dbPort, dbUser, dbPassword)
+    new MemSQLContext(sparkContext, dbHost, dbPort, dbUser, dbPassword, enablePushdown)
   }
 
   def getMemSQLConnection(host: String, port: Int, userName: String, password: String, dbName: String = null): Connection = {
@@ -101,10 +104,17 @@ object MemSQLContext {
    * Returns a list of the child aggregators which can accept writes.
    * The master agg will only be included if no other nodes are available.
    */
-  def getMemSQLNodesAvailableForIngest(masterHost: String, masterPort: Int, userName: String, password: String): List[MemSQLNode] = {
+  def getMemSQLNodesAvailableForIngest(masterHost: String,
+                                       masterPort: Int,
+                                       userName: String,
+                                       password: String,
+                                       alwaysIncludeMaster: Boolean=false): List[MemSQLNode] = {
+
     val childAggs = getMemSQLChildAggregators(masterHost, masterPort, userName, password)
     if (childAggs.size == 0) {
       List(MemSQLNode(masterHost, masterPort, MemSQLRole.Master))
+    } else if (alwaysIncludeMaster) {
+      childAggs ++ List(MemSQLNode(masterHost, masterPort, MemSQLRole.Master))
     } else {
       childAggs
     }
@@ -119,14 +129,21 @@ object MemSQLContext {
  * @param masterAggPort The port of the master aggregator.
  * @param userName The user name for the master aggregator.
  * @param password The password for the master aggregator.
+ * @param enablePushdown When set, certain dataframe operations will be pushed down into underlying MemSQL Queries.
  */
 class MemSQLContext(sparkContext: SparkContext,
                     masterAggHost: String,
                     masterAggPort: Int,
                     userName: String,
-                    password: String) extends SQLContext(sparkContext) {
+                    password: String,
+                    enablePushdown: Boolean = true) extends SQLContext(sparkContext) {
 
   var masterAgg = MemSQLNode(masterAggHost, masterAggPort, MemSQLRole.Master)
+
+  val pushdownEnabled = enablePushdown
+  if (pushdownEnabled) {
+    MemSQLPushdownStrategy.patchSQLContext(this)
+  }
 
   def getMemSQLMasterAggregator: MemSQLNode = masterAgg
 
@@ -141,38 +158,29 @@ class MemSQLContext(sparkContext: SparkContext,
   def getMemSQLUserName: String = userName
   def getMemSQLPassword: String = password
 
-  def getMemSQLNodesAvailableForIngest: List[MemSQLNode] = {
-    MemSQLContext.getMemSQLNodesAvailableForIngest(masterAgg.host, masterAgg.port, userName, password)
+  def getMemSQLNodesAvailableForIngest(alwaysIncludeMaster: Boolean = false): List[MemSQLNode] = {
+    MemSQLContext.getMemSQLNodesAvailableForIngest(masterAgg.host, masterAgg.port, userName, password, alwaysIncludeMaster)
   }
 
   /*
    * Returns a list of nodes which can accept reads.
    * Currently nodes available for read are exactly those available for writes.
    */
-  def getMemSQLNodesAvailableForRead: List[MemSQLNode] = getMemSQLNodesAvailableForIngest
+  def getMemSQLNodesAvailableForRead: List[MemSQLNode] = getMemSQLNodesAvailableForIngest()
 
   def createDataFrameFromMemSQLTable(dbName: String, tableName: String) : DataFrame = {
     createDataFrameFromMemSQLQuery(dbName, "SELECT * FROM " + tableName)
   }
 
-  def createDataFrameFromMemSQLQuery(dbName: String, query: String) : DataFrame = {
+  def createDataFrameFromMemSQLQuery(dbName: String, query: String, queryParams: Seq[Object]=Nil) : DataFrame = {
     val aggs = getMemSQLNodesAvailableForRead
     val agg = aggs(Random.nextInt(aggs.size))
-    MemSQLDataFrame.MakeMemSQLDF(this, agg.host, agg.port, userName, password, dbName, query)
+    val cxnInfo = MemSQLConnectionInfo(agg.host, agg.port, userName, password, dbName)
+    MemSQLDataFrame.UnsafeMakeMemSQLDF(this, cxnInfo, query, queryParams)
   }
 
-  def getTableSchema(dbName: String, tableName: String) : StructType = createDataFrameFromMemSQLTable(dbName, tableName).schema
-
-  /*
-   * Creates a MemSQLRDD from a select query.
-   * If the query is fully pushed down, the RDD will have one Spark partition per MemSQL partition,
-   * Else it will have a single spark partition.
-   */
-  def createRDDFromMemSQLQuery(dbName: String, query: String): MemSQLRDD[Row] = {
-    val aggs = getMemSQLNodesAvailableForRead
-    val agg = aggs(Random.nextInt(aggs.size))
-    MemSQLDataFrame.MakeMemSQLRowRDD(sparkContext, agg.host, agg.port, userName, password, dbName, query)
-  }
+  def getTableSchema(dbName: String, tableName: String) : StructType =
+    createDataFrameFromMemSQLTable(dbName, tableName).schema
 
   /**
    * Returns a JDBC Connection to a MemSQLNode.

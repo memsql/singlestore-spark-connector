@@ -1,0 +1,198 @@
+package com.memsql.spark.pushdown
+
+import com.memsql.spark.connector.dataframe.MemSQLDataFrameUtils
+import org.apache.spark.sql.catalyst.{expressions, CatalystTypeConverters}
+import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.types._
+import org.apache.spark.unsafe.types.UTF8String
+
+import scala.collection.mutable.ListBuffer
+
+/**
+ * Convenience methods for creating a SQLBuilder
+ */
+object SQLBuilder {
+  /**
+   * Create a SQLBuilder from a SQL expression string along with any associated params.
+   * @param sql The SQL expression to initialize the SQLBuilder with
+   * @param params Any params for the provided expression
+   */
+  def fromStatic(sql: String, params: Seq[Any]=Nil): SQLBuilder =
+    new SQLBuilder().raw(sql).addParams(params)
+
+  /**
+   * We need this destructor since the BinaryOperator object is private to Spark
+   * TODO: Remove when Spark makes it public (maybe 1.6)
+   */
+  object BinaryOperator {
+    def unapply(e: expressions.BinaryOperator): Option[(Expression, Expression)] = Some((e.left, e.right))
+  }
+}
+
+/**
+ * SQLBuilder is a mutable object for efficiently building up complex SQL expressions.
+ * Internally it uses StringBuilder and a ListBuffer to efficiently support many small writes.
+ * All methods return `this` for chaining.
+ */
+class SQLBuilder(var sql: StringBuilder = new StringBuilder,
+                 var params: ListBuffer[Any] = ListBuffer.empty[Any]) {
+
+  /**
+   * Appends another SQLBuilder to this one.
+   * @param other The other SQLBuilder
+   * @return This SQLBuilder
+   */
+  def appendBuilder(other: SQLBuilder): SQLBuilder =
+    raw(other.sql).addParams(other.params)
+
+  /**
+   * Adds an attribute to the expression
+   * @note Surrounds the attribute with backticks
+   */
+  def attr(a: Attribute) = { sql.append("`").append(a.name).append("`"); this }
+
+  /**
+   * @see SQLBuilder#attr(Attribute)
+   */
+  def attr(a: String) = { sql.append("`").append(a).append("`"); this }
+
+  /**
+   * Adds a raw string to the expression, no escaping occurs
+   */
+  def raw(s: String) = { sql.append(s); this }
+
+  /**
+   * @see SQLBuilder#raw(String)
+   */
+  def raw(s: StringBuilder) = { sql.append(s); this }
+
+  /**
+   * Wraps the provided lambda in parenthesis
+   * @param inner A lambda which will be executed between adding parenthesis to the expression
+   */
+  def block(inner: => Unit) = { raw("("); inner; raw(")"); this }
+
+  /**
+   * Adds the provided param to the internal params list.
+   */
+  def param(p: Any) = { params += p; this }
+
+  /**
+   * @see SQLBuilder#param(Any)
+   * @note Use this variant if the parameter is one of the Catalyst Types
+   */
+  def param(p: Any, t: DataType) = {
+    params += CatalystTypeConverters.convertToScala(p, t)
+    this
+  }
+
+  /**
+   * @see SQLBuilder#param(Any)
+   * @note Handles converting the literal from its Catalyst Type to a Scala Type
+   */
+  def param(l: Literal) = {
+    params += CatalystTypeConverters.convertToScala(l.value, l.dataType)
+    this
+  }
+
+  /**
+   * Add a list of params directly to the internal params list.
+   * Optimized form of calling SQLBuilder#param(Any) for each element of newParams.
+   */
+  def addParams(newParams: Seq[Any]) = { params ++= newParams; this }
+
+  /**
+   * Adds a list of elements to the SQL expression, as a comma-delimited list.
+   * Handles updating the expression as well as adding
+   * each param to the internal params list.
+   *
+   * @param newParams A list of objects to add to the expression
+   * @param t The Catalyst type for all of the objects
+   */
+  def paramList(newParams: Seq[Any], t: DataType) = {
+    block {
+      for (j <- newParams.indices) {
+        if (j != 0) {
+          raw(", ?").param(newParams(j), t)
+        }
+        else {
+          raw("?").param(newParams(j), t)
+        }
+      }
+    }
+  }
+
+  /**
+   * Adds a list of expressions to this SQLBuilder, joins each expression with the provided conjunction.
+   * @param expressions A list of [[Expression]]s
+   * @param conjunction A string to join the resulting SQL Expressions with
+   */
+  def addExpressions(expressions: Seq[Expression], conjunction: String): SQLBuilder = {
+    for (i <- expressions.indices) {
+      if (i != 0) { raw(conjunction) }
+      addExpression(expressions(i))
+    }
+    this
+  }
+
+  /**
+   * Adds a Catalyst [[Expression]] to this SQLBuilder
+   * @param expression The [[Expression]] to add
+   */
+  def addExpression(expression: Expression): SQLBuilder = {
+    expression match {
+      case a: Attribute => attr(a)
+      case l: Literal => raw("?").param(l)
+      case Alias(child: Expression, name: String) =>
+        block { addExpression(child) }.raw(" AS ").attr(name)
+
+      case Cast(child, t) =>
+        raw("CAST").block { addExpression(child)
+        .raw(" AS ").raw(MemSQLDataFrameUtils.DataFrameTypeToMemSQLCastType(t)) }
+
+      case And(left, right) => block { addExpressions(Seq(left) ++ Seq(right), " AND ") }
+      case Or(left, right) => block { addExpressions(Seq(left) ++ Seq(right), " OR ") }
+      case Not(inner) => raw("NOT").block { addExpressions(Seq(inner), " AND ") }
+
+      case StartsWith(a: Attribute, Literal(v: UTF8String, StringType)) =>
+        attr(a).raw(" LIKE ?").param(s"${v.toString}%")
+      case EndsWith(a: Attribute, Literal(v: UTF8String, StringType)) =>
+        attr(a).raw(" LIKE ?").param(s"%${v.toString}")
+      case Contains(a: Attribute, Literal(v: UTF8String, StringType)) =>
+        attr(a).raw(" LIKE ?").param(s"%${v.toString}%")
+
+      case IsNull(a: Attribute) => attr(a).raw(" IS NULL")
+      case IsNotNull(a: Attribute) => attr(a).raw(" IS NOT NULL")
+
+      case InSet(a: Attribute, set) => attr(a).raw(" IN ").paramList(set.toSeq, a.dataType)
+
+      case In(a: Attribute, list) if list.forall(_.isInstanceOf[Literal]) =>
+        attr(a).raw(" IN ").paramList(list, a.dataType)
+
+      // AGGREGATE PATTERNS
+
+      case Count(child) => raw("COUNT").block { addExpression(child) }
+      case CountDistinct(children) => raw("COUNT(DISTINCT ").addExpressions(children, ", ").raw(")")
+
+      // NOTE: MemSQL does not allow the user to configure relativeSD,
+      // so we only can pushdown if the user asks for up to the maximum
+      // precision that we offer.
+      case ApproxCountDistinct(child, relativeSD) if relativeSD >= 0.01 =>
+        raw("APPROX_COUNT_DISTINCT").block { addExpression(child) }
+
+      case Sum(child) => raw("SUM").block { addExpression(child) }
+      case Average(child) => raw("AVG").block { addExpression(child) }
+      case Max(child) => raw("MAX").block { addExpression(child) }
+      case Min(child) => raw("MIN").block { addExpression(child) }
+
+      case SortOrder(child: Expression, Ascending) => block { addExpression(child) }.raw(" ASC")
+      case SortOrder(child: Expression, Descending) => block { addExpression(child) }.raw(" DESC")
+
+      // GENERIC PATTERNS
+
+      case op @ SQLBuilder.BinaryOperator(left: Expression, right: Expression) =>
+        addExpression(left).raw(s" ${op.symbol} ").addExpression(right)
+    }
+    this
+  }
+}
