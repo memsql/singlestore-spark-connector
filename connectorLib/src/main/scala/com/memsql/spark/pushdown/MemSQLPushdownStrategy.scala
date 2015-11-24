@@ -55,6 +55,15 @@ class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
         suffix=Some(new SQLBuilder().raw(" WHERE ").addExpression(condition))
       )
 
+    case Limit(limitExpr, child) =>
+      for {
+        subTree <- buildQueryTree(child)
+      } yield PartialQuery(
+        output=subTree.output,
+        inner=subTree,
+        suffix=Some(new SQLBuilder().raw(" LIMIT ").addExpression(limitExpr))
+      )
+
     case Project(Nil, child) => buildQueryTree(child)
     case Project(fields, child) =>
       for {
