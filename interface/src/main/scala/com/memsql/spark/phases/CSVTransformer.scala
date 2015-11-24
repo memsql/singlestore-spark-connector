@@ -1,6 +1,6 @@
 package com.memsql.spark.phases
 
-import com.memsql.spark.etl.api.{ByteArrayTransformer, PhaseConfig}
+import com.memsql.spark.etl.api.{StringTransformer, PhaseConfig}
 import com.memsql.spark.etl.utils.{PhaseLogger, SimpleJsonSchema}
 import org.apache.commons.csv._
 import org.apache.spark.rdd._
@@ -18,8 +18,8 @@ case class CSVTransformerConfig(
   null_string: Option[String],
   columns: JsValue) extends PhaseConfig
 
-class CSVTransformer extends ByteArrayTransformer {
-  override def transform(sqlContext: SQLContext, rdd: RDD[Array[Byte]], transformConfig: PhaseConfig, logger: PhaseLogger): DataFrame = {
+class CSVTransformer extends StringTransformer {
+  override def transform(sqlContext: SQLContext, rdd: RDD[String], transformConfig: PhaseConfig, logger: PhaseLogger): DataFrame = {
     val config = transformConfig.asInstanceOf[CSVTransformerConfig]
 
     val csvFormat = getCSVFormat(config)
@@ -27,8 +27,7 @@ class CSVTransformer extends ByteArrayTransformer {
     val columns = SimpleJsonSchema.parseColumnDefs(config.columns)
     val schema = SimpleJsonSchema.columnsToStruct(columns)
 
-    val parsedRDD = rdd.map(byteUtils.bytesToUTF8String)
-                       .flatMap(parseCSVLines(_, csvFormat))
+    val parsedRDD = rdd.flatMap(parseCSVLines(_, csvFormat))
 
     val nulledRDD = nullString match {
       case Some(nullS) => parsedRDD.map(x => x.map(y => if (y.trim() == nullS) None else y))

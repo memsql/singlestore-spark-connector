@@ -81,7 +81,8 @@ abstract class ByteArrayExtractor extends Extractor {
    */
   def extract(ssc: StreamingContext, extractConfig: PhaseConfig, batchInterval: Long, logger: PhaseLogger): InputDStream[Array[Byte]]
 
-  override def next(ssc: StreamingContext, time: Long, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long, logger: PhaseLogger): Option[DataFrame] = {
+  override def next(ssc: StreamingContext, time: Long, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long,
+                    logger: PhaseLogger): Option[DataFrame] = {
     if (dStream == null) {
       dStream = extract(ssc, config, batchInterval, logger)
     }

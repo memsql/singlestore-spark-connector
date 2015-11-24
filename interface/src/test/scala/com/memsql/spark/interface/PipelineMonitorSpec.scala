@@ -8,7 +8,7 @@ import akka.actor.Props
 import akka.util.Timeout
 import com.memsql.spark.connector.dataframe.{JsonType, JsonValue}
 import com.memsql.spark.etl.LocalSparkContext
-import com.memsql.spark.etl.api.{UserTransformConfig, PhaseConfig, ByteArrayTransformer, UserExtractConfig}
+import com.memsql.spark.etl.api.{UserTransformConfig, PhaseConfig, Transformer, UserExtractConfig}
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.etl.utils.ByteUtils._
 import ExtractPhaseKind._
@@ -30,12 +30,12 @@ import scala.concurrent.duration._
 import scala.util.{Try, Success, Failure}
 import com.memsql.spark.etl.utils.Logging
 
-class DuplicateTransformer extends ByteArrayTransformer {
+class DuplicateTransformer extends Transformer {
   var columnName: String = "testcol"
   val DUPLICATION_FACTOR = 100
 
-  override def transform(sqlContext: SQLContext, rdd: RDD[Array[Byte]], transformConfig: PhaseConfig, logger: PhaseLogger): DataFrame = {
-    val transformedRDD = rdd.flatMap(r => List.fill(DUPLICATION_FACTOR)(Row(new JsonValue(byteUtils.bytesToUTF8String(r)))))
+  override def transform(sqlContext: SQLContext, df: DataFrame, config: PhaseConfig, logger: PhaseLogger): DataFrame = {
+    val transformedRDD = df.rdd.flatMap(r => List.fill(DUPLICATION_FACTOR)(Row(new JsonValue(r.toSeq.head.asInstanceOf[String]))))
     val schema = StructType(Array(StructField(columnName, JsonType, true)))
     sqlContext.createDataFrame(transformedRDD, schema)
   }
