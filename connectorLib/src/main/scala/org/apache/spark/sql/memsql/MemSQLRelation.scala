@@ -1,4 +1,4 @@
-package org.apache.spark.sql
+package org.apache.spark.sql.memsql
 
 import com.memsql.spark.connector.rdd.MemSQLRDD
 import com.memsql.spark.connector.util.MemSQLConnectionInfo
@@ -7,6 +7,7 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.sources.{BaseRelation, TableScan}
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
 case class MemSQLRelation(connectionInfo: MemSQLConnectionInfo,
                           query: String,
@@ -19,7 +20,7 @@ case class MemSQLRelation(connectionInfo: MemSQLConnectionInfo,
   val buildScan = rdd
 }
 
-object MemSQLLogicalRelation {
+object MemSQLRelationUtils {
   def buildDataFrame(sqlContext: SQLContext,
                      cxnInfo: MemSQLConnectionInfo,
                      rdd: MemSQLRDD[Row],

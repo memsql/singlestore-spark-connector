@@ -1,10 +1,12 @@
 package com.memsql.spark.pushdown
 
 import org.apache.spark.SparkContext
+import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.Inner
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.execution.SparkPlan
-import org.apache.spark.sql.{SQLContext, MemSQLRelation, MemSQLLogicalRelation, Strategy}
+import org.apache.spark.sql.memsql.{MemSQLRelationUtils, MemSQLRelation}
+import org.apache.spark.sql.{SQLContext, Strategy}
 
 object MemSQLPushdownStrategy {
   /**
@@ -31,10 +33,12 @@ object MemSQLPushdownStrategy {
 }
 
 class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
-
   def apply(plan: LogicalPlan): Seq[SparkPlan] = {
+    val fieldIdIter = Iterator.from(1).map(n => s"field$n")
+
     try {
-      buildQueryTree(plan) match {
+      val alias = QueryAlias("pushdown")
+      buildQueryTree(fieldIdIter, alias, plan) match {
         case Some(queryTree) => Seq(MemSQLPhysicalRDD.fromAbstractQueryTree(sparkContext, queryTree))
         case _ => Nil
       }
@@ -45,80 +49,104 @@ class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
     }
   }
 
-  def buildQueryTree(plan: LogicalPlan): Option[AbstractQuery] = plan match {
+  def buildQueryTree(fieldIdIter: Iterator[String], alias: QueryAlias, plan: LogicalPlan): Option[AbstractQuery] = plan match {
     case Filter(condition, child) =>
       for {
-        subTree <- buildQueryTree(child)
+        subTree <- buildQueryTree(fieldIdIter, alias.child, child)
       } yield PartialQuery(
+        alias=alias,
         output=subTree.output,
         inner=subTree,
-        suffix=Some(new SQLBuilder().raw(" WHERE ").addExpression(condition))
+        suffix=Some(SQLBuilder
+          .withFields(subTree.qualifiedOutput)
+          .raw(" WHERE ").addExpression(condition)
+        )
       )
 
-    case Limit(limitExpr, child) =>
-      for {
-        subTree <- buildQueryTree(child)
-      } yield PartialQuery(
-        output=subTree.output,
-        inner=subTree,
-        suffix=Some(new SQLBuilder().raw(" LIMIT ").addExpression(limitExpr))
-      )
-
-    case Project(Nil, child) => buildQueryTree(child)
     case Project(fields, child) =>
       for {
-        subTree <- buildQueryTree(child)
+        subTree <- buildQueryTree(fieldIdIter, alias.child, child)
+        expressions = renameExpressions(fieldIdIter, fields)
       } yield PartialQuery(
-        output=fields.map(_.toAttribute),
-        prefix=Some(new SQLBuilder().addExpressions(fields, ", ")),
+        alias=alias,
+        output=expressions.map(_.toAttribute),
+        prefix=SQLBuilder
+          .withFields(subTree.qualifiedOutput)
+          .maybeAddExpressions(expressions, ", "),
         inner=subTree
       )
 
-    case Aggregate(Nil, Nil, child) => buildQueryTree(child)
     case Aggregate(groups, fields, child) =>
       for {
-        subTree <- buildQueryTree(child)
+        subTree <- buildQueryTree(fieldIdIter, alias.child, child)
+        expressions = renameExpressions(fieldIdIter, fields)
       } yield PartialQuery(
-        output=fields.map(_.toAttribute),
-        prefix=OptionSeq(fields).map { _ =>
-          new SQLBuilder().addExpressions(fields, ", ")
-        },
+        alias=alias,
+        output=expressions.map(_.toAttribute),
+        prefix=SQLBuilder
+          .withFields(subTree.qualifiedOutput)
+          .maybeAddExpressions(expressions, ", "),
         inner=subTree,
-        suffix=OptionSeq(groups).map { _ =>
-          new SQLBuilder().raw(" GROUP BY ").addExpressions(groups, ", ")
-        }
+        suffix=SQLBuilder
+          .withFields(subTree.qualifiedOutput)
+          .raw(" GROUP BY ").maybeAddExpressions(groups, ", ")
       )
 
     // NOTE: We can only push down global sorts into MemSQL, not per partition sorts.
     // If we need to implement per-partition sorts we can probably do it for certain
     // queries that stay local on the leaves
-    case Sort(Nil, /* global= */ true, child) => buildQueryTree(child)
     case Sort(orderings, /* global= */ true, child) =>
       for {
-        subTree <- buildQueryTree(child)
+        subTree <- buildQueryTree(fieldIdIter, alias.child, child)
       } yield PartialQuery(
+        alias=alias,
         output=subTree.output,
         inner=subTree,
-        suffix=Some(new SQLBuilder().raw(" ORDER BY ").addExpressions(orderings, ", "))
+        suffix=SQLBuilder
+          .withFields(subTree.qualifiedOutput)
+          .raw(" ORDER BY ").maybeAddExpressions(orderings, ", ")
       )
 
-    case Join(left, right, Inner, condition) =>
+    case Join(left, right, Inner, condition) => {
+      val (leftAlias, rightAlias) = alias.fork
       for {
-        leftSubTree <- buildQueryTree(left)
-        rightSubTree <- buildQueryTree(right)
+        leftSubTree <- buildQueryTree(fieldIdIter, leftAlias.child, left)
+        rightSubTree <- buildQueryTree(fieldIdIter, rightAlias.child, right)
         if leftSubTree.sharesCluster(rightSubTree)
+        qualifiedOutput = leftSubTree.qualifiedOutput ++ rightSubTree.qualifiedOutput
       } yield {
         JoinQuery(
+          alias=alias,
           output=leftSubTree.output ++ rightSubTree.output,
-          condition=condition.map { c => new SQLBuilder().addExpression(c) },
+          condition=condition.map { c =>
+            SQLBuilder
+              .withFields(qualifiedOutput)
+              .addExpression(c)
+          },
           left=leftSubTree,
           right=rightSubTree
         )
       }
+    }
 
-    case MemSQLLogicalRelation(r: MemSQLRelation) => Some(BaseQuery(r))
+    case MemSQLRelationUtils(r: MemSQLRelation) => Some(BaseQuery(alias, r))
 
     case _ => None
   }
+
+  /**
+    * Assign field names to each expression for a given alias
+    */
+  def renameExpressions(fieldIdIter: Iterator[String], expressions: Seq[NamedExpression]): Seq[NamedExpression] =
+    expressions.map {
+      // We need to special case Alias, since this is not valid SQL:
+      // select (foo as bar) as baz from ...
+      case a @ Alias(child: Expression, name: String) => {
+        Alias(child, fieldIdIter.next)(a.exprId, Nil, a.explicitMetadata)
+      }
+      case expr: NamedExpression => {
+        Alias(expr, fieldIdIter.next)(expr.exprId, Nil, None)
+      }
+    }
 }
 

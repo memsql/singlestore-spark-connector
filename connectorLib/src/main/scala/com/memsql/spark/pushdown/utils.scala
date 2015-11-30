@@ -6,9 +6,9 @@ case class QueryAlias(prefix: String, height: Int=0) {
   override def toString: String = s"${prefix}_$height"
 
   /**
-   * Returns the next QueryAlias in the current tree.
+   * Returns a query alias one level deeper than this alias.
    */
-  def next: QueryAlias = this.copy(height=height + 1)
+  def child: QueryAlias = this.copy(height=height + 1)
 
   /**
    * Forks this QueryAlias into two aliases, suitable
@@ -18,19 +18,6 @@ case class QueryAlias(prefix: String, height: Int=0) {
     QueryAlias(prefix=s"${prefix}_$height"),
     QueryAlias(prefix=s"${prefix}_${height + 1}")
   )
-}
-
-
-/**
- * A OptionSeq wraps a Seq with an Option based on whether or not the Seq is empty.
- */
-object OptionSeq {
-  def apply(seq: Seq[Any]) =
-    if (seq.isEmpty) {
-      None
-    } else {
-      Some(seq)
-    }
 }
 
 object StringBuilderImplicits {

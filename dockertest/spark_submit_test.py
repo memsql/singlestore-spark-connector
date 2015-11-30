@@ -28,6 +28,9 @@ def test_save_to_memsql_very_basic(local_context):
 def test_memsql_dataframe_very_basic(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLDataFrameVeryBasic")
 
+def test_memsql_query_pushdown_basic(local_context):
+    do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLQueryPushdownBasic")
+
 def test_create_with_keys(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestCreateWithKeys")
 
@@ -66,6 +69,9 @@ def test_save_rdd_errors(local_context):
 
 def test_save_json_column(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestSaveToMemSQLJSONColumn")
+
+def test_save_binary_column(local_context):
+    do_test_spark_submit(local_context, "com.memsql.spark.TestSaveToMemSQLBinaryColumn")
 
 def test_spark_sql_types(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestSparkSQLTypes")

@@ -2,6 +2,10 @@ package com.memsql.spark.connector.util
 
 import com.memsql.spark.context.MemSQLNode
 
+// I need noinspection here since ScalaStyle doesn't
+// like it when you override equals without overriding Java equals.
+
+//noinspection ScalaStyle
 case class MemSQLConnectionInfo(dbHost: String,
                                 dbPort: Int,
                                 user: String,

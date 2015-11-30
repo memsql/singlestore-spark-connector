@@ -2,13 +2,17 @@ package com.memsql.spark.pushdown
 
 import com.memsql.spark.connector.util.MemSQLConnectionInfo
 import com.memsql.spark.context.{MemSQLContext, MemSQLNode}
-import org.apache.spark.sql.MemSQLRelation
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Attribute}
 import StringBuilderImplicits._
+import org.apache.spark.sql.memsql.MemSQLRelation
 
 abstract class AbstractQuery {
+  def alias: QueryAlias
   def output: Seq[Attribute]
-  def collapse(alias: QueryAlias): SQLBuilder
+  def collapse: SQLBuilder
+
+  def qualifiedOutput: Seq[Attribute] = output.map(
+    a => AttributeReference(a.name, a.dataType, a.nullable, a.metadata)(a.exprId, Seq(alias.toString)))
 
   /**
    * Performs a pre-order traversal of the query tree
@@ -43,14 +47,16 @@ abstract class AbstractQuery {
   }
 }
 
-case class BaseQuery(relation: MemSQLRelation) extends AbstractQuery {
+case class BaseQuery(alias: QueryAlias, relation: MemSQLRelation) extends AbstractQuery {
   val output: Seq[Attribute] = relation.output
-
-  val query: SQLBuilder = SQLBuilder.fromStatic(relation.query, relation.queryParams)
 
   val connectionInfo: MemSQLConnectionInfo = relation.connectionInfo
 
-  override def collapse(alias: QueryAlias) = query
+  val query: SQLBuilder =
+    SQLBuilder.fromStatic(relation.query, relation.queryParams)
+
+  override def collapse: SQLBuilder =
+    SQLBuilder.withAlias(alias, b => b.appendBuilder(query))
 
   def find[T](query: PartialFunction[AbstractQuery, T]): Option[T] = query.lift(this)
 
@@ -63,41 +69,38 @@ case class BaseQuery(relation: MemSQLRelation) extends AbstractQuery {
     case _ => None
   }
 
-  override def prettyPrint(depth: Int, builder: StringBuilder) =
+  override def prettyPrint(depth: Int, builder: StringBuilder): Unit =
     builder
       .indent(depth)
-      .append(s"BaseQuery[${output.mkString(",")}] ")
+      .append(s"BaseQuery[$alias, ${output.mkString(",")}] (")
       .append(query.sql)
-      .append("\n")
+      .append(")\n")
 }
 
-case class PartialQuery(output: Seq[Attribute],
-                        prefix: Option[SQLBuilder]=None,
-                        suffix: Option[SQLBuilder]=None,
+case class PartialQuery(alias: QueryAlias,
+                        output: Seq[Attribute],
+                        prefix: Option[SQLBuilder] = None,
+                        suffix: Option[SQLBuilder] = None,
                         inner: AbstractQuery) extends AbstractQuery {
 
-  override def collapse(alias: QueryAlias) = {
-    if (prefix.isEmpty && suffix.isEmpty) {
-      inner.collapse(alias.next)
-    } else {
-      new SQLBuilder()
-        .raw("SELECT ")
-        .appendBuilder(prefix.getOrElse(SQLBuilder.fromStatic("*")))
-        .raw(" FROM (")
-        .appendBuilder(inner.collapse(alias.next))
-        .raw(s") $alias ")
-        .appendBuilder(suffix.getOrElse(new SQLBuilder))
-    }
+  override def collapse: SQLBuilder = {
+    SQLBuilder.withAlias(alias, b => {
+      b.raw("SELECT ")
+        .maybeAppendBuilder(prefix, "*")
+        .raw(" FROM ")
+        .appendBuilder(inner.collapse)
+        .maybeAppendBuilder(suffix)
+    })
   }
 
-  override def prettyPrint(depth: Int, builder: StringBuilder) = {
+  override def prettyPrint(depth: Int, builder: StringBuilder): Unit = {
     builder
       .indent(depth)
-      .append(s"PartialQuery[${output.mkString(",")}] PREFIX[")
+      .append(s"PartialQuery[$alias, ${output.mkString(",")}] (")
       .append(prefix.map(_.sql).getOrElse(""))
-      .append("] SUFFIX[")
+      .append(") (")
       .append(suffix.map(_.sql).getOrElse(""))
-      .append("]\n")
+      .append(")\n")
     inner.prettyPrint(depth + 1, builder)
   }
 
@@ -105,33 +108,28 @@ case class PartialQuery(output: Seq[Attribute],
     query.lift(this).orElse(inner.find(query))
 }
 
-case class JoinQuery(output: Seq[Attribute],
+case class JoinQuery(alias: QueryAlias,
+                     output: Seq[Attribute],
                      condition: Option[SQLBuilder],
                      left: AbstractQuery,
                      right: AbstractQuery) extends AbstractQuery {
 
-  override def collapse(alias: QueryAlias) = {
-    val (leftAlias, rightAlias) = alias.fork
+  override def collapse: SQLBuilder =
+    SQLBuilder.withAlias(alias, b => {
+      b.raw(s"SELECT ${left.alias}.*, ${right.alias}.* FROM ")
+        .appendBuilder(left.collapse)
+        .raw(" INNER JOIN ")
+        .appendBuilder(right.collapse)
+        .raw(" WHERE ")
+        .maybeAppendBuilder(condition, "1")
+    })
 
-    val builder = new SQLBuilder()
-      .raw(s"SELECT $leftAlias.*, $rightAlias.* FROM (")
-      .appendBuilder(left.collapse(leftAlias.next))
-      .raw(s") AS $leftAlias INNER JOIN (")
-      .appendBuilder(right.collapse(rightAlias.next))
-      .raw(s") AS $rightAlias")
-
-    if (condition.isDefined) {
-      builder.raw(" WHERE ").appendBuilder(condition.get)
-    }
-    builder
-  }
-
-  override def prettyPrint(depth: Int, builder: StringBuilder) = {
+  override def prettyPrint(depth: Int, builder: StringBuilder): Unit = {
     builder
       .indent(depth)
-      .append(s"JoinQuery[${output.mkString(",")}] CONDITION[")
+      .append(s"JoinQuery[$alias, ${output.mkString(",")}] (")
       .append(condition.map(_.sql).getOrElse(""))
-      .append("]\n")
+      .append(")\n")
     left.prettyPrint(depth + 1, builder)
     right.prettyPrint(depth + 1, builder)
   }

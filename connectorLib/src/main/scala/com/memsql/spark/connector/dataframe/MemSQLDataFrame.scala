@@ -7,6 +7,7 @@ import com.memsql.spark.connector.{MemSQLConnectionWrapper, MemSQLConnectionPool
 import com.memsql.spark.context.MemSQLContext
 import com.memsql.spark.pushdown.MemSQLPushdownException
 import org.apache.commons.io.IOUtils
+import org.apache.spark.sql.memsql.MemSQLRelationUtils
 import org.apache.spark.{sql, SparkContext}
 
 import org.apache.spark.sql.types._
@@ -40,10 +41,10 @@ object MemSQLDataFrameUtils {
     case DateType => "DATE"
     case TimestampType => "DATE"
     case decimal: DecimalType => s"DECIMAL(${decimal.precision}, ${decimal.scale})"
-    case BooleanType => "INTEGER"
+    case BooleanType => "SIGNED INTEGER"
     case ByteType => "CHAR"
-    case ShortType => "INTEGER"
-    case IntegerType => "SIGNED"
+    case ShortType => "SIGNED INTEGER"
+    case IntegerType => "SIGNED INTEGER"
     case FloatType => "DECIMAL"
     case LongType => "SIGNED"
     case DoubleType => "DECIMAL"
@@ -121,6 +122,25 @@ object MemSQLDataFrameUtils {
 
 object MemSQLDataFrame {
   def MakeMemSQLRowRDD(sparkContext: SparkContext,
+                       dbHost: String, dbPort: Int, user: String, password: String, dbName: String,
+                       query: String): MemSQLRDD[Row] =
+    MakeMemSQLRowRDD(
+      sparkContext,
+      MemSQLConnectionInfo(dbHost, dbPort, user, password, dbName),
+      query,
+      Nil)
+
+  def MakeMemSQLRowRDD(sparkContext: SparkContext,
+                       dbHost: String, dbPort: Int, user: String, password: String, dbName: String,
+                       query: String,
+                       queryParams: Seq[Object]): MemSQLRDD[Row] =
+    MakeMemSQLRowRDD(
+      sparkContext,
+      MemSQLConnectionInfo(dbHost, dbPort, user, password, dbName),
+      query,
+      queryParams)
+
+  def MakeMemSQLRowRDD(sparkContext: SparkContext,
                        info: MemSQLConnectionInfo,
                        query: String,
                        queryParams: Seq[Object]=Nil): MemSQLRDD[Row] =
@@ -178,7 +198,7 @@ object MemSQLDataFrame {
     val rdd = MakeMemSQLRowRDD(sqlContext.sparkContext, info, query, queryParams)
     val schema = getQuerySchema(info, query, queryParams)
 
-    MemSQLLogicalRelation.buildDataFrame(sqlContext, info, rdd, schema)
+    MemSQLRelationUtils.buildDataFrame(sqlContext, info, rdd, schema)
   }
 
   def getQuerySchema(

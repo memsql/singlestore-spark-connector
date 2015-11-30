@@ -6,7 +6,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Attribute}
+import org.apache.spark.sql.catalyst.expressions.{Cast, AttributeReference, Attribute}
 import org.apache.spark.sql.execution.{RDDConversions, SparkPlan}
 import org.apache.spark.sql.types.StructField
 import StringBuilderImplicits._
@@ -60,9 +60,13 @@ object MemSQLPhysicalRDD {
    * @return A MemSQLPhysicalRDD ready to pass back to Spark as part of a physical plan
    */
   def fromAbstractQueryTree(sparkContext: SparkContext, tree: AbstractQuery): MemSQLPhysicalRDD = {
-    val query = tree.collapse(QueryAlias(prefix="pushdown"))
-    val cxnInfo = tree.getConnectionInfo.orNull
+    val query = new SQLBuilder()
+      .raw("SELECT ")
+      .addExpressions(tree.qualifiedOutput.map(a => Cast(a, a.dataType)), ", ")
+      .raw(" FROM ")
+      .appendBuilder(tree.collapse)
 
+    val cxnInfo = tree.getConnectionInfo.orNull
     if (cxnInfo == null) {
       throw new MemSQLPushdownException("Query tree does not terminate with a valid BaseQuery instance.")
     }

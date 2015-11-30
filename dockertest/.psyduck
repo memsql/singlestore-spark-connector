@@ -1,6 +1,7 @@
  -s dockertest/sanity_test.py
  -s dockertest/spark_submit_test.py::test_save_to_memsql_very_basic --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_memsql_dataframe_very_basic --psyduck-time-limit=16
+ -s dockertest/spark_submit_test.py::test_memsql_query_pushdown_basic --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_create_with_keys --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_create_with_extra_cols --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_save_to_memsql_empty_rows --psyduck-time-limit=16
@@ -14,6 +15,7 @@
  -s dockertest/spark_submit_test.py::test_save_no_nodes_available_error --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_save_rdd_errors --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_save_json_column --psyduck-time-limit=16
+ -s dockertest/spark_submit_test.py::test_save_binary_column --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_spark_sql_types --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_escaped_cols --psyduck-time-limit=16
  -s dockertest/spark_submit_test.py::test_dup_keys --psyduck-time-limit=16

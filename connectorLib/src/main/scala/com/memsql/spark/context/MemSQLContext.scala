@@ -2,6 +2,7 @@ package com.memsql.spark.context
 
 import com.memsql.spark.connector.util.MemSQLConnectionInfo
 import com.memsql.spark.pushdown.MemSQLPushdownStrategy
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 
 import scala.util.Random
 import java.sql._
@@ -171,6 +172,9 @@ class MemSQLContext(sparkContext: SparkContext,
   def createDataFrameFromMemSQLTable(dbName: String, tableName: String) : DataFrame = {
     createDataFrameFromMemSQLQuery(dbName, "SELECT * FROM " + tableName)
   }
+
+  override def sql(sqlText: String): DataFrame =
+    throw new CloneNotSupportedException("MemSQLContext.sql is not supported, use createDataFrameFromMemSQLQuery instead.")
 
   def createDataFrameFromMemSQLQuery(dbName: String, query: String, queryParams: Seq[Object]=Nil) : DataFrame = {
     val aggs = getMemSQLNodesAvailableForRead

@@ -20,6 +20,12 @@ object SQLBuilder {
   def fromStatic(sql: String, params: Seq[Any]=Nil): SQLBuilder =
     new SQLBuilder().raw(sql).addParams(params)
 
+  def withAlias(alias: QueryAlias, inner: SQLBuilder => Unit): SQLBuilder =
+    new SQLBuilder().aliasedBlock(alias, inner)
+
+  def withFields(fields: Seq[NamedExpression]): SQLBuilder =
+    new SQLBuilder(fields)
+
   /**
    * We need this destructor since the BinaryOperator object is private to Spark
    * TODO: Remove when Spark makes it public (maybe 1.6)
@@ -34,54 +40,97 @@ object SQLBuilder {
  * Internally it uses StringBuilder and a ListBuffer to efficiently support many small writes.
  * All methods return `this` for chaining.
  */
-class SQLBuilder(var sql: StringBuilder = new StringBuilder,
-                 var params: ListBuffer[Any] = ListBuffer.empty[Any]) {
+class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
+  var sql: StringBuilder = new StringBuilder
+  var params: ListBuffer[Any] = ListBuffer.empty[Any]
 
   /**
-   * Appends another SQLBuilder to this one.
-   * @param other The other SQLBuilder
-   * @return This SQLBuilder
-   */
+    * Appends another SQLBuilder to this one.
+    * @param other The other SQLBuilder
+    * @return This SQLBuilder
+    */
   def appendBuilder(other: SQLBuilder): SQLBuilder =
     raw(other.sql).addParams(other.params)
 
   /**
-   * Adds an attribute to the expression
-   * @note Surrounds the attribute with backticks
+   * Appends another SQLBuilder to this one.
+   * @param other The other SQLBuilder
+   * @param ifNone A string to append to this SQLBuilder if other is None
+   * @return This SQLBuilder
    */
-  def attr(a: Attribute) = { sql.append("`").append(a.name).append("`"); this }
+  def maybeAppendBuilder(other: Option[SQLBuilder], ifNone: String=""): SQLBuilder = other match {
+    case Some(o) => raw(" ").raw(o.sql).addParams(o.params)
+    case None => raw(ifNone)
+  }
 
   /**
-   * @see SQLBuilder#attr(Attribute)
+   * Adds a named expression to the builder.
+   * @note Attempts to lookup the expression in [[fields]] if it exists.
+   * @note The expression is fully qualified if possible (ex. `foo`.`bar`)
    */
-  def attr(a: String) = { sql.append("`").append(a).append("`"); this }
+  def attr(a: Attribute): SQLBuilder = {
+    fields.find(e => e.exprId == a.exprId) match {
+      case Some(resolved) =>
+        qualifiedAttr(resolved.qualifiers.headOption, resolved.name)
+      case None =>
+        qualifiedAttr(a.qualifiers.headOption, a.name)
+    }
+    this
+  }
 
   /**
-   * Adds a raw string to the expression, no escaping occurs
+    * A String attribute optionally qualified by another string.
+    */
+  def qualifiedAttr(qualifier: Option[String], name: String): SQLBuilder = {
+    qualifier.map(q => identifier(q).raw("."))
+    identifier(name)
+  }
+
+  /**
+    * Escapes and appends a single identifier to the SQLBuilder.
+    */
+  def identifier(a: String): SQLBuilder = { sql.append("`").append(a).append("`"); this }
+
+  /**
+   * Adds a raw string to the expression, no escaping occurs.
    */
-  def raw(s: String) = { sql.append(s); this }
+  def raw(s: String): SQLBuilder = { sql.append(s); this }
 
   /**
    * @see SQLBuilder#raw(String)
    */
-  def raw(s: StringBuilder) = { sql.append(s); this }
+  def raw(s: StringBuilder): SQLBuilder = { sql.append(s); this }
 
   /**
-   * Wraps the provided lambda in parenthesis
+   * Wraps the provided lambda in parentheses.
    * @param inner A lambda which will be executed between adding parenthesis to the expression
    */
-  def block(inner: => Unit) = { raw("("); inner; raw(")"); this }
+  def block(inner: => Unit): SQLBuilder = { raw("("); inner; raw(")"); this }
+
+  /**
+    * Wraps the provided lambda with a non-qualified alias.
+    * @param alias The alias to give the inner expression
+    * @param inner A lambda which will be wrapped with ( ... ) AS alias
+    */
+  def aliasedBlock(alias: String, inner: SQLBuilder => Unit): SQLBuilder =
+    block({ inner(this) }).raw(" AS ").identifier(alias)
+
+  /**
+    * @see SQLBuilder#aliasedBlock(String, SQLBuilder => Unit)
+    */
+  def aliasedBlock(alias: QueryAlias, inner: SQLBuilder => Unit): SQLBuilder =
+    aliasedBlock(alias.toString, inner)
 
   /**
    * Adds the provided param to the internal params list.
    */
-  def param(p: Any) = { params += p; this }
+  def param(p: Any): SQLBuilder = { params += p; this }
 
   /**
    * @see SQLBuilder#param(Any)
    * @note Use this variant if the parameter is one of the Catalyst Types
    */
-  def param(p: Any, t: DataType) = {
+  def param(p: Any, t: DataType): SQLBuilder = {
     params += CatalystTypeConverters.convertToScala(p, t)
     this
   }
@@ -90,7 +139,7 @@ class SQLBuilder(var sql: StringBuilder = new StringBuilder,
    * @see SQLBuilder#param(Any)
    * @note Handles converting the literal from its Catalyst Type to a Scala Type
    */
-  def param(l: Literal) = {
+  def param(l: Literal): SQLBuilder = {
     params += CatalystTypeConverters.convertToScala(l.value, l.dataType)
     this
   }
@@ -99,7 +148,7 @@ class SQLBuilder(var sql: StringBuilder = new StringBuilder,
    * Add a list of params directly to the internal params list.
    * Optimized form of calling SQLBuilder#param(Any) for each element of newParams.
    */
-  def addParams(newParams: Seq[Any]) = { params ++= newParams; this }
+  def addParams(newParams: Seq[Any]): SQLBuilder = { params ++= newParams; this }
 
   /**
    * Adds a list of elements to the SQL expression, as a comma-delimited list.
@@ -109,7 +158,7 @@ class SQLBuilder(var sql: StringBuilder = new StringBuilder,
    * @param newParams A list of objects to add to the expression
    * @param t The Catalyst type for all of the objects
    */
-  def paramList(newParams: Seq[Any], t: DataType) = {
+  def paramList(newParams: Seq[Any], t: DataType): SQLBuilder = {
     block {
       for (j <- newParams.indices) {
         if (j != 0) {
@@ -129,10 +178,20 @@ class SQLBuilder(var sql: StringBuilder = new StringBuilder,
    */
   def addExpressions(expressions: Seq[Expression], conjunction: String): SQLBuilder = {
     for (i <- expressions.indices) {
-      if (i != 0) { raw(conjunction) }
+      if (i != 0) {
+        raw(conjunction)
+      }
       addExpression(expressions(i))
     }
     this
+  }
+
+  def maybeAddExpressions(expressions: Seq[Expression], conjunction: String): Option[SQLBuilder] = {
+    if (expressions.nonEmpty) {
+      Some(addExpressions(expressions, conjunction))
+    } else {
+      None
+    }
   }
 
   /**
@@ -144,7 +203,7 @@ class SQLBuilder(var sql: StringBuilder = new StringBuilder,
       case a: Attribute => attr(a)
       case l: Literal => raw("?").param(l)
       case Alias(child: Expression, name: String) =>
-        block { addExpression(child) }.raw(" AS ").attr(name)
+        block { addExpression(child) }.raw(" AS ").identifier(name)
 
       case Cast(child, t) =>
         raw("CAST").block { addExpression(child)
