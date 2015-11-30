@@ -1,43 +1,50 @@
 package org.apache.spark.sql.memsql
 
+import java.sql.ResultSet
+
+import com.memsql.spark.connector.MemSQLCluster
+import com.memsql.spark.connector.dataframe.MemSQLDataFrameUtils
 import com.memsql.spark.connector.rdd.MemSQLRDD
-import com.memsql.spark.connector.util.MemSQLConnectionInfo
+import org.apache.commons.lang.NotImplementedException
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.execution.datasources.LogicalRelation
-import org.apache.spark.sql.sources.{BaseRelation, TableScan}
+import org.apache.spark.sql.sources.{InsertableRelation, BaseRelation, TableScan}
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 
-case class MemSQLRelation(connectionInfo: MemSQLConnectionInfo,
-                          query: String,
-                          queryParams: Seq[Object],
+case class MemSQLRelation(cluster: MemSQLCluster,
+                          tableIdentifier: TableIdentifier,
                           schema: StructType,
-                          rdd: RDD[Row],
-                          sqlContext: SQLContext) extends BaseRelation with TableScan {
+                          sqlContext: SQLContext) extends BaseRelation
+                                                  with TableScan with InsertableRelation {
 
-  var output: Seq[Attribute] = null
-  val buildScan = rdd
+  val database: Option[String] = tableIdentifier.database
+  val query: String = s"SELECT * FROM ${tableIdentifier.quotedString}"
+
+  val output: Seq[Attribute] = schema.toAttributes
+
+  override def buildScan: RDD[Row] = {
+    MemSQLRDD(sqlContext.sparkContext, cluster, query,
+              databaseName=tableIdentifier.database,
+              mapRow=MemSQLRelationUtils.resultSetToRow)
+  }
+
+  override def insert(data: DataFrame, overwrite: Boolean): Unit = {
+    // TODO: Save data into the table defined by tableIdentifier
+    throw new NotImplementedException("MemSQLRelation doesn't support inserting DataFrames quite yet.")
+  }
 }
 
 object MemSQLRelationUtils {
-  def buildDataFrame(sqlContext: SQLContext,
-                     cxnInfo: MemSQLConnectionInfo,
-                     rdd: MemSQLRDD[Row],
-                     schema: StructType): DataFrame = {
+  def resultSetToRow(result: ResultSet): Row = {
+    val columnCount = result.getMetaData.getColumnCount
 
-    val memsqlRelation = MemSQLRelation(
-        cxnInfo, rdd.sql, rdd.sqlParams,
-        schema, rdd, sqlContext)
-
-    // We need to let LogicalRelation build the output, and then
-    // keep track of the correct output rather than building it on
-    // demand later. This is to ensure that exprId's are correct
-    // when we build the MemSQLPhysicalRDD.
-    val relation = LogicalRelation(memsqlRelation)
-    memsqlRelation.output = relation.output
-
-    DataFrame(sqlContext, relation)
+    Row.fromSeq(Range(0, columnCount).map(i => {
+      val columnType = result.getMetaData.getColumnType(i + 1)
+      MemSQLDataFrameUtils.GetJDBCValue(columnType, i + 1, result)
+    }))
   }
 
   def unapply(l: LogicalRelation): Option[MemSQLRelation] = l match {

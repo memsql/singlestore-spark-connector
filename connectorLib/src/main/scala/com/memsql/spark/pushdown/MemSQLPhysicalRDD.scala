@@ -1,6 +1,5 @@
 package com.memsql.spark.pushdown
 
-import com.memsql.spark.connector.dataframe.MemSQLDataFrame
 import com.memsql.spark.connector.rdd.MemSQLRDD
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -8,6 +7,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Cast, AttributeReference, Attribute}
 import org.apache.spark.sql.execution.{RDDConversions, SparkPlan}
+import org.apache.spark.sql.memsql.MemSQLRelationUtils
 import org.apache.spark.sql.types.StructField
 import StringBuilderImplicits._
 
@@ -54,9 +54,6 @@ object MemSQLPhysicalRDD {
   /**
    * Create a MemSQLPhysicalRDD from a PushdownState object.
    *
-   * NOTE: The reason we need to map query.params to a Seq[AnyRef]
-   *       is so that Scala knows they can be safely converted to Java Objects
-   *
    * @return A MemSQLPhysicalRDD ready to pass back to Spark as part of a physical plan
    */
   def fromAbstractQueryTree(sparkContext: SparkContext, tree: AbstractQuery): MemSQLPhysicalRDD = {
@@ -66,25 +63,29 @@ object MemSQLPhysicalRDD {
       .raw(" FROM ")
       .appendBuilder(tree.collapse)
 
-    val cxnInfo = tree.getConnectionInfo.orNull
-    if (cxnInfo == null) {
+    val sql = query.sql.toString()
+    val sqlParams = query.params
+
+    val baseQuery = tree.find { case q: BaseQuery => q }.orNull
+    if (baseQuery == null) {
       throw new MemSQLPushdownException("Query tree does not terminate with a valid BaseQuery instance.")
     }
 
-    val sql = query.sql.toString()
-    val sqlParams = query.params.map(_.asInstanceOf[AnyRef])
-
-    val actualOutput = MemSQLDataFrame.getQuerySchema(cxnInfo, sql, sqlParams)
+    val actualOutput = baseQuery.cluster.getQuerySchema(sql, sqlParams)
     val output: Seq[AttributeReference] = actualOutput.zip(tree.output).map {
       case (f: StructField, a: Attribute) =>
         AttributeReference(f.name, f.dataType, f.nullable, f.metadata)(a.exprId, a.qualifiers)
     }
 
-    MemSQLPhysicalRDD(
-      output,
-      MemSQLDataFrame.MakeMemSQLRowRDD(sparkContext, cxnInfo, sql, sqlParams),
-      tree
-    )
+    val rdd = MemSQLRDD(
+      sparkContext,
+      baseQuery.cluster,
+      sql,
+      sqlParams,
+      baseQuery.database,
+      MemSQLRelationUtils.resultSetToRow)
+
+    MemSQLPhysicalRDD(output, rdd, tree)
   }
 }
 

@@ -1,5 +1,6 @@
 package com.memsql.spark.connector
 
+/*
 import com.memsql.spark.context.MemSQLContext
 
 import scala.util.Random
@@ -401,3 +402,4 @@ class RDDFunctions(rdd: RDD[Row]) extends Serializable with Logging {
     numRowsAffected
   }
 }
+*/

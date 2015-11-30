@@ -1,10 +1,9 @@
 package com.memsql.spark.pushdown
 
-import com.memsql.spark.connector.util.MemSQLConnectionInfo
-import com.memsql.spark.context.{MemSQLContext, MemSQLNode}
+import com.memsql.spark.connector.MemSQLCluster
 import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Attribute}
 import StringBuilderImplicits._
-import org.apache.spark.sql.memsql.MemSQLRelation
+import org.apache.spark.sql.memsql.{MemSQLContext, MemSQLRelation}
 
 abstract class AbstractQuery {
   def alias: QueryAlias
@@ -18,29 +17,17 @@ abstract class AbstractQuery {
    * Performs a pre-order traversal of the query tree
    * and returns the first non-None result from the query
    * function.
-   *
-   * @note Since query is a PartialFunction, you don't need
-   * explicitly return None if you just want to match on a
-   * node in the tree. See [[getConnectionInfo]] for an example.
    */
   def find[T](query: PartialFunction[AbstractQuery, T]): Option[T]
 
   def prettyPrint(depth: Int, builder: StringBuilder): Unit
 
-  def getConnectionInfo: Option[MemSQLConnectionInfo] =
-    find { case q: BaseQuery => q.connectionInfo }
-
   def sharesCluster(otherTree: AbstractQuery): Boolean = {
     val result = for {
-      (myMasterAgg, myCxnInfo) <- find {
-        case q: BaseQuery => (q.getMasterAgg, q.connectionInfo)
-      }
-      (otherMasterAgg, otherCxnInfo) <- otherTree.find {
-        case q: BaseQuery => (q.getMasterAgg, q.connectionInfo)
-      }
+      myBase <- find { case q: BaseQuery => q }
+      otherBase <- otherTree.find { case q: BaseQuery => q }
     } yield {
-      (myCxnInfo == otherCxnInfo) ||
-      (myMasterAgg.isDefined && otherMasterAgg.isDefined && myMasterAgg == otherMasterAgg)
+      myBase.cluster.getMasterInfo == otherBase.cluster.getMasterInfo
     }
 
     result.getOrElse(false)
@@ -49,25 +36,15 @@ abstract class AbstractQuery {
 
 case class BaseQuery(alias: QueryAlias, relation: MemSQLRelation) extends AbstractQuery {
   val output: Seq[Attribute] = relation.output
+  val cluster: MemSQLCluster = relation.cluster
+  val database: Option[String] = relation.database
 
-  val connectionInfo: MemSQLConnectionInfo = relation.connectionInfo
-
-  val query: SQLBuilder =
-    SQLBuilder.fromStatic(relation.query, relation.queryParams)
+  val query: SQLBuilder = SQLBuilder.fromStatic(relation.query, Nil)
 
   override def collapse: SQLBuilder =
     SQLBuilder.withAlias(alias, b => b.appendBuilder(query))
 
   def find[T](query: PartialFunction[AbstractQuery, T]): Option[T] = query.lift(this)
-
-  /**
-   * If the underlying SQLContext is a MemSQLContext, return the
-   * associated Master Aggregator, else return None
-   */
-  def getMasterAgg: Option[MemSQLNode] = relation.sqlContext match {
-    case m: MemSQLContext => Some(m.masterAgg)
-    case _ => None
-  }
 
   override def prettyPrint(depth: Int, builder: StringBuilder): Unit =
     builder

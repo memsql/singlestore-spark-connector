@@ -1,5 +1,6 @@
 package com.memsql.spark.connector
 
+/*
 import java.sql._
 
 import com.memsql.spark.connector.OnDupKeyBehavior._
@@ -200,3 +201,4 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
     }
   }
 }
+*/

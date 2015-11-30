@@ -1,15 +1,23 @@
 package com.memsql.spark.connector.rdd
 
 import java.sql.{Connection, ResultSet, Statement, PreparedStatement, Types}
-import com.memsql.spark.connector.{MemSQLConnectionWrapper, MemSQLConnectionPoolMap}
+import com.memsql.spark.connector.{MemSQLConnectionPool, MemSQLCluster}
 
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Logging, Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
-import com.memsql.spark.connector.util.NextIterator
+import com.memsql.spark.connector.util.{MemSQLConnectionInfo, NextIterator}
+import com.memsql.spark.connector.util.JDBCImplicits._
 
-private class MemSQLRDDPartition(override val index: Int, val host: String, val port: Int) extends Partition
+import scala.util.Try
+
+class MemSQLRDDPartition(override val index: Int,
+                         val connectionInfo: MemSQLConnectionInfo,
+                         val query: Option[String]=None
+                        ) extends Partition
+
+case class ExplainRow(selectType: String, extra: String, query: String)
 
 /**
   * An [[org.apache.spark.rdd.RDD]] that can read data from a MemSQL database based on a SQL query.
@@ -20,125 +28,112 @@ private class MemSQLRDDPartition(override val index: Int, val host: String, val 
   * not support this (e.g. queries involving joins or GROUP BY operations), the
   * results will be returned in a single partition.
   *
-  * @param dbHost The host to connect to for the master aggregator of the MemSQL
-  *   cluster.
-  * @param dbPort The port to connect to for the master aggregator of the MemSQL
-  *   cluster.
-  * @param user The username to use when connecting to the databases in the
-  *   MemSQL cluster.  All the nodes in the cluster should use the same user.
-  * @param password The password to use when connecting to the databases in the
-  *   MemSQL cluster.  All the nodes in the cluster should use the same password.
-  * @param dbName The name of the database we're working in.
+  * @param cluster A connected MemSQLCluster instance.
   * @param sql The text of the query. Can be a prepared statement template,
- *    in which case parameters from sqlParams are substituted.
- *  @param sqlParams The parameters of the query if sql is a template.
+  *    in which case parameters from sqlParams are substituted.
+  * @param sqlParams The parameters of the query if sql is a template.
+  * @param databaseName Optionally provide a database name for this RDD.
+  *                     This is required for Partition Pushdown
   * @param mapRow A function from a ResultSet to a single row of the desired
   *   result type(s).  This should only call getInt, getString, etc; the RDD
   *   takes care of calling next.  The default maps a ResultSet to an array of
   *   Object.
   */
-case class MemSQLRDD[T: ClassTag](
-  @transient sc: SparkContext,
-  dbHost: String,
-  dbPort: Int,
-  user: String,
-  password: String,
-  dbName: String,
-  sql: String,
-  sqlParams: Seq[Object] = Nil,
-  mapRow: (ResultSet) => T = MemSQLRDD.resultSetToObjectArray _)
-    extends RDD[T](sc, Nil) with Logging {
-
-  var perPartitionSqlTemplate = ""
-  var usePerPartitionSql = false
+case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
+                                  cluster: MemSQLCluster,
+                                  sql: String,
+                                  sqlParams: Seq[Any] = Nil,
+                                  databaseName: Option[String] = None,
+                                  mapRow: (ResultSet) => T = MemSQLRDD.resultSetToObjectArray(_)
+                                 ) extends RDD[T](sc, Nil) with Logging {
 
   override def getPartitions: Array[Partition] = {
-    var wrapper: MemSQLConnectionWrapper = null
-    var conn: Connection = null
-    var versionStmt: Statement = null
-    var explainStmt: PreparedStatement = null
-    try {
-      wrapper = MemSQLConnectionPoolMap(dbHost, dbPort, user, password, dbName)
-      conn = wrapper.conn
-      versionStmt = conn.createStatement
-      val versionRs = versionStmt.executeQuery("SHOW VARIABLES LIKE 'memsql_version'")
-      val versions = MemSQLRDD.resultSetToIterator(versionRs).map(r => r.getString("Value")).toArray
-      val version = versions(0).split('.')(0).toInt
-      var explainQuery = ""
+    // databaseName is required for partition pushdown
+    if (databaseName.isEmpty) {
+      Array[Partition](new MemSQLRDDPartition(0, cluster.getRandomAggregatorInfo))
+    } else {
+      cluster.withMasterConn { conn =>
+        val explainSQL = "EXPLAIN EXTENDED " + sql
+        val explainResult = conn.withPreparedStatement(explainSQL, stmt => {
+          stmt.fillParams(sqlParams)
+          val result = stmt.executeQuery
+          if (result.hasColumn("Query")) {
+            Some(
+              result
+                .toIterator
+                .map(r => {
+                  val selectType = r.getString("select_type")
+                  val extra = r.getString("Extra")
+                  val query = r.getString("Query")
+                  ExplainRow(selectType, extra, query)
+                })
+                .toSeq
+            )
+          } else {
+            None
+          }
+        })
 
-      // In MemSQL v4.0 the EXPLAIN command no longer returns the query, so
-      // we run a version check.
-      if (version > 3) {
-          explainQuery = "EXPLAIN EXTENDED "
-      } else {
-          explainQuery = "EXPLAIN "
-      }
+        // Inspect the explain output to determine if we
+        // can safely pushdown the query to the leaves.
+        // Currently we only pushdown queries which have a
+        // single SIMPLE query, and are a Simple Iterator on the agg.
+        // TODO: Support pushing down more complex queries (like distributed joins)
 
-      explainStmt = conn.prepareStatement(explainQuery + sql)
-      MemSQLRDD.fillParams(explainStmt, sqlParams)
+        val partitionSQLTemplate = explainResult.flatMap(explainRows => {
+          val isSimpleIterator = explainRows(0).extra == "memsql: Simple Iterator -> Network"
+          val hasMultipleRows = explainRows.length > 1
+          val noDResult = !explainRows.exists(_.selectType == "DRESULT")
 
-      val explainRs = explainStmt.executeQuery
-      // TODO: this won't work with MarkoExplain
-      // TODO: this could be optimized work for distributed joins, but thats not the primary usecase (especially since joins aren't pushed down)
-      usePerPartitionSql = (0 until explainRs.getMetaData.getColumnCount).exists((i:Int) => explainRs.getMetaData.getColumnName(i + 1).equals("Query"))
-      if (usePerPartitionSql) {
-        val extraAndQueries = MemSQLRDD.resultSetToIterator(explainRs)
-          .map(r => (r.getString("Extra"), r.getString("Query"), r.getString("select_type")))
-          .toArray
-        if (extraAndQueries(0)._1 == "memsql: Simple Iterator -> Network"
-            && extraAndQueries.length > 1
-            && !extraAndQueries.exists(_._3 == "DRESULT")) {
-          usePerPartitionSql = true
-          perPartitionSqlTemplate = extraAndQueries(1)._2
+          if (isSimpleIterator && hasMultipleRows && noDResult) {
+            Some(explainRows(1).query)
+          } else {
+            None
+          }
+        })
+
+        if (partitionSQLTemplate.isEmpty) {
+          Array[Partition](new MemSQLRDDPartition(0, cluster.getRandomAggregatorInfo))
         } else {
-          usePerPartitionSql = false
+          val template = partitionSQLTemplate.get
+          val dbName = databaseName.get
+
+          conn.withStatement(stmt => {
+            stmt.executeQuery(s"SHOW PARTITIONS ON `$dbName`")
+                .toIterator
+                .filter(r => r.getString("Role") == "Master")
+                .map(r => {
+                  val (ordinal, host, port) = (r.getInt("Ordinal"), r.getString("Host"), r.getInt("Port"))
+                  val partitionQuery = MemSQLRDD.getPerPartitionSql(template, dbName, ordinal)
+                  val connInfo = cluster.getMasterInfo.copy(
+                    dbHost=host,
+                    dbPort=port,
+                    dbName=dbName + "_" + ordinal)
+
+                  new MemSQLRDDPartition(ordinal, connInfo, Some(partitionQuery))
+                })
+                .toArray
+          })
         }
-      }
-
-      if (!usePerPartitionSql){
-        Array[Partition](new MemSQLRDDPartition(0, dbHost, dbPort))
-      } else {
-
-        val partitionsStmt = conn.createStatement
-        val partitionRs = partitionsStmt.executeQuery("SHOW PARTITIONS")
-
-        def createPartition(row: ResultSet): MemSQLRDDPartition = {
-          new MemSQLRDDPartition(row.getInt("Ordinal"), row.getString("Host"), row.getInt("Port"))
-        }
-
-        MemSQLRDD.resultSetToIterator(partitionRs)
-          .filter(r => r.getString("Role") == "Master")
-          .map(createPartition)
-          .toArray
-      }
-    } finally {
-      if (null != versionStmt && ! versionStmt.isClosed()) {
-        versionStmt.close()
-      }
-      if (null != explainStmt && ! explainStmt.isClosed()) {
-        explainStmt.close()
-      }
-      if (null != conn && ! conn.isClosed()) {
-        MemSQLConnectionPoolMap.returnConnection(wrapper)
       }
     }
   }
 
-  override def compute(thePart: Partition, context: TaskContext): Iterator[T] = new NextIterator[T] {
+  override def compute(sparkPartition: Partition, context: TaskContext): Iterator[T] = new NextIterator[T] {
     context.addTaskCompletionListener(context => closeIfNeeded())
-    val part = thePart.asInstanceOf[MemSQLRDDPartition]
-    var partitionDb = dbName
-    if (usePerPartitionSql) {
-      partitionDb = dbName + '_' + part.index
-    }
-    val wrapper = MemSQLConnectionPoolMap(part.host, part.port, user, password, partitionDb)
-    val conn = wrapper.conn
-    val stmtSql = getPerPartitionSql(part.index)
-    val stmt = conn.prepareStatement(stmtSql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
 
-    if (!usePerPartitionSql) {
-      MemSQLRDD.fillParams(stmt, sqlParams)
-    }
+    val partition: MemSQLRDDPartition = sparkPartition.asInstanceOf[MemSQLRDDPartition]
+
+    val (query, queryParams) =
+      if (partition.query.isEmpty) {
+        (sql, sqlParams)
+      } else {
+        (partition.query.get, Nil)
+      }
+
+    val conn = MemSQLConnectionPool.connect(partition.connectionInfo)
+    val stmt = conn.prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
+    stmt.fillParams(queryParams)
 
     val rs = stmt.executeQuery
 
@@ -153,40 +148,25 @@ case class MemSQLRDD[T: ClassTag](
 
     override def close() {
       try {
-        if (null != stmt && ! stmt.isClosed()) {
+        if (stmt != null && !stmt.isClosed) {
           stmt.close()
         }
       } catch {
         case e: Exception => logWarning("Exception closing statement", e)
       }
       try {
-        if (null != conn && ! conn.isClosed()) {
-          MemSQLConnectionPoolMap.returnConnection(wrapper)
+        if (conn != null && !conn.isClosed) {
+          conn.close()
         }
-        logInfo("closed connection")
       } catch {
         case e: Exception => logWarning("Exception closing connection", e)
       }
     }
   }
 
-  override def getPreferredLocations(split: Partition): Seq[String] = {
-    val memSqlSplit = split.asInstanceOf[MemSQLRDDPartition]
-    Seq(memSqlSplit.host)
-  }
-
-  private def getPerPartitionSql(idx: Int): String = {
-    // The EXPLAIN query that we run in getPartitions gives us the SQL query
-    // that will be run against MemSQL partition number 0; we want to run this
-    // query against an arbitrary partition, so we replace the database name
-    // in this partition (which is in the form {dbName}_0) with {dbName}_{i}
-    // where i is our partition index.
-    if (usePerPartitionSql) {
-      val dbNameRegex = (dbName + "_0").r
-      dbNameRegex.replaceAllIn(perPartitionSqlTemplate, dbName + "_" + idx)
-    } else {
-      sql
-    }
+  override def getPreferredLocations(sparkPartition: Partition): Seq[String] = {
+    val partition = sparkPartition.asInstanceOf[MemSQLRDDPartition]
+    Seq(partition.connectionInfo.dbHost)
   }
 
 }
@@ -196,22 +176,14 @@ object MemSQLRDD {
     Array.tabulate[Object](rs.getMetaData.getColumnCount)(i => rs.getObject(i + 1))
   }
 
-  def resultSetToIterator(rs: ResultSet): Iterator[ResultSet] = new Iterator[ResultSet] {
-    def hasNext = rs.next()
-    def next() = rs
+  def getPerPartitionSql(template: String, dbName: String, idx: Int): String = {
+    // The EXPLAIN query that we run in getPartitions gives us the SQL query
+    // that will be run against MemSQL partition number 0; we want to run this
+    // query against an arbitrary partition, so we replace the database name
+    // in this partition (which is in the form {dbName}_0) with {dbName}_{i}
+    // where i is our partition index.
+    val dbNameRegex = (dbName + "_0").r
+    dbNameRegex.replaceAllIn(template, dbName + "_" + idx)
   }
 
-  def fillParams(stmt: PreparedStatement, sqlParams: Seq[Object]): Unit = {
-    sqlParams.zipWithIndex.foreach {
-      case (el, i) => {
-        if (el == null) {
-          // Arbitrary type. The type doesn't matter
-          // for null values in MemSQL.
-          stmt.setNull(i + 1, Types.CHAR)
-        } else {
-          stmt.setObject(i + 1, el)
-        }
-      }
-    }
-  }
 }

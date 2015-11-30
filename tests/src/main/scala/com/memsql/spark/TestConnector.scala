@@ -1,12 +1,11 @@
+// scalastyle:off magic.number file.size.limit regex
+
 package com.memsql.spark
 
-import java.sql.{Connection, Date, DriverManager, ResultSet, Timestamp, SQLException}
+import java.sql.{Connection, DriverManager, ResultSet, Timestamp, SQLException}
 
-import com.memsql.spark.connector._
 import com.memsql.spark.connector.dataframe._
 import com.memsql.spark.connector.rdd._
-import com.memsql.spark.connector.util.MemSQLConnectionInfo
-import com.memsql.spark.context.MemSQLContext
 import com.memsql.spark.pushdown.MemSQLPushdownStrategy
 import org.apache.spark._
 import org.apache.spark.sql._
@@ -18,266 +17,7 @@ import org.apache.spark.sql.functions._
 
 import scala.util.control.NonFatal
 
-// scalastyle:off magic.number file.size.limit regex
-object MemSQLTestSetup {
-  def setupBasic() {
-    val host = TestUtils.getHostname
-    val port = 3306
-    val user = "root"
-    val password = ""
-    val dbName = "x_db"
-
-    val dbAddress = "jdbc:mysql://" + host + ":" + port
-    val conn = DriverManager.getConnection(dbAddress, user, password)
-    val stmt = conn.createStatement
-    stmt.execute("DROP DATABASE IF EXISTS " + dbName)
-    stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName)
-    stmt.execute("USE " + dbName)
-    stmt.execute("""
-       CREATE TABLE t
-       (id INT PRIMARY KEY, data VARCHAR(200), key(data))
-                 """)
-    stmt.execute("""
-       CREATE TABLE s
-       (id INT , data VARCHAR(200), key(id), key(data), shard())
-                 """)
-    stmt.execute("""
-       CREATE /*!90618 reference */ TABLE r
-       (id INT PRIMARY KEY, data VARCHAR(200), key(data))
-                 """)
-
-    var insertQuery = ""
-    // Insert a bunch of rows like (1, "test_data_0001").
-    for (i <- 0 until 999) {
-      insertQuery = insertQuery + "(" + i + ", 'test_data_" + "%04d".format(i) + "'),"
-    }
-    insertQuery = insertQuery + "(" + 999 + ", 'test_data_" + "%04d".format(999) + "')"
-    stmt.execute("INSERT INTO t values" + insertQuery)
-    stmt.execute("INSERT INTO s values" + insertQuery)
-    stmt.execute("INSERT INTO r values" + insertQuery)
-    stmt.close()
-  }
-
-  def setupAllMemSQLTypes(sqlContext: SQLContext, nullable: Boolean, types: List[(String, Array[String])]): DataFrame = {
-    val host = TestUtils.getHostname
-    val port = 3306
-    val user = "root"
-    val password = ""
-    val dbName = "alltypes_db"
-
-    val dbAddress = "jdbc:mysql://" + host + ":" + port
-    val conn = DriverManager.getConnection(dbAddress, user, password)
-    val stmt = conn.createStatement
-
-    stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName)
-    stmt.execute("use " + dbName)
-    val tbname = if (nullable) "alltypes_nullable" else "alltypes_not_null"
-    stmt.execute("drop table if exists " + tbname)
-
-    val create = "create table " + tbname + " (" + types.map(_._1).map((t:String) => Types.toCol(t)
-      + " " + t + (if (!nullable) " not null" else " null default null")).mkString(",") + ",shard())"
-    stmt.execute(create)
-
-    var insertQuery = "insert into " + tbname + " values"
-    for (i <- 0 until 3) {
-      insertQuery = insertQuery + "(" + types.map("'" + _._2(i) + "'").mkString(",") + ")"
-      if (i < 2) {
-        insertQuery = insertQuery + ","
-      }
-    }
-    if (nullable) {
-      insertQuery = insertQuery + ", (" + types.map((a:Any) => "null").mkString(",") + ")"
-    }
-    stmt.execute(insertQuery)
-    TestUtils.makeMemSQLDF(sqlContext, dbName, tbname)
-  }
-
-}
-object TestUtils {
-  def getHostname: String = {
-    "127.1"
-  }
-  def getConnectionInfo(dbName: String): MemSQLConnectionInfo =
-    MemSQLConnectionInfo(TestUtils.getHostname, 3306, "root", "", dbName)
-
-  def getJDBCConnection(info: MemSQLConnectionInfo): Connection = {
-    val dbAddress = "jdbc:mysql://" + info.dbHost + ":" + info.dbPort
-    DriverManager.getConnection(dbAddress, info.user, info.password)
-  }
-
-  def dropAndCreate(dbName: String) {
-    val info = getConnectionInfo(dbName)
-    val conn = getJDBCConnection(info)
-    val stmt = conn.createStatement
-    stmt.execute("DROP DATABASE IF EXISTS " + dbName)
-    stmt.execute("CREATE DATABASE " + dbName)
-    stmt.close()
-  }
-
-  def makeMemSQLDF(sqlContext: SQLContext, dbName: String, tableName: String): DataFrame = {
-    MemSQLDataFrame.MakeMemSQLDF(
-      sqlContext,
-      TestUtils.getHostname,
-      3306,
-      "root",
-      "",
-      dbName,
-      "SELECT * FROM " + tableName)
-  }
-
-  def collectAndSort(df: DataFrame, asString: Boolean = false, convertBooleans: Boolean = false): Seq[Row] = {
-    val rdd = if (asString) {
-      df.rdd.map((r: Row) => Row.fromSeq(r.toSeq.map { x =>
-        (convertBooleans, x) match {
-          case (true, bool: Boolean) => if (bool) "1" else "0"
-          case (_, bytes: Array[Byte]) => bytes.toList.toString
-          case default => x.toString
-        }
-      }))
-    } else {
-      df.rdd.map((r: Row) => Row.fromSeq(r.toSeq.map {
-        // byte arrays cannot be compared with equals, so we convert them to lists for comparison purposes
-        case bytes: Array[Byte] => bytes.toList
-        case default => default
-      }))
-    }
-
-    rdd.collect.sorted(new Ordering[Row] {
-      def stringify(x: Any): String = {
-        x match {
-          case null => "null"
-          case default => x.toString
-        }
-      }
-
-      override def compare(row1: Row, row2: Row): Int = {
-        if (row1 == null) assert(false)
-        if (row2 == null) assert(false)
-        row1.toSeq.map(stringify).mkString(", ").compareTo(row2.toSeq.map(stringify).mkString(", "))
-      }
-    })
-  }
-
-  def equalDFs(df1: DataFrame, df2: DataFrame, asString: Boolean = false, convertBooleans: Boolean = false): Boolean = {
-    val df1_sorted = collectAndSort(df1, asString, convertBooleans)
-    val df2_sorted = collectAndSort(df2, asString, convertBooleans)
-    if (df1_sorted.size != df2_sorted.size) {
-      println("len df1 = " + df1_sorted.size + ", len df2 = " + df2_sorted.size)
-      false
-    } else {
-      var fail = false
-      for (i <- df1_sorted.indices) {
-        if (!df1_sorted(i).equals(df2_sorted(i))) {
-          fail = true
-          println("row " + i + " is different.")
-          if (df1_sorted(i).size != df2_sorted(i).size) {
-            println("row sizes are different, " + df1_sorted(i).size + " vs " + df2_sorted(i).size)
-          } else {
-            for (r <- 0 until df1_sorted(i).size) {
-              if ((df1_sorted(i)(r) == null) != (df2_sorted(i)(r) == null)
-                || ((df1_sorted(i)(r) != null) && !df1_sorted(i)(r).equals(df2_sorted(i)(r)))) {
-                println("difference in column " + r.toString + " : " + df1_sorted(i)(r) + " vs " + df2_sorted(i)(r))
-              }
-            }
-          }
-        }
-      }
-      !fail
-    }
-  }
-
-  def detachPartitions(dbName: String): Unit = {
-    val conn = connectToMA
-    val stmt = conn.createStatement()
-    val iter = MemSQLRDD.resultSetToIterator(stmt.executeQuery(s"SHOW PARTITIONS ON `$dbName`"))
-    iter.foreach { rs =>
-      val host = rs.getString("Host")
-      val port = rs.getInt("Port")
-      val ordinal = rs.getString("Ordinal")
-      conn.createStatement.execute(s"DETACH PARTITION `$dbName`:$ordinal ON `$host`:$port")
-    }
-  }
-
-  def connectToMA: Connection = {
-    val dbAddress = s"jdbc:mysql://${TestUtils.getHostname}:3306"
-    DriverManager.getConnection(dbAddress, "root", "")
-  }
-
-  def doDDL(conn: Connection, q: String) {
-    val stmt = conn.createStatement
-    stmt.execute(q)
-    stmt.close()
-  }
-
-  def runQueries[T](bases: (T, T), handler: T => Seq[DataFrame]): Unit = {
-    val leftQueries: Seq[DataFrame] = handler(bases._1)
-    val rightQueries: Seq[DataFrame] = handler(bases._2)
-
-    val pairs = leftQueries.zip(rightQueries)
-
-    pairs.foreach({
-      case (left: DataFrame, right: DataFrame) => {
-        try {
-          assert(left.count > 0 && right.count > 0)
-          assert(TestUtils.equalDFs(left, right))
-        } catch {
-          case e: Throwable =>
-            println(
-              s"""
-                 |--------------------------------------------
-                 |Exception occurred while running the following
-                 |queries and comparing results:
-                 |---
-                 |
-                   |Left: ${left.schema}
-                 """.stripMargin)
-            left.explain
-            println(s"\nRight: ${right.schema}\n")
-            right.explain
-            println("--------------------------------------------")
-            throw e
-        }
-      }
-    })
-  }
-}
-
-object Types {
-  // We intentionally don't include memsql specific types (spatial+json),
-  // and times that don't map to sparksql (time, unsigned)...
-  val memSQLTypes: Array[(String, Array[String])] = Array(
-    ("int", Array("1", "2", "3")),
-    ("bigint", Array("4", "5", "6")),
-    ("tinyint", Array("7", "8", "9")),
-    ("text", Array("a", "b", "c")),
-    ("blob", Array("e", "f", "g")),
-    ("char(1)", Array("a", "b", "c")),
-    ("varchar(100)", Array("do", "rae", "me")),
-    ("varbinary(100)", Array("one", "two", "three")),
-    ("decimal(5,1)", Array("1.1", "2.2", "3.3")),
-    ("double", Array("4.4", "5.5", "6.6")),
-    ("float", Array("7.7", "8.8", "9.9")),
-    ("datetime", Array("1990-08-23 01:01:01.0", "1990-08-23 01:01:02.0", "1990-08-23 01:01:03.0")),
-    ("timestamp", Array("1990-08-23 01:01:04.0", "1990-08-23 01:01:05.0", "1990-08-23 01:01:06.0")),
-    ("date", Array("1990-08-23", "1990-09-23", "1990-10-23")))
-
-  def toCol(tp: String): String = "val_" + tp.replace("(", "_").replace(")", "").replace(",", "_")
-
-  val sparkSQLTypes = Seq(
-    (IntegerType, Seq(1, 2, 3)),
-    (LongType, Seq(4L, 5L, 6L)),
-    (DoubleType, Seq(7.8, 9.1, 1.2)),
-    (FloatType, Seq(2.8f, 3.1f, 4.2f)),
-    (ShortType, Seq(7.toShort, 8.toShort, 9.toShort)),
-    (ByteType, Seq(10.toByte, 11.toByte, 12.toByte)),
-    (BooleanType, Seq(true, false, false)),
-    (StringType, Seq("hi", "there", "buddy")),
-    (BinaryType, Seq("how".map(_.toByte).toSeq, "are".map(_.toByte).toSeq, "you".map(_.toByte).toSeq)),
-    //java.sql time structures expect the year minus 1900
-    (TimestampType, Seq(new Timestamp(90, 8, 23, 1, 1, 4, 0), new Timestamp(90, 8, 23, 1, 1, 5, 0), new Timestamp(90, 8, 23, 1, 1, 6, 0))),
-    (DateType, Seq(new Date(90, 8, 23), new Date(90, 9, 23), new Date(90, 10, 23))))
-}
-
+/*
 object TestSparkSQLTypes {
   def main(args: Array[String]): Unit = {
     val conn = TestUtils.connectToMA
@@ -406,11 +146,11 @@ object TestMemSQLQueryPushdownBasic {
 
     val conn = TestUtils.getJDBCConnection(info)
     val stmt = conn.createStatement
-    stmt.execute("use " + info.dbName)
-    stmt.execute("create table a (a bigint auto_increment primary key, b bigint)")
-    stmt.execute("insert into a (b) values (1), (2), (3), (4), (5)")
-    stmt.execute("create table b (c bigint auto_increment primary key, d bigint)")
-    stmt.execute("insert into b (d) values (1), (1), (2), (2), (3)")
+    stmt.execute("USE " + info.dbName)
+    stmt.execute("CREATE TABLE a (a BIGINT AUTO_INCREMENT PRIMARY KEY, b BIGINT)")
+    stmt.execute("INSERT INTO a (b) VALUES (1), (2), (3), (4), (5)")
+    stmt.execute("CREATE TABLE b (c BIGINT AUTO_INCREMENT PRIMARY KEY, d BIGINT)")
+    stmt.execute("INSERT INTO b (d) VALUES (1), (1), (2), (2), (3)")
     stmt.close
 
     val all_dfs = (
@@ -1513,4 +1253,4 @@ object TestMemSQLRDDFromSqlTemplateComplex {
       sc, host, port, user, password, dbName, "SELECT a FROM p WHERE (c IS NOT ?)", nullTimestampParams)
     assert(nullTimestampRdd.count == 5)
   }
-}
+}*/

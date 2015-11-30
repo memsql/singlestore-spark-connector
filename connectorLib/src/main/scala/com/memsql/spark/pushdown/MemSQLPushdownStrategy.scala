@@ -107,6 +107,13 @@ class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
           .raw(" ORDER BY ").maybeAddExpressions(orderings, ", ")
       )
 
+    // NOTE: We ignore Subquerys when we are doing query pushdown
+    // since we rewrite all of the qualifiers explicitly
+    case Subquery(_, child) =>
+      for {
+        subTree <- buildQueryTree(fieldIdIter, alias.child, child)
+      } yield subTree
+
     case Join(left, right, Inner, condition) => {
       val (leftAlias, rightAlias) = alias.fork
       for {

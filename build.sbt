@@ -6,7 +6,7 @@ lazy val akkaVersion = "2.3.9"
 lazy val sprayVersion = "1.3.2"
 lazy val scoptVersion = "3.2.0"
 lazy val scalatestVersion = "2.2.5"
-lazy val commonsPoolVersion = "2.4.2"
+lazy val commonsDBCPVersion = "2.1.1"
 
 lazy val assemblyScalastyle = taskKey[Unit]("assemblyScalastyle")
 lazy val testScalastyle = taskKey[Unit]("testScalastyle")
@@ -58,13 +58,13 @@ lazy val commonSettings = Seq(
 lazy val connectorLib = (project in file("connectorLib")).
   settings(commonSettings: _*).
   settings(
-    name := "MemSQL Connector",
+    name := "MemSQL-Connector",
     description := "Spark MemSQL Connector",
     libraryDependencies  ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
       "org.apache.spark" %% "spark-sql" % sparkVersion  % Provided,
       "mysql" % "mysql-connector-java" % mysqlConnectorVersion,
-      "org.apache.commons" % "commons-pool2" % commonsPoolVersion,
+      "org.apache.commons" % "commons-dbcp2" % commonsDBCPVersion,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test
     ),
     autoAPIMappings := true,
@@ -178,9 +178,6 @@ lazy val examples = (project in file("examples")).
 
 lazy val tests = (project in file("tests")).
   dependsOn(connectorLib).
-  dependsOn(etlLib).
-  dependsOn(interface).
-  dependsOn(examples).
   settings(commonSettings: _*).
   settings(
     name := "tests",
