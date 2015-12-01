@@ -10,6 +10,9 @@ import com.memsql.spark.context.MemSQLContext
 import com.memsql.spark.pushdown.MemSQLPushdownStrategy
 import org.apache.spark._
 import org.apache.spark.sql._
+import org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute
+import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.memsql.SparkTestUtils
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.functions._
 
@@ -92,8 +95,7 @@ object MemSQLTestSetup {
 }
 object TestUtils {
   def getHostname: String = {
-    import scala.sys.process._
-    "hostname -i"!!
+    "127.1"
   }
   def getConnectionInfo(dbName: String): MemSQLConnectionInfo =
     MemSQLConnectionInfo(TestUtils.getHostname, 3306, "root", "", dbName)
@@ -205,6 +207,38 @@ object TestUtils {
     val stmt = conn.createStatement
     stmt.execute(q)
     stmt.close()
+  }
+
+  def runQueries[T](bases: (T, T), handler: T => Seq[DataFrame]): Unit = {
+    val leftQueries: Seq[DataFrame] = handler(bases._1)
+    val rightQueries: Seq[DataFrame] = handler(bases._2)
+
+    val pairs = leftQueries.zip(rightQueries)
+
+    pairs.foreach({
+      case (left: DataFrame, right: DataFrame) => {
+        try {
+          assert(left.count > 0 && right.count > 0)
+          assert(TestUtils.equalDFs(left, right))
+        } catch {
+          case e: Throwable =>
+            println(
+              s"""
+                 |--------------------------------------------
+                 |Exception occurred while running the following
+                 |queries and comparing results:
+                 |---
+                 |
+                   |Left: ${left.schema}
+                 """.stripMargin)
+            left.explain
+            println(s"\nRight: ${right.schema}\n")
+            right.explain
+            println("--------------------------------------------")
+            throw e
+        }
+      }
+    })
   }
 }
 
@@ -358,7 +392,6 @@ object TestMemSQLDataFrameVeryBasic {
 
 object TestMemSQLQueryPushdownBasic {
   type DFTuple = (DataFrame, DataFrame)
-  type DFCheck = DataFrame => Unit
 
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("MemSQLRDD Application")
@@ -380,15 +413,20 @@ object TestMemSQLQueryPushdownBasic {
     stmt.execute("insert into b (d) values (1), (1), (2), (2), (3)")
     stmt.close
 
-    val all_dfs = Seq(sqlContext, sqlContextWithPushdown)
-      .map(context => (
-        MemSQLDataFrame.MakeMemSQLDF(context, info, "SELECT * FROM a"),
-        MemSQLDataFrame.MakeMemSQLDF(context, info, "SELECT * FROM b")
-      ))
+    val all_dfs = (
+      (
+        MemSQLDataFrame.MakeMemSQLDF(sqlContext, info, "SELECT * FROM a"),
+        MemSQLDataFrame.MakeMemSQLDF(sqlContext, info, "SELECT * FROM b")
+      ),
+      (
+        MemSQLDataFrame.MakeMemSQLDF(sqlContextWithPushdown, info, "SELECT * FROM a"),
+        MemSQLDataFrame.MakeMemSQLDF(sqlContextWithPushdown, info, "SELECT * FROM b")
+      )
+    )
 
-    runQueries(all_dfs, {
+    TestUtils.runQueries[DFTuple](all_dfs, {
       case (a: DataFrame, b: DataFrame) => {
-        (
+        Seq(
           a.select("a"),
           a.select(a("a").as("test")),
           a.select(a("a"), a("a")),
@@ -417,39 +455,52 @@ object TestMemSQLQueryPushdownBasic {
               b.groupBy("d").agg(sum("c") as "sum_of_c"),
               a("b") === col("sum_of_c")
             )
-        )
+          )
       }
     })
   }
+}
 
-  def runQueries(bases: Seq[DFTuple], handler: DFTuple => Product): Unit = {
-    val queries: Seq[Product] = bases.map(handler)
-    for (i <- Range(0, queries.head.productArity)) yield {
-      val dfs = queries.map(p => p.productElement(i))
-      dfs.zip(dfs.drop(1)).foreach({
-        case (left: DataFrame, right: DataFrame) =>
-          try {
-            assert(left.count > 0 && right.count > 0)
-            assert(TestUtils.equalDFs(left, right))
-          } catch {
-            case e: Throwable =>
-              println(
-                s"""
-                   |--------------------------------------------
-                   |Exception occurred while running the following
-                   |queries and comparing results:
-                   |---
-                   |
-                   |Left: ${left.schema}
-                 """.stripMargin)
-              left.explain
-              println(s"\nRight: ${right.schema}\n")
-              right.explain
-              println("--------------------------------------------")
-              throw e
-          }
+object TestMemSQLQueryExpressionsBinaryOperators {
+  type DFTuple = (DataFrame)
+
+  def main(args: Array[String]) {
+    val conf = new SparkConf().setAppName("MemSQLRDD Application")
+    val sc = new SparkContext(conf)
+
+    val sqlContext = new SQLContext(sc)
+    val sqlContextWithPushdown = new SQLContext(sc)
+    MemSQLPushdownStrategy.patchSQLContext(sqlContextWithPushdown)
+
+    val info = TestUtils.getConnectionInfo("x_testpushdownbasic")
+    TestUtils.dropAndCreate(info.dbName)
+
+    val conn = TestUtils.getJDBCConnection(info)
+    val stmt = conn.createStatement
+    stmt.execute("USE " + info.dbName)
+    stmt.execute("CREATE TABLE a (a BIGINT AUTO_INCREMENT PRIMARY KEY, b BIGINT, c BIGINT)")
+    stmt.execute("INSERT INTO a (b, c) VALUES (1, 1), (1, 2), (1, 3)")
+    stmt.close
+
+    val all_dfs = (MemSQLDataFrame.MakeMemSQLDF(sqlContext, info, "SELECT * FROM a"),
+                   MemSQLDataFrame.MakeMemSQLDF(sqlContextWithPushdown, info, "SELECT * FROM a"))
+
+    val fns = Seq(Add, BitwiseAnd, BitwiseOr, BitwiseXor, Multiply, Remainder, Subtract)
+
+    val exprs = fns.flatMap(fn => {
+        Seq(
+          fn(UnresolvedAttribute.quotedString("b"), Literal(17)),
+          fn(UnresolvedAttribute.quotedString("b"), UnresolvedAttribute.quotedString("c"))
+        )
       })
-    }
+
+    TestUtils.runQueries[DFTuple](all_dfs, {
+      case a: DataFrame => {
+        exprs.map(expr => {
+          a.select(SparkTestUtils.exprToColumn(expr))
+        })
+      }
+    })
   }
 }
 
