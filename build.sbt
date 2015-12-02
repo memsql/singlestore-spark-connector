@@ -178,6 +178,9 @@ lazy val examples = (project in file("examples")).
 
 lazy val tests = (project in file("tests")).
   dependsOn(connectorLib).
+  //dependsOn(etlLib).
+  //dependsOn(interface).
+  //dependsOn(examples).
   settings(commonSettings: _*).
   settings(
     name := "tests",
