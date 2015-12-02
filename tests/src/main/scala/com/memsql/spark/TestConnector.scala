@@ -485,7 +485,7 @@ object TestMemSQLQueryExpressionsBinaryOperators {
     val all_dfs = (MemSQLDataFrame.MakeMemSQLDF(sqlContext, info, "SELECT * FROM a"),
                    MemSQLDataFrame.MakeMemSQLDF(sqlContextWithPushdown, info, "SELECT * FROM a"))
 
-    val fns = Seq(Add, BitwiseAnd, BitwiseOr, BitwiseXor, Multiply, Remainder, Subtract)
+    val fns = Seq(Add, BitwiseAnd, BitwiseOr, BitwiseXor, MaxOf, MinOf, Multiply, Pmod, Remainder, Subtract)
 
     val exprs = fns.flatMap(fn => {
         Seq(

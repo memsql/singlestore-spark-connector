@@ -31,6 +31,9 @@ def test_memsql_dataframe_very_basic(local_context):
 def test_memsql_query_pushdown_basic(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLQueryPushdownBasic")
 
+def test_memsql_query_expressions_binary_operators(local_context):
+    do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLQueryExpressionsBinaryOperators")
+
 def test_create_with_keys(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestCreateWithKeys")
 

@@ -209,8 +209,6 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
         raw("CAST").block { addExpression(child)
         .raw(" AS ").raw(MemSQLDataFrameUtils.DataFrameTypeToMemSQLCastType(t)) }
 
-      case And(left, right) => block { addExpressions(Seq(left) ++ Seq(right), " AND ") }
-      case Or(left, right) => block { addExpressions(Seq(left) ++ Seq(right), " OR ") }
       case Not(inner) => raw("NOT").block { addExpressions(Seq(inner), " AND ") }
 
       case StartsWith(a: Attribute, Literal(v: UTF8String, StringType)) =>
@@ -247,10 +245,24 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
       case SortOrder(child: Expression, Ascending) => block { addExpression(child) }.raw(" ASC")
       case SortOrder(child: Expression, Descending) => block { addExpression(child) }.raw(" DESC")
 
-      // GENERIC PATTERNS
+      // BINARY OPERATORS
 
+      case MaxOf(left, right) => raw("GREATEST").block { addExpressions(Seq(left, right), ", ") }
+      case MinOf(left, right) => raw("LEAST").block { addExpressions(Seq(left, right), ", ") }
+
+      // a pmod b := (a % b + b) % b
+      case Pmod(left, right) =>
+        block {
+          block {
+            addExpressions(Seq(left, right), " % ")
+            raw(" + ")
+            addExpression(right)
+          }.raw(" % ").addExpression(right)
+        }
+
+      // All Spark BinaryOperator symbols work in SQL expressions, except for the three handled above
       case op @ SQLBuilder.BinaryOperator(left: Expression, right: Expression) =>
-        addExpression(left).raw(s" ${op.symbol} ").addExpression(right)
+        block { addExpression(left).raw(s" ${op.symbol} ").addExpression(right) }
     }
     this
   }
