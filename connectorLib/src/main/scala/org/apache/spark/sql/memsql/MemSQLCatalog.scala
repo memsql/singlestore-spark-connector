@@ -2,9 +2,10 @@ package org.apache.spark.sql.memsql
 
 import java.sql.{ResultSet, Connection}
 
+import com.memsql.spark.connector.sql.TableIdentifier
 import org.apache.spark.Logging
 import org.apache.spark.sql.AnalysisException
-import org.apache.spark.sql.catalyst.{SimpleCatalystConf, CatalystConf, TableIdentifier}
+import org.apache.spark.sql.catalyst.CatalystConf
 import org.apache.spark.sql.catalyst.analysis.SimpleCatalog
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Subquery}
 
@@ -21,12 +22,10 @@ class MemSQLCatalog(val msc: MemSQLContext,
     } else {
       val cluster = msc.getMemSQLCluster
       val tableIdent = MemSQLCatalog.makeTableIdentifier(tableIdentifier)
-      val sql = s"SELECT * FROM ${tableIdent.quotedString}"
 
       val relation = LogicalRelation(MemSQLRelation(
         cluster=cluster,
         tableIdentifier=tableIdent,
-        schema=cluster.getQuerySchema(sql),
         sqlContext=msc
       ))
 
@@ -37,14 +36,14 @@ class MemSQLCatalog(val msc: MemSQLContext,
   override def getTables(databaseName: Option[String]): Seq[(String, Boolean)] = {
     val simpleTables = super.getTables(databaseName)
 
-    msc.getMemSQLCluster.withAggregatorConn { conn =>
-      val result = MemSQLCatalog.queryTables(conn, databaseName)
-
-      simpleTables.union(result.map(r => {
-        val dbName, tableName = (r.getString("table_schema"), r.getString("table_name"))
+    val result = msc.getMemSQLCluster.withAggregatorConn { conn =>
+      MemSQLCatalog.queryTables(conn, databaseName)(r => {
+        val (dbName, tableName) = (r.getString("table_schema"), r.getString("table_name"))
         (s"`$dbName`.`$tableName`", true)
-      }).toSeq)
+      })
     }
+
+    simpleTables.union(result)
   }
 
   override def tableExists(tableIdentifier: Seq[String]): Boolean = {
@@ -57,16 +56,17 @@ class MemSQLCatalog(val msc: MemSQLContext,
 }
 
 object MemSQLCatalog {
-  def queryTables(conn: Connection, databaseName: Option[String]): Iterator[ResultSet] = {
+  def queryTables[T](conn: Connection, databaseName: Option[String])(handler: ResultSet => T): List[T] = {
     val sql = "SELECT table_schema, table_name FROM information_schema.tables"
 
     if (databaseName.isDefined) {
       conn.withPreparedStatement(sql + " WHERE table_schema = ?", stmt => {
         stmt.setString(0, databaseName.get)
-        stmt.executeQuery.toIterator
+        stmt.executeQuery.toIterator.map(handler).toList
       })
     } else {
-      conn.withStatement(stmt => stmt.executeQuery(sql).toIterator)
+      conn.withStatement(stmt =>
+        stmt.executeQuery(sql).toIterator.map(handler).toList)
     }
   }
 

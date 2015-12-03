@@ -86,7 +86,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
    * @param user The user for the database.
    * @param password The password for the database.
    * @param ifNotExists Use `CREATE TABLE IF NOT EXISTS`
-   * @param keys A [[scala.List]] of [[com.memsql.spark.connector.dataframe.MemSQLKey]] specifications to add to the
+   * @param keys A [[scala.List]] of [[com.memsql.spark.connector.schema.MemSQLKey]] specifications to add to the
    *             `CREATE TABLE` statement.
    * @param extraCols A [[scala.List]] of [[com.memsql.spark.connector.dataframe.MemSQLExtraColumn]] specifications to
    *                  add to the `CREATE TABLE` statement.
@@ -119,7 +119,7 @@ class DataFrameFunctions(df: DataFrame) extends Serializable {
    * @param user The user for the database.
    * @param password The password for the database.
    * @param ifNotExists Use `CREATE TABLE IF NOT EXISTS`
-   * @param keys A [[scala.List]] of [[com.memsql.spark.connector.dataframe.MemSQLKey]] specifications to add to the
+   * @param keys A [[scala.List]] of [[com.memsql.spark.connector.schema.MemSQLKey]] specifications to add to the
    *             `CREATE TABLE` statement.
    * @param extraCols A [[scala.List]] of [[com.memsql.spark.connector.dataframe.MemSQLExtraColumn]] specifications to
    *                  add to the `CREATE TABLE` statement.

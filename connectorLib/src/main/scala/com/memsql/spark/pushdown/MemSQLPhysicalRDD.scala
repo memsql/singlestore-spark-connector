@@ -10,6 +10,7 @@ import org.apache.spark.sql.execution.{RDDConversions, SparkPlan}
 import org.apache.spark.sql.memsql.MemSQLRelationUtils
 import org.apache.spark.sql.types.StructField
 import StringBuilderImplicits._
+import com.memsql.spark.connector.util.JDBCImplicits._
 
 /**
  * MemSQLPhysicalRDD represents a node in the final plan we pass back to Spark.
@@ -83,7 +84,7 @@ object MemSQLPhysicalRDD {
       sql,
       sqlParams,
       baseQuery.database,
-      MemSQLRelationUtils.resultSetToRow)
+      _.toRow)
 
     MemSQLPhysicalRDD(output, rdd, tree)
   }

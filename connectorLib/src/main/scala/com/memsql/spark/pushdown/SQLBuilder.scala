@@ -205,9 +205,19 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
       case Alias(child: Expression, name: String) =>
         block { addExpression(child) }.raw(" AS ").identifier(name)
 
-      case Cast(child, t) =>
-        raw("CAST").block { addExpression(child)
-        .raw(" AS ").raw(MemSQLDataFrameUtils.DataFrameTypeToMemSQLCastType(t)) }
+      case Cast(child, t) => t match {
+        case TimestampType => block {
+          raw("UNIX_TIMESTAMP")
+          block { addExpression(child) }
+          // JDBC Timestamp is in nanosecond precision, but MemSQL is second
+          raw(" * 1000000")
+        }
+        case _ => raw("CAST").block {
+                    addExpression(child)
+                      .raw(" AS ")
+                      .raw(MemSQLDataFrameUtils.DataFrameTypeToMemSQLCastType(t))
+                  }
+      }
 
       case Not(inner) => raw("NOT").block { addExpressions(Seq(inner), " AND ") }
 

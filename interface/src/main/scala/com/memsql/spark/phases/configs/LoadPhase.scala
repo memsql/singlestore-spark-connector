@@ -1,6 +1,8 @@
 package com.memsql.spark.etl.api.configs
 
 import com.memsql.spark.connector.dataframe._
+import com.memsql.spark.connector.sql
+import com.memsql.spark.connector.sql.{MemSQLColumn, AdvancedColumn, MemSQLKey}
 import com.memsql.spark.etl.api.PhaseConfig
 import com.memsql.spark.etl.api.configs.LoadPhaseKind._
 import com.memsql.spark.etl.utils.JsonEnumProtocol
@@ -27,32 +29,31 @@ import com.memsql.spark.etl.api.configs.MemSQLDupKeyBehavior._
 case class MemSQLKeyConfig(key_type: MemSQLKeyType, column_names: List[String]) {
   def toMemSQLKey : MemSQLKey = {
     key_type match {
-      case MemSQLKeyType.Shard => com.memsql.spark.connector.dataframe.Shard(column_names.toArray)
-      case MemSQLKeyType.Key => com.memsql.spark.connector.dataframe.Key(column_names.toArray)
-      case MemSQLKeyType.PrimaryKey => com.memsql.spark.connector.dataframe.PrimaryKey(column_names.toArray)
-      case MemSQLKeyType.KeyUsingClusteredColumnStore => com.memsql.spark.connector.dataframe.KeyUsingClusteredColumnStore(column_names.toArray)
-      case MemSQLKeyType.UniqueKey => com.memsql.spark.connector.dataframe.UniqueKey(column_names.toArray)
+      case MemSQLKeyType.Shard => sql.Shard(column_names.toArray)
+      case MemSQLKeyType.Key => sql.Key(column_names.toArray)
+      case MemSQLKeyType.PrimaryKey => sql.PrimaryKey(column_names.toArray)
+      case MemSQLKeyType.KeyUsingClusteredColumnStore => sql.KeyUsingClusteredColumnStore(column_names.toArray)
+      case MemSQLKeyType.UniqueKey => sql.UniqueKey(column_names.toArray)
     }
   }
 }
 
-case class MemSQLExtraColumnConfig(name: String,
-                                   col_type: String,
-                                   nullable: Option[Boolean],
-                                   default_sql: Option[String],
-                                   persisted: Option[String]) {
-  def toMemSQLExtraColumn: MemSQLExtraColumn = {
-    MemSQLExtraColumn(name, col_type, nullable.getOrElse(true), default_sql.orNull, persisted.orNull)
+case class MemSQLColumnConfig(name: String,
+                              col_type: String,
+                              nullable: Option[Boolean],
+                              default_sql: Option[String],
+                              persisted: Option[String]) {
+  def toMemSQLColumn: MemSQLColumn = {
+    AdvancedColumn(name, col_type, nullable.getOrElse(true), default_sql, persisted)
   }
 }
 
-case class LoadConfigOptions(
-  on_duplicate_key_sql: Option[String]=None,
-  upsert_batch_size: Option[Int]=None,
-  table_keys: Option[List[MemSQLKeyConfig]]=None,
-  table_extra_columns: Option[List[MemSQLExtraColumnConfig]]=None,
-  use_keyless_sharding_optimization: Option[Boolean]=None,
-  duplicate_key_behavior: Option[MemSQLDupKeyBehavior]=None)
+case class LoadConfigOptions(on_duplicate_key_sql: Option[String]=None,
+                             upsert_batch_size: Option[Int]=None,
+                             table_keys: Option[List[MemSQLKeyConfig]]=None,
+                             table_extra_columns: Option[List[MemSQLColumnConfig]]=None,
+                             use_keyless_sharding_optimization: Option[Boolean]=None,
+                             duplicate_key_behavior: Option[MemSQLDupKeyBehavior]=None)
 
 case class MemSQLLoadConfig(
   db_name: String,
@@ -68,7 +69,7 @@ case class MemSQLLoadConfig(
     }
 
     LoadConfigOptions(
-      table_extra_columns=Some(List(MemSQLExtraColumnConfig(
+      table_extra_columns=Some(List(MemSQLColumnConfig(
         name="memsql_insert_time",
         col_type="TIMESTAMP",
         nullable=Some(false),
@@ -87,7 +88,7 @@ case class MemSQLLoadConfig(
 object LoadPhaseImplicits extends JsonEnumProtocol {
   implicit val memSQLKeyTypeTypeFormat = jsonEnum(MemSQLKeyType)
   implicit val memSQLkeyConfigFormat = jsonFormat2(MemSQLKeyConfig)
-  implicit val memSQLextraColumnConfigFormat = jsonFormat5(MemSQLExtraColumnConfig)
+  implicit val memSQLextraColumnConfigFormat = jsonFormat5(MemSQLColumnConfig)
   implicit val memSQLTableTypeTypeFormat = jsonEnum(MemSQLTableConfig)
   implicit val memSQLErrorBehaviorFormat = jsonEnum(MemSQLDupKeyBehavior)
   implicit val memSQLOptionsFormat = jsonFormat6(LoadConfigOptions)

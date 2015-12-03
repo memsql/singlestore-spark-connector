@@ -1,6 +1,9 @@
 package com.memsql.spark.connector.util
 
-import java.sql._
+import java.sql.{Statement, PreparedStatement, ResultSet, Types, Connection}
+
+import com.memsql.spark.connector.dataframe.MemSQLDataFrameUtils
+import org.apache.spark.sql.Row
 
 object JDBCImplicits {
   implicit class ResultSetHelpers(val rs: ResultSet) {
@@ -13,6 +16,21 @@ object JDBCImplicits {
       val metadata = rs.getMetaData
       Range(0, metadata.getColumnCount)
         .exists(i => columnName == metadata.getColumnName(i + 1))
+    }
+
+    def toRow: Row = {
+      val columnCount = rs.getMetaData.getColumnCount
+
+      Row.fromSeq(Range(0, columnCount).map(i => {
+        val columnType = rs.getMetaData.getColumnType(i + 1)
+        MemSQLDataFrameUtils.GetJDBCValue(columnType, i + 1, rs)
+      }))
+    }
+
+    def toArray: Array[Any] = {
+      Array.tabulate(rs.getMetaData.getColumnCount)({
+        i => rs.getObject(i + 1).asInstanceOf[Any]
+      })
     }
   }
 

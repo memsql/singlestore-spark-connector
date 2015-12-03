@@ -1,6 +1,6 @@
 package com.memsql.spark.connector.rdd
 
-import java.sql.{Connection, ResultSet, Statement, PreparedStatement, Types}
+import java.sql.ResultSet
 import com.memsql.spark.connector.{MemSQLConnectionPool, MemSQLCluster}
 
 import scala.reflect.ClassTag
@@ -9,8 +9,6 @@ import org.apache.spark.{Logging, Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import com.memsql.spark.connector.util.{MemSQLConnectionInfo, NextIterator}
 import com.memsql.spark.connector.util.JDBCImplicits._
-
-import scala.util.Try
 
 class MemSQLRDDPartition(override val index: Int,
                          val connectionInfo: MemSQLConnectionInfo,
@@ -37,14 +35,14 @@ case class ExplainRow(selectType: String, extra: String, query: String)
   * @param mapRow A function from a ResultSet to a single row of the desired
   *   result type(s).  This should only call getInt, getString, etc; the RDD
   *   takes care of calling next.  The default maps a ResultSet to an array of
-  *   Object.
+  *   Any.
   */
 case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
                                   cluster: MemSQLCluster,
                                   sql: String,
                                   sqlParams: Seq[Any] = Nil,
                                   databaseName: Option[String] = None,
-                                  mapRow: (ResultSet) => T = MemSQLRDD.resultSetToObjectArray(_)
+                                  mapRow: (ResultSet) => T = MemSQLRDD.resultSetToArray(_)
                                  ) extends RDD[T](sc, Nil) with Logging {
 
   override def getPartitions: Array[Partition] = {
@@ -67,7 +65,7 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
                   val query = r.getString("Query")
                   ExplainRow(selectType, extra, query)
                 })
-                .toSeq
+                .toList
             )
           } else {
             None
@@ -81,7 +79,7 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
         // TODO: Support pushing down more complex queries (like distributed joins)
 
         val partitionSQLTemplate = explainResult.flatMap(explainRows => {
-          val isSimpleIterator = explainRows(0).extra == "memsql: Simple Iterator -> Network"
+          val isSimpleIterator = explainRows.headOption.exists(_.extra == "memsql: Simple Iterator -> Network")
           val hasMultipleRows = explainRows.length > 1
           val noDResult = !explainRows.exists(_.selectType == "DRESULT")
 
@@ -124,15 +122,13 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
 
     val partition: MemSQLRDDPartition = sparkPartition.asInstanceOf[MemSQLRDDPartition]
 
-    val (query, queryParams) =
-      if (partition.query.isEmpty) {
-        (sql, sqlParams)
-      } else {
-        (partition.query.get, Nil)
-      }
+    val (query, queryParams) = partition.query match {
+      case Some(partitionQuery) => (partitionQuery, Nil)
+      case None => (sql, sqlParams)
+    }
 
     val conn = MemSQLConnectionPool.connect(partition.connectionInfo)
-    val stmt = conn.prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
+    val stmt = conn.prepareStatement(query, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
     stmt.fillParams(queryParams)
 
     val rs = stmt.executeQuery
@@ -172,9 +168,7 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
 }
 
 object MemSQLRDD {
-  def resultSetToObjectArray(rs: ResultSet): Array[Object] = {
-    Array.tabulate[Object](rs.getMetaData.getColumnCount)(i => rs.getObject(i + 1))
-  }
+  def resultSetToArray(rs: ResultSet): Array[Any] = rs.toArray
 
   def getPerPartitionSql(template: String, dbName: String, idx: Int): String = {
     // The EXPLAIN query that we run in getPartitions gives us the SQL query

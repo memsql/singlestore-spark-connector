@@ -2,7 +2,7 @@ package com.memsql.spark.phases
 
 import com.memsql.spark.connector._
 import com.memsql.spark.connector.OnDupKeyBehavior._
-import com.memsql.spark.etl.api.configs.{MemSQLExtraColumnConfig, MemSQLKeyConfig, MemSQLDupKeyBehavior, MemSQLLoadConfig}
+import com.memsql.spark.etl.api.configs.{MemSQLColumnConfig, MemSQLKeyConfig, MemSQLDupKeyBehavior, MemSQLLoadConfig}
 import com.memsql.spark.etl.api.{Loader, PhaseConfig}
 import com.memsql.spark.etl.utils.PhaseLogger
 import org.apache.spark.sql.DataFrame
@@ -16,8 +16,8 @@ class MemSQLLoader extends Loader {
     val options = memSQLLoadConfig.options.getOrElse(memSQLLoadConfig.getDefaultOptions)
 
     if (!hasInserted) {
-      val extraColumns = options.table_extra_columns.getOrElse(List[MemSQLExtraColumnConfig]())
-                         .map((k: MemSQLExtraColumnConfig) => k.toMemSQLExtraColumn)
+      val extraColumns = options.table_extra_columns.getOrElse(List[MemSQLColumnConfig]())
+                         .map((k: MemSQLColumnConfig) => k.toMemSQLColumn)
       df.createMemSQLTableFromSchema(memSQLLoadConfig.db_name,
                                      memSQLLoadConfig.table_name,
                                      keys = options.table_keys.getOrElse(List[MemSQLKeyConfig]()).map((k: MemSQLKeyConfig) => k.toMemSQLKey),
