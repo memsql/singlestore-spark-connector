@@ -48,10 +48,13 @@ object SparkImplicits {
 
       // Since LOAD DATA ... ON DUPLICATE KEY UPDATE is not currently supported by MemSQL
       // we fallback to batch insert if a dup key expression is specified.
-      //
-      val ingestStrategy = saveConf.onDuplicateKeySQL match {
-        case Some(_) => InsertStrategy(tableFragment, saveConf)
-        case None => LoadDataStrategy(tableFragment, saveConf)
+      // Also, if the DataFrame does not have any columns (e.g. we are
+      // inserting empty rows and relying on columns' default values), we need
+      // to use INSERT, since LOAD DATA doesn't support empty rows.
+      val ingestStrategy = if (df.schema.size == 0 || saveConf.onDuplicateKeySQL.isDefined) {
+        InsertStrategy(tableFragment, saveConf)
+      } else {
+        LoadDataStrategy(tableFragment, saveConf)
       }
 
       val availableNodes = saveConf.useKeylessShardingOptimization match {
