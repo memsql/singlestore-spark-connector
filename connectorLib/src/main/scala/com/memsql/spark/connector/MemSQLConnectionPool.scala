@@ -19,6 +19,7 @@ object MemSQLConnectionPool {
     newPool.setUrl(info.toJDBCAddress)
     newPool.setUsername(info.user)
     newPool.setPassword(info.password)
+    newPool.addConnectionProperty("zeroDateTimeBehavior", "convertToNull")
 
     newPool
   }

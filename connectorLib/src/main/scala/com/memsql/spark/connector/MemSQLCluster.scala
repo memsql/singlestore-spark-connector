@@ -1,6 +1,6 @@
 package com.memsql.spark.connector
 
-import com.memsql.spark.connector.dataframe.MemSQLDataFrameUtils
+import com.memsql.spark.connector.dataframe.TypeConversions
 import com.memsql.spark.connector.sql._
 import org.apache.spark.sql.types.{StructField, StructType}
 import com.memsql.spark.connector.util.MemSQLConnectionInfo
@@ -89,7 +89,7 @@ case class MemSQLCluster(conf: MemSQLConf) {
         Range(0, numColumns)
           .map(i => StructField(
             metadata.getColumnName(i + 1),
-            MemSQLDataFrameUtils.JDBCTypeToDataFrameType(metadata, i + 1),
+            TypeConversions.JDBCTypeToDataFrameType(metadata, i + 1),
             true)
           )
       )

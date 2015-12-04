@@ -1,7 +1,7 @@
 package org.apache.spark.sql.memsql
 
 import com.memsql.spark.SaveToMemSQLException
-import com.memsql.spark.connector.dataframe.MemSQLDataFrameUtils
+import com.memsql.spark.connector.dataframe.TypeConversions
 import com.memsql.spark.connector.sql.{TableIdentifier, QueryFragments, Column, MemSQLColumn}
 import com.memsql.spark.connector.{MemSQLCluster, MemSQLConf}
 import org.apache.spark.{TaskContext, SparkException}
@@ -16,7 +16,7 @@ object SparkImplicits {
       schema.map(s => {
         Column(
           s.name,
-          MemSQLDataFrameUtils.DataFrameTypeToMemSQLTypeString(s.dataType),
+          TypeConversions.DataFrameTypeToMemSQLTypeString(s.dataType),
           s.nullable
         )
       })

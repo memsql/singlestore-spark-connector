@@ -1,8 +1,8 @@
 package com.memsql.spark.pushdown
 
-import com.memsql.spark.connector.dataframe.MemSQLDataFrameUtils
-import org.apache.spark.sql.catalyst.{expressions, CatalystTypeConverters}
+import com.memsql.spark.connector.dataframe.TypeConversions
 import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.{CatalystTypeConverters, expressions}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 
@@ -206,19 +206,20 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
         block { addExpression(child) }.raw(" AS ").identifier(name)
 
       case Cast(child, t) => t match {
-        case TimestampType => block {
+        case TimestampType | DateType => block {
           raw("UNIX_TIMESTAMP")
           block { addExpression(child) }
-          // JDBC Timestamp is in nanosecond precision, but MemSQL is second
-          raw(" * 1000000")
+          // JDBC Timestamp is in nanosecond precision, but MemSQL is microsecond
+          raw(" * 1000")
         }
-        // TODO: This is probably wrong
-        case IntegerType => addExpression(child)
-        case _ => {
-          raw("CAST").block {
-            addExpression(child)
-              .raw(" AS ")
-              .raw(MemSQLDataFrameUtils.DataFrameTypeToMemSQLCastType(t))
+        case _ => TypeConversions.DataFrameTypeToMemSQLCastType(t) match {
+          case None => addExpression(child)
+          case Some(memsqlType) => {
+            raw("CAST").block {
+              addExpression(child)
+                .raw(" AS ")
+                .raw(memsqlType)
+            }
           }
         }
       }

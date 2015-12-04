@@ -1,8 +1,7 @@
 package com.memsql.spark.connector.util
 
-import java.sql.{Statement, PreparedStatement, ResultSet, Types, Connection}
-
-import com.memsql.spark.connector.dataframe.{MemSQLCustomType, MemSQLDataFrameUtils}
+import java.sql.{Statement, PreparedStatement, ResultSet, Connection}
+import com.memsql.spark.connector.dataframe.{MemSQLCustomType, TypeConversions}
 import org.apache.spark.sql.Row
 
 object JDBCImplicits {
@@ -23,7 +22,7 @@ object JDBCImplicits {
 
       Row.fromSeq(Range(0, columnCount).map(i => {
         val columnType = rs.getMetaData.getColumnType(i + 1)
-        MemSQLDataFrameUtils.GetJDBCValue(columnType, i + 1, rs)
+        TypeConversions.GetJDBCValue(columnType, i + 1, rs)
       }))
     }
 

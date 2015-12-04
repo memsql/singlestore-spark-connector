@@ -163,7 +163,10 @@ object TestUtils {
     pairs.foreach({
       case (left: DataFrame, right: DataFrame) => {
         try {
-          assert(left.count > 0 && right.count > 0)
+          val leftCount = left.count
+          val rightCount = right.count
+          assert(leftCount > 0 && rightCount > 0,
+                 s"Dataframes must be nonempty: left had $leftCount rows and right had $rightCount rows")
           assert(equalDFs(left, right))
         } catch {
           case e: Throwable =>

@@ -32,6 +32,7 @@ class TestMemSQLQueryPushdown extends TestBase with Logging {
     TestUtils.runQueries[DFTuple](allDFs, {
       case (a: DataFrame, b: DataFrame) => {
         Seq(
+          a,
           a.select("a"),
           a.select(a("a").as("test")),
           a.select(a("a"), a("a")),

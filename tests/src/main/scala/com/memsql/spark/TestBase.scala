@@ -4,7 +4,7 @@ package com.memsql.spark
 
 import java.net.InetAddress
 import java.security.MessageDigest
-import java.sql.{Statement, DriverManager, Connection}
+import java.sql.{PreparedStatement, Statement, DriverManager, Connection}
 
 import com.memsql.spark.connector.util.{Loan, MemSQLConnectionInfo}
 import org.apache.spark.sql.memsql.MemSQLContext
@@ -36,6 +36,9 @@ abstract class TestBase {
 
   def withStatement[T](handle: Statement => T): T =
     withConnection(conn => conn.withStatement(handle))
+
+  def withPreparedStatement[T](query: String, handle: PreparedStatement => T): T =
+    withConnection(conn => conn.withPreparedStatement(query, handle))
 
   def recreateDatabase: Unit = {
     withConnection(masterConnectionInfo.copy(dbName=""))(conn => {

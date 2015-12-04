@@ -1,13 +1,17 @@
 package com.memsql.spark.pushdown
 
+import java.sql.{Date, Timestamp}
+import java.math.BigDecimal
+
+import scala.concurrent.duration._
 import com.memsql.spark.connector.rdd.MemSQLRDD
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Cast, AttributeReference, Attribute}
+import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.execution.{RDDConversions, SparkPlan}
-import org.apache.spark.sql.types.StructField
+import org.apache.spark.sql.types._
 import StringBuilderImplicits._
 import com.memsql.spark.connector.util.JDBCImplicits._
 
@@ -32,8 +36,20 @@ case class MemSQLPhysicalRDD(output: Seq[Attribute],
    * so we just return the RDD here.
    * @return The RDD produced during pushdown
    */
-  protected override def doExecute(): RDD[InternalRow] =
-    RDDConversions.rowToRowRdd(rdd, output.map(_.dataType))
+  protected override def doExecute(): RDD[InternalRow] = {
+    val dataTypes = output.map(_.dataType)
+    val convertedRDD = rdd.map { row =>
+      Row.fromSeq(row.toSeq.zip(dataTypes).map {
+        case (nanos: Long, TimestampType) => new Timestamp(nanos)
+        case (nanos: Long, DateType) => new Date(nanos.nanoseconds.toMillis)
+        case (bool: Long, BooleanType) => bool == 1
+        case (decimal: BigDecimal, DoubleType) => decimal.doubleValue()
+        case (decimal: BigDecimal, FloatType) => decimal.floatValue()
+        case (r, _) => r
+      })
+    }
+    RDDConversions.rowToRowRdd(convertedRDD, output.map(_.dataType))
+  }
 
   /**
    * By overriding this method, the Spark application UI will show
@@ -57,9 +73,10 @@ object MemSQLPhysicalRDD {
    * @return A MemSQLPhysicalRDD ready to pass back to Spark as part of a physical plan
    */
   def fromAbstractQueryTree(sparkContext: SparkContext, tree: AbstractQuery): MemSQLPhysicalRDD = {
+    val treeOutput = tree.castedNamedOutput
     val query = new SQLBuilder()
       .raw("SELECT ")
-      .addExpressions(tree.castedNamedOutput, ", ")
+      .addExpressions(treeOutput, ", ")
       .raw(" FROM ")
       .appendBuilder(tree.collapse)
 
@@ -71,12 +88,6 @@ object MemSQLPhysicalRDD {
       throw new MemSQLPushdownException("Query tree does not terminate with a valid BaseQuery instance.")
     }
 
-    val actualOutput = baseQuery.cluster.getQuerySchema(sql, sqlParams)
-    val output: Seq[AttributeReference] = actualOutput.zip(tree.output).map {
-      case (f: StructField, a: Attribute) =>
-        AttributeReference(f.name, f.dataType, f.nullable, f.metadata)(a.exprId, a.qualifiers)
-    }
-
     val rdd = MemSQLRDD(
       sparkContext,
       baseQuery.cluster,
@@ -85,7 +96,7 @@ object MemSQLPhysicalRDD {
       baseQuery.database,
       _.toRow)
 
-    MemSQLPhysicalRDD(output, rdd, tree)
+    MemSQLPhysicalRDD(treeOutput.map(_.toAttribute), rdd, tree)
   }
 }
 
