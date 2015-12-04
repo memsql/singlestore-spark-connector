@@ -50,7 +50,7 @@ abstract class TestBase {
     .set("memsql.port", masterConnectionInfo.dbPort.toString)
     .set("memsql.user", masterConnectionInfo.user)
     .set("memsql.password", masterConnectionInfo.password)
-    .set("memsql.default_database", masterConnectionInfo.dbName)
+    .set("memsql.defaultDatabase", masterConnectionInfo.dbName)
 
   val sc = new SparkContext(conf)
   val msc = new MemSQLContext(sc)

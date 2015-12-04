@@ -22,13 +22,13 @@ object TestUtils {
           (id INT PRIMARY KEY, data VARCHAR(200), key(data))
         """)
 
-        val insertValues = Range(0, 999)
+        val insertValues = Range(0, 1000)
           .map(i => s"""($i, 'test_data_${"%04d".format(i)}')""")
           .mkString(",")
 
-        stmt.execute("INSERT INTO t values" + insertValues)
-        stmt.execute("INSERT INTO s values" + insertValues)
-        stmt.execute("INSERT INTO r values" + insertValues)
+        stmt.execute("INSERT INTO t VALUES" + insertValues)
+        stmt.execute("INSERT INTO s VALUES" + insertValues)
+        stmt.execute("INSERT INTO r VALUES" + insertValues)
       })
     })
   }

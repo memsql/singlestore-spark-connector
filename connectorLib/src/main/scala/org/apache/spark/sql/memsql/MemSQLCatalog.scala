@@ -21,11 +21,18 @@ class MemSQLCatalog(val msc: MemSQLContext,
       super.lookupRelation(tableIdentifier, alias)
     } else {
       val cluster = msc.getMemSQLCluster
-      val tableIdent = MemSQLCatalog.makeTableIdentifier(tableIdentifier)
+      val userTableIdent = MemSQLCatalog.makeTableIdentifier(tableIdentifier)
+      val actualTableIdent = lookupTable(userTableIdent)
+
+      if (actualTableIdent.isEmpty) {
+        throw new AnalysisException(
+          s"MemSQLCatalog failed to find table with name ${userTableIdent.quotedString}"
+        )
+      }
 
       val relation = LogicalRelation(MemSQLRelation(
         cluster=cluster,
-        tableIdentifier=tableIdent,
+        tableIdentifier=actualTableIdent.get,
         sqlContext=msc
       ))
 
@@ -35,39 +42,42 @@ class MemSQLCatalog(val msc: MemSQLContext,
 
   override def getTables(databaseName: Option[String]): Seq[(String, Boolean)] = {
     val simpleTables = super.getTables(databaseName)
-
-    val result = msc.getMemSQLCluster.withAggregatorConn { conn =>
-      MemSQLCatalog.queryTables(conn, databaseName)(r => {
-        val (dbName, tableName) = (r.getString("table_schema"), r.getString("table_name"))
-        (s"`$dbName`.`$tableName`", true)
-      })
-    }
-
+    val result = getDBTablePairs(databaseName).map(t => {
+      (t.quotedString, true)
+    })
     simpleTables.union(result)
   }
 
   override def tableExists(tableIdentifier: Seq[String]): Boolean = {
     val tableId = MemSQLCatalog.makeTableIdentifier(tableIdentifier)
-    getTables(tableId.database).exists({
-      case (tableName: String, _) =>
-        tableName == processTableIdentifier(tableIdentifier).mkString(".")
-    })
+    lookupTable(tableId).isDefined || super.tableExists(tableIdentifier)
+  }
+
+  def lookupTable(tableId: TableIdentifier): Option[TableIdentifier] = {
+    getDBTablePairs(tableId.database).find(tableIdent =>
+      tableIdent.table == tableId.table
+    )
+  }
+
+  def getDBTablePairs(databaseName: Option[String]): Seq[TableIdentifier] = {
+    msc.getMemSQLCluster.withAggregatorConn { conn =>
+      MemSQLCatalog.queryTables(conn, databaseName, msc)(r => {
+        val (dbName, tableName) = (r.getString("table_schema"), r.getString("table_name"))
+        TableIdentifier(dbName, tableName)
+      })
+    }
   }
 }
 
 object MemSQLCatalog {
-  def queryTables[T](conn: Connection, databaseName: Option[String])(handler: ResultSet => T): List[T] = {
+  def queryTables[T](conn: Connection, databaseName: Option[String], msc: MemSQLContext)(handler: ResultSet => T): List[T] = {
     val sql = "SELECT table_schema, table_name FROM information_schema.tables"
+    val dbName = databaseName.getOrElse(msc.getDatabase)
 
-    if (databaseName.isDefined) {
-      conn.withPreparedStatement(sql + " WHERE table_schema = ?", stmt => {
-        stmt.setString(0, databaseName.get)
-        stmt.executeQuery.toIterator.map(handler).toList
-      })
-    } else {
-      conn.withStatement(stmt =>
-        stmt.executeQuery(sql).toIterator.map(handler).toList)
-    }
+    conn.withPreparedStatement(sql + " WHERE table_schema = ?", stmt => {
+      stmt.setString(1, dbName)
+      stmt.executeQuery.toIterator.map(handler).toList
+    })
   }
 
   def makeTableIdentifier(tableIdentifier: Seq[String]): TableIdentifier = {
