@@ -7,7 +7,6 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Cast, AttributeReference, Attribute}
 import org.apache.spark.sql.execution.{RDDConversions, SparkPlan}
-import org.apache.spark.sql.memsql.MemSQLRelationUtils
 import org.apache.spark.sql.types.StructField
 import StringBuilderImplicits._
 import com.memsql.spark.connector.util.JDBCImplicits._

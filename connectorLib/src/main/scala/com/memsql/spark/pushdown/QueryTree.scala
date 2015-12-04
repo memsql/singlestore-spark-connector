@@ -34,8 +34,7 @@ abstract class AbstractQuery {
   }
 }
 
-case class BaseQuery(alias: QueryAlias, relation: MemSQLRelation) extends AbstractQuery {
-  val output: Seq[Attribute] = relation.output
+case class BaseQuery(alias: QueryAlias, relation: MemSQLRelation, output: Seq[Attribute]) extends AbstractQuery {
   val cluster: MemSQLCluster = relation.cluster
   val database: Option[String] = relation.database
 

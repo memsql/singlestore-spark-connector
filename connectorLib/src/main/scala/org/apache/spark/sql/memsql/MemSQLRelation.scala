@@ -5,7 +5,6 @@ import com.memsql.spark.connector.MemSQLCluster
 import com.memsql.spark.connector.rdd.MemSQLRDD
 import com.memsql.spark.connector.sql.TableIdentifier
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.sources.{InsertableRelation, BaseRelation, TableScan}
 import org.apache.spark.sql.types.StructType
@@ -24,7 +23,6 @@ case class MemSQLRelation(cluster: MemSQLCluster,
   val query: String = s"SELECT * FROM ${tableIdentifier.quotedString}"
 
   lazy val schema: StructType = cluster.getQuerySchema(query)
-  lazy val output: Seq[Attribute] = schema.toAttributes
 
   override def buildScan: RDD[Row] = {
     MemSQLRDD(sqlContext.sparkContext, cluster, query,
@@ -41,7 +39,7 @@ case class MemSQLRelation(cluster: MemSQLCluster,
     data.saveToMemSQL(tableIdentifier, saveConf)
 }
 
-object MemSQLRelationUtils {
+object UnpackLogicalRelation {
   def unapply(l: LogicalRelation): Option[MemSQLRelation] = l match {
     case LogicalRelation(r: TableScan) => r match {
       case r: MemSQLRelation => Some(r)
