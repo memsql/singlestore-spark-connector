@@ -36,13 +36,12 @@ object JDBCImplicits {
 
   implicit class PreparedStatementHelpers(val stmt: PreparedStatement) {
     def fillParams(sqlParams: Seq[Any]): Statement = {
-      sqlParams.zipWithIndex.foreach {
-        case (el, i) => {
-          if (el == null) {
-            stmt.setNull(i + 1, Types.NULL)
-          } else {
-            stmt.setObject(i + 1, el)
-          }
+      for (i <- sqlParams.indices) {
+        val param = sqlParams(i)
+        if (param == null) {
+          stmt.setNull(i + 1, Types.NULL)
+        } else {
+          stmt.setObject(i + 1, param)
         }
       }
       stmt

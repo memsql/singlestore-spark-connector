@@ -1,5 +1,6 @@
 package com.memsql.spark.pushdown
 
+import com.memsql.spark.connector.util.MetadataUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.Inner
@@ -7,6 +8,7 @@ import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.memsql.{UnpackLogicalRelation, MemSQLRelation}
 import org.apache.spark.sql.{SQLContext, Strategy}
+import org.apache.spark.sql.types.MetadataBuilder
 
 object MemSQLPushdownStrategy {
   /**
@@ -149,10 +151,12 @@ class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
       // We need to special case Alias, since this is not valid SQL:
       // select (foo as bar) as baz from ...
       case a @ Alias(child: Expression, name: String) => {
-        Alias(child, fieldIdIter.next)(a.exprId, Nil, a.explicitMetadata)
+        val metadata = MetadataUtils.preserveOriginalName(a)
+        Alias(child, fieldIdIter.next)(a.exprId, Nil, Some(metadata))
       }
       case expr: NamedExpression => {
-        Alias(expr, fieldIdIter.next)(expr.exprId, Nil, None)
+        val metadata = MetadataUtils.preserveOriginalName(expr)
+        Alias(expr, fieldIdIter.next)(expr.exprId, Nil, Some(metadata))
       }
     }
 }

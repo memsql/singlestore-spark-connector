@@ -59,7 +59,7 @@ object MemSQLPhysicalRDD {
   def fromAbstractQueryTree(sparkContext: SparkContext, tree: AbstractQuery): MemSQLPhysicalRDD = {
     val query = new SQLBuilder()
       .raw("SELECT ")
-      .addExpressions(tree.qualifiedOutput.map(a => Cast(a, a.dataType)), ", ")
+      .addExpressions(tree.castedNamedOutput, ", ")
       .raw(" FROM ")
       .appendBuilder(tree.collapse)
 

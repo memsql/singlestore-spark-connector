@@ -3,7 +3,7 @@ package org.apache.spark.sql.memsql
 import com.memsql.spark.connector.MemSQLConnectionPool
 import com.memsql.spark.connector.sql.{InsertQuery, QueryFragment}
 import com.memsql.spark.connector.util.MemSQLConnectionInfo
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{SaveMode, Row}
 
 case class InsertStrategy(tableFragment: QueryFragment,
                           conf: SaveToMemSQLConf) extends IngestStrategy {
@@ -14,12 +14,12 @@ case class InsertStrategy(tableFragment: QueryFragment,
 
       val insertQuery = new InsertQuery(tableFragment, conf.saveMode, conf.onDuplicateKeySQL)
 
-      val numRowsAffected = partition.grouped(conf.insertBatchSize).map(group => {
-        for (row <- group) {
-          insertQuery.addRow(row)
-        }
-        insertQuery.flush(conn)
-      }).sum
+      val numRowsAffected = {
+        partition
+          .grouped(conf.insertBatchSize)
+          .map(group => insertQuery.flush(conn, group.toList))
+          .sum
+      }
 
       conn.commit()
       numRowsAffected

@@ -2,6 +2,8 @@
 
 package com.memsql.spark
 
+import java.net.InetAddress
+import java.security.MessageDigest
 import java.sql.{Statement, DriverManager, Connection}
 
 import com.memsql.spark.connector.util.{Loan, MemSQLConnectionInfo}
@@ -11,7 +13,14 @@ import org.apache.spark.{SparkContext, SparkConf}
 import com.memsql.spark.connector.util.JDBCImplicits._
 
 abstract class TestBase {
-  val dbName: String = "connector_tests"
+  val dbName: String = {
+    // Generate a unique database name based on this machine
+    // This is so that multiple people can run tests against
+    // the same MemSQL cluster.
+    val hostMD5 = MessageDigest.getInstance("md5").digest(
+      InetAddress.getLocalHost.getAddress)
+    "connector_tests_" + hostMD5.slice(0, 2).map("%02x".format(_)).mkString
+  }
 
   val masterConnectionInfo: MemSQLConnectionInfo =
     MemSQLConnectionInfo("127.0.0.1", 3306, "root", "", dbName)
@@ -30,7 +39,7 @@ abstract class TestBase {
 
   def recreateDatabase: Unit = {
     withConnection(masterConnectionInfo.copy(dbName=""))(conn => {
-      conn.withStatement(stmt =>{
+      conn.withStatement(stmt => {
         stmt.execute("DROP DATABASE IF EXISTS " + dbName)
         stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName)
       })

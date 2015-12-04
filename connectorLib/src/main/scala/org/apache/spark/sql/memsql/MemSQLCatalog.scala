@@ -3,11 +3,12 @@ package org.apache.spark.sql.memsql
 import java.sql.{ResultSet, Connection}
 
 import com.memsql.spark.connector.sql.TableIdentifier
+import com.memsql.spark.pushdown.MemSQLPushdownStrategy
 import org.apache.spark.Logging
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.CatalystConf
-import org.apache.spark.sql.catalyst.analysis.SimpleCatalog
-import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Subquery}
+import org.apache.spark.sql.catalyst.analysis.{NoSuchTableException, SimpleCatalog}
+import org.apache.spark.sql.catalyst.plans.logical.{Project, LogicalPlan, Subquery}
 
 import com.memsql.spark.connector.util.JDBCImplicits._
 import org.apache.spark.sql.execution.datasources.LogicalRelation
@@ -25,18 +26,17 @@ class MemSQLCatalog(val msc: MemSQLContext,
       val actualTableIdent = lookupTable(userTableIdent)
 
       if (actualTableIdent.isEmpty) {
-        throw new AnalysisException(
-          s"MemSQLCatalog failed to find table with name ${userTableIdent.quotedString}"
-        )
+        throw new NoSuchTableException
       }
 
-      val relation = LogicalRelation(MemSQLRelation(
+      val relation = MemSQLRelation(
         cluster=cluster,
         tableIdentifier=actualTableIdent.get,
         sqlContext=msc
-      ))
+      )
 
-      alias.map(a => Subquery(a, relation)).getOrElse(relation)
+      val logicalRelation = LogicalRelation(relation)
+      Project(logicalRelation.output, logicalRelation)
     }
   }
 
@@ -86,7 +86,7 @@ object MemSQLCatalog {
     } else if (tableIdentifier.length == 2) {
       TableIdentifier(tableIdentifier(1), Some(tableIdentifier(0)))
     } else {
-      throw new AnalysisException(
+      sys.error(
         """
           |MemSQLContext table identifiers must be in the form
           |Seq(databaseName, tableName) or Seq(tableName)

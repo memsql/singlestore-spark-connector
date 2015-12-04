@@ -3,6 +3,7 @@ package org.apache.spark.sql.memsql
 import com.memsql.spark.connector.sql.TableIdentifier
 import com.memsql.spark.connector.{MemSQLCluster, MemSQLConf}
 import org.apache.spark.Logging
+import org.apache.spark.sql.catalyst.SqlParser
 import org.apache.spark.sql.{DataFrame, SaveMode, SQLContext}
 import org.apache.spark.sql.sources.{BaseRelation, RelationProvider, CreatableRelationProvider}
 
@@ -37,10 +38,11 @@ class DefaultSource extends RelationProvider
 
 object DefaultSource {
   def getTableIdentifier(parameters: Map[String, String]): TableIdentifier = {
-    val tableName = parameters.get("table")
-    if (tableName.isEmpty) {
-      throw new UnsupportedOperationException("Must specify a table name when loading a MemSQL DataSource")
+    val path = parameters.get("path")
+    if (path.isEmpty) {
+      throw new UnsupportedOperationException("Must specify a path when saving or loading a MemSQL DataSource")
     }
-    TableIdentifier(tableName.get, parameters.get("database"))
+    val sparkTableIdent = SqlParser.parseTableIdentifier(path.get)
+    TableIdentifier(sparkTableIdent.table, sparkTableIdent.database)
   }
 }

@@ -1,7 +1,8 @@
 package com.memsql.spark.pushdown
 
 import com.memsql.spark.connector.MemSQLCluster
-import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Attribute}
+import com.memsql.spark.connector.util.MetadataUtils
+import org.apache.spark.sql.catalyst.expressions._
 import StringBuilderImplicits._
 import org.apache.spark.sql.memsql.{MemSQLContext, MemSQLRelation}
 
@@ -12,6 +13,13 @@ abstract class AbstractQuery {
 
   def qualifiedOutput: Seq[Attribute] = output.map(
     a => AttributeReference(a.name, a.dataType, a.nullable, a.metadata)(a.exprId, Seq(alias.toString)))
+
+  def castedNamedOutput: Seq[NamedExpression] = output.map(
+    a => Alias(
+      Cast(a, a.dataType),
+      MetadataUtils.getOriginalName(a).getOrElse(a.name)
+    )(a.exprId, Nil, Some(a.metadata))
+  )
 
   /**
    * Performs a pre-order traversal of the query tree

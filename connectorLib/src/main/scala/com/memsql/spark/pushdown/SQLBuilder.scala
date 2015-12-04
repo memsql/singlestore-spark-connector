@@ -212,11 +212,15 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
           // JDBC Timestamp is in nanosecond precision, but MemSQL is second
           raw(" * 1000000")
         }
-        case _ => raw("CAST").block {
-                    addExpression(child)
-                      .raw(" AS ")
-                      .raw(MemSQLDataFrameUtils.DataFrameTypeToMemSQLCastType(t))
-                  }
+        // TODO: This is probably wrong
+        case IntegerType => addExpression(child)
+        case _ => {
+          raw("CAST").block {
+            addExpression(child)
+              .raw(" AS ")
+              .raw(MemSQLDataFrameUtils.DataFrameTypeToMemSQLCastType(t))
+          }
+        }
       }
 
       case Not(inner) => raw("NOT").block { addExpressions(Seq(inner), " AND ") }

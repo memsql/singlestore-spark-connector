@@ -15,7 +15,7 @@ object TestUtils {
         """)
         stmt.execute("""
           CREATE TABLE s
-          (id INT , data VARCHAR(200), key(id), key(data), shard())
+          (id INT, data VARCHAR(200), key(id), key(data), shard())
         """)
         stmt.execute("""
           CREATE /*!90618 reference */ TABLE r

@@ -34,6 +34,7 @@ object QueryFragments {
   def tableNameWithColumns(tableIdentifier: TableIdentifier, columns: Seq[MemSQLColumn]): QueryFragment = {
     QueryFragment()
       .quoted(tableIdentifier.table)
+      .space
       .block(_.raw(columns.map(_.quotedName).mkString(",")))
   }
 

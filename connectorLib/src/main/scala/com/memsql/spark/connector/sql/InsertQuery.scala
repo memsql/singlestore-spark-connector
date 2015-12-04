@@ -12,11 +12,14 @@ class InsertQuery(tableFragment: QueryFragment,
                   mode: SaveMode,
                   onDupKeySQL: Option[String]=None) {
 
-  val insertType = mode match {
-    case SaveMode.Append => "INSERT IGNORE"
-    case SaveMode.Ignore => "INSERT IGNORE"
-    case SaveMode.Overwrite => "REPLACE"
-    case SaveMode.ErrorIfExists => "INSERT"
+  val insertType = onDupKeySQL match {
+    case Some(_) => "INSERT"
+    case None => mode match {
+      case SaveMode.Append => "INSERT IGNORE"
+      case SaveMode.Ignore => "INSERT IGNORE"
+      case SaveMode.Overwrite => "REPLACE"
+      case SaveMode.ErrorIfExists => "INSERT"
+    }
   }
 
   val insertPrefix =
@@ -32,36 +35,21 @@ class InsertQuery(tableFragment: QueryFragment,
       .raw(dks)
   })
 
-  var rowLength: Int = 0
-  lazy val rowTemplate =
+  def makeValueTemplate(rowLength: Int): QueryFragment =
     QueryFragment().block(_.raw(("?" * rowLength).mkString(",")))
 
-  val queryBuffer = QueryFragment()
-  val rowBuffer: ListBuffer[Row] = ListBuffer.empty
+  def flush(conn: Connection, rows: List[Row]): Int = {
+    val valueTemplate = makeValueTemplate(rows(0).length)
 
-  def addRow(row: Row): InsertQuery = {
-    rowLength = row.length
-    queryBuffer.fragment(rowTemplate)
-    rowBuffer :+ row
-    this
-  }
-
-  def flush(conn: Connection): Int = {
     val query = QueryFragment()
       .fragment(insertPrefix)
-      .fragment(queryBuffer)
+      .addFragments(rows.map(_ => valueTemplate), ",")
       .fragment(insertSuffix)
       .sql.toString
 
-    val numRowsAffected = conn.withPreparedStatement(query, stmt => {
-      for (row <- rowBuffer) {
-        stmt.fillParams(row.toSeq)
-      }
+    conn.withPreparedStatement(query, stmt => {
+      stmt.fillParams(rows.map(_.toSeq).flatten)
       stmt.executeUpdate()
     })
-
-    queryBuffer.clear
-    rowBuffer.clear
-    numRowsAffected
   }
 }
