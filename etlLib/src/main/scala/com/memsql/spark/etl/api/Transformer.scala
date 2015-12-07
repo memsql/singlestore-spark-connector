@@ -83,7 +83,8 @@ abstract class ByteArrayTransformer extends Transformer {
   final override def transform(sqlContext: SQLContext, df: DataFrame, config: PhaseConfig, logger: PhaseLogger): DataFrame = {
     val rdd = df.schema match {
       case ExtractFirstStructField(_, dataType: BinaryType, _, _) => df.rdd.map(_.toSeq.head.asInstanceOf[Array[Byte]])
-      case _ => throw new IllegalArgumentException("The first column of the input DataFrame should be BinaryType")
+      case ExtractFirstStructField(_, dataType: StringType, _, _) => df.rdd.map(r => byteUtils.utf8StringToBytes(r.toSeq.head.asInstanceOf[String]))
+      case _ => throw new IllegalArgumentException("The first column of the input DataFrame should be either StringType or BinaryType")
     }
     transform(sqlContext, rdd, config, logger)
   }
