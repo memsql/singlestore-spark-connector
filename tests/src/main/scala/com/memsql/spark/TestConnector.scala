@@ -514,30 +514,6 @@ object TestCreateWithExtraColumns {
   }
 }
 
-object TestSaveToMemSQLEmptyRows {
-  def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("TestSaveToMemSQLEmptyRows")
-    val sc = new SparkContext(conf)
-    val sqlContext = new MemSQLContext(sc, TestUtils.getHostname, 3306, "root", "")
-    TestUtils.dropAndCreate("x_db")
-
-    val rdd = sc.parallelize(Array(Row()))
-    val schema = StructType(Array[StructField]())
-    val df = sqlContext.createDataFrame(rdd, schema)
-    df.createMemSQLTableAs("x_db", "t",
-      extraCols=List(MemSQLExtraColumn("a", "integer", false, defaultSql = "42"))
-    )
-
-    val rdd1 = sc.parallelize(Array(Row(42)))
-    val schema1 = StructType(Array(StructField("a", IntegerType, true)))
-    val df1 = sqlContext.createDataFrame(rdd1, schema1)
-    val df_t = TestUtils.makeMemSQLDF(sqlContext, "x_db", "t")
-    assert(df_t.schema.equals(schema1))
-    assert(df_t.count == 1)
-    assert(TestUtils.equalDFs(df_t, df1))
-  }
-}
-
 object TestMemSQLContextVeryBasic {
   def main(args: Array[String]) {
     val conf = new SparkConf().setAppName("TestMemSQLContextVeryBasic")
@@ -576,72 +552,6 @@ object TestMemSQLContextVeryBasic {
     for (t <- targets) {
       assert (t.isColocated)
       assert (t.targetPort == 3309 || t.targetPort == 3310)
-    }
-  }
-}
-
-object TestSaveToMemSQLErrors {
-  def main(args: Array[String]) {
-    try {
-      val conn = TestUtils.connectToMA
-      val conf = new SparkConf().setAppName("TestSaveToMemSQLErrors")
-      val sc = new SparkContext(conf)
-      val sqlContext = new MemSQLContext(sc, TestUtils.getHostname, 3306, "root", "")
-      TestUtils.dropAndCreate("x_db")
-
-      val rdd = sc.parallelize(
-        Array(Row(1,"pieguy"),
-          Row(2,"gbop"),
-          Row(3,"berry\ndave"),
-          Row(4,"psy\tduck")))
-
-      val schema = StructType(Array(StructField("a",IntegerType,true),
-        StructField("b",StringType,true)))
-      val df1 = sqlContext.createDataFrame(rdd, schema)
-
-      try {
-        df1.saveToMemSQL("x_db", "t")
-        assert(false)
-      } catch {
-        case e: SaveToMemSQLException => {
-          assert(e.exception.getMessage.contains("Table 'x_db.t' doesn't exist"))
-        }
-      }
-      val df2 = df1.createMemSQLTableAs("x_db","t")
-      for (dupKeySql <- Array("","b = 1")) {
-        val onDuplicateKeyBehavior = if (dupKeySql.isEmpty) {
-          None
-        } else {
-          Some(OnDupKeyBehavior.Update)
-        }
-
-        for (df <- Array(df1, df2)) {
-          try {
-            println("Checking unknown column 'c'")
-            df.select(df("a") as "a", df("b") as "b", df("a") as "c")
-              .saveToMemSQL("x_db", "t",
-                onDuplicateKeyBehavior = onDuplicateKeyBehavior,
-                onDuplicateKeySql = dupKeySql)
-          } catch {
-            case e: SaveToMemSQLException => {
-              assert(e.exception.getMessage.contains("Unknown column 'c' in 'field list'"))
-            }
-          }
-          try {
-            println("Checking duplicate column 'a'")
-            df.select(df("a"), df("b"), df("a"))
-              .saveToMemSQL("x_db", "t",
-                onDuplicateKeyBehavior = onDuplicateKeyBehavior,
-                onDuplicateKeySql = dupKeySql)
-          } catch {
-            case e: SaveToMemSQLException => {
-              assert(e.exception.getMessage.contains("Duplicate column name 'a'"))
-            }
-          }
-        }
-      }
-    } catch {
-      case e: Exception => assert(false, s"Unknown exception [${e.getClass.getName}]: ${e.getMessage}")
     }
   }
 }
