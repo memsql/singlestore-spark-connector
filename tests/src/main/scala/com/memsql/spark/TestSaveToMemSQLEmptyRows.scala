@@ -1,11 +1,10 @@
 // scalastyle:off regex
 package com.memsql.spark
 
-import org.apache.spark.sql.memsql.SparkImplicits._
+import com.memsql.spark.connector._
 import org.apache.spark.{Logging, SparkContext}
-import org.apache.spark.sql.{Row, DataFrame}
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.memsql.MemSQLContext
-import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
 
 object TestSaveToMemSQLEmptyRows {

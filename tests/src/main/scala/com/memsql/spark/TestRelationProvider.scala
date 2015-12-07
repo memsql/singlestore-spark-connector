@@ -5,7 +5,7 @@ package com.memsql.spark
 import com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.memsql.{CompressionType, CreateMode, MemSQLContext}
-import org.apache.spark.{SparkException, SparkContext, Logging}
+import org.apache.spark.{SparkContext, Logging}
 
 object TestRelationProvider {
   def main(args: Array[String]): Unit = new TestRelationProvider
@@ -19,7 +19,7 @@ class TestRelationProvider extends TestBase with Logging {
     TestUtils.setupBasic(this)
 
     val tableNames = Seq("t", "s", "r")
-    val memsqlFormat = "org.apache.spark.sql.memsql"
+    val memsqlFormat = "com.memsql.spark.connector"
 
     for (name <- tableNames) {
       // Verify that we can use the DefaultSource to read from each table
