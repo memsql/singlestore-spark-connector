@@ -7,6 +7,8 @@ case class TableIdentifier(table: String, database: Option[String] = None) {
 
   def quotedString: String =
     (database.toSeq :+ table).map("`" + _ + "`").mkString(".")
+
+  def toSeq: Seq[String] = database.toSeq :+ table
 }
 
 object TableIdentifier {

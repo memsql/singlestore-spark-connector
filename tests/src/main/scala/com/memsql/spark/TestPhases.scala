@@ -1,6 +1,5 @@
 package com.memsql.spark
 
-/*
 import org.apache.spark._
 import org.apache.spark.rdd._
 import org.apache.spark.streaming._
@@ -83,4 +82,3 @@ abstract class NestedAbstractTransformer extends AbstractTransformer4
 class Transformer7 extends NestedAbstractTransformer {
   override def transform(sqlContext: SQLContext, rdd: RDD[Array[Byte]], config: UserTransformConfig, logger: PhaseLogger): DataFrame = null
 }
-*/

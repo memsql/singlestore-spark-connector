@@ -6,37 +6,31 @@ import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.apache.spark.SparkConf
 import com.memsql.spark.connector._
+import com.memsql.spark.connector.util.JDBCImplicits._
 
 object WriteToMemSQLApp {
   def main(args: Array[String]) {
-    val conf = new SparkConf().setAppName("Write to MemSQL Application")
+    val conf = new SparkConf().setAppName("Write to MemSQL Example")
     val sc = new SparkContext(conf)
+    val msc = new MemSQLContext(sc)
 
-    val host = "127.0.0.1"
-    val port = 3306
     val dbName = "memsqlrdd_db"
-    val user = "root"
-    val password = ""
-    val outputTableName = "output"
+    val tableName = "output"
 
-    val dbAddress = "jdbc:mysql://" + host + ":" + port
-    val conn = DriverManager.getConnection(dbAddress, user, password)
-    val stmt = conn.createStatement
-    stmt.execute("CREATE DATABASE IF NOT EXISTS " + dbName)
-    stmt.execute("USE " + dbName)
-    stmt.execute("DROP TABLE IF EXISTS output")
-    stmt.execute("""
-       CREATE TABLE output
-       (data VARCHAR(200), SHARD KEY (data))
-    """)
-    stmt.close()
+    msc.getMemSQLCluster.withMasterConn(conn => {
+      conn.withStatement(stmt => {
+        stmt.execute(s"CREATE DATABASE IF NOT EXISTS $dbName")
+        stmt.execute(s"DROP TABLE IF EXISTS $dbName.$tableName")
+        stmt.execute(s"""
+          CREATE TABLE $dbName.$tableName
+          (data VARCHAR(200), SHARD KEY (data))
+        """)
+      })
+    })
 
-    var values = Array[Row]()
-    for (i <- 0 until 1000) {
-      values = values :+ Row("test_data_" + "%04d".format(i))
-    }
-
-    val rdd = sc.parallelize(values)
-    rdd.saveToMemSQL(dbName, outputTableName, host, port, user, password)
+    val rows = Range(0, 1000).map(i => Row("test_data_%04d".format(i))) // scalastyle:ignore
+    val rdd = sc.parallelize(rows)
+    val schema = msc.table(s"$dbName.$tableName").schema
+    msc.createDataFrame(rdd, schema).saveToMemSQL(dbName, tableName)
   }
 }

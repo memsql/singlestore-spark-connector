@@ -4,7 +4,7 @@ import org.apache.spark.sql.types._
 
 
 @SQLUserDefinedType(udt = classOf[GeographyType])
-class GeographyValue(val value: String) extends Serializable {
+class GeographyValue(val value: String) extends Serializable with MemSQLCustomType {
   override def toString: String = value
 }
 
@@ -37,7 +37,7 @@ class GeographyType private() extends UserDefinedType[GeographyValue] {
 case object GeographyType extends GeographyType
 
 @SQLUserDefinedType(udt = classOf[GeographyPointType])
-class GeographyPointValue(val value: String) extends Serializable {
+class GeographyPointValue(val value: String) extends Serializable with MemSQLCustomType {
   override def toString: String = value
 }
 

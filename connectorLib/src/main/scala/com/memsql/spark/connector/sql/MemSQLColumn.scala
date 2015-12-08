@@ -30,7 +30,7 @@ abstract class MemSQLColumn {
 }
 
 case class Column(name: String,
-                  colType: String,
+                  colType: String = "",
                   nullable: Boolean = true
                  ) extends MemSQLColumn {
 
@@ -50,22 +50,26 @@ case class AdvancedColumn(name: String,
     val qf = QueryFragment()
 
     // Add the column name
-    qf.raw(quotedName)
+    qf.raw(quotedName).space
 
-    // Optionally: AS expression PERSISTED
-    persisted.map(p => qf.raw(" AS ").raw(p).raw(" PERSISTED "))
+    persisted match {
+      case Some(p) => {
+        // Add the persisted expression
+        qf.raw("AS ").raw(p).raw(" PERSISTED ")
 
-    // column type
-    qf.raw(colType).space
+        // Add the column type
+        qf.raw(colType)
+      }
+      case None => {
+        // Add the column type
+        qf.raw(colType).space
 
-    // null/not null modifier
-    qf.raw(nullExpression).space
+        // Add the null/not null specifier
+        qf.raw(nullExpression).space
 
-    // If not computed, maybe add default SQL expression
-    if (persisted.isEmpty) {
-      qf.raw(defaultExpression(defaultSQL))
+        // Maybe add default SQL expression
+        qf.raw(defaultExpression(defaultSQL))
+      }
     }
-
-    qf
   }
 }

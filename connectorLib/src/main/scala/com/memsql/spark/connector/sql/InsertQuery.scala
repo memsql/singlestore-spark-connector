@@ -48,7 +48,7 @@ class InsertQuery(tableFragment: QueryFragment,
       .sql.toString
 
     conn.withPreparedStatement(query, stmt => {
-      stmt.fillParams(rows.map(_.toSeq).flatten)
+      stmt.fillParams(rows.flatMap(_.toSeq))
       stmt.executeUpdate()
     })
   }

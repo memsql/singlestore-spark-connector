@@ -1,6 +1,6 @@
 package com.memsql.spark.interface
 
-import com.memsql.spark.context.MemSQLContext
+import com.memsql.spark.connector.MemSQLConf
 import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api.{Pipeline, PipelineState, ApiActor}
 
@@ -23,16 +23,17 @@ import scala.util.{Failure, Try, Success}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 object Config {
+  val DEFAULT_HOST = "127.0.0.1"
   val DEFAULT_PORT = 10001
   val DEFAULT_DATA_DIR = ""
   val DEFAULT_DEBUG = false
 }
 case class Config(port: Int = Config.DEFAULT_PORT,
                   dataDir: String = Config.DEFAULT_DATA_DIR,
-                  dbHost: String = MemSQLContext.DEFAULT_HOST,
-                  dbPort: Int = MemSQLContext.DEFAULT_PORT,
-                  dbUser: String = MemSQLContext.DEFAULT_USER,
-                  dbPassword: String = MemSQLContext.DEFAULT_PASSWORD,
+                  dbHost: String = MemSQLConf.getDefaultHost,
+                  dbPort: Int = MemSQLConf.DEFAULT_PORT,
+                  dbUser: String = MemSQLConf.DEFAULT_USER,
+                  dbPassword: String = MemSQLConf.DEFAULT_PASS,
                   debug: Boolean = Config.DEFAULT_DEBUG)
 
 class SparkInterface(val providedConfig: Config) extends Application {

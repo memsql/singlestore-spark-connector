@@ -9,6 +9,8 @@ abstract class MemSQLKey {
 
   val canBeUsedAsShardKey: Boolean = false
   def columnsSQL: String = columns.map(_.quotedName).mkString(",")
+
+  def columnNames: Seq[String] = columns.map(_.name)
 }
 
 /**

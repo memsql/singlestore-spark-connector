@@ -1,11 +1,11 @@
 package com.memsql.spark.etl.api.configs
 
-import com.memsql.spark.connector.dataframe._
 import com.memsql.spark.connector.sql
-import com.memsql.spark.connector.sql.{MemSQLColumn, AdvancedColumn, MemSQLKey}
+import com.memsql.spark.connector.sql._
 import com.memsql.spark.etl.api.PhaseConfig
 import com.memsql.spark.etl.api.configs.LoadPhaseKind._
 import com.memsql.spark.etl.utils.JsonEnumProtocol
+import org.apache.spark.sql.SaveMode
 import spray.json._
 
 object MemSQLKeyType extends Enumeration {
@@ -28,12 +28,14 @@ import com.memsql.spark.etl.api.configs.MemSQLDupKeyBehavior._
 
 case class MemSQLKeyConfig(key_type: MemSQLKeyType, column_names: List[String]) {
   def toMemSQLKey : MemSQLKey = {
+    val columns = column_names.map(Column(_))
     key_type match {
-      case MemSQLKeyType.Shard => sql.Shard(column_names.toArray)
-      case MemSQLKeyType.Key => sql.Key(column_names.toArray)
-      case MemSQLKeyType.PrimaryKey => sql.PrimaryKey(column_names.toArray)
-      case MemSQLKeyType.KeyUsingClusteredColumnStore => sql.KeyUsingClusteredColumnStore(column_names.toArray)
-      case MemSQLKeyType.UniqueKey => sql.UniqueKey(column_names.toArray)
+      case MemSQLKeyType.Shard => sql.Shard(columns)
+      case MemSQLKeyType.Key => sql.Key(columns)
+      case MemSQLKeyType.PrimaryKey => sql.PrimaryKey(columns)
+      case MemSQLKeyType.UniqueKey => sql.UniqueKey(columns)
+      case MemSQLKeyType.KeyUsingClusteredColumnStore
+        => sql.KeyUsingClusteredColumnStore(columns)
     }
   }
 }
@@ -44,7 +46,7 @@ case class MemSQLColumnConfig(name: String,
                               default_sql: Option[String],
                               persisted: Option[String]) {
   def toMemSQLColumn: MemSQLColumn = {
-    AdvancedColumn(name, col_type, nullable.getOrElse(true), default_sql, persisted)
+    AdvancedColumn(name, col_type, nullable.getOrElse(true), defaultSQL = default_sql, persisted = persisted)
   }
 }
 
@@ -53,7 +55,34 @@ case class LoadConfigOptions(on_duplicate_key_sql: Option[String]=None,
                              table_keys: Option[List[MemSQLKeyConfig]]=None,
                              table_extra_columns: Option[List[MemSQLColumnConfig]]=None,
                              use_keyless_sharding_optimization: Option[Boolean]=None,
-                             duplicate_key_behavior: Option[MemSQLDupKeyBehavior]=None)
+                             duplicate_key_behavior: Option[MemSQLDupKeyBehavior]=None) {
+
+  if (on_duplicate_key_sql.isDefined && duplicate_key_behavior != Some(MemSQLDupKeyBehavior.Update)) {
+    throw new IllegalArgumentException("If on_duplicate_key_sql is defined, duplicate_key_behavior must be Update.")
+  }
+  if (on_duplicate_key_sql.isEmpty && duplicate_key_behavior == Some(MemSQLDupKeyBehavior.Update)) {
+    throw new IllegalArgumentException("If duplicate_key_behavior is set to Update, then on_duplicate_key_sql must be specified.")
+  }
+
+  def getSaveMode: SaveMode = {
+    duplicate_key_behavior match {
+      case Some(MemSQLDupKeyBehavior.Replace) => SaveMode.Overwrite
+      case Some(MemSQLDupKeyBehavior.Ignore) => SaveMode.Ignore
+      case Some(MemSQLDupKeyBehavior.Update) => SaveMode.Overwrite
+      case _ => SaveMode.ErrorIfExists
+    }
+  }
+
+  def getExtraColumns: Seq[MemSQLColumn] = table_extra_columns match {
+    case Some(cols) => cols.map(_.toMemSQLColumn)
+    case None => Nil
+  }
+
+  def getExtraKeys: Seq[MemSQLKey] = table_keys match {
+    case Some(cols) => cols.map(_.toMemSQLKey)
+    case None => Nil
+  }
+}
 
 case class MemSQLLoadConfig(
   db_name: String,
@@ -62,6 +91,8 @@ case class MemSQLLoadConfig(
   options: Option[LoadConfigOptions],
   dry_run: Boolean = false
 ) extends PhaseConfig {
+  def getTableIdentifier: TableIdentifier = TableIdentifier(db_name, table_name)
+
   def getDefaultOptions: LoadConfigOptions = {
     val keyType = table_config match {
       case Some(MemSQLTableConfig.ColumnStore) => MemSQLKeyType.KeyUsingClusteredColumnStore

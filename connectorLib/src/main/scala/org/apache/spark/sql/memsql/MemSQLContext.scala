@@ -1,5 +1,6 @@
 package org.apache.spark.sql.memsql
 
+import com.memsql.spark.connector.sql.TableIdentifier
 import com.memsql.spark.connector.{MemSQLCluster, MemSQLConf}
 import com.memsql.spark.pushdown.MemSQLPushdownStrategy
 import org.apache.spark.SparkContext
@@ -17,6 +18,9 @@ class MemSQLContext(sparkContext: SparkContext) extends SQLContext(sparkContext)
   def getDatabase: String = memSQLConf.defaultDBName
 
   def getMemSQLCluster: MemSQLCluster = MemSQLCluster(memSQLConf)
+
+  def table(tableIdent: TableIdentifier): DataFrame =
+    DataFrame(this, catalog.lookupRelation(tableIdent.toSeq))
 
   def maybeTable(tableName: String): Option[DataFrame] = {
     try {

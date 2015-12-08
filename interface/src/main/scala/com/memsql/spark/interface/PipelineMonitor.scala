@@ -6,21 +6,20 @@ import java.util.UUID
 
 import akka.pattern.ask
 import akka.actor.ActorRef
+import com.memsql.spark.SaveToMemSQLException
+import com.memsql.spark.connector.MemSQLContext
 import com.memsql.spark.phases._
-import com.memsql.spark.context.MemSQLContext
 import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.phases.configs._
 import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface.util.ErrorUtils._
-import com.memsql.spark.connector.SaveToMemSQLException
 import ApiActor._
 import com.memsql.spark.interface.util.{PipelineLogger, BaseException}
 import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{DataFrame, SQLContext}
-import org.apache.spark.streaming.{Time, StreamingContext}
+import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.ui.jobs.JobProgressListener
 import scala.collection.mutable.HashSet
 import scala.concurrent.Await
@@ -98,7 +97,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   override val pipelineInstance = PipelineInstance(extractor, extractConfig, transformer, transformConfig, loader, loadConfig)
 
-  override val sqlContext = MemSQLContext(sparkContext)
+  override val sqlContext = new MemSQLContext(sparkContext)
 
   private var currentBatchId: String = null
   private[interface] val isStopping = new AtomicBoolean()
@@ -338,7 +337,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       case e: SaveToMemSQLException => {
         logError(s"Phase error in pipeline $pipeline_id, preserving rows count", e.exception)
         error = Some(getStackTraceAsString(e.exception))
-        count = Some(e.count)
+        count = Some(e.successfullyInserted)
       }
       case NonFatal(e) => {
         logError(s"Phase error in pipeline $pipeline_id", e)
@@ -424,10 +423,9 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   private[interface] def getLoadColumns(): Option[List[(String, String)]] = {
     if (sqlContext.isInstanceOf[MemSQLContext] && pipelineInstance.loadConfig.isInstanceOf[MemSQLLoadConfig]) {
-      val memSQLSQLContext = sqlContext.asInstanceOf[MemSQLContext]
+      val memSQLContext = sqlContext.asInstanceOf[MemSQLContext]
       val memSQLLoadConfig = pipelineInstance.loadConfig.asInstanceOf[MemSQLLoadConfig]
-      val columnsSchema = memSQLSQLContext.getTableSchema(
-        memSQLLoadConfig.db_name, memSQLLoadConfig.table_name)
+      val columnsSchema = memSQLContext.table(memSQLLoadConfig.getTableIdentifier).schema
       Some(columnsSchema.fields.map(field => (field.name, field.dataType.typeName)).toList)
     } else {
       None

@@ -1,6 +1,7 @@
 package org.apache.spark.sql.memsql
 
 import com.memsql.spark.connector.MemSQLConf
+import com.memsql.spark.connector.sql.{MemSQLKey, MemSQLColumn}
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.{SparkConf, SparkContext}
 
@@ -21,7 +22,9 @@ case class SaveToMemSQLConf(saveMode: SaveMode,
                             onDuplicateKeySQL: Option[String],
                             insertBatchSize: Int,
                             loadDataCompression: CompressionType,
-                            useKeylessShardingOptimization: Boolean)
+                            useKeylessShardingOptimization: Boolean,
+                            extraColumns: Seq[MemSQLColumn],
+                            extraKeys: Seq[MemSQLKey])
 
 object SaveToMemSQLConf {
   /**
@@ -40,7 +43,9 @@ object SaveToMemSQLConf {
       insertBatchSize = params.getOrElse("insertBatchSize", memsqlConf.defaultInsertBatchSize.toString).toInt,
       loadDataCompression = CompressionType.withName(params.getOrElse(
         "loadDataCompression", memsqlConf.defaultLoadDataCompression.toString)),
-      useKeylessShardingOptimization = params.getOrElse("useKeylessShardingOptimization", "false").toBoolean
+      useKeylessShardingOptimization = params.getOrElse("useKeylessShardingOptimization", "false").toBoolean,
+      extraColumns = Nil,
+      extraKeys = Nil
     )
   }
 }

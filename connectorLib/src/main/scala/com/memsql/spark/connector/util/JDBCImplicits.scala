@@ -2,7 +2,7 @@ package com.memsql.spark.connector.util
 
 import java.sql.{Statement, PreparedStatement, ResultSet, Types, Connection}
 
-import com.memsql.spark.connector.dataframe.MemSQLDataFrameUtils
+import com.memsql.spark.connector.dataframe.{MemSQLCustomType, MemSQLDataFrameUtils}
 import org.apache.spark.sql.Row
 
 object JDBCImplicits {
@@ -37,11 +37,9 @@ object JDBCImplicits {
   implicit class PreparedStatementHelpers(val stmt: PreparedStatement) {
     def fillParams(sqlParams: Seq[Any]): Statement = {
       for (i <- sqlParams.indices) {
-        val param = sqlParams(i)
-        if (param == null) {
-          stmt.setNull(i + 1, Types.NULL)
-        } else {
-          stmt.setObject(i + 1, param)
+        sqlParams(i) match {
+          case t: MemSQLCustomType => stmt.setString(i + 1, t.toString)
+          case other => stmt.setObject(i + 1, other)
         }
       }
       stmt

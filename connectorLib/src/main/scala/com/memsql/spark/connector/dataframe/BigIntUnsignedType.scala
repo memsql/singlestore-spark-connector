@@ -4,7 +4,7 @@ import org.apache.spark.sql.types._
 
 
 @SQLUserDefinedType(udt = classOf[BigIntUnsignedType])
-class BigIntUnsignedValue(val value: Long) extends Serializable {
+class BigIntUnsignedValue(val value: Long) extends Serializable with MemSQLCustomType {
   override def toString: String = value.toString
 }
 

@@ -34,9 +34,11 @@ object MemSQLConf {
   val DEFAULT_INSERT_BATCH_SIZE = 10000
   val DEFAULT_LOAD_DATA_COMPRESSION = CompressionType.GZip
 
+  def getDefaultHost: String = InetAddress.getLocalHost.getHostAddress
+
   def apply(sparkConf: SparkConf): MemSQLConf =
     MemSQLConf(
-      masterHost = sparkConf.get("memsql.host", InetAddress.getLocalHost.getHostAddress),
+      masterHost = sparkConf.get("memsql.host", getDefaultHost),
       masterPort = sparkConf.getInt("memsql.port", DEFAULT_PORT),
       user = sparkConf.get("memsql.user", DEFAULT_USER),
       password = sparkConf.get("memsql.password", DEFAULT_PASS),

@@ -4,7 +4,7 @@ import org.apache.spark.sql.types._
 
 
 @SQLUserDefinedType(udt = classOf[JsonType])
-class JsonValue(val value: String) extends Serializable {
+class JsonValue(val value: String) extends Serializable with MemSQLCustomType {
   override def toString: String = value
 }
 
