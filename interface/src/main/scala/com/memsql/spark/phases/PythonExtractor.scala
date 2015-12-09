@@ -28,19 +28,19 @@ with PythonPhase[PythonExtractorInterface] {
 
   override def initialize(ssc: StreamingContext, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long,
                           logger: PhaseLogger): Unit = gateway.wrapPythonExceptions {
-    pyExtractor.Py4JInitialize(ssc, sqlContext, "{}", batchInterval, logger)
+    pyExtractor.Py4JInitialize(sqlContext, batchInterval, logger)
   }
 
   override def cleanup(ssc: StreamingContext, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long,
                        logger: PhaseLogger): Unit = gateway.wrapPythonExceptions {
     if (pythonProcess.isAlive) {
-      pyExtractor.Py4JCleanup(ssc, sqlContext, "{}", batchInterval, logger)
+      pyExtractor.Py4JCleanup(sqlContext, batchInterval, logger)
       pythonProcess.stop
     }
   }
 
   override def next(ssc: StreamingContext, time: Long, sqlContext: SQLContext, config: PhaseConfig, batchInterval: Long,
                     logger: PhaseLogger): Option[DataFrame] = gateway.wrapPythonExceptions {
-    Option(pyExtractor.Py4JNext(ssc, time, sqlContext, "{}", batchInterval, logger))
+    Option(pyExtractor.Py4JNext(sqlContext, batchInterval, logger))
   }
 }

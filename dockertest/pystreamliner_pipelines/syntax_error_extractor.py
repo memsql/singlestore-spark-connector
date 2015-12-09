@@ -1,5 +1,5 @@
 from pystreamliner.api import Extractor
 
 class SyntaxErrorExtractor(Extractor):
-    def next(self, streaming_context, time, sql_context, config, interval, logger):
+    def next(self, spark_context, sql_context, interval, logger):
         this is not valid python

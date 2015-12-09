@@ -26,18 +26,18 @@ with PythonPhase[PythonTransformerInterface] {
   val pyTransformer: PythonTransformerInterface = init(pythonProcess)
 
   override def initialize(sqlContext: SQLContext, config: PhaseConfig, logger: PhaseLogger): Unit = gateway.wrapPythonExceptions {
-    pyTransformer.Py4JInitialize(sqlContext, "{}", logger)
+    pyTransformer.Py4JInitialize(sqlContext, logger)
   }
 
   override def cleanup(sqlContext: SQLContext, config: PhaseConfig, logger: PhaseLogger): Unit = gateway.wrapPythonExceptions {
     if (pythonProcess.isAlive) {
-      pyTransformer.Py4JCleanup(sqlContext, "{}", logger)
+      pyTransformer.Py4JCleanup(sqlContext, logger)
       pythonProcess.stop
     }
   }
 
   override def transform(sqlContext: SQLContext, df: DataFrame, config: PhaseConfig, logger: PhaseLogger): DataFrame =
     gateway.wrapPythonExceptions {
-    pyTransformer.Py4JTransform(sqlContext, df, "{}", logger)
+    pyTransformer.Py4JTransform(sqlContext, df, logger)
   }
 }

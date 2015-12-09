@@ -1,6 +1,6 @@
 from pystreamliner.api import Extractor
 
 class DefaultExtractor(Extractor):
-    def next(self, streaming_context, time, sql_context, config, interval, logger):
-        rdd = streaming_context._sc.parallelize([[0]])
+    def next(self, spark_context, sql_context, interval, logger):
+        rdd = spark_context.parallelize([[0]])
         return sql_context.createDataFrame(rdd, ["foo"])
