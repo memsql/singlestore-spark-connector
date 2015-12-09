@@ -2,20 +2,8 @@
 
 package com.memsql.spark
 
-import java.sql.{Connection, DriverManager, ResultSet, Timestamp, SQLException}
-
-import com.memsql.spark.connector.dataframe._
-import com.memsql.spark.connector.rdd._
-import com.memsql.spark.pushdown.MemSQLPushdownStrategy
 import org.apache.spark._
-import org.apache.spark.sql._
-import org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute
-import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.memsql.SparkTestUtils
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.functions._
-
-import scala.util.control.NonFatal
+import org.apache.spark.sql.memsql.MemSQLContext
 
 /*
 object TestSparkSQLTypes {
