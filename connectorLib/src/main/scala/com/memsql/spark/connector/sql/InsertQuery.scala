@@ -38,15 +38,28 @@ class InsertQuery(tableFragment: QueryFragment,
   def makeValueTemplate(rowLength: Int): QueryFragment =
     QueryFragment().block(_.raw(("?" * rowLength).mkString(",")))
 
-  def flush(conn: Connection, rows: List[Row]): Int = {
-    val valueTemplate = makeValueTemplate(rows(0).length)
+  def buildQuery(rows: List[Row]): String = {
+    if (rows.isEmpty) {
+      throw new IllegalArgumentException("`rows` must not be empty.")
+    }
 
-    val query = QueryFragment()
+    val rowLength = rows(0).length
+    rows.foreach(r => {
+      if (r.length == 0 || r.length != rowLength) {
+        throw new IllegalArgumentException("`rows` must contain non-empty Row objects of the same length.")
+      }
+    })
+
+    val valueTemplate = makeValueTemplate(rowLength)
+    QueryFragment()
       .fragment(insertPrefix)
-      .addFragments(rows.map(_ => valueTemplate), ",")
+      .addFragments(Stream.continually(valueTemplate).take(rows.length), ",")
       .fragment(insertSuffix)
       .sql.toString
+  }
 
+  def flush(conn: Connection, rows: List[Row]): Int = {
+    val query = buildQuery(rows)
     conn.withPreparedStatement(query, stmt => {
       stmt.fillParams(rows.flatMap(_.toSeq))
       stmt.executeUpdate()

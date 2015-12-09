@@ -28,7 +28,7 @@ import com.memsql.spark.etl.api.configs.MemSQLDupKeyBehavior._
 
 case class MemSQLKeyConfig(key_type: MemSQLKeyType, column_names: List[String]) {
   def toMemSQLKey : MemSQLKey = {
-    val columns = column_names.map(Column(_))
+    val columns = column_names.map(ColumnReference)
     key_type match {
       case MemSQLKeyType.Shard => sql.Shard(columns)
       case MemSQLKeyType.Key => sql.Key(columns)
@@ -45,8 +45,8 @@ case class MemSQLColumnConfig(name: String,
                               nullable: Option[Boolean],
                               default_sql: Option[String],
                               persisted: Option[String]) {
-  def toMemSQLColumn: MemSQLColumn = {
-    AdvancedColumn(name, col_type, nullable.getOrElse(true), defaultSQL = default_sql, persisted = persisted)
+  def toMemSQLColumn: ColumnDefinition = {
+    ColumnDefinition(name, col_type, nullable.getOrElse(true), defaultSQL = default_sql, persisted = persisted)
   }
 }
 
@@ -73,7 +73,7 @@ case class LoadConfigOptions(on_duplicate_key_sql: Option[String]=None,
     }
   }
 
-  def getExtraColumns: Seq[MemSQLColumn] = table_extra_columns match {
+  def getExtraColumns: Seq[ColumnDefinition] = table_extra_columns match {
     case Some(cols) => cols.map(_.toMemSQLColumn)
     case None => Nil
   }

@@ -1,9 +1,13 @@
 package com.memsql.spark.connector.sql
 
 case class MemSQLTable(tableIdent: TableIdentifier,
-                       columns: Seq[MemSQLColumn],
+                       columns: Seq[ColumnDefinition],
                        keys: Seq[MemSQLKey],
                        ifNotExists: Boolean = false) {
+
+  if (columns.isEmpty) {
+    throw new IllegalArgumentException("`columns` must not be empty.")
+  }
 
   def quotedName: String = tableIdent.quotedString
 

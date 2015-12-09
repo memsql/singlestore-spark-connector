@@ -2,7 +2,7 @@ package org.apache.spark.sql.memsql
 
 import com.memsql.spark.SaveToMemSQLException
 import com.memsql.spark.connector.dataframe.TypeConversions
-import com.memsql.spark.connector.sql.{TableIdentifier, QueryFragments, Column, MemSQLColumn}
+import com.memsql.spark.connector.sql.{QueryFragments, TableIdentifier, ColumnDefinition}
 import com.memsql.spark.connector.{MemSQLCluster, MemSQLConf}
 import org.apache.spark.{TaskContext, SparkException}
 import org.apache.spark.sql.types.{BinaryType, StructType}
@@ -12,9 +12,9 @@ import scala.util.Random
 
 object SparkImplicits {
   implicit class SchemaFunctions(schema: StructType) {
-    def toMemSQLColumns: Seq[MemSQLColumn] = {
+    def toMemSQLColumns: Seq[ColumnDefinition] = {
       schema.map(s => {
-        Column(
+        ColumnDefinition(
           s.name,
           TypeConversions.DataFrameTypeToMemSQLTypeString(s.dataType),
           s.nullable
@@ -43,7 +43,7 @@ object SparkImplicits {
       val sparkContext = df.sqlContext.sparkContext
       val cluster = getMemSQLCluster
       val columns = df.schema.toMemSQLColumns
-      val tableFragment = QueryFragments.tableNameWithColumns(tableIdentifier, columns)
+      val tableFragment = QueryFragments.tableNameWithColumns(tableIdentifier, columns.map(_.reference))
       val dbName = tableIdentifier.database.getOrElse(cluster.conf.defaultDBName)
 
       // Since LOAD DATA ... ON DUPLICATE KEY UPDATE is not currently supported by MemSQL

@@ -28,10 +28,12 @@ case class QueryFragment(sql: StringBuilder = new StringBuilder) {
     }
     this
   }
+
+  def toSQL: String = sql.toString
 }
 
 object QueryFragments {
-  def tableNameWithColumns(tableIdentifier: TableIdentifier, columns: Seq[MemSQLColumn]): QueryFragment = {
+  def tableNameWithColumns(tableIdentifier: TableIdentifier, columns: Seq[ColumnReference]): QueryFragment = {
     QueryFragment()
       .quoted(tableIdentifier.table)
       .space
@@ -49,7 +51,7 @@ object QueryFragments {
   def createDatabaseQuery(databaseName: String, ifNotExists: Boolean = true): QueryFragment = {
     QueryFragment()
       .raw(s"CREATE DATABASE ")
-      .raw(if (ifNotExists) " IF NOT EXISTS " else "")
+      .raw(if (ifNotExists) "IF NOT EXISTS " else "")
       .quoted(databaseName)
   }
 }

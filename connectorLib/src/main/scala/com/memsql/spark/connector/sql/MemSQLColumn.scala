@@ -1,14 +1,33 @@
 package com.memsql.spark.connector.sql
 
-abstract class MemSQLColumn {
-  def name: String
-  def colType: String
-  def nullable: Boolean
+case class ColumnReference(name: String) {
+  if (name.isEmpty) {
+    throw new IllegalArgumentException("ColumnReference must have a non-empty column name.")
+  }
 
-  def toQueryFragment: QueryFragment
-  def toSQL: String = toQueryFragment.sql.toString
+  val quotedName: String = s"`$name`"
+  val toSQL: String = quotedName
+}
 
-  def quotedName: String = s"`$name`"
+case class ColumnDefinition(name: String,
+                            colType: String,
+                            nullable: Boolean = true,
+                            persisted: Option[String] = None,
+                            defaultSQL: Option[String] = None
+                           ) {
+
+  if (name.isEmpty) {
+    throw new IllegalArgumentException("ColumnDefinition must have a non-empty column name.")
+  }
+  if (colType.isEmpty) {
+    throw new IllegalArgumentException("ColumnDefinition must have a non-empty colType.")
+  }
+  if (persisted.isDefined && defaultSQL.isDefined) {
+    throw new IllegalArgumentException(
+      "ColumnDefinition can not have both a persisted and defaultSQL expression.")
+  }
+
+  def reference: ColumnReference = ColumnReference(name)
 
   def nullExpression: String =
     if (nullable) { "NULL" } else { "NOT NULL" }
@@ -19,7 +38,7 @@ abstract class MemSQLColumn {
       case Some(d) => s"DEFAULT $d"
 
       // Otherwise add a default expression depending on nullability
-      // Note: Timestamp columns are locked out so we don't mess with
+      // Note: Timestamp columns are ignored so we don't mess with
       // the implicit NOW() DEFAULT expression
       case None if colType.toLowerCase() != "timestamp" =>
         if (nullable) { "DEFAULT NULL" }
@@ -27,30 +46,12 @@ abstract class MemSQLColumn {
 
       case _ => ""
     }
-}
 
-case class Column(name: String,
-                  colType: String = "",
-                  nullable: Boolean = true
-                 ) extends MemSQLColumn {
-
-  override def toQueryFragment: QueryFragment =
-    QueryFragment().raw(
-      Seq(quotedName, colType, nullExpression, defaultExpression(None)).mkString(" "))
-}
-
-case class AdvancedColumn(name: String,
-                          colType: String,
-                          nullable: Boolean = true,
-                          persisted: Option[String] = None,
-                          defaultSQL: Option[String] = None
-                         ) extends MemSQLColumn {
-
-  override def toQueryFragment: QueryFragment = {
+  def toQueryFragment: QueryFragment = {
     val qf = QueryFragment()
 
     // Add the column name
-    qf.raw(quotedName).space
+    qf.quoted(name).space
 
     persisted match {
       case Some(p) => {
@@ -72,4 +73,6 @@ case class AdvancedColumn(name: String,
       }
     }
   }
+
+  def toSQL: String = toQueryFragment.toSQL
 }

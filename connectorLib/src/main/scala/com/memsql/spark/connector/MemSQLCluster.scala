@@ -113,9 +113,12 @@ case class MemSQLCluster(conf: MemSQLConf) {
     }
   }
 
-  def createTable(tableIdent: TableIdentifier, columns: Seq[MemSQLColumn], keys: Seq[MemSQLKey]=Nil): Unit = {
-    val defaultInsertColumn = AdvancedColumn("memsql_insert_time", "TIMESTAMP",
-                                             false, defaultSQL=Some("CURRENT_TIMESTAMP"))
+  def createTable(tableIdent: TableIdentifier,
+                  columns: Seq[ColumnDefinition],
+                  keys: Seq[MemSQLKey]=Nil): Unit = {
+
+    val defaultInsertColumn = ColumnDefinition("memsql_insert_time", "TIMESTAMP",
+                                               false, defaultSQL=Some("CURRENT_TIMESTAMP"))
 
     val extraColumns = {
       if (columns.exists(c => c.name == "memsql_insert_time")) { Nil }
@@ -123,7 +126,7 @@ case class MemSQLCluster(conf: MemSQLConf) {
     }
     val extraKeys = {
       if (keys.exists(k => k.columnNames.contains("memsql_insert_time"))) { Nil }
-      else { Seq(Key(Seq(defaultInsertColumn))) }
+      else { Seq(Key(Seq(defaultInsertColumn.reference))) }
     }
 
     val query = MemSQLTable(tableIdent, columns ++ extraColumns, keys ++ extraKeys, ifNotExists = true)

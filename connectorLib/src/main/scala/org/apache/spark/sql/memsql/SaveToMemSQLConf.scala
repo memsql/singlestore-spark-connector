@@ -1,9 +1,8 @@
 package org.apache.spark.sql.memsql
 
 import com.memsql.spark.connector.MemSQLConf
-import com.memsql.spark.connector.sql.{MemSQLKey, MemSQLColumn}
+import com.memsql.spark.connector.sql.{ColumnDefinition, MemSQLKey}
 import org.apache.spark.sql.SaveMode
-import org.apache.spark.{SparkConf, SparkContext}
 
 object CreateMode extends Enumeration {
   type CreateMode = Value
@@ -23,7 +22,7 @@ case class SaveToMemSQLConf(saveMode: SaveMode,
                             insertBatchSize: Int,
                             loadDataCompression: CompressionType,
                             useKeylessShardingOptimization: Boolean,
-                            extraColumns: Seq[MemSQLColumn],
+                            extraColumns: Seq[ColumnDefinition],
                             extraKeys: Seq[MemSQLKey])
 
 object SaveToMemSQLConf {
