@@ -40,11 +40,18 @@ case class ColumnDefinition(name: String,
       // Otherwise add a default expression depending on nullability
       // Note: Timestamp columns are ignored so we don't mess with
       // the implicit NOW() DEFAULT expression
-      case None if colType.toLowerCase() != "timestamp" =>
-        if (nullable) { "DEFAULT NULL" }
-        else { "DEFAULT '0'" }
-
-      case _ => ""
+      case None => {
+        val colTypeLower = colType.toLowerCase
+        if (colTypeLower == "timestamp") {
+          ""
+        } else if (nullable) {
+          "DEFAULT NULL"
+        } else if (colTypeLower == "text" || colTypeLower == "blob") {
+          "DEFAULT ''"
+        } else {
+          "DEFAULT '0'"
+        }
+      }
     }
 
   def toQueryFragment: QueryFragment = {

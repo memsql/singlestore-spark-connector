@@ -178,7 +178,7 @@ lazy val examples = (project in file("examples")).
   )
 
 lazy val tests = (project in file("tests")).
-  dependsOn(connectorLib).
+  dependsOn(connectorLib % "compile->test;test->test").
   dependsOn(etlLib).
   dependsOn(interface).
   dependsOn(examples).

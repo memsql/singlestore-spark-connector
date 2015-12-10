@@ -99,3 +99,6 @@ def test_rdd_from_prepared(local_context):
 
 def test_rdd_from_prepared_complex(local_context):
     do_test_spark_submit(local_context, "com.memsql.spark.TestMemSQLRDDFromSqlTemplateComplex")
+
+def test_create_table_default_columns(local_context):
+    do_test_spark_submit(local_context, "com.memsql.spark.TestCreateTableDefaultColumns")
