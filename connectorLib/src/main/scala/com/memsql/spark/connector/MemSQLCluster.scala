@@ -83,7 +83,7 @@ case class MemSQLCluster(conf: MemSQLConf) {
         } catch {
           case e: MySQLSyntaxErrorException if e.getErrorCode == ER_DUP_FIELDNAME => {
             throw new UnsupportedOperationException(
-              "MemSQLContext does not support running queries which return" +
+              "MemSQLContext does not support running queries which return " +
               "duplicate field names in their outermost projection.")
           }
         }
