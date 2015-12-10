@@ -57,4 +57,13 @@ trait SharedMemSQLContext extends BeforeAndAfterAll {self: Suite =>
       })
     })
   }
+
+  def sqlExec(query: String, params: Any*): Unit = {
+    msc.getMemSQLCluster.withMasterConn(conn => {
+      conn.withPreparedStatement(query, stmt => {
+        stmt.fillParams(params)
+        stmt.execute()
+      })
+    })
+  }
 }

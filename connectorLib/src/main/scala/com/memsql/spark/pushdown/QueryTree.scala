@@ -94,13 +94,16 @@ case class PartialQuery(alias: QueryAlias,
 
 case class JoinQuery(alias: QueryAlias,
                      output: Seq[Attribute],
+                     projection: SQLBuilder,
                      condition: Option[SQLBuilder],
                      left: AbstractQuery,
                      right: AbstractQuery) extends AbstractQuery {
 
   override def collapse: SQLBuilder =
     SQLBuilder.withAlias(alias, b => {
-      b.raw(s"SELECT ${left.alias}.*, ${right.alias}.* FROM ")
+      b.raw(s"SELECT ")
+        .appendBuilder(projection)
+        .raw(" FROM ")
         .appendBuilder(left.collapse)
         .raw(" INNER JOIN ")
         .appendBuilder(right.collapse)
@@ -112,6 +115,8 @@ case class JoinQuery(alias: QueryAlias,
     builder
       .indent(depth)
       .append(s"JoinQuery[$alias, ${output.mkString(",")}] (")
+      .append(projection.sql)
+      .append(") (")
       .append(condition.map(_.sql).getOrElse(""))
       .append(")\n")
     left.prettyPrint(depth + 1, builder)

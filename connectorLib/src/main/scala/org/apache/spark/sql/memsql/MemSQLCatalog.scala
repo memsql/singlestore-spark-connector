@@ -3,9 +3,7 @@ package org.apache.spark.sql.memsql
 import java.sql.{ResultSet, Connection}
 
 import com.memsql.spark.connector.sql.TableIdentifier
-import com.memsql.spark.pushdown.MemSQLPushdownStrategy
 import org.apache.spark.Logging
-import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.CatalystConf
 import org.apache.spark.sql.catalyst.analysis.{NoSuchTableException, SimpleCatalog}
 import org.apache.spark.sql.catalyst.plans.logical.{Project, LogicalPlan, Subquery}
@@ -36,7 +34,10 @@ class MemSQLCatalog(val msc: MemSQLContext,
       )
 
       val logicalRelation = LogicalRelation(relation)
-      Project(logicalRelation.output, logicalRelation)
+      val projection = Project(logicalRelation.output, logicalRelation)
+      val qualifiedProjection = Subquery(relation.tableIdentifier.table, projection)
+
+      alias.map(a => Subquery(a, qualifiedProjection)).getOrElse(qualifiedProjection)
     }
   }
 

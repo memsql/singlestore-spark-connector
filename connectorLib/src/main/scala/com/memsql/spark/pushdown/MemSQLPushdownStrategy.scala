@@ -36,10 +36,10 @@ object MemSQLPushdownStrategy {
 
 class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
   def apply(plan: LogicalPlan): Seq[SparkPlan] = {
-    val fieldIdIter = Iterator.from(1).map(n => s"field$n")
+    val fieldIdIter = Iterator.from(1).map(n => s"f_$n")
 
     try {
-      val alias = QueryAlias("pushdown")
+      val alias = QueryAlias("query")
       buildQueryTree(fieldIdIter, alias, plan) match {
         case Some(queryTree) => Seq(MemSQLPhysicalRDD.fromAbstractQueryTree(sparkContext, queryTree))
         case _ => Nil
@@ -107,9 +107,13 @@ class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
         suffix=SQLBuilder
           .withFields(subTree.qualifiedOutput)
           .raw(" ORDER BY ").maybeAddExpressions(orderings, ", ")
+          // We need to specify a very large limit here to stick with
+          // Spark semantics. The reason is that MemSQL ignores
+          // `ORDER BY` in sub-queries unless a limit is specified.
+          .map { b => b.raw(" LIMIT ?").param(Long.MaxValue) }
       )
 
-    // NOTE: We ignore Subquerys when we are doing query pushdown
+    // NOTE: We ignore Subqueries when we are doing query pushdown
     // since we rewrite all of the qualifiers explicitly
     case Subquery(_, child) =>
       for {
@@ -123,10 +127,14 @@ class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
         rightSubTree <- buildQueryTree(fieldIdIter, rightAlias.child, right)
         if leftSubTree.sharesCluster(rightSubTree)
         qualifiedOutput = leftSubTree.qualifiedOutput ++ rightSubTree.qualifiedOutput
+        renamedQualifiedOutput = renameExpressions(fieldIdIter, qualifiedOutput)
       } yield {
         JoinQuery(
           alias=alias,
-          output=leftSubTree.output ++ rightSubTree.output,
+          output=renamedQualifiedOutput.map(_.toAttribute),
+          projection=SQLBuilder
+            .withFields(qualifiedOutput)
+            .addExpressions(renamedQualifiedOutput, ", "),
           condition=condition.map { c =>
             SQLBuilder
               .withFields(qualifiedOutput)

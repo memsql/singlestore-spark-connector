@@ -2,6 +2,7 @@ package com.memsql.spark.connector
 
 import com.memsql.spark.connector.dataframe.TypeConversions
 import com.memsql.spark.connector.sql._
+import com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException
 import org.apache.spark.sql.types.{StructField, StructType}
 import com.memsql.spark.connector.util.MemSQLConnectionInfo
 import com.memsql.spark.connector.util.JDBCImplicits._
@@ -9,6 +10,8 @@ import java.sql.Connection
 import scala.util.Random
 
 case class MemSQLCluster(conf: MemSQLConf) {
+  val ER_DUP_FIELDNAME = 1060
+
   def getMasterInfo: MemSQLConnectionInfo = conf.masterConnectionInfo
 
   def getRandomAggregatorInfo: MemSQLConnectionInfo = {
@@ -73,15 +76,18 @@ case class MemSQLCluster(conf: MemSQLConf) {
     withMasterConn { conn =>
       val limitedQuery = s"SELECT * FROM ($query) lzalias LIMIT 0"
 
-      val metadata = if (queryParams.isEmpty) {
-        conn.withStatement(stmt =>
-          stmt.executeQuery(limitedQuery).getMetaData)
-      } else {
-        conn.withPreparedStatement(limitedQuery, stmt => {
-          stmt.fillParams(queryParams)
+      val metadata = conn.withPreparedStatement(limitedQuery, stmt => {
+        stmt.fillParams(queryParams)
+        try {
           stmt.executeQuery.getMetaData
-        })
-      }
+        } catch {
+          case e: MySQLSyntaxErrorException if e.getErrorCode == ER_DUP_FIELDNAME => {
+            throw new UnsupportedOperationException(
+              "MemSQLContext does not support running queries which return" +
+              "duplicate field names in their outermost projection.")
+          }
+        }
+      })
 
       val numColumns = metadata.getColumnCount
 
