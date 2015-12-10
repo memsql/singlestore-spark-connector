@@ -1,6 +1,7 @@
 package com.memsql.spark
 
 import com.memsql.spark.pushdown.MemSQLPushdownStrategy
+import org.apache.spark.sql.memsql.test.TestUtils
 import org.apache.spark.{Logging, SparkContext}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.memsql.MemSQLContext
@@ -10,7 +11,7 @@ object TestMemSQLQueryPushdown {
   def main(args: Array[String]): Unit = new TestMemSQLQueryPushdown
 }
 
-class TestMemSQLQueryPushdown extends TestBase with Logging {
+class TestMemSQLQueryPushdown extends TestApp with Logging {
   type DFTuple = (DataFrame, DataFrame)
 
   def runTest(sc: SparkContext, msc: MemSQLContext): Unit = {

@@ -2,7 +2,7 @@ package com.memsql.spark.connector.sql
 
 import org.scalatest.FlatSpec
 
-class MemSQLTableTest extends FlatSpec {
+class MemSQLTableSpec extends FlatSpec {
   "MemSQLTable" should "handle different qualifications of TableIdentifier" in {
     var ident = TableIdentifier("foo")
     var table = MemSQLTable(ident, Seq(ColumnDefinition("foo", "int")), Nil).toSQL

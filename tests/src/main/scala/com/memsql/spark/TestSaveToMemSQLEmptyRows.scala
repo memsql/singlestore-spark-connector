@@ -11,7 +11,7 @@ object TestSaveToMemSQLEmptyRows {
   def main(args: Array[String]): Unit = new TestSaveToMemSQLEmptyRows
 }
 
-class TestSaveToMemSQLEmptyRows extends TestBase with Logging {
+class TestSaveToMemSQLEmptyRows extends TestApp with Logging {
   def runTest(sc: SparkContext, msc: MemSQLContext): Unit = {
     val rdd = sc.parallelize(Array(Row()))
     val schema = StructType(Array[StructField]())

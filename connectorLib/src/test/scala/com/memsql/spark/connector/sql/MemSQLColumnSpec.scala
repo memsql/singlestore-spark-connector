@@ -2,7 +2,7 @@ package com.memsql.spark.connector.sql
 
 import org.scalatest.FlatSpec
 
-class MemSQLColumnTest extends FlatSpec {
+class MemSQLColumnSpec extends FlatSpec {
   "ColumnReference" should "escape column names" in {
     assert(ColumnReference("foo").toSQL == "`foo`")
     assert(ColumnReference("bar baz 12342@#$").toSQL == "`bar baz 12342@#$`")

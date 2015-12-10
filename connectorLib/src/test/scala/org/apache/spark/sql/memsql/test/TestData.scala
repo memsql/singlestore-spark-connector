@@ -1,6 +1,6 @@
 // scalastyle:off magic.number file.size.limit regex
 
-package com.memsql.spark
+package org.apache.spark.sql.memsql.test
 
 import java.sql.{Date, Timestamp}
 

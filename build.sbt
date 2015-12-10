@@ -22,10 +22,11 @@ lazy val commonSettings = Seq(
   parallelExecution in Test := false,
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value)
+    if (isSnapshot.value) {
       Some("snapshots" at nexus + "content/repositories/snapshots")
-    else
-      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+    } else {
+      Some("releases" at nexus + "service/local/staging/deploy/maven2")
+    }
   },
   pomExtra := {
     <url>http://memsql.github.io/spark-streamliner</url>

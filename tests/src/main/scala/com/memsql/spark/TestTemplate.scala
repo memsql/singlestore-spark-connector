@@ -12,7 +12,7 @@ object TestTemplate {
   def main(args: Array[String]): Unit = new TestTemplate
 }
 
-class TestTemplate extends TestBase with Logging {
+class TestTemplate extends TestApp with Logging {
   def runTest(sc: SparkContext, msc: MemSQLContext): Unit = {
   }
 }

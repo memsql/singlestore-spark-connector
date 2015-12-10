@@ -4,6 +4,7 @@ package com.memsql.spark
 
 import com.mysql.jdbc.exceptions.jdbc4.MySQLSyntaxErrorException
 import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.memsql.test.TestUtils
 import org.apache.spark.sql.memsql.{CompressionType, CreateMode, MemSQLContext}
 import org.apache.spark.{SparkContext, Logging}
 
@@ -14,7 +15,7 @@ object TestRelationProvider {
 /**
   * Read/write MemSQL tables using the Spark DataFrame reader and writer APIs
   */
-class TestRelationProvider extends TestBase with Logging {
+class TestRelationProvider extends TestApp with Logging {
   def runTest(sc: SparkContext, msc: MemSQLContext): Unit = {
     TestUtils.setupBasic(this)
 

@@ -10,7 +10,7 @@ object TestConnCloseProvider {
   def main(args: Array[String]): Unit = new TestConnCloseProvider
 }
 
-class TestConnCloseProvider extends TestBase with Logging {
+class TestConnCloseProvider extends TestApp with Logging {
   def runTest(sc: SparkContext, msc: MemSQLContext): Unit = {
     var conns = 0
 
@@ -30,14 +30,14 @@ class TestConnCloseProvider extends TestBase with Logging {
 
   def numConns(): Int = {
     this.withStatement(stmt => {
-      var result = stmt.executeQuery("SHOW STATUS LIKE 'THREADS_CONNECTED'")
+      val result = stmt.executeQuery("SHOW STATUS LIKE 'THREADS_CONNECTED'")
       result.next()
-      var conns = result.getString("Value").toInt
+      val conns = result.getString("Value").toInt
       println("num conns = " + conns)
 
-      var procResult = stmt.executeQuery("show processlist")
+      val procResult = stmt.executeQuery("show processlist")
       while (procResult.next()) {
-        println("    processlist " + procResult.getString("Id") + " " + procResult.getString("db") + " " + procResult.getString("Command") + " " +
+        println("\tprocesslist " + procResult.getString("Id") + " " + procResult.getString("db") + " " + procResult.getString("Command") + " " +
           procResult.getString("State") + " " + procResult.getString("Info"))
       }
       conns

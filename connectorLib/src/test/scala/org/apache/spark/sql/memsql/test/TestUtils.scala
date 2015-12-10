@@ -1,9 +1,9 @@
 // scalastyle:off magic.number file.size.limit regex
 
-package com.memsql.spark
+package org.apache.spark.sql.memsql.test
 
+import org.apache.spark.sql.{DataFrame, Row}
 import com.memsql.spark.connector.util.JDBCImplicits._
-import org.apache.spark.sql.{Row, DataFrame}
 
 object TestUtils {
   def setupBasic(test: TestBase): Unit = {

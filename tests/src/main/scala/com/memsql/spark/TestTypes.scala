@@ -6,6 +6,7 @@ import java.sql.{Date, Timestamp}
 import java.math.BigDecimal
 import com.memsql.spark.pushdown.MemSQLPushdownStrategy
 import com.memsql.spark.connector._
+import org.apache.spark.sql.memsql.test.TestUtils
 import org.apache.spark.sql.{Row, Column, DataFrame}
 import org.apache.spark.sql.memsql.MemSQLContext
 import org.apache.spark.sql.types._
@@ -23,7 +24,7 @@ object TestTypes {
   def main(args: Array[String]): Unit = new TestTypes
 }
 
-class TestTypes extends TestBase with Logging {
+class TestTypes extends TestApp with Logging {
   def types: Seq[TypeMapping] = Seq(
     TypeMapping(ShortType, MemSQLType("TINYINT"), Seq(0.toShort, 16.toShort)),
     TypeMapping(ShortType, MemSQLType("SMALLINT"), Seq(0.toShort, 64.toShort)),

@@ -3,7 +3,7 @@ package com.memsql.spark.connector.sql
 import org.apache.spark.sql.{Row, SaveMode}
 import org.scalatest.FlatSpec
 
-class InsertQueryTest extends FlatSpec {
+class InsertQuerySpec extends FlatSpec {
   val tableFrag = QueryFragments.tableNameWithColumns(TableIdentifier("foo"), Seq(ColumnReference("test")))
 
   "InsertQuery" should "handle all SaveModes" in {

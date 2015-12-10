@@ -13,7 +13,7 @@ object TestSaveToMemSQLErrors {
   def main(args: Array[String]): Unit = new TestSaveToMemSQLErrors
 }
 
-class TestSaveToMemSQLErrors extends TestBase with Logging {
+class TestSaveToMemSQLErrors extends TestApp with Logging {
   def runTest(sc: SparkContext, msc: MemSQLContext): Unit = {
     val rdd1 = sc.parallelize(
       Array(Row(1, "test 1"),

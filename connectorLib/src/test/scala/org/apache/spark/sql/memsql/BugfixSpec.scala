@@ -2,11 +2,11 @@
 
 package org.apache.spark.sql.memsql
 
-import com.memsql.spark.SharedMemSQLContext
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.memsql.test.SharedMemSQLContext
 import org.scalatest.{Matchers, FlatSpec}
 
-class BugfixTests extends FlatSpec with SharedMemSQLContext with Matchers {
+class BugfixSpec extends FlatSpec with SharedMemSQLContext with Matchers {
 
   def recreateSimpleTable: Unit = {
     sqlExec("DROP TABLE IF EXISTS foo")

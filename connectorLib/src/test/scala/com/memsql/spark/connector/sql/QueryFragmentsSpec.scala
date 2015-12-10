@@ -2,7 +2,7 @@ package com.memsql.spark.connector.sql
 
 import org.scalatest.{FlatSpec, Matchers}
 
-class QueryFragmentsTest extends FlatSpec with Matchers {
+class QueryFragmentsSpec extends FlatSpec with Matchers {
 
   def tableFragment(tableName: String, dbName: Option[String], columns: Seq[String]): QueryFragment = {
     val ident = TableIdentifier(tableName, dbName)

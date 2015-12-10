@@ -3,6 +3,7 @@ package com.memsql.spark
 import com.memsql.spark.pushdown.MemSQLPushdownStrategy
 import org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute
 import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.memsql.test.TestUtils
 import org.apache.spark.{Logging, SparkContext}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.memsql.{SparkTestUtils, MemSQLContext}
@@ -12,7 +13,7 @@ object TestMemSQLQueryExpressionsBinaryOperators {
   def main(args: Array[String]): Unit = new TestMemSQLQueryExpressionsBinaryOperators
 }
 
-class TestMemSQLQueryExpressionsBinaryOperators extends TestBase with Logging {
+class TestMemSQLQueryExpressionsBinaryOperators extends TestApp with Logging {
   def runTest(sc: SparkContext, msc: MemSQLContext): Unit = {
     val mscNoPushdown = new MemSQLContext(sc)
     MemSQLPushdownStrategy.unpatchSQLContext(mscNoPushdown)
