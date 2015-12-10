@@ -171,6 +171,10 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
     }
   }
 
+  def unarySQLFunction(sqlFunction: String, child: Expression): SQLBuilder = {
+    raw(sqlFunction).block { addExpression(child) }
+  }
+
   /**
    * Adds a list of expressions to this SQLBuilder, joins each expression with the provided conjunction.
    * @param expressions A list of [[Expression]]s
@@ -243,7 +247,7 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
 
       // AGGREGATE PATTERNS
 
-      case Count(child) => raw("COUNT").block { addExpression(child) }
+      case Count(child) => unarySQLFunction("COUNT", child)
       case CountDistinct(children) => raw("COUNT(DISTINCT ").addExpressions(children, ", ").raw(")")
 
       // NOTE: MemSQL does not allow the user to configure relativeSD,
@@ -252,13 +256,25 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
       case ApproxCountDistinct(child, relativeSD) if relativeSD >= 0.01 =>
         raw("APPROX_COUNT_DISTINCT").block { addExpression(child) }
 
-      case Sum(child) => raw("SUM").block { addExpression(child) }
-      case Average(child) => raw("AVG").block { addExpression(child) }
-      case Max(child) => raw("MAX").block { addExpression(child) }
-      case Min(child) => raw("MIN").block { addExpression(child) }
+      case Sum(child) => unarySQLFunction("SUM", child)
+      case Average(child) => unarySQLFunction("AVG", child)
+      case Max(child) => unarySQLFunction("MAX", child)
+      case Min(child) => unarySQLFunction("MIN", child)
 
       case SortOrder(child: Expression, Ascending) => block { addExpression(child) }.raw(" ASC")
       case SortOrder(child: Expression, Descending) => block { addExpression(child) }.raw(" DESC")
+
+      // UNARY EXPRESSIONS
+
+      case Year(child) => unarySQLFunction("YEAR", child)
+      case Month(child) => unarySQLFunction("MONTH", child)
+      case Hour(child) => unarySQLFunction("HOUR", child)
+      case Minute(child) => unarySQLFunction("MINUTE", child)
+      case Second(child) => unarySQLFunction("SECOND", child)
+      case DayOfMonth(child) => unarySQLFunction("DAYOFMONTH", child)
+      case DayOfYear(child) => unarySQLFunction("DAYOFYEAR", child)
+      case WeekOfYear(child) => unarySQLFunction("WEEKOFYEAR", child)
+      case Quarter(child) => unarySQLFunction("QUARTER", child)
 
       // BINARY OPERATORS
 
@@ -281,4 +297,5 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
     }
     this
   }
+
 }
