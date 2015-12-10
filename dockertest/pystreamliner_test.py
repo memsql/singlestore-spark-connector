@@ -86,6 +86,42 @@ def test_pystreamliner_sanity(local_context):
     resp = conn.get("SELECT SUM(foo_int_doubled) AS f FROM t")
     assert resp.f == 2 * sum(range(1, num_rows + 1))
 
+def test_pystreamliner_multiple_tables(local_context):
+    """
+        Tests if a pypeline reading and writing additional tables works
+    """
+    ctx = local_context()
+    setup_spark(ctx)
+    config = pystreamliner_config(extractor="multiple_tables_extractor.py", transformer="multiple_tables_transformer.py")
+
+    # create some reference data
+    conn = database.connect(host="127.0.0.1", port=3306, user="root", password="", database="information_schema")
+    conn.execute("CREATE DATABASE reference")
+    conn.execute("CREATE TABLE reference.data (foo int primary key)")
+    conn.query("INSERT INTO reference.data VALUES (%s)", 1)
+
+    ctx.pipeline_put(pipeline_id="pypeline", batch_interval=1, config=config)
+
+    # wait for a couple more batches before stopping the pipeline
+    batch_end = ctx.pipeline_wait_for_batches(pipeline_id="pypeline", count=5, timeout=300)
+    assert batch_end["success"]
+    assert batch_end["load"]["count"] == 1
+
+    ctx.pipeline_update(pipeline_id="pypeline", active=False)
+
+    conn = database.connect(host="127.0.0.1", port=3306, user="root", password="", database="db")
+    resp = conn.get("SELECT COUNT(*) AS count FROM t")
+    assert resp.count >= 5
+    num_rows = resp.count
+
+    resp = conn.get("SELECT SUM(foo) AS f FROM t")
+    assert resp.f == num_rows
+
+    for i in range(num_rows):
+        table = "pystreamliner.table%d" % i
+        resp = conn.get("SELECT SUM(foo) AS f FROM " + table)
+        assert resp.f == 1
+
 # EXTRACTOR TESTS
 def test_pystreamliner_extractor_syntax_error(local_context):
     """

@@ -27,6 +27,7 @@
  -s dockertest/spark_submit_test.py::test_rdd_from_prepared --psyduck-time-limit=8
  -s dockertest/spark_submit_test.py::test_rdd_from_prepared_complex --psyduck-time-limit=8
  -s dockertest/pystreamliner_test.py::test_pystreamliner_sanity --psyduck-time-limit=16
+ -s dockertest/pystreamliner_test.py::test_pystreamliner_multiple_tables --psyduck-time-limit=16
  -s dockertest/pystreamliner_test.py::test_pystreamliner_extractor_syntax_error --psyduck-time-limit=16
  -s dockertest/pystreamliner_test.py::test_pystreamliner_extractor_register_timeout --psyduck-time-limit=16
  -s dockertest/pystreamliner_test.py::test_pystreamliner_extractor_initialize_exception --psyduck-time-limit=16

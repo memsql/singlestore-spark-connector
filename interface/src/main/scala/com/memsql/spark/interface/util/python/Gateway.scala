@@ -17,6 +17,7 @@ class PythonTraceback(message: String) extends PythonGatewayException(message)
 
 class PythonGatewayEntryPoint(sc: SparkContext) {
   val jsc: JavaSparkContext = new JavaSparkContext(sc)
+  var utils = PystreamlinerUtils
 
   var extractor: PythonExtractorInterface = null
   var transformer: PythonTransformerInterface = null
