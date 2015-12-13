@@ -306,6 +306,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       }
     } catch {
       case e: ControlThrowable => throw e
+      case e: InterruptedException => throw e
       case e: Throwable => {
         logError(s"Exception in pipeline $pipeline_id", e)
         error = e
