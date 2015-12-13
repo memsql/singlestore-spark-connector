@@ -23,15 +23,12 @@ class MemSQLLoader extends Loader {
       loadDataCompression = memSQLConf.defaultLoadDataCompression,
       useKeylessShardingOptimization = options.use_keyless_sharding_optimization.getOrElse(false),
       extraColumns = options.getExtraColumns,
-      extraKeys = options.getExtraKeys
+      extraKeys = options.getExtraKeys,
+      dryRun = memSQLLoadConfig.dry_run
     )
 
-    if (memSQLLoadConfig.dry_run) {
-      df.rdd.map(x => 0).reduce(_ + _)
-    } else {
-      val numInserted = df.saveToMemSQL(memSQLLoadConfig.getTableIdentifier, saveConfig)
-      hasInserted = true
-      numInserted
-    }
+    val numInserted = df.saveToMemSQL(memSQLLoadConfig.getTableIdentifier, saveConfig)
+    hasInserted = true
+    numInserted
   }
 }

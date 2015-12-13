@@ -45,8 +45,8 @@ class InsertQuery(tableFragment: QueryFragment,
 
     val rowLength = rows(0).length
     rows.foreach(r => {
-      if (r.length == 0 || r.length != rowLength) {
-        throw new IllegalArgumentException("`rows` must contain non-empty Row objects of the same length.")
+      if (r.length != rowLength) {
+        throw new IllegalArgumentException("`rows` must contain Row objects of the same length.")
       }
     })
 

@@ -23,7 +23,8 @@ case class SaveToMemSQLConf(saveMode: SaveMode,
                             loadDataCompression: CompressionType,
                             useKeylessShardingOptimization: Boolean,
                             extraColumns: Seq[ColumnDefinition],
-                            extraKeys: Seq[MemSQLKey])
+                            extraKeys: Seq[MemSQLKey],
+                            dryRun: Boolean)
 
 object SaveToMemSQLConf {
   /**
@@ -44,7 +45,8 @@ object SaveToMemSQLConf {
         "loadDataCompression", memsqlConf.defaultLoadDataCompression.toString)),
       useKeylessShardingOptimization = params.getOrElse("useKeylessShardingOptimization", "false").toBoolean,
       extraColumns = Nil,
-      extraKeys = Nil
+      extraKeys = Nil,
+      dryRun = params.getOrElse("dryRun", "false").toBoolean
     )
   }
 }

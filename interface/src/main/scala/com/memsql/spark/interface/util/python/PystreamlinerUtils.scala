@@ -11,8 +11,12 @@ import org.apache.spark.sql.memsql.SparkImplicits._
 
 // Used by pystreamliner because Scala implicits don't play nicely with Py4J
 object PystreamlinerUtils {
-  def saveToMemSQL(memSQLContext: MemSQLContext, df: DataFrame, databaseName: String, tableName: String, saveModeString: String,
-                       jParams: JMap[String, String]): Long = {
+  def saveToMemSQL(memSQLContext: MemSQLContext,
+                   df: DataFrame,
+                   databaseName: String,
+                   tableName: String,
+                   saveModeString: String,
+                   jParams: JMap[String, String]): Long = {
     val tableIdentifier = TableIdentifier(tableName, Option(databaseName))
 
     val saveMode = Option(saveModeString).map(SaveMode.valueOf)

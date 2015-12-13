@@ -83,19 +83,23 @@ object SparkImplicits {
       val randomStart = Random.nextInt(availableNodes.length)
 
       try {
-        df.foreachPartition(partition => {
-          val partitionId = TaskContext.getPartitionId
+        if (saveConf.dryRun) {
+          df.map(x => 0).reduce(_ + _)
+        } else {
+          df.foreachPartition(partition => {
+            val partitionId = TaskContext.getPartitionId
 
-          val targetNode = availableNodes.filter(_.isColocated) match {
-            case s@(_ :: _) => s(Random.nextInt(s.length))
-            case Nil => {
-              val choice = (randomStart + partitionId) % availableNodes.length
-              availableNodes(choice)
+            val targetNode = availableNodes.filter(_.isColocated) match {
+              case s@(_ :: _) => s(Random.nextInt(s.length))
+              case Nil => {
+                val choice = (randomStart + partitionId) % availableNodes.length
+                availableNodes(choice)
+              }
             }
-          }
 
-          numRowsAccumulator += ingestStrategy.loadPartition(targetNode, partition)
-        })
+            numRowsAccumulator += ingestStrategy.loadPartition(targetNode, partition)
+          })
+        }
       } catch {
         case e: SparkException => throw new SaveToMemSQLException(e, numRowsAccumulator.value)
       }

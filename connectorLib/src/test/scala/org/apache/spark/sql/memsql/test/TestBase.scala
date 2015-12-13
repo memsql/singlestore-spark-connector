@@ -27,7 +27,7 @@ trait TestBase {
 
   def sparkUp(local: Boolean=false): Unit = {
     // before we create the spark context lets make sure we can connect to MemSQL
-    sqlExec("select 1")
+    recreateDatabase
 
     var conf = new SparkConf()
       .setAppName("MemSQL Connector Test")
