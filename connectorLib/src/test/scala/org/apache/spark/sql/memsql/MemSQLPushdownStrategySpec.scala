@@ -16,7 +16,7 @@ class MemSQLPushdownStrategySpec extends FlatSpec with SharedMemSQLContext {
     val tableIdent = TableIdentifier(msc.getDatabase, "foo")
 
     cluster.createTable(tableIdent, Nil)
-    val memSQLRelation = MemSQLRelation(cluster, tableIdent, msc)
+    val memSQLRelation = MemSQLTableRelation(cluster, tableIdent, msc)
 
     val logicalPlan = LogicalRelation(memSQLRelation)
     val physicalPlan: Seq[SparkPlan] = strategy(logicalPlan)

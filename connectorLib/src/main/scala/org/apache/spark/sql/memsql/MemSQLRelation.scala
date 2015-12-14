@@ -13,22 +13,28 @@ import org.apache.spark.sql.{SaveMode, DataFrame, Row, SQLContext}
 import com.memsql.spark.connector.util.JDBCImplicits._
 import SparkImplicits._
 
-case class MemSQLRelation(cluster: MemSQLCluster,
-                          tableIdentifier: TableIdentifier,
-                          sqlContext: SQLContext) extends BaseRelation
-                                                  with TableScan
-                                                  with InsertableRelation {
+abstract class MemSQLRelation extends BaseRelation with TableScan {
 
-  val database: Option[String] = tableIdentifier.database
-  val query: String = s"SELECT * FROM ${tableIdentifier.quotedString}"
+  def cluster: MemSQLCluster
+  def database: Option[String]
+  def query: String
+  def sqlContext: SQLContext
 
   lazy val schema: StructType = cluster.getQuerySchema(query)
 
   override def buildScan: RDD[Row] = {
     MemSQLRDD(sqlContext.sparkContext, cluster, query,
-              databaseName=tableIdentifier.database,
+              databaseName=database,
               mapRow=_.toRow)
   }
+}
+
+case class MemSQLTableRelation(cluster: MemSQLCluster,
+                               tableIdentifier: TableIdentifier,
+                               sqlContext: SQLContext) extends MemSQLRelation with InsertableRelation {
+
+  override def database: Option[String] = tableIdentifier.database
+  override def query: String = s"SELECT * FROM ${tableIdentifier.quotedString}"
 
   override def insert(data: DataFrame, overwrite: Boolean): Unit = {
     val mode = if (overwrite) { SaveMode.Overwrite } else { SaveMode.Append }
@@ -38,6 +44,11 @@ case class MemSQLRelation(cluster: MemSQLCluster,
   def insert(data: DataFrame, saveConf: SaveToMemSQLConf): Unit =
     data.saveToMemSQL(tableIdentifier, saveConf)
 }
+
+case class MemSQLQueryRelation(cluster: MemSQLCluster,
+                               database: Option[String],
+                               query: String,
+                               sqlContext: SQLContext) extends MemSQLRelation
 
 object UnpackLogicalRelation {
   def unapply(l: LogicalRelation): Option[MemSQLRelation] = l match {

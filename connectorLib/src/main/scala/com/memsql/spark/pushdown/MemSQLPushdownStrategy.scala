@@ -6,9 +6,8 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.Inner
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.execution.SparkPlan
-import org.apache.spark.sql.memsql.{UnpackLogicalRelation, MemSQLRelation}
+import org.apache.spark.sql.memsql.{MemSQLTableRelation, UnpackLogicalRelation}
 import org.apache.spark.sql.{SQLContext, Strategy}
-import org.apache.spark.sql.types.MetadataBuilder
 
 object MemSQLPushdownStrategy {
   /**
@@ -153,7 +152,7 @@ class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy with L
       }
     }
 
-    case l @ UnpackLogicalRelation(r: MemSQLRelation) => Some(BaseQuery(alias, r, l.output))
+    case l @ UnpackLogicalRelation(r: MemSQLTableRelation) => Some(BaseQuery(alias, r, l.output))
 
     case _ => None
   }

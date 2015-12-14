@@ -27,7 +27,7 @@ class MemSQLCatalog(val msc: MemSQLContext,
         throw new NoSuchTableException
       }
 
-      val relation = MemSQLRelation(
+      val relation = MemSQLTableRelation(
         cluster=cluster,
         tableIdentifier=actualTableIdent.get,
         sqlContext=msc

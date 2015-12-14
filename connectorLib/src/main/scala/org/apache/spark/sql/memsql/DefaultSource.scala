@@ -16,7 +16,7 @@ class DefaultSource extends RelationProvider
     val cluster = MemSQLCluster(conf)
     val tableIdent = DefaultSource.getTableIdentifier(parameters)
 
-    MemSQLRelation(cluster, tableIdent, sqlContext)
+    MemSQLTableRelation(cluster, tableIdent, sqlContext)
   }
 
   override def createRelation(sqlContext: SQLContext,
@@ -29,7 +29,7 @@ class DefaultSource extends RelationProvider
     val tableIdent = DefaultSource.getTableIdentifier(parameters)
     val saveConf = SaveToMemSQLConf(conf, Some(mode), parameters)
 
-    val relation = MemSQLRelation(cluster, tableIdent, sqlContext)
+    val relation = MemSQLTableRelation(cluster, tableIdent, sqlContext)
     relation.insert(data, saveConf)
 
     relation
