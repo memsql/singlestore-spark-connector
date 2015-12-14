@@ -40,9 +40,15 @@ case class MemSQLPhysicalRDD(output: Seq[Attribute],
     val dataTypes = output.map(_.dataType)
     val convertedRDD = rdd.map { row =>
       Row.fromSeq(row.toSeq.zip(dataTypes).map {
-        case (nanos: Long, TimestampType) => new Timestamp(nanos)
-        case (nanos: Long, DateType) => new Date(nanos.nanoseconds.toMillis)
+        // Perform explicit casts to the types that Spark wants.
+        // We need this since MemSQL's builtin casts are fairly limited.
+        case (ms: Long, TimestampType) => new Timestamp(ms)
+        case (ms: Long, DateType) => new Date(ms)
         case (bool: Long, BooleanType) => bool == 1
+        case (num: Long, IntegerType) => num.toInt
+        case (num: Long, ShortType) => num.toShort
+        case (null, DoubleType) => Double.NaN
+        case (null, FloatType) => Float.NaN
         case (decimal: BigDecimal, DoubleType) => decimal.doubleValue()
         case (decimal: BigDecimal, FloatType) => decimal.floatValue()
         case (r, _) => r

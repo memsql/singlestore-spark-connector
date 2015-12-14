@@ -3,29 +3,36 @@
 package org.apache.spark.sql.memsql.test
 
 import java.sql.{Date, Timestamp}
+import java.util.TimeZone
 
+import com.memsql.spark.connector.sql.ColumnDefinition
 import org.apache.spark.sql.types._
 
 object TestData {
-  case class MemSQLType(sqlType: String, sampleValues: Seq[String]) {
-    def name: String = "val_" + sqlType.replace("(", "_").replace(")", "").replace(",", "_")
+  case class MemSQLType(sqlType: String, sampleValues: Seq[Any]) {
+    val name = "val_" + sqlType.replace("(", "_").replace(")", "").replace(",", "_")
+    val columnDefn = ColumnDefinition(name, sqlType)
   }
 
+  val utcOffset = -1 * TimeZone.getDefault.getRawOffset
   val memsqlTypes: Seq[MemSQLType] = Seq(
-    MemSQLType("int", Seq("1", "2", "3")),
-    MemSQLType("bigint", Seq("4", "5", "6")),
-    MemSQLType("tinyint", Seq("7", "8", "9")),
-    MemSQLType("text", Seq("a", "b", "c")),
+    MemSQLType("int", Seq(0, 2, 1041241)),
+    MemSQLType("bigint", Seq(0L, 5L, 123123123L)),
+    MemSQLType("tinyint", Seq(0.toShort, 7.toShort, 40.toShort)),
+    MemSQLType("smallint", Seq(0.toShort, 64.toShort, 100.toShort)),
+    MemSQLType("text", Seq("aasdfasfasfasdfasdfa", "", "ʕ ᓀ ᴥ ᓂ ʔ")),
     MemSQLType("blob", Seq("e", "f", "g")),
+    MemSQLType("bool", Seq(0.toShort, 1.toShort, 1.toShort)),
     MemSQLType("char(1)", Seq("a", "b", "c")),
     MemSQLType("varchar(100)", Seq("do", "rae", "me")),
     MemSQLType("varbinary(100)", Seq("one", "two", "three")),
-    MemSQLType("decimal(5,1)", Seq("1.1", "2.2", "3.3")),
-    MemSQLType("double", Seq("4.4", "5.5", "6.6")),
-    MemSQLType("float", Seq("7.7", "8.8", "9.9")),
-    MemSQLType("datetime", Seq("1990-08-23 01:01:01.0", "1990-08-23 01:01:02.0", "1990-08-23 01:01:03.0")),
-    MemSQLType("timestamp", Seq("1990-08-23 01:01:04.0", "1990-08-23 01:01:05.0", "1990-08-23 01:01:06.0")),
-    MemSQLType("date", Seq("1990-08-23", "1990-09-23", "1990-10-23"))
+    MemSQLType("decimal(20,10)", Seq(BigDecimal(3.00033358), BigDecimal(3.442), BigDecimal(121231.12323))),
+    MemSQLType("real", Seq(0.5, 2.3, 123.13451)),
+    MemSQLType("double", Seq(0.3, 2.7, 234324.2342)),
+    MemSQLType("float", Seq(0.5f, 3.4f, 123.1234f)),
+    MemSQLType("datetime", Seq(new Timestamp(utcOffset), new Timestamp(1449615940000L), new Timestamp(1049615940000L))),
+    MemSQLType("timestamp", Seq(new Timestamp(utcOffset), new Timestamp(1449615940000L), new Timestamp(1049615940000L))),
+    MemSQLType("date", Seq(new Date(90, 8, 23), new Date(100, 3, 5), new Date(utcOffset)))
   )
 
   val sparkSQLTypes = Seq(

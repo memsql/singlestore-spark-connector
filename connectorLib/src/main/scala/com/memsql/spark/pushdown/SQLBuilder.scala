@@ -171,8 +171,8 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
     }
   }
 
-  def unarySQLFunction(sqlFunction: String, child: Expression): SQLBuilder = {
-    raw(sqlFunction).block { addExpression(child) }
+  def sqlFunction(fnName: String, children: Expression*): SQLBuilder = {
+    raw(fnName).block { addExpressions(children, ", ") }
   }
 
   /**
@@ -213,7 +213,7 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
         case TimestampType | DateType => block {
           raw("UNIX_TIMESTAMP")
           block { addExpression(child) }
-          // JDBC Timestamp is in nanosecond precision, but MemSQL is microsecond
+          // JDBC Timestamp is in millisecond precision, but MemSQL is second
           raw(" * 1000")
         }
         case _ => TypeConversions.DataFrameTypeToMemSQLCastType(t) match {
@@ -228,8 +228,6 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
         }
       }
 
-      case Not(inner) => raw("NOT").block { addExpressions(Seq(inner), " AND ") }
-
       case StartsWith(a: Attribute, Literal(v: UTF8String, StringType)) =>
         attr(a).raw(" LIKE ?").param(s"${v.toString}%")
       case EndsWith(a: Attribute, Literal(v: UTF8String, StringType)) =>
@@ -237,18 +235,30 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
       case Contains(a: Attribute, Literal(v: UTF8String, StringType)) =>
         attr(a).raw(" LIKE ?").param(s"%${v.toString}%")
 
-      case IsNull(a: Attribute) => attr(a).raw(" IS NULL")
-      case IsNotNull(a: Attribute) => attr(a).raw(" IS NOT NULL")
-
       case InSet(a: Attribute, set) => attr(a).raw(" IN ").paramList(set.toSeq, a.dataType)
 
       case In(a: Attribute, list) if list.forall(_.isInstanceOf[Literal]) =>
         attr(a).raw(" IN ").paramList(list, a.dataType)
 
-      // AGGREGATE PATTERNS
+      case Concat(children) => sqlFunction("CONCAT", children:_*)
+      case ConcatWs(children) if children.length > 1 => sqlFunction("CONCAT_WS", children:_*)
 
-      case Count(child) => unarySQLFunction("COUNT", child)
+      case Least(children) => sqlFunction("LEAST", children:_*)
+      case Greatest(children) => sqlFunction("GREATEST", children:_*)
+
+      case Coalesce(children) => sqlFunction("COALESCE", children:_*)
+
+      //case StringLocate(substr, str, start) => sqlFunction("LOCATE", substr, str, start)
+      //case Substring(str, pos, len) => sqlFunction("SUBSTR", str, pos, len)
+      //case StringRPad(str, len, pad) => sqlFunction("RPAD", str, len, pad)
+      //case StringLPad(str, len, pad) => sqlFunction("LPAD", str, len, pad)
+
+      case SubstringIndex(str, delim, count) => sqlFunction("SUBSTRING_INDEX", str, delim, count)
+
+      // AGGREGATE EXPRESSIONS
+
       case CountDistinct(children) => raw("COUNT(DISTINCT ").addExpressions(children, ", ").raw(")")
+      case SumDistinct(child) => raw("SUM(DISTINCT ").addExpression(child).raw(")")
 
       // NOTE: MemSQL does not allow the user to configure relativeSD,
       // so we only can pushdown if the user asks for up to the maximum
@@ -256,30 +266,42 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
       case ApproxCountDistinct(child, relativeSD) if relativeSD >= 0.01 =>
         raw("APPROX_COUNT_DISTINCT").block { addExpression(child) }
 
-      case Sum(child) => unarySQLFunction("SUM", child)
-      case Average(child) => unarySQLFunction("AVG", child)
-      case Max(child) => unarySQLFunction("MAX", child)
-      case Min(child) => unarySQLFunction("MIN", child)
-
       case SortOrder(child: Expression, Ascending) => block { addExpression(child) }.raw(" ASC")
       case SortOrder(child: Expression, Descending) => block { addExpression(child) }.raw(" DESC")
 
       // UNARY EXPRESSIONS
+      // These are special cases - see SimpleUnaryExpression
 
-      case Year(child) => unarySQLFunction("YEAR", child)
-      case Month(child) => unarySQLFunction("MONTH", child)
-      case Hour(child) => unarySQLFunction("HOUR", child)
-      case Minute(child) => unarySQLFunction("MINUTE", child)
-      case Second(child) => unarySQLFunction("SECOND", child)
-      case DayOfMonth(child) => unarySQLFunction("DAYOFMONTH", child)
-      case DayOfYear(child) => unarySQLFunction("DAYOFYEAR", child)
-      case WeekOfYear(child) => unarySQLFunction("WEEKOFYEAR", child)
-      case Quarter(child) => unarySQLFunction("QUARTER", child)
+      case Rand(seed) => sqlFunction("RAND", Literal(seed))
+
+      case ToDate(child) => sqlFunction("DATE", child)
+      case BitwiseNot(child) => sqlFunction("~", child)
+      case UnaryMinus(child) => sqlFunction("-", child)
+
+      case Log2(child) => sqlFunction("LOG", Literal(2), child) // scalastyle:ignore
+      case Log10(child) => sqlFunction("LOG", Literal(10), child) // scalastyle:ignore
+
+      case Signum(child) => sqlFunction("SIGN", child)
+      case ToRadians(child) => sqlFunction("RADIANS", child)
+      case ToDegrees(child) => sqlFunction("DEGREES", child)
+
+      case Not(child) => sqlFunction("NOT", child)
+
+      case IsNull(child) => block { addExpression(child) }.raw(" IS NULL")
+      case IsNotNull(child) => block { addExpression(child) }.raw(" IS NOT NULL")
+
+      case Length(child) => sqlFunction("CHAR_LENGTH", child)
+
+      // TODO: handle this and the no-argument case
+      // case UnixTimestamp(child) => sqlFunction("UNIX_TIMESTAMP", child)
 
       // BINARY OPERATORS
 
-      case MaxOf(left, right) => raw("GREATEST").block { addExpressions(Seq(left, right), ", ") }
-      case MinOf(left, right) => raw("LEAST").block { addExpressions(Seq(left, right), ", ") }
+      case Logarithm(left, right) => sqlFunction("LOG", left, right) // scalastyle:ignore
+      case MaxOf(left, right) => sqlFunction("GREATEST", left, right)
+      case MinOf(left, right) => sqlFunction("LEAST", left, right)
+
+      case Like(left, right) => addExpression(left).raw(" LIKE ").addExpression(right)
 
       // a pmod b := (a % b + b) % b
       case Pmod(left, right) =>
@@ -291,11 +313,16 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
           }.raw(" % ").addExpression(right)
         }
 
-      // All Spark BinaryOperator symbols work in SQL expressions, except for the three handled above
+      // GENERIC HANDLERS
+
+      // All Spark BinaryOperator symbols work in SQL expressions, except
+      // for the three handled above.
       case op @ SQLBuilder.BinaryOperator(left: Expression, right: Expression) =>
         block { addExpression(left).raw(s" ${op.symbol} ").addExpression(right) }
+
+      case SimpleUnaryExpression(name, child) => sqlFunction(name, child)
+      case SimpleBinaryExpression(name, children) => sqlFunction(name, children:_*)
     }
     this
   }
-
 }

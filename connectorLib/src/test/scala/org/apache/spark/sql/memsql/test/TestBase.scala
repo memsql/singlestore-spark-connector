@@ -6,6 +6,7 @@ import java.sql.{PreparedStatement, Statement, Connection}
 
 import com.memsql.spark.connector.{MemSQLContext, MemSQLConnectionPool}
 import com.memsql.spark.connector.util.MemSQLConnectionInfo
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.{SparkContext, SparkConf}
 import com.memsql.spark.connector.util.JDBCImplicits._
 
@@ -23,10 +24,10 @@ trait TestBase {
     MemSQLConnectionInfo("127.0.0.1", 3306, "root", "", dbName) // scalastyle:ignore
 
   var sc: SparkContext = null
+  var sqlContext: SQLContext = null
   var msc: MemSQLContext = null
 
   def sparkUp(local: Boolean=false): Unit = {
-    // before we create the spark context lets make sure we can connect to MemSQL
     recreateDatabase
 
     var conf = new SparkConf()
@@ -42,12 +43,14 @@ trait TestBase {
     }
 
     sc = new SparkContext(conf)
+    sqlContext = new SQLContext(sc)
     msc = new MemSQLContext(sc)
   }
 
   def sparkDown: Unit = {
     sc.stop()
     sc = null
+    sqlContext = null
     msc = null
     // To avoid Akka rebinding to the same port, since it doesn't unbind immediately on shutdown
     System.clearProperty("spark.driver.port")

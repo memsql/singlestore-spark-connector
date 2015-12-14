@@ -1,7 +1,7 @@
 package com.memsql.spark.pushdown
 
 import com.memsql.spark.connector.util.MetadataUtils
-import org.apache.spark.SparkContext
+import org.apache.spark.{Logging, SparkContext}
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans.Inner
 import org.apache.spark.sql.catalyst.plans.logical._
@@ -34,7 +34,7 @@ object MemSQLPushdownStrategy {
   }
 }
 
-class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
+class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy with Logging {
   def apply(plan: LogicalPlan): Seq[SparkPlan] = {
     val fieldIdIter = Iterator.from(1).map(n => s"f_$n")
 
@@ -47,7 +47,10 @@ class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
     } catch {
       // In the case that we fail to handle the plan we will raise MatchError.
       // Return Nil to let another strategy handle this tree.
-      case _: MatchError => Nil
+      case e: MatchError => {
+        logDebug(s"Failed to match plan: $e")
+        Nil
+      }
     }
   }
 
@@ -65,7 +68,7 @@ class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
         )
       )
 
-    case Project(fields, child) =>
+    case Project(fields, child) if fields.nonEmpty =>
       for {
         subTree <- buildQueryTree(fieldIdIter, alias.child, child)
         expressions = renameExpressions(fieldIdIter, fields)

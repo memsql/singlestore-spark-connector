@@ -6,7 +6,6 @@ import org.scalatest.{BeforeAndAfterAll, Suite}
 trait SharedMemSQLContext extends TestBase with BeforeAndAfterAll {self: Suite =>
   override def beforeAll() {
     sparkUp(local = true)
-    recreateDatabase
     super.beforeAll()
   }
 

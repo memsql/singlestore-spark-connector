@@ -2,8 +2,10 @@
 
 package org.apache.spark.sql.memsql.test
 
+import com.memsql.spark.connector.sql.{TableIdentifier, MemSQLTable}
 import org.apache.spark.sql.{DataFrame, Row}
 import com.memsql.spark.connector.util.JDBCImplicits._
+import com.memsql.spark.connector._
 
 object TestUtils {
   def setupBasic(test: TestBase): Unit = {
@@ -33,48 +35,27 @@ object TestUtils {
     })
   }
 
-  def setupAllMemSQLTypes(test: TestBase, nullable: Boolean, types: Seq[TestData.MemSQLType]): Unit = {
-    test.withConnection(conn => {
-      conn.withStatement(stmt => {
-        val (tbName, nullability) = if (nullable) {
-          ("alltypes_nullable", "NULL DEFAULT NULL")
-        } else {
-          ("alltypes_not_null", "NOT NULL")
-        }
+  def setupAllMemSQLTypes(test: TestBase, types: Seq[TestData.MemSQLType]): String = {
+    val tbName = "alltypes"
+    val tableDefn = MemSQLTable(TableIdentifier(tbName), types.map(_.columnDefn), Nil)
 
-        stmt.execute(s"DROP TABLE IF EXISTS $tbName")
-
-        val columns = types
-          .map(t => s"${t.name} $nullability")
-          .mkString(", ")
-
-        stmt.execute(s"""
-          CREATE TABLE $tbName (
-            $columns, shard()
-          )
-        """)
-
-        // all types must have the same number of sampleValues
-        val numSampleValues = types(0).sampleValues.length
-
-        val insertValues = Range(0, numSampleValues)
-          .map(i => {
-            val values = types.map(t => t.sampleValues(i))
-                 .map(s => s"'$s'")
-                 .mkString(",")
-            s"($values)"
-          })
-          .mkString(",")
-
-        stmt.execute(s"INSERT INTO $tbName VALUES $insertValues")
-
-        if (nullable) {
-          // insert an entire row of nulls if the table is nullable
-          val values = types.map(_ => "NULL").mkString(",")
-          stmt.execute(s"INSERT INTO $tbName VALUES ($values)")
-        }
-      })
+    test.withStatement(stmt => {
+      stmt.execute(s"DROP TABLE IF EXISTS $tbName")
+      stmt.execute(tableDefn.toSQL)
     })
+
+    val table = test.msc.table(tbName)
+    val numRows = types(0).sampleValues.length
+    val values = Range(0, numRows).map(i => {
+      Row.fromSeq(types.map(_.sampleValues(i)))
+    })
+    val nullRow = Seq(Row.fromSeq(types.map(_ => null)))
+    val rdd = test.sc.parallelize(values ++ nullRow)
+
+    val df = test.msc.createDataFrame(rdd, table.schema)
+    df.saveToMemSQL(tbName)
+
+    tbName
   }
 
   def collectAndSort(df: DataFrame, asString: Boolean = false, convertBooleans: Boolean = false): Seq[Row] = {
