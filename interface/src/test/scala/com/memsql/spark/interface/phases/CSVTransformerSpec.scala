@@ -1,3 +1,4 @@
+// scalastyle:off magic.number
 package com.memsql.spark.interface.phases
 
 import java.sql.Timestamp
