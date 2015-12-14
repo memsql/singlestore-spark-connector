@@ -78,7 +78,11 @@ class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy {
         inner=subTree
       )
 
-    case Aggregate(groups, fields, child) =>
+    // NOTE: The Catalyst optimizer will sometimes produce an aggregate with empty fields.
+    // (Try "select count(*) from (select count(*) from foo) bar".) Spark seems to treat
+    // it as a single empty tuple; we're not sure whether this is defined behavior, so we
+    // let Spark handle that case to avoid any inconsistency.
+    case Aggregate(groups, fields, child) if fields.nonEmpty =>
       for {
         subTree <- buildQueryTree(fieldIdIter, alias.child, child)
         expressions = renameExpressions(fieldIdIter, fields)

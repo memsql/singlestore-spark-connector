@@ -2,6 +2,7 @@
 
 package org.apache.spark.sql.memsql
 
+import com.memsql.spark.pushdown.MemSQLPushdownStrategy
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.memsql.test.SharedMemSQLContext
 import org.scalatest.{Matchers, FlatSpec}
@@ -30,4 +31,12 @@ class BugfixSpec extends FlatSpec with SharedMemSQLContext with Matchers {
     join.collect should equal (expected)
   }
 
+  "PushdownStrategy" should "skip plans with empty aggregates" in {
+    recreateSimpleTable
+    val df = msc.sql("SELECT COUNT(*) FROM (SELECT COUNT(*) FROM foo) x")
+    val plan = df.queryExecution.optimizedPlan
+    val strategy = new MemSQLPushdownStrategy(sc)
+
+    strategy(plan) should be (Nil)
+  }
 }
