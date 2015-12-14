@@ -82,9 +82,6 @@ object TestExpressions {
          TimeAdd(_, _) |
          TimeSub(_, _) |
          AddMonths(_, _) |
-//         Second(_) |
-//         Hour(_) |
-//         Minute(_) |
          Exp(_) |
          Randn(_) |
          Hypot(_, _) |
