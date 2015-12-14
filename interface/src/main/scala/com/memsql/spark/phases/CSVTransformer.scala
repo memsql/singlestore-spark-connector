@@ -1,10 +1,14 @@
 package com.memsql.spark.phases
 
+import com.memsql.spark.connector.dataframe.BigIntUnsignedType
 import com.memsql.spark.etl.api.{StringTransformer, PhaseConfig}
 import com.memsql.spark.etl.utils.{PhaseLogger, SimpleJsonSchema}
 import org.apache.commons.csv._
 import org.apache.spark.rdd._
 import org.apache.spark.sql._
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.catalyst.util._
+import org.apache.spark.unsafe.types.UTF8String
 import spray.json.JsValue
 
 import scala.collection.JavaConversions._
@@ -30,7 +34,11 @@ class CSVTransformer extends StringTransformer {
     val parsedRDD = rdd.flatMap(parseCSVLines(_, csvFormat))
 
     val nulledRDD = nullString match {
-      case Some(nullS) => parsedRDD.map(x => x.map(y => if (y.trim() == nullS) None else y))
+      case Some(nullS) => parsedRDD.map { line =>
+        line.map { value =>
+          if (value.trim() == nullS) null else value
+        }
+      }
       case None => parsedRDD
     }
 
@@ -44,8 +52,32 @@ class CSVTransformer extends StringTransformer {
       }
       val values = x
         .zip(columns)
-        .filter{ case (value, column) =>  !column.skip.getOrElse(false) }
-        .map{ case (value, column) => value }
+        .filter { case (value, column) => !column.skip.getOrElse(false) }
+        .map {
+          case (null, _) => null
+          case (value, column) => {
+            column.column_type match {
+              case Some(ShortType) => value.toShort
+              case Some(IntegerType) => value.toInt
+              case Some(LongType) => value.toLong
+              case Some(BigIntUnsignedType) => value.toLong
+              case Some(FloatType) => value.toFloat
+              case Some(DoubleType) => value.toDouble
+              case Some(BooleanType) => value.toBoolean
+              case Some(TimestampType) => {
+                DateTimeUtils.stringToTimestamp(UTF8String.fromString(value)) match {
+                  case None => null
+                  case Some(timestamp) => DateTimeUtils.toJavaTimestamp(timestamp)
+                }
+              }
+              case Some(ByteType) => value.toByte
+              case Some(BinaryType) => value.map(_.toByte).toArray
+
+              // None, StringType, JsonType, GeographyType, GeographyPointType
+              case _ => value
+            }
+          }
+        }
       Row.fromSeq(values)
     })
     sqlContext.createDataFrame(rowRDD, schema)
