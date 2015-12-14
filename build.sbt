@@ -53,7 +53,8 @@ lazy val commonSettings = Seq(
   },
   publishMavenStyle := true,
   publishArtifact in Test := false,
-  pomIncludeRepository := { _ => false }
+  pomIncludeRepository := { _ => false },
+  javaVersionPrefix in javaVersionCheck := Some("1.7")
 )
 
 lazy val connectorLib = (project in file("connectorLib")).
