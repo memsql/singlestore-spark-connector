@@ -61,11 +61,12 @@ class InsertQuerySpec extends FlatSpec {
     query = new InsertQuery(tableFrag, SaveMode.Append).buildQuery(rows)
     assert(query.contains(" VALUES (?,?),(?,?)"))
 
+    rows = List(Row())
+    query = new InsertQuery(tableFrag, SaveMode.Append, Some("FOO")).buildQuery(rows)
+    assert(query.contains(" VALUES () ON DUPLICATE KEY UPDATE FOO"))
+
     intercept[IllegalArgumentException] {
       new InsertQuery(tableFrag, SaveMode.Append, Some("FOO")).buildQuery(Nil)
-    }
-    intercept[IllegalArgumentException] {
-      new InsertQuery(tableFrag, SaveMode.Append, Some("FOO")).buildQuery(List(Row()))
     }
     intercept[IllegalArgumentException] {
       new InsertQuery(tableFrag, SaveMode.Append, Some("FOO")).buildQuery(List(Row(1), Row(2,3)))

@@ -19,7 +19,7 @@ class MemSQLColumnSpec extends FlatSpec {
     assert(
       ColumnDefinition("bar baz", "DECIMAL(32,30)", true).toSQL ==
       "`bar baz` DECIMAL(32,30) NULL DEFAULT NULL")
-    assert(ColumnDefinition("bar", "TEXT", false).toSQL == "`bar` TEXT NOT NULL DEFAULT '0'")
+    assert(ColumnDefinition("bar", "TEXT", false).toSQL == "`bar` TEXT NOT NULL DEFAULT ''")
 
     // we should not add a default "default expression" for timestamp
     assert(ColumnDefinition("bar", "timestamp", false).toSQL == "`bar` timestamp NOT NULL ")

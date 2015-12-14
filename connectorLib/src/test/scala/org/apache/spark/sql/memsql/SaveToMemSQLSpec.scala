@@ -1,8 +1,10 @@
 package org.apache.spark.sql.memsql
 
 import com.memsql.spark.connector.sql.TableIdentifier
+import org.apache.spark.sql._
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.memsql.SparkImplicits._
 import org.apache.spark.sql.memsql.test.SharedMemSQLContext
-import org.apache.spark.sql.types.{IntegerType, TimestampType, StructField}
 import org.scalatest.{Matchers, FlatSpec}
 
 class SaveToMemSQLSpec extends FlatSpec with SharedMemSQLContext with Matchers {

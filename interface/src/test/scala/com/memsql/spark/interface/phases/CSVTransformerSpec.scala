@@ -224,12 +224,19 @@ class CSVTransformerSpec extends TestKitSpec("CSVTransformerSpec") with LocalSpa
       val transformedValues = transformedDf.first().toSeq.toList.map {
         // convert arrays for comparison
         case arr: Array[_] => arr.toSeq.toList
+
+        // compare raw value for custom types
+        case bigInt: BigIntUnsignedValue => bigInt.value
+        case json: JsonValue => json.value
+        case geo: GeographyValue => geo.value
+        case geoPoint: GeographyPointValue => geoPoint.value
+
         case default => default
       }
       val expectedValues = List(
-        256.toShort, 2048, 10000000.toLong, new BigIntUnsignedValue(999999999), 1.2f, 4.7, false,
+        256.toShort, 2048, 10000000.toLong, new BigIntUnsignedValue(999999999).value, 1.2f, 4.7, false,
         new Timestamp(114, 1, 2, 12, 25, 36, 0), 1.toByte, List('2'.toByte),
-        "string", new JsonValue("[]"), new GeographyValue("geo1"), new GeographyPointValue("geopoint1"), "string2"
+        "string", new JsonValue("[]").value, new GeographyValue("geo1").value, new GeographyPointValue("geopoint1").value, "string2"
       )
 
       assert(transformedValues == expectedValues)

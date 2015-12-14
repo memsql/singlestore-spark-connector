@@ -6,13 +6,6 @@ import org.apache.spark.sql.types._
 @SQLUserDefinedType(udt = classOf[GeographyType])
 class GeographyValue(val value: String) extends Serializable with MemSQLCustomType {
   override def toString: String = value
-
-  override def equals(o: Any): Boolean = {
-    o match {
-      case other: GeographyValue => value == other.value
-      case _ => false
-    }
-  }
 }
 
 /**
@@ -46,13 +39,6 @@ case object GeographyType extends GeographyType
 @SQLUserDefinedType(udt = classOf[GeographyPointType])
 class GeographyPointValue(val value: String) extends Serializable with MemSQLCustomType {
   override def toString: String = value
-
-  override def equals(o: Any): Boolean = {
-    o match {
-      case other: GeographyPointValue => value == other.value
-      case _ => false
-    }
-  }
 }
 
 /**
