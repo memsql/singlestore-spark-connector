@@ -1,7 +1,5 @@
 package com.memsql.spark.examples
 
-import java.sql.DriverManager
-
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.apache.spark.SparkConf

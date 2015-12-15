@@ -20,6 +20,8 @@ object MemSQLConnectionPool {
     newPool.setUsername(info.user)
     newPool.setPassword(info.password)
     newPool.addConnectionProperty("zeroDateTimeBehavior", "convertToNull")
+    newPool.setMaxTotal(-1)
+    newPool.setMaxConnLifetimeMillis(1000 * 60 * 60)
 
     newPool
   }
