@@ -17,7 +17,7 @@ import com.memsql.spark.interface.util.ErrorUtils._
 import ApiActor._
 import com.memsql.spark.interface.util.{PipelineLogger, BaseException}
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.{DataFrame, SQLContext}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.streaming.StreamingContext
 import org.apache.spark.ui.jobs.JobProgressListener
 import scala.collection.mutable.HashSet
@@ -188,6 +188,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         sparkContext.setJobGroup(batch_id, s"Batch for MemSQL Pipeline $pipeline_id", interruptOnCancel = true)
         var extractedTraceDf: DataFrame = null
         var extractedDf: DataFrame = null
+        var extractedDfIsEmpty: Boolean = false
         var upperBound: Long = 0
         extractRecord = runPhase(extractLogger, trace, () => {
           val maybeDf = pipelineInstance.extractor.next(streamingContext, time, sqlContext, pipelineInstance.extractConfig,
@@ -203,7 +204,11 @@ class DefaultPipelineMonitor(override val api: ActorRef,
                 extractedTraceDf = dfs(0)
                 extractedDf = dfs(1)
                 val (columns, records) = getExtractRecords(extractedTraceDf)
-                upperBound = math.max(TRACED_RECORDS_PER_BATCH, extractedTraceDf.count)
+                val extractedTraceDfCount = extractedTraceDf.count
+                upperBound = math.max(TRACED_RECORDS_PER_BATCH, extractedTraceDfCount)
+                if (extractedTraceDfCount == count.get) {
+                  extractedDfIsEmpty = true
+                }
                 PhaseResult(count = count, columns = columns, records = records)
               } else {
                 extractedDf = df
@@ -217,7 +222,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           }
         })
 
-        var transfomedTraceDf: DataFrame = null
+        var transformedTraceDf: DataFrame = null
         var transformedDf: DataFrame = null
         var tracedTransformLogger: PipelineLogger = null
         if (extractedTraceDf != null) {
@@ -232,26 +237,34 @@ class DefaultPipelineMonitor(override val api: ActorRef,
             if (extractedTraceDf != null) {
               // We use a new logger for the trace because we want to
               // only get logs for the traced records.
-              transfomedTraceDf = pipelineInstance.transformer.transform(
+              transformedTraceDf = pipelineInstance.transformer.transform(
                 sqlContext, extractedTraceDf, pipelineInstance.transformConfig,
                 tracedTransformLogger)
-              if (transfomedTraceDf == null) {
+              if (transformedTraceDf == null) {
                 throw new PipelineMonitorException(s"Transformer for pipeline $pipeline_id returned null instead of a DataFrame")
               }
-              tracedCount = transfomedTraceDf.count
+              tracedCount = transformedTraceDf.count
             }
-            transformedDf = pipelineInstance.transformer.transform(
-              sqlContext, extractedDf, pipelineInstance.transformConfig,
-              transformLogger)
+            if (extractedDfIsEmpty && transformedTraceDf != null) {
+              // If we're in trace mode and all of our records are in
+              // extractedTraceDf, don't call transform() with an empty
+              // DataFrame, since this can crash Python transformers; instead,
+              // just create an empty DataFrame.
+              transformedDf = sqlContext.createDataFrame(sparkContext.emptyRDD[Row], transformedTraceDf.schema)
+            } else {
+              transformedDf = pipelineInstance.transformer.transform(
+                sqlContext, extractedDf, pipelineInstance.transformConfig,
+                transformLogger)
+            }
             if (transformedDf == null) {
               throw new PipelineMonitorException(s"Transformer for pipeline $pipeline_id returned null instead of a DataFrame")
             } else if (trace) {
               var count: Option[Long] = None
               var columns: Option[List[(String, String)]] = None
               var records: Option[List[List[String]]] = None
-              if (transfomedTraceDf != null) {
+              if (transformedTraceDf != null) {
                 count = Some(tracedCount + transformedDf.count)
-                val columnsAndRecords = getTransformRecords(transfomedTraceDf, upperBound)
+                val columnsAndRecords = getTransformRecords(transformedTraceDf, upperBound)
                 columns = columnsAndRecords._1
                 records = columnsAndRecords._2
               }
@@ -264,8 +277,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
         val loadLogger = getPhaseLogger("load")
         if (transformedDf != null) {
-          if (transfomedTraceDf != null) {
-            transformedDf = transformedDf.unionAll(transfomedTraceDf)
+          if (transformedTraceDf != null) {
+            transformedDf = transformedDf.unionAll(transformedTraceDf)
           }
           loadRecord = runPhase(loadLogger, trace, () => {
             logDebug(s"Loading RDD for pipeline $pipeline_id")
