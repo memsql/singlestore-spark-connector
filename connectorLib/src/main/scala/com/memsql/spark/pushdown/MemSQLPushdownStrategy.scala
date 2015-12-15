@@ -67,7 +67,13 @@ class MemSQLPushdownStrategy(sparkContext: SparkContext) extends Strategy with L
         )
       )
 
-    case Project(fields, child) if fields.nonEmpty =>
+    // ignore Project with no fields
+    case Project(Nil, child) =>
+      for {
+        subTree <- buildQueryTree(fieldIdIter, alias.child, child)
+      } yield subTree
+
+    case Project(fields, child) =>
       for {
         subTree <- buildQueryTree(fieldIdIter, alias.child, child)
         expressions = renameExpressions(fieldIdIter, fields)
