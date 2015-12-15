@@ -1,5 +1,7 @@
 package com.memsql.spark.interface.util
 
+import java.io.InputStream
+
 import org.apache.commons.io.IOUtils
 
 class ProcessMonitorException(message: String) extends BaseException(message)
@@ -31,12 +33,16 @@ trait ProcessMonitor {
 
   def ensureAlive: Unit = {
     if (!isAlive) {
+      val processOutput = getOutput
+
+      // clean up any files after retrieving process output
       cleanup()
 
-      val stdOut = IOUtils.toString(process.getInputStream)
-      throw new ProcessMonitorException(s"Process terminated with exit code ${process.exitValue()}: $stdOut")
+      throw new ProcessMonitorException(s"Process terminated with exit code ${process.exitValue()}: $processOutput")
     }
   }
+
+  def getOutput: String = IOUtils.toString(process.getInputStream)
 
   def stop: Int = {
     Runtime.getRuntime.exec(s"kill -INT $pid")

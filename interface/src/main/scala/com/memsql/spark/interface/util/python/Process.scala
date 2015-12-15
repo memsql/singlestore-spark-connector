@@ -1,10 +1,10 @@
 package com.memsql.spark.interface.util.python
 
-import java.io.File
+import java.io.{FileInputStream, File}
 import java.nio.file.Files
 import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.util.ProcessMonitor
-import org.apache.commons.io.FilenameUtils
+import org.apache.commons.io.{IOUtils, FilenameUtils}
 
 trait PythonPhaseProcess extends ProcessMonitor with Logging {
   def componentType: String
@@ -25,12 +25,21 @@ trait PythonPhaseProcess extends ProcessMonitor with Logging {
   val pathElements = Seq(pythonModuleDir, Utils.sparkPythonPath, sys.env.getOrElse("PYTHONPATH", ""))
   val pythonPath = Utils.mergePythonPaths(pathElements: _*)
 
+  val logFile: File = {
+    val moduleName = pyFile.getName.stripSuffix(".py")
+    val tmpDir = System.getProperty("java.io.tmpdir")
+    new File(tmpDir, s"python$moduleName.log")
+  }
+
+  override def getOutput: String = IOUtils.toString(new FileInputStream(logFile))
+
   override def cmd: Seq[String] = {
     pythonExec ++ Seq(componentType.toString, pythonClass, javaPort.toString, pythonPort.toString)
   }
 
   override def setup(builder: ProcessBuilder): Unit = {
     builder.redirectErrorStream(true) // combine stdout and stderr
+    builder.redirectOutput(logFile)
 
     val env = builder.environment()
     env.put("PYTHONPATH", pythonPath)
@@ -39,10 +48,15 @@ trait PythonPhaseProcess extends ProcessMonitor with Logging {
   }
 
   override def cleanup(): Unit = {
+    tryDeleteFile(pyFile)
+    tryDeleteFile(logFile)
+  }
+
+  def tryDeleteFile(file: File): Unit = {
     try {
-      Files.deleteIfExists(pyFile.toPath)
+      Files.deleteIfExists(file.toPath)
     } catch {
-      case e: Exception => logWarn(s"Could not delete file $pyFile: ${e.getMessage}")
+      case e: Exception => logWarn(s"Could not delete file $file: ${e.getMessage}")
     }
   }
 }
