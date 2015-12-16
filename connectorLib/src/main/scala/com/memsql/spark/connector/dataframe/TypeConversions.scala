@@ -2,6 +2,7 @@ package com.memsql.spark.connector.dataframe
 
 import java.sql.{ResultSet, ResultSetMetaData, Types => JDBCTypes}
 
+import com.google.common.primitives.{UnsignedLongs, UnsignedLong}
 import org.apache.spark.sql.types._
 
 object TypeConversions {
@@ -59,7 +60,10 @@ object TypeConversions {
       case JDBCTypes.TINYINT => ShortType
       case JDBCTypes.SMALLINT => ShortType
       case JDBCTypes.INTEGER => IntegerType
-      case JDBCTypes.BIGINT => LongType
+      case JDBCTypes.BIGINT => rsmd.isSigned(ix) match {
+        case true => LongType
+        case _ => BigIntUnsignedType
+      }
 
       case JDBCTypes.DOUBLE => DoubleType
       case JDBCTypes.NUMERIC => DoubleType
@@ -85,16 +89,20 @@ object TypeConversions {
       case JDBCTypes.VARBINARY => BinaryType
       case JDBCTypes.LONGVARBINARY => BinaryType
       case JDBCTypes.BLOB => BinaryType
+
       case _ => throw new IllegalArgumentException("Can't translate type " + rsmd.getColumnTypeName(ix))
     }
   }
 
-  def GetJDBCValue(dataType: Int, ix: Int, row: ResultSet): Any = {
+  def GetJDBCValue(dataType: Int, isSigned: Boolean, ix: Int, row: ResultSet): Any = {
     val result = dataType match {
       case JDBCTypes.TINYINT => row.getShort(ix)
       case JDBCTypes.SMALLINT => row.getShort(ix)
       case JDBCTypes.INTEGER => row.getInt(ix)
-      case JDBCTypes.BIGINT => row.getLong(ix)
+      case JDBCTypes.BIGINT => isSigned match {
+        case true => row.getLong(ix)
+        case _ => UnsignedLongs.parseUnsignedLong(row.getString(ix))
+      }
 
       case JDBCTypes.DOUBLE => row.getDouble(ix)
       case JDBCTypes.NUMERIC => row.getDouble(ix)

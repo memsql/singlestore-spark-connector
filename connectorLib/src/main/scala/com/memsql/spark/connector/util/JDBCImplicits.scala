@@ -22,7 +22,8 @@ object JDBCImplicits {
 
       Row.fromSeq(Range(0, columnCount).map(i => {
         val columnType = rs.getMetaData.getColumnType(i + 1)
-        TypeConversions.GetJDBCValue(columnType, i + 1, rs)
+        val isSigned = rs.getMetaData.isSigned(i + 1)
+        TypeConversions.GetJDBCValue(columnType, isSigned, i + 1, rs)
       }))
     }
 
