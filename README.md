@@ -39,90 +39,75 @@ The connector provides a number of integrations with Apache Spark including a cu
 The MemSQL Context maintains metadata about a MemSQL cluster and extends the Spark SQLContext.
 
 ```
-import com.memsql.spark.context.MemSQLContext
+import com.memsql.spark.connector.MemSQLContext
 
-// note: The connection details below should point at your MemSQL Master Aggregator
-val memsqlContext = new MemSQLContext(sparkContext, dbHost, dbPort, dbUser, dbPass)
+// NOTE: The connection details for your MemSQL Master Aggregator must be in
+// the Spark configuration. See http://memsql.github.io/memsql-spark-connector/latest/api/#com.memsql.spark.connector.MemSQLConf
+// for details.
+val memsqlContext = new MemSQLContext(sparkContext)
 
-val myTableDF = memsqlContext.createDataFrameFromMemSQLTable("my_database", "my_table")
+val myTableDF = memsqlContext.table("my_table")
 // myTableDF now is a Spark DataFrame which represents the specified MemSQL table
 // and can be queried using Spark DataFrame query functions
 ```
 
-###MemSQL Data Frame Support
-
-You can use the constructor `MemSQLDataFrame.MakeMemSQLDF` to construct a Spark DataFrame from a MemSQL table.
+You can also use `memsqlContext.sql` to pull arbitrary tables and expressions
+into a `DataFrame`
 
 ```
-import com.memsql.spark.connector.dataframe.MemSQLDataFrame
-
-val df = MemSQLDataFrame.MakeMemSQLDF(
-    sqlContext, dbHost, dbPort,
-    dbUser, dbPassword, dbName,
-    "SELECT * FROM test_table")
+val df = memsqlContext.sql("SELECT * FROM test_table")
 
 val result = df.select(df("test_column")).where(df("other_column") === 1).limit(1)
 // Result now contains the first row where other_column == 1
 ```
 
-###MemSQLRDD
-
-The MemSQLRDD reads rows out of a MemSQL database.
-
+Additionally you can use the `DataFrameReader` API
 ```
-import com.memsql.spark.connector.rdd.MemSQLRDD
-
-...
-
-val rdd = new MemSQLRDD(
-    sc = sparkContext,
-    dbHost = dbHost,
-    dbPort = dbPort,
-    user = dbUser,
-    password = dbPassword,
-    dbName = dbName,
-    sql = "SELECT * FROM test_table",
-    mapRow = (r: ResultSet) => { r.getString("test_column") })
-
-rdd.first()  // Contains the value of "test_column" for the first row
+val df = memsqlContext.read.format("com.memsql.spark.connector").load("db.table")
 ```
-
-Note that you can provide a mapRow function that can map rows in the query
-results to a return type of your choice.
 
 ###saveToMemsql
 
-The saveToMemsql function writes an array-based RDD to a MemSQL table.
+The saveToMemsql function writes a `DataFrame` to a MemSQL table.
 
 ```
-import com.memsql.spark.connector._
+import org.apache.spark.sql._
+import org.apache.spark.sql.types._
+import org.apache.spark.sql.memsql.SparkImplicits._
 
 ...
 
-val rdd = sc.parallelize(Array(Array("foo", "bar"), Array("baz", "qux")))
-rdd.saveToMemsql(dbHost, dbPort, dbUser, dbPassword, dbName, outputTableName, insertBatchSize=1000)
+val rdd = sc.parallelize(Array(Row("foo", "bar"), Row("baz", "qux")))
+val schema = StructType(Seq(StructField("col1", StringType, false),
+                            StructField("col2", StrindType, false)))
+val df = sqlContext.createDataFrame(rdd, schema)
+df.saveToMemSQL("db", "table")
+```
+
+You can also use the `DataFrameWriter` API
+```
+df.write.format("com.memsql.spark.connector").save("db.table")
 ```
 
 Using
 -----
 
-The recommended way to depend on the above projects is via our private Maven repository [maven.memsql.com](maven.memsql.com).  You can do this in your build.sbt file for [Simple Build
-Tool (aka sbt)](http://www.scala-sbt.org/) integration.  Add the following line at the top level of your build.sbt to add our repo:
+In order to compile this library you must have the [Simple Build
+Tool (aka sbt)](http://www.scala-sbt.org/) installed.
+
+Artifacts are published to Maven Central [http://repo1.maven.org/maven2/com/memsql/].
+
+Inside a project definition you can depend on our MemSQL Connector like so:
 
 ```
-resolvers += "memsql" at "http://maven.memsql.com"
+libraryDependencies  += "com.memsql" %% "memsql-connector" % "VERSION"
 ```
 
-Then inside a project definition you can depend on our libraries like so:
+And our ETL interface for [MemSQL Streamliner](http://memsql.github.io/spark-streamliner):
 
 ```
 libraryDependencies  += "com.memsql" %% "memsql-etl" % "VERSION"
 ```
-
-We also support packaging the MemSQL Spark Connector from source. Run ``make package`` to compile this connector.  This will create a directory called ``distribution/dist/memsql-<version number>``, which will contain a .jar file. Simply put this .jar file in your class path to use this library.
-
-In order to compile this library you must have the [Simple Build
-Tool (aka sbt)](http://www.scala-sbt.org/) installed.
 
 Building
 --------
@@ -141,12 +126,7 @@ Testing
 All unit tests can be run via sbt.  They will also run at build time automatically.
 
 ```
+sbt 'project etlLib' test
+sbt 'project connectorLib' test
 sbt 'project interface' test
 ```
-
-Tweaks
-------
-The saveToMemsql function has an optional insertBatchSize argument. This
-controls the size of the INSERT queries that we generate when inserting data
-into MemSQL.  We build these queries in-memory, so if you find that your
-executors are running out of memory, consider lowering this value.

@@ -24,8 +24,6 @@ import org.apache.spark.SparkException
  * }
  * dfb.finishDataFrame(sqlContext, rowRDD)
  * }}}
- *
- * see also: [[com.memsql.spark.context.MemSQLContext.getTableSchema]]
  */
 case class DataFrameBuilder(schema: StructType) extends Serializable {
   val colNames: Array[String] = schema.map((col: StructField) => col.name).toArray

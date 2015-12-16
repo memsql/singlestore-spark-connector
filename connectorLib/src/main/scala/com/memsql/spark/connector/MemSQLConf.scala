@@ -8,6 +8,35 @@ import org.apache.spark.sql.memsql.CompressionType.CompressionType
 import org.apache.spark.sql.memsql.CreateMode.CreateMode
 import org.apache.spark.sql.memsql.{CreateMode, CompressionType}
 
+/**
+ * Configuration for a MemSQL cluster. By default these parameters are set by the corresponding
+ * value in the Spark configuration.
+ *
+ * @param masterHost Hostname of the MemSQL Master Aggregator. Corresponds to "memsql.host"
+ *                   in the Spark configuration.
+ * @param masterPort Port of the MemSQL Master Aggregator. Corresponds to "memsql.port"
+ *                   in the Spark configuration.
+ * @param user Username to use when connecting to the MemSQL Master Aggregator. Corresponds to
+ *             "memsql.user" in the Spark configuration.
+ * @param password Password to use when connecting to the MemSQL Master Aggregator. Corresponds to
+ *                 "memsql.password" in the Spark configuration.
+ * @param defaultDBName The default database to use when connecting to the cluster. Corresponds to
+ *                      "memsql.defaultDatabase" in the Spark configuration.
+ * @param defaultSaveMode The default [[org.apache.spark.sql.SaveMode]] to use when writingsaving
+ *                        [[org.apache.spark.sql.DataFrame]]s to a MemSQL table. Corresponds to
+ *                        "memsql.defaultSaveMode" in the Spark configuration.
+ * @param defaultCreateMode The default [[org.apache.spark.sql.memsql.CreateMode]] to use
+ *                          when creating a MemSQL table. Corresponds to "memsql.defaultCreateMode"
+ *                          in the Spark configuration.
+ * @param defaultInsertBatchSize The default batch insert size to use when writing to a
+ *                               MemSQL table using [[org.apache.spark.sql.memsql.InsertStrategy]].
+ *                               Corresponds to "memsql.defaultInsertBatchSize" in the Spark
+ *                               configuration.
+ * @param defaultLoadDataCompression The default [[org.apache.spark.sql.memsql.CompressionType]] to
+ *                                   use when writing to a MemSQL table using
+ *                                   [[org.apache.spark.sql.memsql.LoadDataStrategy]]. Corresponds to
+ *                                   "memsql.defaultLoadDataCompression" in the Spark configuration.
+ */
 case class MemSQLConf(masterHost: String,
                       masterPort: Int,
                       user: String,

@@ -2,8 +2,7 @@ package com.memsql.spark.pushdown
 
 import com.memsql.spark.connector.dataframe.TypeConversions
 import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.catalyst.expressions.codegen.{GeneratedExpressionCode, CodeGenContext}
-import org.apache.spark.sql.catalyst.{InternalRow, CatalystTypeConverters, expressions}
+import org.apache.spark.sql.catalyst.{CatalystTypeConverters, expressions}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 
@@ -71,7 +70,7 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
 
   /**
    * Adds a named expression to the builder.
-   * @note Attempts to lookup the expression in [[fields]] if it exists.
+   * @note Attempts to lookup the expression in {@link SQLBuilder#fields} if it exists.
    * @note The expression is fully qualified if possible (ex. `foo`.`bar`)
    */
   def attr(a: Attribute): SQLBuilder = {
@@ -183,7 +182,7 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
 
   /**
    * Adds a list of expressions to this SQLBuilder, joins each expression with the provided conjunction.
-   * @param expressions A list of [[Expression]]s
+   * @param expressions A list of [[org.apache.spark.sql.catalyst.expressions.Expression]]s
    * @param conjunction A string to join the resulting SQL Expressions with
    */
   def addExpressions(expressions: Seq[Expression], conjunction: String): SQLBuilder = {
@@ -205,8 +204,8 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
   }
 
   /**
-   * Adds a Catalyst [[Expression]] to this SQLBuilder
-   * @param expression The [[Expression]] to add
+   * Adds a Catalyst [[org.apache.spark.sql.catalyst.expressions.Expression]] to this SQLBuilder
+   * @param expression The [[org.apache.spark.sql.catalyst.expressions.Expression]] to add
    */
   def addExpression(expression: Expression): SQLBuilder = {
     expression match {
