@@ -36,6 +36,7 @@ select count(*) from(
 ```
 
 Query   | Pushdown? | Time (ms)
+--------|-----------|----------
 1       | no        | 403.50
 1       | no        | 384.16
 1       | no        | 322.19
@@ -55,6 +56,8 @@ order by totalRevenue desc
 limit 10
 ```
 
+Query   | Pushdown? | Time (ms)
+--------|-----------|----------
 2       | no        | 6005.78
 2       | no        | 9216.92
 2       | no        | 6481.49
@@ -73,6 +76,8 @@ order by adTotal desc
 limit 10
 ```
 
+Query   | Pushdown? | Time (ms)
+--------|-----------|----------
 3       | no        | 846.35
 3       | no        | 2232.42
 3       | no        | 2024.86
@@ -96,6 +101,8 @@ order by adTotal desc
 limit 10
 ```
 
+Query   | Pushdown? | Time (ms)
+--------|-----------|----------
 4       | no        | 5230.33
 4       | no        | 5971.84
 4       | no        | 6508.28
