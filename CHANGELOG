@@ -1,3 +1,10 @@
+2015-12-15  Version 1.2.1
+        * Python support for extractors and transformers
+        * More extensive SQL pushdown for DataFrame operations
+        * Use DataFrames as common interface between extractor, transformer, and loader
+        * Rewrite connectorLib internals to support SparkSQL relation provider API
+        * Remove RDD.saveToMemSQL
+
 2015-11-19  Version 1.1.1
         * Set JDBC login timeout to 10 seconds
 
