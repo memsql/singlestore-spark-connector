@@ -15,7 +15,8 @@ lazy val testScalastyle = taskKey[Unit]("testScalastyle")
 lazy val commonSettings = Seq(
   organization := "com.memsql",
   version := "1.2.1",
-  scalaVersion := "2.10.5",
+  scalaVersion := "2.11.7",
+  crossScalaVersions := Seq("2.10.4", "2.11.7"),
   assemblyScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Compile).toTask("").value,
   assembly <<= assembly dependsOn assemblyScalastyle,
   testScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Test).toTask("").value,
@@ -55,7 +56,7 @@ lazy val commonSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { _ => false },
-  javaVersionPrefix in javaVersionCheck := Some("1.7")
+  javaVersionPrefix in javaVersionCheck := Some("1.8")
 )
 
 lazy val connectorLib = (project in file("connectorLib")).
