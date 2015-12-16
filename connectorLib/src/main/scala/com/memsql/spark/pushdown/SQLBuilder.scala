@@ -2,7 +2,8 @@ package com.memsql.spark.pushdown
 
 import com.memsql.spark.connector.dataframe.TypeConversions
 import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.catalyst.{CatalystTypeConverters, expressions}
+import org.apache.spark.sql.catalyst.expressions.codegen.{GeneratedExpressionCode, CodeGenContext}
+import org.apache.spark.sql.catalyst.{InternalRow, CatalystTypeConverters, expressions}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 
@@ -33,6 +34,11 @@ object SQLBuilder {
   object BinaryOperator {
     def unapply(e: expressions.BinaryOperator): Option[(Expression, Expression)] = Some((e.left, e.right))
   }
+}
+
+case class LazySQL(block: SQLBuilder => SQLBuilder) extends LeafExpression with Unevaluable {
+  override def nullable: Boolean = false
+  override def dataType: DataType = null
 }
 
 /**
@@ -228,6 +234,8 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
         }
       }
 
+      case LazySQL(block) => block(this)
+
       case StartsWith(a: Attribute, Literal(v: UTF8String, StringType)) =>
         attr(a).raw(" LIKE ?").param(s"${v.toString}%")
       case EndsWith(a: Attribute, Literal(v: UTF8String, StringType)) =>
@@ -240,6 +248,26 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
       case In(a: Attribute, list) if list.forall(_.isInstanceOf[Literal]) =>
         attr(a).raw(" IN ").paramList(list, a.dataType)
 
+      case If(predicate, trueVal, falseVal) => sqlFunction("IF", predicate, trueVal, falseVal)
+      case CaseWhen(branches) => {
+        raw("CASE ")
+        branches.sliding(2, 2).foreach({
+          case Seq(cond, expr) =>
+            raw("WHEN ").addExpression(cond).raw(" THEN ").addExpression(expr).raw(" ")
+          case Seq(elseExpr) =>
+            raw("ELSE ").addExpression(elseExpr)
+        })
+      }
+      case CaseKeyWhen(key, branches) => {
+        raw("CASE ").addExpression(key).raw(" ")
+        branches.sliding(2, 2).foreach({
+          case Seq(cond, expr) =>
+            raw("WHEN ").addExpression(cond).raw(" THEN ").addExpression(expr).raw(" ")
+          case Seq(elseExpr) =>
+            raw("ELSE ").addExpression(elseExpr)
+        })
+      }
+
       case Concat(children) => sqlFunction("CONCAT", children:_*)
       case ConcatWs(children) if children.length > 1 => sqlFunction("CONCAT_WS", children:_*)
 
@@ -248,10 +276,52 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
 
       case Coalesce(children) => sqlFunction("COALESCE", children:_*)
 
-      //case StringLocate(substr, str, start) => sqlFunction("LOCATE", substr, str, start)
-      //case Substring(str, pos, len) => sqlFunction("SUBSTR", str, pos, len)
-      //case StringRPad(str, len, pad) => sqlFunction("RPAD", str, len, pad)
-      //case StringLPad(str, len, pad) => sqlFunction("LPAD", str, len, pad)
+      case StringLocate(substr, str, start) => {
+        val actualStart = If(
+          // spark compat: if the start position is 0, replace with 1
+          EqualTo(start, Literal(0)),
+          Literal(1),
+          start
+        )
+        addExpression(
+          If(
+            // spark compat: if the start position is null, we need to return 0
+            IsNull(start),
+            Literal(0),
+            If(
+              // spark compat: if the substring is the empty string, always return 1
+              EqualTo(substr, Literal("")),
+              Literal(1),
+              LazySQL(_.sqlFunction("LOCATE", substr, str, actualStart))
+            )
+          )
+        )
+      }
+      case Substring(str, pos, len) => {
+        val actualPos = If(
+          // spark compat: if the start position is 0, replace with 1
+          EqualTo(pos, Literal(0)),
+          Literal(1),
+          pos
+        )
+        sqlFunction("SUBSTR", str, actualPos, len)
+      }
+      case StringRPad(str, len, pad) =>
+        addExpression(
+          If(
+            EqualTo(pad, Literal("")),
+            Substring(str, Literal(0), len),
+            LazySQL(_.sqlFunction("RPAD", str, len, pad))
+          )
+        )
+      case StringLPad(str, len, pad) =>
+        addExpression(
+          If(
+            EqualTo(pad, Literal("")),
+            Substring(str, Literal(0), len),
+            LazySQL(_.sqlFunction("LPAD", str, len, pad))
+          )
+        )
 
       case SubstringIndex(str, delim, count) => sqlFunction("SUBSTRING_INDEX", str, delim, count)
 

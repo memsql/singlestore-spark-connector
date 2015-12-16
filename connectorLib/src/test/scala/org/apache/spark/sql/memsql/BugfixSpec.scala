@@ -4,6 +4,7 @@ package org.apache.spark.sql.memsql
 
 import com.memsql.spark.pushdown.MemSQLPushdownStrategy
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.memsql.test.SharedMemSQLContext
 import org.scalatest.{Matchers, FlatSpec}
 
@@ -15,6 +16,13 @@ class BugfixSpec extends FlatSpec with SharedMemSQLContext with Matchers {
     for (i <- Range(0, 10)) {
       sqlExec("INSERT INTO foo (a) VALUES (?)", i)
     }
+  }
+
+  def getPhysicalPlan(query: String): Seq[SparkPlan] = {
+    val df = msc.sql(query)
+    val plan = df.queryExecution.optimizedPlan
+    val strategy = new MemSQLPushdownStrategy(sc)
+    strategy(plan)
   }
 
   "getQuerySchema" should "lock out duplicate columns" in {
@@ -31,12 +39,21 @@ class BugfixSpec extends FlatSpec with SharedMemSQLContext with Matchers {
     join.collect should equal (expected)
   }
 
-  "PushdownStrategy" should "skip plans with empty aggregates" in {
+  "PushdownStrategy" should "support plans with empty aggregates" in {
     recreateSimpleTable
-    val df = msc.sql("SELECT COUNT(*) FROM (SELECT COUNT(*) FROM foo) x")
-    val plan = df.queryExecution.optimizedPlan
-    val strategy = new MemSQLPushdownStrategy(sc)
+    val plan = getPhysicalPlan("SELECT COUNT(*) FROM (SELECT COUNT(*) FROM foo) x")
+    plan should not be (Nil)
+  }
 
-    strategy(plan) should be (Nil)
+  "PushdownStrategy" should "support plans with limits and orders" in {
+    recreateSimpleTable
+    val plan = getPhysicalPlan("SELECT * FROM foo order by a limit 5")
+    plan should not be (Nil)
+  }
+
+  "PushdownStrategy" should "support plans with just orders" in {
+    recreateSimpleTable
+    val plan = getPhysicalPlan("SELECT * FROM foo order by a")
+    plan should not be (Nil)
   }
 }

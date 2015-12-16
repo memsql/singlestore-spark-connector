@@ -94,10 +94,6 @@ object TestExpressions {
          RegExpExtract(_, _, _) |
          RegExpReplace(_, _, _) |
          StringTranslate(_, _, _) |
-         StringLocate(_, _, _) |
-         Substring(_, _, _) |
-         StringRPad(_, _, _) |
-         StringLPad(_, _, _) |
          Factorial(_) => Some(NotSupportedByMemSQL)
 
     case ConcatWs(children) if children.length <= 1 => Some(NotSupportedByMemSQL)
@@ -184,15 +180,19 @@ class SparkFunctionSpec extends FunSpec with SharedMemSQLContext with Matchers {
           if (!sparkPlan.isInstanceOf[MemSQLPhysicalRDD]) {
             fail(s"${expr.name} does not result in a single SQL query.")
           } else {
-            info(s"Running ${expr.name} against Spark and MemSQL")
-            info(sparkPlan.toString)
-
-            val output = dfPatched.collect
+            val output = try {
+              dfPatched.collect
+            } catch {
+              case e: Throwable => {
+                info(s"Error while running ${expr.name} against MemSQL")
+                info(sparkPlan.toString)
+                throw e
+              }
+            }
 
             if (expr.shouldCompareResults) {
               // We ran the expression against MemSQL successfully,
               // now lets run it without pushdown and compare.
-              info(s"Comparing results for: ${expr.name}")
               val leftOutput = output.map(_.toSeq)
               val rightOutput = dfUnpatched.collect.map(_.toSeq)
 
@@ -202,6 +202,7 @@ class SparkFunctionSpec extends FunSpec with SharedMemSQLContext with Matchers {
                     info(s"Row $i is different at column $j.")
                     info(s"\t$leftRow")
                     info(s"\t$rightRow")
+                    info(s"Data: ${table.collect()(i)}")
                     fail(s"${expr.name} Values: [$leftVal] [$rightVal]")
                   }
 
