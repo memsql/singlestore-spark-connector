@@ -26,7 +26,8 @@ object TestTypes {
 
 class TestTypes extends TestApp with Logging {
   def types: Seq[TypeMapping] = Seq(
-    TypeMapping(ShortType, MemSQLType("TINYINT"), Seq(0.toShort, 16.toShort)),
+    TypeMapping(ByteType, MemSQLType("TINYINT"), Seq(0.toShort, 16.toShort)),
+
     TypeMapping(ShortType, MemSQLType("SMALLINT"), Seq(0.toShort, 64.toShort)),
 
     TypeMapping(IntegerType, MemSQLType("MEDIUMINT"), Seq(0, 256)),

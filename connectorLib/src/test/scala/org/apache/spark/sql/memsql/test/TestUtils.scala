@@ -2,8 +2,9 @@
 
 package org.apache.spark.sql.memsql.test
 
-import com.memsql.spark.connector.sql.{TableIdentifier, MemSQLTable}
-import org.apache.spark.sql.{DataFrame, Row}
+import com.memsql.spark.connector.sql.{ColumnDefinition, MemSQLKey, TableIdentifier, MemSQLTable}
+import org.apache.spark.sql.memsql.SaveToMemSQLConf
+import org.apache.spark.sql.{SaveMode, DataFrame, Row}
 import com.memsql.spark.connector.util.JDBCImplicits._
 import com.memsql.spark.connector._
 
@@ -168,5 +169,23 @@ object TestUtils {
         }
       }
     })
+  }
+
+  def getTestSaveConf(saveMode: SaveMode = MemSQLConf.DEFAULT_SAVE_MODE,
+            onDuplicateKeySQL: Option[String] = None,
+            extraColumns: Seq[ColumnDefinition] = Nil,
+            extraKeys: Seq[MemSQLKey] = Nil): SaveToMemSQLConf = {
+
+    SaveToMemSQLConf(
+      saveMode,
+      MemSQLConf.DEFAULT_CREATE_MODE,
+      onDuplicateKeySQL,
+      MemSQLConf.DEFAULT_INSERT_BATCH_SIZE,
+      MemSQLConf.DEFAULT_LOAD_DATA_COMPRESSION,
+      false,
+      extraColumns,
+      extraKeys,
+      false
+    )
   }
 }

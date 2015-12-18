@@ -35,17 +35,4 @@ object TestData {
     MemSQLType("date", Seq(new Date(90, 8, 23), new Date(100, 3, 5), new Date(utcOffset)))
   )
 
-  val sparkSQLTypes = Seq(
-    (IntegerType, Seq(1, 2, 3)),
-    (LongType, Seq(4L, 5L, 6L)),
-    (DoubleType, Seq(7.8, 9.1, 1.2)),
-    (FloatType, Seq(2.8f, 3.1f, 4.2f)),
-    (ShortType, Seq(7.toShort, 8.toShort, 9.toShort)),
-    (ByteType, Seq(10.toByte, 11.toByte, 12.toByte)),
-    (BooleanType, Seq(true, false, false)),
-    (StringType, Seq("hi", "there", "buddy")),
-    (BinaryType, Seq("how".map(_.toByte).toSeq, "are".map(_.toByte).toSeq, "you".map(_.toByte).toSeq)),
-    //java.sql time structures expect the year minus 1900
-    (TimestampType, Seq(new Timestamp(90, 8, 23, 1, 1, 4, 0), new Timestamp(90, 8, 23, 1, 1, 5, 0), new Timestamp(90, 8, 23, 1, 1, 6, 0))),
-    (DateType, Seq(new Date(90, 8, 23), new Date(90, 9, 23), new Date(90, 10, 23))))
 }

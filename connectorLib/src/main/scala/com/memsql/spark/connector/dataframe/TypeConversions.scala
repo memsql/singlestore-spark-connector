@@ -2,7 +2,7 @@ package com.memsql.spark.connector.dataframe
 
 import java.sql.{ResultSet, ResultSetMetaData, Types => JDBCTypes}
 
-import com.google.common.primitives.{UnsignedLongs, UnsignedLong}
+import com.google.common.primitives.UnsignedLongs
 import org.apache.spark.sql.types._
 
 object TypeConversions {
@@ -26,7 +26,7 @@ object TypeConversions {
    */
   def DataFrameTypeToMemSQLTypeString(dataType: DataType): String = {
     dataType match {
-      case ShortType => "TINYINT"
+      case ShortType => "SMALLINT"
       case LongType => "BIGINT"
       case ByteType => "TINYINT"
       case BooleanType => "BOOLEAN"
@@ -57,7 +57,7 @@ object TypeConversions {
 
   def JDBCTypeToDataFrameType(rsmd: ResultSetMetaData, ix: Int): DataType = {
     rsmd.getColumnType(ix) match {
-      case JDBCTypes.TINYINT => ShortType
+      case JDBCTypes.TINYINT => ByteType
       case JDBCTypes.SMALLINT => ShortType
       case JDBCTypes.INTEGER => IntegerType
       case JDBCTypes.BIGINT => rsmd.isSigned(ix) match {
@@ -96,12 +96,12 @@ object TypeConversions {
 
   def GetJDBCValue(dataType: Int, isSigned: Boolean, ix: Int, row: ResultSet): Any = {
     val result = dataType match {
-      case JDBCTypes.TINYINT => row.getShort(ix)
+      case JDBCTypes.TINYINT => row.getByte(ix)
       case JDBCTypes.SMALLINT => row.getShort(ix)
       case JDBCTypes.INTEGER => row.getInt(ix)
       case JDBCTypes.BIGINT => isSigned match {
         case true => row.getLong(ix)
-        case _ => UnsignedLongs.parseUnsignedLong(row.getString(ix))
+        case _ => Option(row.getString(ix)).map(UnsignedLongs.parseUnsignedLong).getOrElse(null)
       }
 
       case JDBCTypes.DOUBLE => row.getDouble(ix)
