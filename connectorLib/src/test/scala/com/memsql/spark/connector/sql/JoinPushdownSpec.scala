@@ -23,7 +23,8 @@ class JoinPushdownSpec extends FlatSpec with SharedMemSQLContext with Matchers {
     })
   }
 
-  val pushedDownQueries = Array("SELECT * FROM t JOIN s ON t.a = s.c",
+  val pushedDownQueries = Array(
+    "SELECT * FROM t JOIN s ON t.a = s.c",
     "SELECT * FROM t LEFT JOIN s ON t.a = s.c",
     "SELECT a, count(*) FROM t GROUP BY a",
     "SELECT s.c, sum(t.a) FROM t JOIN s on t.a = s.c GROUP BY s.c",
@@ -32,9 +33,16 @@ class JoinPushdownSpec extends FlatSpec with SharedMemSQLContext with Matchers {
     "SELECT * FROM t JOIN r ON t.a = r.e",
     "SELECT * FROM t JOIN r ON t.a = r.f",
     "SELECT * FROM t JOIN r ON t.b = r.e",
-    "SELECT * FROM t JOIN r ON t.b = r.f")
+    "SELECT * FROM t JOIN r ON t.b = r.f",
+    "SELECT * FROM t JOIN s ON t.a = s.c WHERE c = 4",
+    "SELECT * FROM t JOIN s ON t.a = s.c WHERE a = 4",
+    "SELECT * FROM t LEFT JOIN s ON t.a = s.c WHERE c = 4",
+    "SELECT * FROM t RIGHT JOIN s ON t.a = s.c WHERE c = 4",
+    "SELECT * FROM t LEFT JOIN s ON t.a = s.c WHERE a = 4",
+    "SELECT * FROM t RIGHT JOIN s ON t.a = s.c WHERE a = 4")
 
-  val aggregatorQueries = Array("SELECT * FROM t JOIN s ON t.a = s.d",
+  val aggregatorQueries = Array(
+    "SELECT * FROM t JOIN s ON t.a = s.d",
     "SELECT * FROM t JOIN s ON t.b = s.d",
     "SELECT * FROM t LEFT JOIN s ON t.a = s.d",
     "SELECT * FROM t LEFT JOIN s ON t.a = s.d",
@@ -43,12 +51,6 @@ class JoinPushdownSpec extends FlatSpec with SharedMemSQLContext with Matchers {
     "SELECT s.d, sum(t.a) FROM t JOIN s on t.a = s.c GROUP BY s.d",
     "SELECT s.d, t.b, sum(t.a) FROM t JOIN s on t.a = s.c GROUP BY s.d, t.b",
     "SELECT s.d, sum(t.a) FROM t JOIN s on t.a = s.c GROUP BY s.d",
-    "SELECT * FROM t JOIN s ON t.a = s.c WHERE c = 4",
-    "SELECT * FROM t JOIN s ON t.a = s.c WHERE a = 4",
-    "SELECT * FROM t LEFT JOIN s ON t.a = s.c WHERE c = 4",
-    "SELECT * FROM t RIGHT JOIN s ON t.a = s.c WHERE c = 4",
-    "SELECT * FROM t LEFT JOIN s ON t.a = s.c WHERE a = 4",
-    "SELECT * FROM t RIGHT JOIN s ON t.a = s.c WHERE a = 4",
     "SELECT e, count(*) FROM t JOIN r ON t.a = r.e GROUP BY r.e",
     "SELECT f, count(*) FROM t JOIN r ON t.a = r.e GROUP BY r.f",
     "SELECT e, count(*) FROM t JOIN r ON t.a = r.f GROUP BY r.e",
@@ -60,12 +62,12 @@ class JoinPushdownSpec extends FlatSpec with SharedMemSQLContext with Matchers {
 
       // These queries are simple enough to be pushed down to independent operations on MemSQL leaf nodes, and we expect
       // to get back a Spark RDD for each MemSQL partition.
-      assert(df.rdd.partitions.size > 1)
+      assert(df.rdd.partitions.size > 1, q)
 
       // The limit prevents pushdown. We compare the results to test correctness.
       val compare_df = msc.sql(q + " LIMIT 999999999", true)
-      assert(compare_df.rdd.partitions.size == 1)
-      assert(TestUtils.equalDFs(df, compare_df))
+      assert(compare_df.rdd.partitions.size == 1, q)
+      assert(TestUtils.equalDFs(df, compare_df), q)
     })
   }
 
@@ -74,7 +76,7 @@ class JoinPushdownSpec extends FlatSpec with SharedMemSQLContext with Matchers {
       val df = msc.sql(q, true)
 
       // These queries must be handled by the aggregator nodes.
-      assert(df.rdd.partitions.size == 1)
+      assert(df.rdd.partitions.size == 1, q)
     })
   }
 }

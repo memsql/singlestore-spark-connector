@@ -69,7 +69,8 @@ lazy val connectorLib = (project in file("connectorLib")).
       "mysql" % "mysql-connector-java" % mysqlConnectorVersion,
       "org.apache.commons" % "commons-dbcp2" % commonsDBCPVersion,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,
-      "com.google.guava" % "guava" % guavaVersion
+      "com.google.guava" % "guava" % guavaVersion,
+      "io.spray" %% "spray-json" % sprayVersion
     ),
     autoAPIMappings := true,
     apiMappings ++= {
