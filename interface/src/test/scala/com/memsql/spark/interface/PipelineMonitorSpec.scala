@@ -1,3 +1,4 @@
+// scalastyle:off magic.number
 package com.memsql.spark.interface
 
 import java.io.File
@@ -41,7 +42,13 @@ class DuplicateTransformer extends Transformer {
   }
 }
 
-// scalastyle:off magic.number
+class SlowTransformer extends Transformer {
+  override def transform(sqlContext: SQLContext, df: DataFrame, config: PhaseConfig, logger: PhaseLogger): DataFrame = {
+    Thread.sleep(10000L)
+    df
+  }
+}
+
 class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalSparkContext {
   val apiRef = system.actorOf(Props[ApiActor], "api")
   var sqlContext: SQLContext = _
@@ -198,10 +205,12 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
           Thread.sleep(2000)
           val q = pipeline.metricsQueue
 
+          var foundEvent = false
           while (!q.isEmpty) {
             val event = q.dequeue
             event.event_type match {
               case PipelineEventType.BatchEnd => {
+                foundEvent = true
                 event.asInstanceOf[BatchEndEvent].transform match {
                   case None => fail("BatchEndEvent does not contain a transform record")
                   case Some(x) => {
@@ -216,7 +225,63 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
             }
           }
 
+          assert(foundEvent)
+
           pm.stop
+        }
+        case Failure(error) => fail(s"Expected pipeline pipeline3 to exist: $error")
+      }
+    }
+  }
+
+  "Batch cancellation test" should {
+    "emit a cancellation event" in {
+      val transformTestConfig = PipelineConfig(
+        Phase[ExtractPhaseKind](
+          ExtractPhaseKind.TestLines,
+          ExtractPhase.writeConfig(
+            ExtractPhaseKind.TestLines, TestLinesExtractConfig("testtest\ntest\ntest\ntest\ntest\ntest"))),
+        Phase[TransformPhaseKind](
+          TransformPhaseKind.User,
+          TransformPhase.writeConfig(
+            TransformPhaseKind.User, UserTransformConfig(class_name = "com.memsql.spark.interface.SlowTransformer", value = JsString("test")))),
+        Phase[LoadPhaseKind](
+          LoadPhaseKind.MemSQL,
+          LoadPhase.writeConfig(
+            LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))))
+
+      apiRef ? PipelinePut("pipeline4", batch_interval = 1, config = transformTestConfig)
+
+      apiRef ! PipelineUpdate("pipeline4", trace_batch_count = Some(5))
+      receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
+        case Success(resp) => assert(resp)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      whenReady((apiRef ? PipelineGet("pipeline4")).mapTo[Try[Pipeline]]) {
+        case Success(pipeline) => {
+          val pm = new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
+          pm.ensureStarted
+          assert(pm.isAlive())
+
+          Thread.sleep(2000)
+          pm.stop
+          val q = pipeline.metricsQueue
+
+          var foundEvent = false
+          while (!q.isEmpty) {
+            val event = q.dequeue
+            event.event_type match {
+              case PipelineEventType.BatchCancelled => {
+                foundEvent = true
+                val cancelledEvent = event.asInstanceOf[BatchCancelledEvent]
+                assert(cancelledEvent.pipeline_id == "pipeline4")
+                assert(cancelledEvent.batch_type == PipelineBatchType.Traced)
+              }
+              case _ =>
+            }
+          }
+          assert(foundEvent)
         }
         case Failure(error) => fail(s"Expected pipeline pipeline3 to exist: $error")
       }

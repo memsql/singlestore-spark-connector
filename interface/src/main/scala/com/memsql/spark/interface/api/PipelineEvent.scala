@@ -20,7 +20,7 @@ case class PhaseMetricRecord(start: Long,
 
 object PipelineEventType extends Enumeration {
   type PipelineEventType = Value
-  val BatchStart, BatchEnd, PipelineStart, PipelineEnd = Value
+  val BatchStart, BatchEnd, BatchCancelled, PipelineStart, PipelineEnd = Value
 }
 
 abstract class PipelineEvent {
@@ -36,6 +36,13 @@ case class BatchStartEvent(batch_id: String,
                            timestamp: Long,
                            event_type: PipelineEventType = PipelineEventType.BatchStart,
                            event_id: String) extends PipelineEvent
+
+case class BatchCancelledEvent(batch_id: String,
+                               batch_type: PipelineBatchType,
+                               pipeline_id: String,
+                               timestamp: Long,
+                               event_type: PipelineEventType = PipelineEventType.BatchCancelled,
+                               event_id: String) extends PipelineEvent
 
 case class BatchEndEvent(batch_id: String,
                          batch_type: PipelineBatchType,

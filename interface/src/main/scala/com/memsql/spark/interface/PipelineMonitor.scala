@@ -13,6 +13,7 @@ import com.memsql.spark.etl.api.configs._
 import com.memsql.spark.phases.configs._
 import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api._
+import com.memsql.spark.interface.api.PipelineBatchType.PipelineBatchType
 import com.memsql.spark.interface.util.ErrorUtils._
 import ApiActor._
 import com.memsql.spark.interface.util.{PipelineLogger, BaseException}
@@ -106,6 +107,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   override val pipelineInstance = PipelineInstance(extractor, extractConfig, transformer, transformConfig, loader, loadConfig)
 
   private var currentBatchId: String = null
+  private var currentBatchType: PipelineBatchType = null
   private[interface] val isStopping = new AtomicBoolean()
 
   private[interface] val thread = new Thread(new Runnable {
@@ -177,6 +179,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         if (trace) {
           batch_type = PipelineBatchType.Traced
         }
+        currentBatchType = batch_type
 
         val batchStartEvent = BatchStartEvent(
           batch_id = batch_id,
@@ -300,7 +303,6 @@ class DefaultPipelineMonitor(override val api: ActorRef,
           task_errors.isEmpty
         )
 
-
         val batchEndEvent = BatchEndEvent(
           batch_id = batch_id,
           batch_type = batch_type,
@@ -319,10 +321,17 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         Thread.sleep(sleepTimeMillis)
       }
     } catch {
-      case e: ControlThrowable => throw e
-      case e: InterruptedException => throw e
+      case e: ControlThrowable => {
+        enqueueCancelEvent()
+        throw e
+      }
+      case e: InterruptedException => {
+        enqueueCancelEvent()
+        throw e
+      }
       case e: Throwable => {
         logError(s"Exception in pipeline $pipeline_id", e)
+        enqueueCancelEvent()
         error = e
       }
     } finally {
@@ -540,6 +549,18 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       case None => None
       case Some(Nil) => None
       case default => default
+    }
+  }
+
+  private[interface] def enqueueCancelEvent(): Unit = {
+    if (currentBatchId != null && currentBatchType != null) {
+      val batchCancelledEvent = BatchCancelledEvent(
+        batch_id = currentBatchId,
+        batch_type = currentBatchType,
+        pipeline_id = pipeline_id,
+        timestamp = System.currentTimeMillis,
+        event_id = UUID.randomUUID.toString)
+      pipeline.enqueueMetricRecord(batchCancelledEvent)
     }
   }
 
