@@ -19,6 +19,7 @@ object ApiJsonProtocol extends JsonEnumProtocol {
 
   implicit val pipelineEventTypeFormat = jsonEnum(PipelineEventType)
   implicit val batchStartEventFormat = jsonFormat6(BatchStartEvent)
+  implicit val batchCancelledEventFormat = jsonFormat6(BatchCancelledEvent)
   implicit val batchEndEventFormat = jsonFormat11(BatchEndEvent)
   implicit val pipelineStartEventFormat = jsonFormat4(PipelineStartEvent)
   implicit val pipelineEndEventFormat = jsonFormat4(PipelineEndEvent)
@@ -31,6 +32,7 @@ object ApiJsonProtocol extends JsonEnumProtocol {
   implicit object pipelineEventFormat extends RootJsonFormat[PipelineEvent] {
     def write(e: PipelineEvent): JsValue = e match {
       case batchStartEvent: BatchStartEvent => batchStartEvent.toJson
+      case batchCancelledEvent: BatchCancelledEvent => batchCancelledEvent.toJson
       case batchEndEvent: BatchEndEvent => batchEndEvent.toJson
       case pipelineStartEvent: PipelineStartEvent => pipelineStartEvent.toJson
       case pipelineEndEvent: PipelineEndEvent => pipelineEndEvent.toJson

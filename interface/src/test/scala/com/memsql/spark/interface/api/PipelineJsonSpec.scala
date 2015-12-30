@@ -483,6 +483,28 @@ class PipelineJsonSpec extends UnitSpec {
     assert(metricRecord1 == metricRecord2)
   }
 
+  "BatchCancelledEvent" should "serialize to JSON" in {
+    val uuid = UUID.randomUUID.toString
+    val metricRecord = BatchCancelledEvent(
+      batch_id = "batch1",
+      batch_type = PipelineBatchType.Normal,
+      pipeline_id = "pipeline1",
+      timestamp = 42,
+      event_id = uuid
+    )
+    val jsonString = metricRecord.toJson.toString
+    val jsonMap = mapFromJson(jsonString)
+    val expectedMap = Map(
+      "batch_id" -> "batch1",
+      "batch_type" -> "Normal",
+      "pipeline_id" -> "pipeline1",
+      "timestamp" -> 42,
+      "event_type" -> "BatchCancelled",
+      "event_id" -> uuid
+      )
+    assert(jsonMap == expectedMap)
+  }
+
   "BatchEndEvent" should "serialize to JSON" in {
     val uuid = UUID.randomUUID.toString
     val metricRecord = BatchEndEvent(
