@@ -47,8 +47,6 @@ case class MemSQLPhysicalRDD(output: Seq[Attribute],
         case (bool: Long, BooleanType) => bool == 1
         case (num: Long, IntegerType) => num.toInt
         case (num: Long, ShortType) => num.toShort
-        case (null, DoubleType) => Double.NaN
-        case (null, FloatType) => Float.NaN
         case (decimal: BigDecimal, DoubleType) => decimal.doubleValue()
         case (decimal: BigDecimal, FloatType) => decimal.floatValue()
         case (r, _) => r

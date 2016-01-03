@@ -101,7 +101,7 @@ object TestUtils {
     } else {
       var fail = false
       for (i <- df1_sorted.indices) {
-        if (!(df1_sorted(i).toSeq sameElements (df2_sorted(i)).toSeq)) {
+        if (!(df1_sorted(i).toSeq sameElements df2_sorted(i).toSeq)) {
           fail = true
           println("row " + i + " is different.")
           if (df1_sorted(i).size != df2_sorted(i).size) {

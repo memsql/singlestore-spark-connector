@@ -26,48 +26,51 @@ object TestTypes {
 
 class TestTypes extends TestApp with Logging {
   def types: Seq[TypeMapping] = Seq(
-    TypeMapping(ByteType, MemSQLType("TINYINT"), Seq(0.toShort, 16.toShort)),
+    TypeMapping(ShortType, MemSQLType("TINYINT"), Seq(0.toShort, 16.toShort, null)),
+    TypeMapping(ShortType, MemSQLType("SMALLINT"), Seq(0.toShort, 64.toShort, null)),
 
-    TypeMapping(ShortType, MemSQLType("SMALLINT"), Seq(0.toShort, 64.toShort)),
+    TypeMapping(IntegerType, MemSQLType("MEDIUMINT"), Seq(0, 256, null)),
+    TypeMapping(IntegerType, MemSQLType("INT"), Seq(0, 1024, null)),
 
-    TypeMapping(IntegerType, MemSQLType("MEDIUMINT"), Seq(0, 256)),
-    TypeMapping(IntegerType, MemSQLType("INT"), Seq(0, 1024)),
-
-    TypeMapping(LongType, MemSQLType("BIGINT"), Seq(0L, 2048L)),
+    TypeMapping(LongType, MemSQLType("BIGINT"), Seq(0L, 2048L, null)),
 
     TypeMapping(DecimalType(38, 30), MemSQLType("DECIMAL", Some("DECIMAL(38, 30)")),
-      Seq(new BigDecimal(0.0), new BigDecimal(1 / 3.0))),
+      Seq(new BigDecimal(0.0), new BigDecimal(1 / 3.0), null)),
 
-    TypeMapping(FloatType, MemSQLType("FLOAT"), Seq(0.0f, 1.5f)),
+    // FLOAT, REAL and DOUBLE "NULL" behavior is also covered in NullValueSpec
+    TypeMapping(FloatType, MemSQLType("FLOAT"), Seq(0.0f, 1.5f, null)),
 
-    TypeMapping(DoubleType, MemSQLType("REAL"), Seq(0.0, 1.6)),
-    TypeMapping(DoubleType, MemSQLType("DOUBLE"), Seq(0.0, 1.9)),
+    TypeMapping(DoubleType, MemSQLType("REAL"), Seq(0.0, 1.6, null)),
+    TypeMapping(DoubleType, MemSQLType("DOUBLE"), Seq(0.0, 1.9, null)),
 
-    TypeMapping(StringType, MemSQLType("CHAR"), Seq("", "a")),
-    TypeMapping(StringType, MemSQLType("VARCHAR", Some("VARCHAR(255)")), Seq("", "abc")),
-    TypeMapping(StringType, MemSQLType("TINYTEXT"), Seq("", "def")),
-    TypeMapping(StringType, MemSQLType("MEDIUMTEXT"), Seq("", "ghi")),
-    TypeMapping(StringType, MemSQLType("LONGTEXT"), Seq("", "jkl")),
-    TypeMapping(StringType, MemSQLType("TEXT"), Seq("", "mno")),
-    TypeMapping(StringType, MemSQLType("ENUM", Some("ENUM('a', 'b', 'c')")), Seq("", "a")),
-    TypeMapping(StringType, MemSQLType("SET", Some("SET('d', 'e', 'f')")), Seq("", "d")),
+    TypeMapping(StringType, MemSQLType("CHAR"), Seq("", "a", null)),
+    TypeMapping(StringType, MemSQLType("VARCHAR", Some("VARCHAR(255)")), Seq("", "abc", null)),
+    TypeMapping(StringType, MemSQLType("TINYTEXT"), Seq("", "def", null)),
+    TypeMapping(StringType, MemSQLType("MEDIUMTEXT"), Seq("", "ghi", null)),
+    TypeMapping(StringType, MemSQLType("LONGTEXT"), Seq("", "jkl", null)),
+    TypeMapping(StringType, MemSQLType("TEXT"), Seq("", "mno", null)),
+    TypeMapping(StringType, MemSQLType("ENUM", Some("ENUM('a', 'b', 'c')")), Seq("", "a", null)),
+    TypeMapping(StringType, MemSQLType("SET", Some("SET('d', 'e', 'f')")), Seq("", "d", null)),
 
     TypeMapping(BinaryType, MemSQLType("BIT"),
-      Seq(Array(0, 0, 0, 0, 0, 0, 0, 0).map(_.toByte), Array(0, 0, 0, 0, 0, 0, 0, 1).map(_.toByte))),
+      Seq(Array(0, 0, 0, 0, 0, 0, 0, 0).map(_.toByte), Array(0, 0, 0, 0, 0, 0, 0, 1).map(_.toByte), null)),
     TypeMapping(BinaryType, MemSQLType("BINARY", Some("BINARY(8)")),
-      Seq(Array(0, 0, 0, 0, 0, 0, 0, 0).map(_.toByte), Array(0, 0, 0, 0, 0, 0, 0, 1).map(_.toByte))),
-    TypeMapping(BinaryType, MemSQLType("VARBINARY", Some("VARBINARY(8)")), Seq(Array(0.toByte), Array(2.toByte))),
-    TypeMapping(BinaryType, MemSQLType("TINYBLOB"), Seq(Array(0.toByte), Array(4.toByte))),
-    TypeMapping(BinaryType, MemSQLType("MEDIUMBLOB"), Seq(Array(0.toByte), Array(8.toByte))),
-    TypeMapping(BinaryType, MemSQLType("LONGBLOB"), Seq(Array(0.toByte), Array(16.toByte))),
-    TypeMapping(BinaryType, MemSQLType("BLOB"), Seq(Array(0.toByte), Array(32.toByte))),
+      Seq(Array(0, 0, 0, 0, 0, 0, 0, 0).map(_.toByte), Array(0, 0, 0, 0, 0, 0, 0, 1).map(_.toByte), null)),
+    TypeMapping(BinaryType, MemSQLType("VARBINARY", Some("VARBINARY(8)")), Seq(Array(0.toByte), Array(2.toByte), null)),
+    TypeMapping(BinaryType, MemSQLType("TINYBLOB"), Seq(Array(0.toByte), Array(4.toByte), null)),
+    TypeMapping(BinaryType, MemSQLType("MEDIUMBLOB"), Seq(Array(0.toByte), Array(8.toByte), null)),
+    TypeMapping(BinaryType, MemSQLType("LONGBLOB"), Seq(Array(0.toByte), Array(16.toByte), null)),
+    TypeMapping(BinaryType, MemSQLType("BLOB"), Seq(Array(0.toByte), Array(32.toByte), null)),
 
-    TypeMapping(DateType, MemSQLType("DATE"), Seq(new Date(0), new Date(200))),
-    TypeMapping(DateType, MemSQLType("YEAR"), Seq(new Date(0), new Date(300))),
-    TypeMapping(LongType, MemSQLType("TIME"), Seq(0L, 64000L)),
+    TypeMapping(DateType, MemSQLType("DATE"), Seq(new Date(0), new Date(200), null)),
+    TypeMapping(DateType, MemSQLType("YEAR"), Seq(new Date(0), new Date(300), null)),
+    TypeMapping(LongType, MemSQLType("TIME"), Seq(0L, 64000L, null)),
 
-    TypeMapping(TimestampType, MemSQLType("TIMESTAMP"), Seq(new Timestamp(0), new Timestamp(1449615940000L))),
-    TypeMapping(TimestampType, MemSQLType("DATETIME"), Seq(new Timestamp(0), new Timestamp(1449615941000L)))
+    // TIMESTAMP columns will turn NULL inputs into the current time, unless explicitly created as "TIMESTAMP NULL"
+    TypeMapping(TimestampType, MemSQLType("TIMESTAMP", Some("TIMESTAMP NULL")),
+      Seq(new Timestamp(0), new Timestamp(1449615940000L), null)),
+    TypeMapping(TimestampType, MemSQLType("DATETIME"),
+      Seq(new Timestamp(0), new Timestamp(1449615941000L), null))
   )
 
   def runTest(sc: SparkContext, msc: MemSQLContext): Unit = {

@@ -28,7 +28,6 @@ object TypeConversions {
     dataType match {
       case ShortType => "SMALLINT"
       case LongType => "BIGINT"
-      case ByteType => "TINYINT"
       case BooleanType => "BOOLEAN"
       case StringType => "TEXT"
       case BinaryType => "BLOB"
@@ -57,7 +56,7 @@ object TypeConversions {
 
   def JDBCTypeToDataFrameType(rsmd: ResultSetMetaData, ix: Int): DataType = {
     rsmd.getColumnType(ix) match {
-      case JDBCTypes.TINYINT => ByteType
+      case JDBCTypes.TINYINT => ShortType
       case JDBCTypes.SMALLINT => ShortType
       case JDBCTypes.INTEGER => IntegerType
       case JDBCTypes.BIGINT => rsmd.isSigned(ix) match {
@@ -96,7 +95,7 @@ object TypeConversions {
 
   def GetJDBCValue(dataType: Int, isSigned: Boolean, ix: Int, row: ResultSet): Any = {
     val result = dataType match {
-      case JDBCTypes.TINYINT => row.getByte(ix)
+      case JDBCTypes.TINYINT => row.getShort(ix)
       case JDBCTypes.SMALLINT => row.getShort(ix)
       case JDBCTypes.INTEGER => row.getInt(ix)
       case JDBCTypes.BIGINT => isSigned match {

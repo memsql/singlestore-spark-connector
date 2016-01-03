@@ -5,6 +5,7 @@ package org.apache.spark.sql.memsql
 import java.sql.{Date, Timestamp}
 
 import com.memsql.spark.connector._
+import com.memsql.spark.pushdown.{MemSQLPushdownStrategy, MemSQLPhysicalRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.memsql.test.{SharedMemSQLContext, TestUtils}
 import org.apache.spark.sql.types._
@@ -12,13 +13,14 @@ import org.scalatest.FlatSpec
 
 class SparkSQLTypesSpec extends FlatSpec with SharedMemSQLContext {
 
-  // BooleanType will fail this test.
-  // Currently, ByteTypes are sent to MemSQL as TINYINT, which becomes TINYINT(4),
-  // and BooleanTypes are sent as BOOLEAN, which is aliased to TINYINT(1).
-  // Unfortunately, JDBC can not tell the difference: rsmd.getPrecision() returns 4
-  // for both of these.
+  // Note that ByteType and BooleanType are both unused.
+  //
+  // Currently, we have SMALLINT, TINYINT, and BOOLEAN all turning into ShortTypes.
+  // SMALLINT (32,768 to 32,767) makes sense as a ShortType.
+  // TINYINT (-128 to 127) would make more sense as a ByteType, but it causes casting exceptions somewhere.
+  // BOOLEAN aliases to TINYINT(1) in MySQL. TINYINT defaults to TINYINT(4).
+  // JDBC cannot seem to tell the difference between a TINYINT(1) and a TINYINT(4), even with rsmd.getPrecision().
   val translatableSparkSQLTypes = Seq(
-    (ByteType, Seq(10.toByte, 11.toByte, 12.toByte)),
     (ShortType, Seq(7.toShort, 8.toShort, 256.toShort)),
     (IntegerType, Seq(1, 2, 65536)),
     (LongType, Seq(4L, 5L, 5000000000L)),
