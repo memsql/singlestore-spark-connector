@@ -155,7 +155,7 @@ def test_pystreamliner_extractor_register_timeout(local_context):
 
     data = ctx.pipeline_get("pypeline")
     assert data["state"] == "ERROR"
-    assert data["error"] == "Python process TimeoutExtractor took longer than 30 seconds to be registered"
+    assert "Python process TimeoutExtractor took longer than 30 seconds to be registered" in data["error"]
 
 def test_pystreamliner_extractor_initialize_exception(local_context):
     """
@@ -257,7 +257,7 @@ def test_pystreamliner_transformer_register_timeout(local_context):
 
     data = ctx.pipeline_get("pypeline")
     assert data["state"] == "ERROR"
-    assert data["error"] == "Python process TimeoutTransformer took longer than 30 seconds to be registered"
+    assert "Python process TimeoutTransformer took longer than 30 seconds to be registered" in data["error"]
 
 def test_pystreamliner_transformer_initialize_exception(local_context):
     """

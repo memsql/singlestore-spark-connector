@@ -32,7 +32,8 @@ trait PythonPhase[T] extends Logging {
       Thread.sleep(1000) // scalastyle:ignore
 
       if (System.currentTimeMillis > startTime + maxInterval.toMillis) {
-        throw new PythonPhaseTimeoutException(s"Python process $name took longer than ${maxInterval.toSeconds} seconds to be registered")
+        val output = pythonProcess.getOutput
+        throw new PythonPhaseTimeoutException(s"Python process $name took longer than ${maxInterval.toSeconds} seconds to be registered: $output")
       }
     }
 
