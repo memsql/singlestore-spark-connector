@@ -114,8 +114,7 @@ class PythonGateway(sc: SparkContext) {
         // if there is a stack trace from the Python side include it, otherwise rethrow the exception
         entryPoint.lastTraceback match {
           case null => throw e
-          case _ => throw new PythonTraceback(s"""
-            |Encountered an exception in Python:
+          case _ => throw new PythonTraceback(s"""Encountered an exception in Python:
             |${entryPoint.lastTraceback}
             |
             |Java Exception:
