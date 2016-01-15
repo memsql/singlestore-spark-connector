@@ -36,6 +36,7 @@ class PipelineJsonSpec extends UnitSpec {
     val pipeline1 = Pipeline(
       "pipeline1",
       state = PipelineState.RUNNING,
+      single_step = false,
       batch_interval = 100,
       config = config,
       last_updated = 1)
@@ -44,6 +45,7 @@ class PipelineJsonSpec extends UnitSpec {
     var jsonMap = mapFromJson(jsonString)
     assert(jsonMap("pipeline_id") == "pipeline1")
     assert(jsonMap("state") == "RUNNING")
+    assert(jsonMap("single_step") == false)
     assert(jsonMap("batch_interval") == 100)
     assert(jsonMap("config").asInstanceOf[Map[String, Any]]("config_version") == 42)
     assert(!(jsonMap contains "error"))
@@ -52,6 +54,7 @@ class PipelineJsonSpec extends UnitSpec {
     val pipeline2 = Pipeline(
       "pipeline1",
       state = PipelineState.RUNNING,
+      single_step = false,
       batch_interval = 12,
       config = config.copy(extract = Phase[ExtractPhaseKind](
         ExtractPhaseKind.TestLines,
@@ -100,6 +103,7 @@ class PipelineJsonSpec extends UnitSpec {
     var pipeline = Pipeline(
       "pipeline1",
       state=PipelineState.RUNNING,
+      single_step = false,
       batch_interval=100,
       last_updated=145,
       config=config)
@@ -134,6 +138,7 @@ class PipelineJsonSpec extends UnitSpec {
     pipeline = Pipeline(
       "pipeline2",
       state=PipelineState.RUNNING,
+      single_step = false,
       batch_interval=100,
       last_updated=145,
       config=config)
@@ -178,6 +183,7 @@ class PipelineJsonSpec extends UnitSpec {
         "pipeline_id": "pipeline1",
         "state": "RUNNING",
         "config": $config_json,
+        "single_step": false,
         "batch_interval": 100,
         "last_updated": 145,
         "error": "test error",
@@ -187,6 +193,7 @@ class PipelineJsonSpec extends UnitSpec {
     var pipeline = jsonString.parseJson.convertTo[Pipeline]
     assert(pipeline.pipeline_id == "pipeline1")
     assert(pipeline.state == PipelineState.RUNNING)
+    assert(pipeline.single_step == false)
     assert(pipeline.batch_interval == 100)
     assert(pipeline.last_updated == 145)
     assert(pipeline.error.get == "test error")
@@ -234,6 +241,7 @@ class PipelineJsonSpec extends UnitSpec {
         "pipeline_id": "pipeline1",
         "state": "RUNNING",
         "config": $config_json,
+        "single_step": false,
         "batch_interval": 100,
         "last_updated": 145,
         "error": "test error",
@@ -243,6 +251,7 @@ class PipelineJsonSpec extends UnitSpec {
     pipeline = jsonString.parseJson.convertTo[Pipeline]
     assert(pipeline.pipeline_id == "pipeline1")
     assert(pipeline.state == PipelineState.RUNNING)
+    assert(pipeline.single_step == false)
     assert(pipeline.batch_interval == 100)
     assert(pipeline.last_updated == 145)
     assert(pipeline.error.get  == "test error")
@@ -271,6 +280,7 @@ class PipelineJsonSpec extends UnitSpec {
     var pipeline1 = Pipeline(
       "pipeline1",
       state=PipelineState.RUNNING,
+      single_step = false,
       batch_interval=1234,
       last_updated=12,
       config=config)
@@ -289,6 +299,7 @@ class PipelineJsonSpec extends UnitSpec {
     pipeline1 = Pipeline(
       "pipeline1",
       state=PipelineState.RUNNING,
+      single_step = false,
       batch_interval=1234,
       last_updated=12,
       config=config)

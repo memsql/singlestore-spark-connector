@@ -1,14 +1,13 @@
 package com.memsql.spark.interface.api
 
 import com.memsql.spark.etl.api.configs._
-import com.memsql.spark.interface.api.PipelineThreadState.PipelineThreadState
 import com.memsql.spark.interface.util.BoundedQueue
 import com.memsql.spark.phases.configs.ExtractPhase
 import spray.json.DeserializationException
 
 object PipelineState extends Enumeration {
   type PipelineState = Value
-  val RUNNING, STOPPED, ERROR = Value
+  val RUNNING, STOPPED, FINISHED, ERROR = Value
 }
 
 object PipelineThreadState extends Enumeration {
@@ -20,11 +19,12 @@ import PipelineState._
 
 case class Pipeline(pipeline_id: String,
                     state: PipelineState,
+                    single_step: Boolean,
                     batch_interval: Long,
                     config: PipelineConfig,
                     last_updated: Long,
                     error: Option[String] = None) {
-  Pipeline.validate(batch_interval, config)
+  Pipeline.validate(single_step, batch_interval, config)
 
   val MAX_METRICS_QUEUE_SIZE = 1000
   @volatile private[interface] var metricsQueue = new BoundedQueue[PipelineEvent](MAX_METRICS_QUEUE_SIZE)
@@ -37,10 +37,10 @@ case class Pipeline(pipeline_id: String,
 }
 
 object Pipeline {
-  def validate(batch_interval: Long, config: PipelineConfig): Unit = {
+  def validate(single_step: Boolean, batch_interval: Long, config: PipelineConfig): Unit = {
     try {
-      if (batch_interval < 1) {
-        throw new ApiException("batch_interval must be at least 1 second")
+      if (!single_step && batch_interval < 1) {
+        throw new ApiException("batch_interval must be at least 1 second if single_step is not true")
       }
 
       // Assert that the phase configs, which are stored as JSON blobs, can be

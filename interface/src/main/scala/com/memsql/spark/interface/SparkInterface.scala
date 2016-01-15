@@ -123,7 +123,9 @@ trait Application extends Logging {
 
   def update(): Unit = {
     try {
-      val pipelines = Await.result[List[Pipeline]]((api ? PipelineQuery).mapTo[List[Pipeline]], 5.seconds)
+      val pipelines = Await.result[List[Pipeline]](
+        (api ? PipelineQuery(Option(true))).mapTo[List[Pipeline]],
+        5.seconds)
       pipelines.foreach(updatePipeline)
       cleanupPipelineMonitors(pipelines)
     } catch {
@@ -143,7 +145,7 @@ trait Application extends Logging {
           case true => {
             // NOTE: we always restart the pipeline monitor instead of mutating values in
             // the currently running monitor for simplicity
-            stopPipeline(pipelineMonitor)
+            stopAndRemovePipeline(pipelineMonitor)
             startPipeline(pipeline)
           }
           case false => checkPipeline(pipelineMonitor)
@@ -151,7 +153,11 @@ trait Application extends Logging {
       }
       //stop and remove the pipeline monitor if the user requested it
       case (PipelineState.STOPPED, Some(pipelineMonitor)) => {
-        stopPipeline(pipelineMonitor)
+        stopAndRemovePipeline(pipelineMonitor)
+      }
+      //remove the pipeline monitor if it finished by itself
+      case (PipelineState.FINISHED, Some(pipelineMonitor)) => {
+        removePipeline(pipelineMonitor)
       }
       case (_, _) => //do nothing
     }
@@ -173,8 +179,12 @@ trait Application extends Logging {
     }
   }
 
-  private[interface] def stopPipeline(pipelineMonitor: PipelineMonitor): Unit = {
+  private[interface] def stopAndRemovePipeline(pipelineMonitor: PipelineMonitor): Unit = {
     pipelineMonitor.stop
+    removePipeline(pipelineMonitor)
+  }
+
+  private[interface] def removePipeline(pipelineMonitor: PipelineMonitor): Unit = {
     pipelineMonitors = pipelineMonitors.filterKeys(_ != pipelineMonitor.pipeline_id)
   }
 
@@ -188,7 +198,7 @@ trait Application extends Logging {
           case Success(resp) =>
           case Failure(error) => logError(s"Failed to update pipeline ${pipelineMonitor.pipeline_id} state to ERROR", error)
         }
-        stopPipeline(pipelineMonitor)
+        stopAndRemovePipeline(pipelineMonitor)
       }
       case false =>
     }

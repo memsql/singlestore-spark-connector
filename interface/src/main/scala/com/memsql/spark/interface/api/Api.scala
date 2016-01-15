@@ -1,39 +1,48 @@
 package com.memsql.spark.interface.api
 
 import akka.actor.Actor.Receive
-import akka.actor.{ActorRef, Actor}
+import akka.actor.{Actor, ActorRef}
 import akka.util.Timeout
-import com.memsql.spark.interface.api.PipelineThreadState.PipelineThreadState
-import com.memsql.spark.interface.util.{Clock, BaseException}
-import com.memsql.spark.phases.configs.ExtractPhase
-import com.memsql.spark.etl.api.configs.TransformPhase
-import scala.concurrent.duration._
+import com.memsql.spark.etl.api.{UserExtractConfig, UserTransformConfig}
 import com.memsql.spark.etl.api.configs._
-import spray.json._
+import com.memsql.spark.interface.api.PipelineState._
+import com.memsql.spark.interface.api.PipelineThreadState.PipelineThreadState
+import com.memsql.spark.interface.util.{BaseException, Clock}
+import com.memsql.spark.phases.configs.ExtractPhase
 
+import scala.concurrent.duration._
 import scala.util.control.NonFatal
 import scala.util.{Failure, Success}
-import com.memsql.spark.etl.api.UserExtractConfig
-import com.memsql.spark.etl.api.UserTransformConfig
-
-import PipelineState._
 
 case class ApiException(message: String) extends BaseException(message: String)
 
 object ApiActor {
   case object Ping
-  case object PipelineQuery
+
+  case class PipelineQuery(show_single_step: Option[Boolean])
+
   case class PipelineGet(pipeline_id: String)
-  case class PipelinePut(pipeline_id: String, batch_interval: Long, config: PipelineConfig)
-  case class PipelineUpdate(pipeline_id: String, state: Option[PipelineState] = None,
+
+  case class PipelinePut(pipeline_id: String,
+                         single_step: Option[Boolean],
+                         batch_interval: Option[Long],
+                         config: PipelineConfig)
+
+  case class PipelineUpdate(pipeline_id: String,
+                            state: Option[PipelineState] = None,
                             batch_interval: Option[Long] = None,
                             config: Option[PipelineConfig] = None,
                             trace_batch_count: Option[Int] = None,
                             error: Option[String] = None, _validate: Boolean = false,
                             threadState: Option[PipelineThreadState] = None)
-  case class PipelineMetrics(pipeline_id: String, last_timestamp: Option[Long])
+
+  case class PipelineMetrics(pipeline_id: String,
+                             last_timestamp: Option[Long])
+
   case class PipelineTraceBatchDecrement(pipeline_id: String)
+
   case class PipelineDelete(pipeline_id: String)
+
   implicit val timeout = Timeout(5.seconds)
 }
 
@@ -51,14 +60,21 @@ trait ApiService {
 
   def handleMessage: Receive = {
     case Ping => sender ! "pong"
-    case PipelineQuery => sender ! pipelines.values.toList
+
+    case PipelineQuery(show_single_step) => {
+      val showSingleStep = show_single_step.getOrElse(false)
+      val res = pipelines.values.toList.filter { pipeline => showSingleStep || !pipeline.single_step }
+      sender ! res
+    }
+
     case PipelineGet(pipeline_id) => {
       pipelines.get(pipeline_id) match {
         case Some(pipeline) => sender ! Success(pipeline)
         case None => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }
     }
-    case PipelinePut(pipeline_id, batch_interval, config) => {
+
+    case PipelinePut(pipeline_id, single_step, batch_interval, config) => {
       try {
         pipelines.get(pipeline_id) match {
           case p: Some[Pipeline] => sender ! Failure(ApiException(s"pipeline with id $pipeline_id already exists"))
@@ -73,7 +89,15 @@ trait ApiService {
               val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
               Class.forName(className)
             }
-            pipelines = pipelines + (pipeline_id -> Pipeline(pipeline_id, RUNNING, batch_interval, config, clock.currentTimeMillis))
+            val singleStep = single_step.getOrElse(false)
+            val batchInterval = batch_interval.getOrElse(0L)
+            pipelines = pipelines + (pipeline_id -> Pipeline(
+              pipeline_id,
+              RUNNING,
+              singleStep,
+              batchInterval,
+              config,
+              clock.currentTimeMillis))
             sender ! Success(true)
           }
         }
@@ -83,6 +107,7 @@ trait ApiService {
         case NonFatal(e) => sender ! Failure(ApiException(s"unexpected exception: $e"))
       }
     }
+
     case PipelineUpdate(pipeline_id, state, batch_interval, config, trace_batch_count, error, _validate, threadState) => {
       pipelines.get(pipeline_id) match {
         case Some(pipeline) => {
@@ -98,7 +123,7 @@ trait ApiService {
             if (state.isDefined) {
               newState = (pipeline.state, state.get, _validate) match {
                 case (_, _, false) => state.get
-                case (RUNNING, STOPPED, _) => state.get
+                case (RUNNING, STOPPED | FINISHED, _) => state.get
                 case (STOPPED | ERROR, RUNNING, _) => state.get
                 case (prev, next, _) if prev == next => state.get
                 case (prev, next, _) => throw new ApiException(s"cannot update state from $prev to $next")
@@ -151,8 +176,14 @@ trait ApiService {
             // update all fields in the pipeline and respond with success
             if (updated) {
               val newLastUpdated = clock.currentTimeMillis
-              val newPipeline = Pipeline(pipeline_id, state=newState, batch_interval=newBatchInterval,
-                                         last_updated=newLastUpdated, config=newConfig, error=newError)
+              val newPipeline = Pipeline(
+                pipeline_id,
+                state=newState,
+                single_step=pipeline.single_step,
+                batch_interval=newBatchInterval,
+                last_updated=newLastUpdated,
+                config=newConfig,
+                error=newError)
               newPipeline.thread_state = newThreadState
               newPipeline.traceBatchCount = newTraceBatchCount
               newPipeline.metricsQueue = pipeline.metricsQueue
@@ -174,6 +205,7 @@ trait ApiService {
         case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }
     }
+
     case PipelineTraceBatchDecrement(pipeline_id) => {
       pipelines.get(pipeline_id) match {
         case Some(pipeline) => {
@@ -187,6 +219,7 @@ trait ApiService {
         case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }
     }
+
     case PipelineMetrics(pipeline_id, last_timestamp) => {
       pipelines.get(pipeline_id) match {
         case Some(pipeline) => {
@@ -200,6 +233,7 @@ trait ApiService {
         case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }
     }
+
     case PipelineDelete(pipeline_id) => {
       pipelines.get(pipeline_id) match {
         case Some(pipeline) => {
@@ -209,6 +243,7 @@ trait ApiService {
         case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }
     }
+
     case default => sender ! ApiException("invalid api message type")
   }
 }

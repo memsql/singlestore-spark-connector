@@ -7,6 +7,7 @@ import akka.pattern.ask
 import akka.actor.ActorRef
 import com.memsql.spark.SaveToMemSQLException
 import com.memsql.spark.connector.MemSQLContext
+import com.memsql.spark.interface.api.PipelineThreadState.PipelineThreadState
 import com.memsql.spark.phases._
 import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.configs._
@@ -37,6 +38,7 @@ case class PhaseResult(count: Option[Long] = None,
 trait PipelineMonitor {
   def api: ActorRef
   def pipeline_id: String // scalastyle:ignore
+  def singleStep: Boolean
   def batchInterval: Long
   def lastUpdated: Long
   def config: PipelineConfig
@@ -61,6 +63,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   override val pipeline_id = pipeline.pipeline_id
 
   // keep a copy of the pipeline info so we can determine when the pipeline has been updated
+  override val singleStep = pipeline.single_step
   override val batchInterval = pipeline.batch_interval
   private val batchIntervalMillis = DurationLong(batchInterval).seconds.toMillis
   override val config = pipeline.config
@@ -152,174 +155,22 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         event_id = UUID.randomUUID.toString)
       pipeline.enqueueMetricRecord(pipelineStartEvent)
 
-      // manually compute the next DataFrame so that we can sidestep issues with
-      // adding inputs to the streaming context at runtime
-      while (!isStopping.get) {
-        time = System.currentTimeMillis
+     if (singleStep) {
+       stepPipeline(extractLogger, transformLogger, System.currentTimeMillis)
 
-        var trace = false
-        if (pipeline.traceBatchCount > 0) {
-          trace = true
-          val future = (api ? PipelineTraceBatchDecrement(pipeline_id)).mapTo[Try[Boolean]]
-          future.map {
-            case Success(resp) =>
-            case Failure(error) => logError(s"Failed to decrement pipeline $pipeline_id trace batch count", error)
-          }
+       (api ? PipelineUpdate(pipeline_id,
+         state = Some(PipelineState.FINISHED))).mapTo[Try[Boolean]]
+     } else {
+        while (!isStopping.get) {
+          time = System.currentTimeMillis
+
+          stepPipeline(extractLogger, transformLogger, time)
+
+          val sleepTimeMillis = Math.max(batchIntervalMillis - (System.currentTimeMillis - time), 0)
+          logDebug(s"Sleeping for $sleepTimeMillis milliseconds for pipeline $pipeline_id")
+          Thread.sleep(sleepTimeMillis)
         }
-
-        var extractRecord: Option[PhaseMetricRecord] = None
-        var transformRecord: Option[PhaseMetricRecord] = None
-        var loadRecord: Option[PhaseMetricRecord] = None
-
-        logDebug(s"Computing next DataFrame for pipeline $pipeline_id: $time")
-
-        val batch_id = UUID.randomUUID.toString
-        currentBatchId = batch_id
-        var batch_type = PipelineBatchType.Normal
-        if (trace) {
-          batch_type = PipelineBatchType.Traced
-        }
-        currentBatchType = batch_type
-
-        val batchStartEvent = BatchStartEvent(
-          batch_id = batch_id,
-          batch_type = batch_type,
-          pipeline_id = pipeline_id,
-          timestamp = System.currentTimeMillis,
-          event_id = UUID.randomUUID.toString)
-        pipeline.enqueueMetricRecord(batchStartEvent)
-        sparkContext.setJobGroup(batch_id, s"Batch for MemSQL Pipeline $pipeline_id", interruptOnCancel = true)
-        var extractedTraceDf: DataFrame = null
-        var extractedDf: DataFrame = null
-        var extractedDfIsEmpty: Boolean = false
-        var upperBound: Long = 0
-        extractRecord = runPhase(extractLogger, trace, () => {
-          val maybeDf = pipelineInstance.extractor.next(streamingContext, time, sqlContext, pipelineInstance.extractConfig,
-                                                        batchInterval, extractLogger)
-          maybeDf match {
-            case null => throw new PipelineMonitorException(s"Extractor for pipeline $pipeline_id emitted null instead of None or Some(RDD)")
-            case Some(null) => throw new PipelineMonitorException(s"Extractor for pipeline $pipeline_id emitted Some(null) instead of None or Some(RDD)")
-            case Some(df) => {
-              if (trace) {
-                val count = Some(df.count)
-                val weight = math.min(TRACED_RECORDS_PER_BATCH.toFloat / count.get, 1.0)
-                val dfs = df.randomSplit(Array(weight, 1.0 - weight))
-                extractedTraceDf = dfs(0)
-                extractedDf = dfs(1)
-                val (columns, records) = getExtractRecords(extractedTraceDf)
-                val extractedTraceDfCount = extractedTraceDf.count
-                upperBound = math.max(TRACED_RECORDS_PER_BATCH, extractedTraceDfCount)
-                if (extractedTraceDfCount == count.get) {
-                  extractedDfIsEmpty = true
-                }
-                PhaseResult(count = count, columns = columns, records = records)
-              } else {
-                extractedDf = df
-                PhaseResult()
-              }
-            }
-            case None => {
-              logDebug(s"No RDD from pipeline $pipeline_id")
-              PhaseResult()
-            }
-          }
-        })
-
-        var transformedTraceDf: DataFrame = null
-        var transformedDf: DataFrame = null
-        var tracedTransformLogger: PipelineLogger = null
-        if (extractedTraceDf != null) {
-          // We use a new logger for the trace because we want to
-          // only get logs for the traced records.
-          tracedTransformLogger = getPhaseLogger("transform")
-        }
-        var tracedCount: Long = 0
-        if (extractedDf != null) {
-          transformRecord = runPhase(tracedTransformLogger, trace, () => {
-            logDebug(s"Transforming RDD for pipeline $pipeline_id")
-            if (extractedTraceDf != null) {
-              // We use a new logger for the trace because we want to
-              // only get logs for the traced records.
-              transformedTraceDf = pipelineInstance.transformer.transform(
-                sqlContext, extractedTraceDf, pipelineInstance.transformConfig,
-                tracedTransformLogger)
-              if (transformedTraceDf == null) {
-                throw new PipelineMonitorException(s"Transformer for pipeline $pipeline_id returned null instead of a DataFrame")
-              }
-              tracedCount = transformedTraceDf.count
-            }
-            if (extractedDfIsEmpty && transformedTraceDf != null) {
-              // If we're in trace mode and all of our records are in
-              // extractedTraceDf, don't call transform() with an empty
-              // DataFrame, since this can crash Python transformers; instead,
-              // just create an empty DataFrame.
-              transformedDf = sqlContext.createDataFrame(sparkContext.emptyRDD[Row], transformedTraceDf.schema)
-            } else {
-              transformedDf = pipelineInstance.transformer.transform(
-                sqlContext, extractedDf, pipelineInstance.transformConfig,
-                transformLogger)
-            }
-            if (transformedDf == null) {
-              throw new PipelineMonitorException(s"Transformer for pipeline $pipeline_id returned null instead of a DataFrame")
-            } else if (trace) {
-              var count: Option[Long] = None
-              var columns: Option[List[(String, String)]] = None
-              var records: Option[List[List[String]]] = None
-              if (transformedTraceDf != null) {
-                count = Some(tracedCount + transformedDf.count)
-                val columnsAndRecords = getTransformRecords(transformedTraceDf, upperBound)
-                columns = columnsAndRecords._1
-                records = columnsAndRecords._2
-              }
-              PhaseResult(count = count, columns = columns, records = records)
-            } else {
-              PhaseResult()
-            }
-          })
-        }
-
-        val loadLogger = getPhaseLogger("load")
-        if (transformedDf != null) {
-          if (transformedTraceDf != null) {
-            transformedDf = transformedDf.unionAll(transformedTraceDf)
-          }
-          loadRecord = runPhase(loadLogger, trace, () => {
-            logDebug(s"Loading RDD for pipeline $pipeline_id")
-            val count = Some(pipelineInstance.loader.load(transformedDf, pipelineInstance.loadConfig, loadLogger))
-            var columns: Option[List[(String, String)]] = None
-            if (trace) {
-              columns = getLoadColumns()
-            }
-            PhaseResult(count = count, columns = columns)
-          })
-        }
-
-        val task_errors = getTaskErrors(batch_id)
-
-        val success = (
-          (extractRecord.isEmpty || extractRecord.get.error.isEmpty) &&
-          (transformRecord.isEmpty || transformRecord.get.error.isEmpty) &&
-          (loadRecord.isEmpty || loadRecord.get.error.isEmpty) &&
-          task_errors.isEmpty
-        )
-
-        val batchEndEvent = BatchEndEvent(
-          batch_id = batch_id,
-          batch_type = batch_type,
-          pipeline_id = pipeline_id,
-          timestamp = System.currentTimeMillis,
-          success = success,
-          task_errors = task_errors,
-          extract = extractRecord,
-          transform = transformRecord,
-          load = loadRecord,
-          event_id = UUID.randomUUID.toString)
-        pipeline.enqueueMetricRecord(batchEndEvent)
-
-        val sleepTimeMillis = Math.max(batchIntervalMillis  - (System.currentTimeMillis - time), 0)
-        logDebug(s"Sleeping for $sleepTimeMillis milliseconds for pipeline $pipeline_id")
-        Thread.sleep(sleepTimeMillis)
-      }
+     }
     } catch {
       case e: ControlThrowable => {
         enqueueCancelEvent()
@@ -364,6 +215,170 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         }
       }
     }
+  }
+
+  // manually compute the next DataFrame so that we can sidestep issues with
+  // adding inputs to the streaming context at runtime
+  def stepPipeline(extractLogger: PipelineLogger, transformLogger: PipelineLogger, time: Long): Unit = {
+    var trace = false
+    if (pipeline.traceBatchCount > 0) {
+      trace = true
+      val future = (api ? PipelineTraceBatchDecrement(pipeline_id)).mapTo[Try[Boolean]]
+      future.map {
+        case Success(resp) =>
+        case Failure(error) => logError(s"Failed to decrement pipeline $pipeline_id trace batch count", error)
+      }
+    }
+
+    var extractRecord: Option[PhaseMetricRecord] = None
+    var transformRecord: Option[PhaseMetricRecord] = None
+    var loadRecord: Option[PhaseMetricRecord] = None
+
+    logDebug(s"Computing next DataFrame for pipeline $pipeline_id: $time")
+
+    val batch_id = UUID.randomUUID.toString
+    currentBatchId = batch_id
+    var batch_type = PipelineBatchType.Normal
+    if (trace) {
+      batch_type = PipelineBatchType.Traced
+    }
+    currentBatchType = batch_type
+
+    val batchStartEvent = BatchStartEvent(
+      batch_id = batch_id,
+      batch_type = batch_type,
+      pipeline_id = pipeline_id,
+      timestamp = System.currentTimeMillis,
+      event_id = UUID.randomUUID.toString)
+    pipeline.enqueueMetricRecord(batchStartEvent)
+    sparkContext.setJobGroup(batch_id, s"Batch for MemSQL Pipeline $pipeline_id", interruptOnCancel = true)
+    var extractedTraceDf: DataFrame = null
+    var extractedDf: DataFrame = null
+    var extractedDfIsEmpty: Boolean = false
+    var upperBound: Long = 0
+    extractRecord = runPhase(extractLogger, trace, () => {
+      val maybeDf = pipelineInstance.extractor.next(streamingContext, time, sqlContext, pipelineInstance.extractConfig,
+        batchInterval, extractLogger)
+      maybeDf match {
+        case null => throw new PipelineMonitorException(s"Extractor for pipeline $pipeline_id emitted null instead of None or Some(RDD)")
+        case Some(null) => throw new PipelineMonitorException(s"Extractor for pipeline $pipeline_id emitted Some(null) instead of None or Some(RDD)")
+        case Some(df) => {
+          if (trace) {
+            val count = Some(df.count)
+            val weight = math.min(TRACED_RECORDS_PER_BATCH.toFloat / count.get, 1.0)
+            val dfs = df.randomSplit(Array(weight, 1.0 - weight))
+            extractedTraceDf = dfs(0)
+            extractedDf = dfs(1)
+            val (columns, records) = getExtractRecords(extractedTraceDf)
+            val extractedTraceDfCount = extractedTraceDf.count
+            upperBound = math.max(TRACED_RECORDS_PER_BATCH, extractedTraceDfCount)
+            if (extractedTraceDfCount == count.get) {
+              extractedDfIsEmpty = true
+            }
+            PhaseResult(count = count, columns = columns, records = records)
+          } else {
+            extractedDf = df
+            PhaseResult()
+          }
+        }
+        case None => {
+          logDebug(s"No RDD from pipeline $pipeline_id")
+          PhaseResult()
+        }
+      }
+    })
+
+    var transformedTraceDf: DataFrame = null
+    var transformedDf: DataFrame = null
+    var tracedTransformLogger: PipelineLogger = null
+    if (extractedTraceDf != null) {
+      // We use a new logger for the trace because we want to
+      // only get logs for the traced records.
+      tracedTransformLogger = getPhaseLogger("transform")
+    }
+    var tracedCount: Long = 0
+    if (extractedDf != null) {
+      transformRecord = runPhase(tracedTransformLogger, trace, () => {
+        logDebug(s"Transforming RDD for pipeline $pipeline_id")
+        if (extractedTraceDf != null) {
+          // We use a new logger for the trace because we want to
+          // only get logs for the traced records.
+          transformedTraceDf = pipelineInstance.transformer.transform(
+            sqlContext, extractedTraceDf, pipelineInstance.transformConfig,
+            tracedTransformLogger)
+          if (transformedTraceDf == null) {
+            throw new PipelineMonitorException(s"Transformer for pipeline $pipeline_id returned null instead of a DataFrame")
+          }
+          tracedCount = transformedTraceDf.count
+        }
+        if (extractedDfIsEmpty && transformedTraceDf != null) {
+          // If we're in trace mode and all of our records are in
+          // extractedTraceDf, don't call transform() with an empty
+          // DataFrame, since this can crash Python transformers; instead,
+          // just create an empty DataFrame.
+          transformedDf = sqlContext.createDataFrame(sparkContext.emptyRDD[Row], transformedTraceDf.schema)
+        } else {
+          transformedDf = pipelineInstance.transformer.transform(
+            sqlContext, extractedDf, pipelineInstance.transformConfig,
+            transformLogger)
+        }
+        if (transformedDf == null) {
+          throw new PipelineMonitorException(s"Transformer for pipeline $pipeline_id returned null instead of a DataFrame")
+        } else if (trace) {
+          var count: Option[Long] = None
+          var columns: Option[List[(String, String)]] = None
+          var records: Option[List[List[String]]] = None
+          if (transformedTraceDf != null) {
+            count = Some(tracedCount + transformedDf.count)
+            val columnsAndRecords = getTransformRecords(transformedTraceDf, upperBound)
+            columns = columnsAndRecords._1
+            records = columnsAndRecords._2
+          }
+          PhaseResult(count = count, columns = columns, records = records)
+        } else {
+          PhaseResult()
+        }
+      })
+    }
+
+    val loadLogger = getPhaseLogger("load")
+    if (transformedDf != null) {
+      if (transformedTraceDf != null) {
+        transformedDf = transformedDf.unionAll(transformedTraceDf)
+      }
+      loadRecord = runPhase(loadLogger, trace, () => {
+        logDebug(s"Loading RDD for pipeline $pipeline_id")
+        val count = Some(pipelineInstance.loader.load(transformedDf, pipelineInstance.loadConfig, loadLogger))
+        var columns: Option[List[(String, String)]] = None
+        if (trace) {
+          columns = getLoadColumns()
+        }
+        PhaseResult(count = count, columns = columns)
+      })
+    }
+
+    val task_errors = getTaskErrors(batch_id)
+
+    val success = (
+      (extractRecord.isEmpty || extractRecord.get.error.isEmpty) &&
+        (transformRecord.isEmpty || transformRecord.get.error.isEmpty) &&
+        (loadRecord.isEmpty || loadRecord.get.error.isEmpty) &&
+        task_errors.isEmpty
+      )
+
+    val batchEndEvent = BatchEndEvent(
+      batch_id = batch_id,
+      batch_type = batch_type,
+      pipeline_id = pipeline_id,
+      timestamp = System.currentTimeMillis,
+      success = success,
+      task_errors = task_errors,
+      extract = extractRecord,
+      transform = transformRecord,
+      load = loadRecord,
+      event_id = UUID.randomUUID.toString)
+    pipeline.enqueueMetricRecord(batchEndEvent)
+
   }
 
   def runPhase(logger: PipelineLogger, trace: Boolean, fn: () => PhaseResult): Option[PhaseMetricRecord] = {

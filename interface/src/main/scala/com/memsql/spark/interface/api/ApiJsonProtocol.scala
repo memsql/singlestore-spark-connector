@@ -27,7 +27,7 @@ object ApiJsonProtocol extends JsonEnumProtocol {
   implicit val pipelineStateFormat = jsonEnum(PipelineState)
   implicit val pipelineThreadStateFormat = jsonEnum(PipelineThreadState)
 
-  val basePipelineFormat = jsonFormat(Pipeline.apply, "pipeline_id", "state", "batch_interval", "config", "last_updated", "error")
+  val basePipelineFormat = jsonFormat(Pipeline.apply, "pipeline_id", "state", "single_step", "batch_interval", "config", "last_updated", "error")
 
   implicit object pipelineEventFormat extends RootJsonFormat[PipelineEvent] {
     def write(e: PipelineEvent): JsValue = e match {

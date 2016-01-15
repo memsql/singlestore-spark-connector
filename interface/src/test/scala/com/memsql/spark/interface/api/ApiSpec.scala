@@ -59,7 +59,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
     }
 
     "have no pipelines to start" in {
-      apiRef ! PipelineQuery
+      apiRef ! PipelineQuery(None)
       expectMsg(List())
 
       apiRef ! PipelineGet("pipelinenotthere")
@@ -76,13 +76,13 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
     }
 
     "fail with a non-existing class" in {
-      apiRef ! PipelinePut("pipeline1", batch_interval=10, config=nonExistingExtractConfig)
+      apiRef ! PipelinePut("pipeline1", single_step=None, batch_interval=Some(10), config=nonExistingExtractConfig)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
-      apiRef ! PipelinePut("pipeline1", batch_interval=10, config=nonExistingTransformConfig)
+      apiRef ! PipelinePut("pipeline1", single_step=None, batch_interval=Some(10), config=nonExistingTransformConfig)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
@@ -90,18 +90,18 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
     }
 
     "accept new pipelines" in {
-      apiRef ! PipelinePut("pipeline1", batch_interval=10, config=config)
+      apiRef ! PipelinePut("pipeline1", single_step=None, batch_interval=Some(10), config=config)
       expectMsg(Success(true))
 
       // update time for new pipeline should be greater than this
       // error if pipeline id already exists
-      apiRef ! PipelinePut("pipeline1", batch_interval=10, config=config)
+      apiRef ! PipelinePut("pipeline1", single_step=None, batch_interval=Some(10), config=config)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
-      apiRef ! PipelineQuery
+      apiRef ! PipelineQuery(None)
       receiveOne(1.second) match {
         case pipelines:List[_] => assert(pipelines.length == 1)
         case default => fail(s"unexpected response $default")
@@ -113,6 +113,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.pipeline_id == "pipeline1")
           assert(pipeline.state == PipelineState.RUNNING)
+          assert(pipeline.single_step == false)
           assert(pipeline.batch_interval == 10)
           assert(pipeline.config == config)
           assert(pipeline.last_updated == 0)
@@ -124,26 +125,33 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       }
 
       mockTime.tick
-      apiRef ! PipelinePut("pipeline2", batch_interval=10, config=config2)
+      apiRef ! PipelinePut("pipeline2", single_step=None, batch_interval=Some(10), config=config2)
       expectMsg(Success(true))
 
       // error if config is invalid
       val badConfig = config.copy(extract = Phase[ExtractPhaseKind](ExtractPhaseKind.ZookeeperManagedKafka,
         """{ "bad_kafka_config": 42 }""".parseJson))
-      apiRef ! PipelinePut("pipeline3", batch_interval=10, config=badConfig)
+      apiRef ! PipelinePut("pipeline3", single_step=None, batch_interval=Some(10), config=badConfig)
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
+
+      // error if single_step is unset and batch_interval is unspecified
+      apiRef ! PipelinePut("pipeline3", single_step=None, batch_interval=None, config=config)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
       // error if batch_interval is invalid
-      apiRef ! PipelinePut("pipeline3", batch_interval= -10, config=config)
+      apiRef ! PipelinePut("pipeline3", single_step=None, batch_interval=Some(-10), config=config)
       receiveOne(1.second) match {
         case Success(resp) => fail(s"unexpected response $resp")
         case Failure(err) => assert(err.isInstanceOf[ApiException])
       }
 
-      apiRef ! PipelineQuery
+      apiRef ! PipelineQuery(None)
       receiveOne(1.second) match {
         case pipelines:List[_] => assert(pipelines.length == 2)
         case default => fail(s"unexpected response $default")
@@ -186,6 +194,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case resp: Success[_] =>
           val pipeline = resp.get.asInstanceOf[Pipeline]
           assert(pipeline.state == PipelineState.STOPPED)
+          assert(pipeline.single_step == false)
           assert(pipeline.last_updated == 2)
         case Failure(err) => fail(s"unexpected response $err")
       }
@@ -398,6 +407,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.thread_state == PipelineThreadState.THREAD_RUNNING)
           assert(pipeline.traceBatchCount == 3)
           assert(pipeline.batch_interval == 2)
+          assert(pipeline.single_step == false)
         case Failure(err) => fail(s"unexpected response $err")
       }
     }
@@ -449,7 +459,7 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
       apiRef ! PipelineDelete("pipeline2")
       expectMsg(Success(true))
 
-      apiRef ! PipelineQuery
+      apiRef ! PipelineQuery(None)
       receiveOne(1.second) match {
         case pipelines:List[_] => assert(pipelines.length == 1)
         case default => fail(s"unexpected response $default")

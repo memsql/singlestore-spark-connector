@@ -14,7 +14,7 @@ import LoadPhaseKind._
 import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api._
 import ApiActor._
-import com.memsql.spark.phases.{JsonTransformConfig, ZookeeperManagedKafkaExtractConfig}
+import com.memsql.spark.phases.{TestLinesExtractConfig, IdentityTransformerConfig, JsonTransformConfig, ZookeeperManagedKafkaExtractConfig}
 import com.memsql.spark.phases.configs.ExtractPhase
 import org.apache.spark.{SparkContext, SparkConf}
 import org.apache.spark.sql.SQLContext
@@ -57,6 +57,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
                             override val sqlContext: SQLContext) extends PipelineMonitor with Logging {
 
     override def pipeline_id: String = pipeline.pipeline_id // scalastyle:ignore
+    override def singleStep: Boolean = pipeline.single_step
     override def batchInterval: Long = pipeline.batch_interval
     override def config: PipelineConfig = pipeline.config
     override def lastUpdated: Long = pipeline.last_updated
@@ -84,9 +85,18 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     })
 
     override def runPipeline(): Unit = {
-      while (true) {
-        Thread.sleep(1)
+      if (singleStep) {
+        Thread.sleep(1500)
+
+        (api ? PipelineUpdate(pipeline_id,
+          state = Some(PipelineState.FINISHED))).mapTo[Try[Boolean]]
+      } else {
+        while (true) {
+          Thread.sleep(1)
+        }
       }
+      (api ? PipelineUpdate(pipeline_id,
+        threadState = Some(PipelineThreadState.THREAD_STOPPED))).mapTo[Try[Boolean]]
     }
 
     override def ensureStarted(): Unit = {
@@ -140,8 +150,11 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     }
   }
 
-  def putPipeline(pipeline_id: String, batch_interval: Long, config: PipelineConfig): Unit = {
-    apiRef ! PipelinePut(pipeline_id, batch_interval = batch_interval, config = config)
+  def putPipeline(pipeline_id: String, single_step: Boolean, batch_interval: Long, config: PipelineConfig): Unit = {
+    apiRef ! PipelinePut(pipeline_id,
+                         single_step = Some(single_step),
+                         batch_interval = Some(batch_interval),
+                         config = config)
     receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
       case Success(resp) => assert(resp)
       case Failure(err) => fail(s"unexpected response $err")
@@ -164,7 +177,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
 
   "SparkInterface" should {
     "start a monitor for a new pipeline" in {
-      putPipeline("pipeline1", batch_interval = 12000, config = config)
+      putPipeline("pipeline1", single_step = false, batch_interval = 12000, config = config)
 
       var pipeline = getPipeline("pipeline1")
       assert(pipeline.pipeline_id == "pipeline1")
@@ -184,7 +197,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     }
 
     "set thread_state for a new pipeline" in {
-      putPipeline("running_pipeline", batch_interval = 1200, config = config)
+      putPipeline("running_pipeline", single_step = false, batch_interval = 1200, config = config)
       sparkInterface.update
       val pipelineInitial = getPipeline("running_pipeline")
       val pipelineMonitor = sparkInterface.pipelineMonitors.get(pipelineInitial.pipeline_id)
@@ -207,8 +220,50 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
       pipelineMonitor.get.stop
     }
 
+    "remove the monitor for a single-step pipeline once it completes" in {
+      val singleStepConfig = PipelineConfig(
+        Phase[ExtractPhaseKind](
+          ExtractPhaseKind.TestLines,
+          ExtractPhase.writeConfig(
+            ExtractPhaseKind.TestLines, TestLinesExtractConfig("blah\nblah\nblah"))),
+        Phase[TransformPhaseKind](
+          TransformPhaseKind.Identity,
+          TransformPhase.writeConfig(
+            TransformPhaseKind.Identity, IdentityTransformerConfig())),
+        Phase[LoadPhaseKind](
+          LoadPhaseKind.MemSQL,
+          LoadPhase.writeConfig(
+            LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))))
+
+      putPipeline("singleStepPipeline", single_step = true, batch_interval = 0, config = singleStepConfig)
+
+      var pipeline = getPipeline("singleStepPipeline")
+      assert(pipeline.pipeline_id == "singleStepPipeline")
+      assert(pipeline.state == PipelineState.RUNNING)
+      assert(!sparkInterface.pipelineMonitors.contains("singleStepPipeline"))
+
+      sparkInterface.update
+
+      pipeline = getPipeline("singleStepPipeline")
+      assert(pipeline.state == PipelineState.RUNNING)
+      assert(pipeline.thread_state == PipelineThreadState.THREAD_RUNNING)
+      val pipelineMonitor = sparkInterface.pipelineMonitors.get(pipeline.pipeline_id).get
+      assert(pipelineMonitor.pipeline_id == pipeline.pipeline_id)
+      assert(pipelineMonitor.isAlive)
+
+      sparkInterface.update
+
+      pipeline = getPipeline("singleStepPipeline")
+      assert(pipeline.thread_state == PipelineThreadState.THREAD_STOPPED)
+      assert(pipeline.state == PipelineState.FINISHED)
+
+      sparkInterface.update
+
+      assert(!sparkInterface.pipelineMonitors.contains(pipeline.pipeline_id))
+    }
+
     "set pipeline to ERROR state if monitor failed on instantiation" in {
-      putPipeline("fail", batch_interval = 10000, config = config)
+      putPipeline("fail", single_step = false, batch_interval = 10000, config = config)
 
       var pipeline = getPipeline("fail")
       assert(!sparkInterface.pipelineMonitors.contains("fail"))
@@ -240,7 +295,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     }
 
     "stop and remove the monitor for a pipeline in state ERROR" in {
-      putPipeline("pipeline4", batch_interval = 12000, config = config)
+      putPipeline("pipeline4", single_step = false, batch_interval = 12000, config = config)
       var pipeline = getPipeline("pipeline4")
       assert(pipeline.pipeline_id == "pipeline4")
       assert(pipeline.state == PipelineState.RUNNING)
@@ -261,7 +316,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     }
 
     "restart monitors when they crash" in {
-      apiRef ! PipelinePut("pipeline2", batch_interval = 1000, config = config)
+      apiRef ! PipelinePut("pipeline2", single_step = None, batch_interval = Some(1000), config = config)
       receiveOne(1.second) match {
         case Success(resp) =>
         case Failure(err) => fail(s"unexpected response $err")
@@ -309,7 +364,7 @@ class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSpa
     }
 
     "restart monitors when pipelines are updated" in {
-      putPipeline("pipeline3", batch_interval = 1000, config = config)
+      putPipeline("pipeline3", single_step = false, batch_interval = 1000, config = config)
       var pipeline = getPipeline("pipeline3")
 
       sparkInterface.update

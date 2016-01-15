@@ -4,32 +4,30 @@ package com.memsql.spark.interface
 import java.io.File
 import java.sql.Timestamp
 
-import akka.pattern.ask
 import akka.actor.Props
+import akka.pattern.ask
 import akka.util.Timeout
 import com.memsql.spark.connector.dataframe.{JsonType, JsonValue}
 import com.memsql.spark.etl.LocalSparkContext
-import com.memsql.spark.etl.api.{UserTransformConfig, PhaseConfig, Transformer, UserExtractConfig}
+import com.memsql.spark.etl.api.configs.ExtractPhaseKind._
+import com.memsql.spark.etl.api.configs.LoadPhaseKind._
+import com.memsql.spark.etl.api.configs.TransformPhaseKind._
 import com.memsql.spark.etl.api.configs._
-import com.memsql.spark.etl.utils.ByteUtils._
-import ExtractPhaseKind._
-import TransformPhaseKind._
-import LoadPhaseKind._
+import com.memsql.spark.etl.api.{PhaseConfig, Transformer, UserTransformConfig}
 import com.memsql.spark.etl.utils.PhaseLogger
+import com.memsql.spark.interface.api.ApiActor._
 import com.memsql.spark.interface.api._
-import ApiActor._
-import com.memsql.spark.interface.util.{PipelineLogger, Paths}
-import com.memsql.spark.phases.{TestLinesExtractConfig, ZookeeperManagedKafkaExtractConfig, JsonTransformConfig}
+import com.memsql.spark.interface.util.Paths
 import com.memsql.spark.phases.configs.ExtractPhase
-import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkContext, SparkConf}
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import com.memsql.spark.phases.{IdentityTransformerConfig, JsonTransformConfig, TestLinesExtractConfig, ZookeeperManagedKafkaExtractConfig}
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.streaming.{Duration, StreamingContext}
+import org.apache.spark.{SparkConf, SparkContext}
 import spray.json._
+
 import scala.concurrent.duration._
-import scala.util.{Try, Success, Failure}
-import com.memsql.spark.etl.utils.Logging
+import scala.util.{Failure, Success, Try}
 
 class DuplicateTransformer extends Transformer {
   var columnName: String = "testcol"
@@ -80,7 +78,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
 
   "PipelineMonitor" should {
     "create a monitor if the class can be properly loaded" in {
-      apiRef ? PipelinePut("pipeline2", batch_interval=10, config=config)
+      apiRef ? PipelinePut("pipeline2", single_step=None, batch_interval=Some(10), config=config)
       whenReady((apiRef ? PipelineGet("pipeline2")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
           val pm = new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
@@ -95,7 +93,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
 
   "getExtractRecords" should {
     "be able to create a list of records given an RDD" in {
-      apiRef ? PipelinePut("pipeline2", batch_interval=10, config=config)
+      apiRef ? PipelinePut("pipeline2", single_step=None, batch_interval=Some(10), config=config)
       whenReady((apiRef ? PipelineGet("pipeline2")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
           val pm = new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
@@ -130,7 +128,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
 
   "getTransformRecords" should {
     "be able to create a list of records given a DataFrame" in {
-      apiRef ? PipelinePut("pipeline2", batch_interval=10, config=config)
+      apiRef ? PipelinePut("pipeline2", single_step=None, batch_interval=Some(10), config=config)
       whenReady((apiRef ? PipelineGet("pipeline2")).mapTo[Try[Pipeline]]) {
         case Success(pipeline) => {
           val pm = new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
@@ -188,7 +186,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
           LoadPhase.writeConfig(
             LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))))
 
-      apiRef ? PipelinePut("pipeline3", batch_interval = 1, config = transformTestConfig)
+      apiRef ? PipelinePut("pipeline3", single_step = None, batch_interval = Some(1), config = transformTestConfig)
 
       apiRef ! PipelineUpdate("pipeline3", trace_batch_count = Some(5))
       receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
@@ -250,7 +248,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
           LoadPhase.writeConfig(
             LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))))
 
-      apiRef ? PipelinePut("pipeline4", batch_interval = 1, config = transformTestConfig)
+      apiRef ? PipelinePut("pipeline4", single_step = None, batch_interval = Some(1), config = transformTestConfig)
 
       apiRef ! PipelineUpdate("pipeline4", trace_batch_count = Some(5))
       receiveOne(1.second).asInstanceOf[Try[Boolean]] match {
@@ -283,7 +281,53 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalS
           }
           assert(foundEvent)
         }
-        case Failure(error) => fail(s"Expected pipeline pipeline3 to exist: $error")
+        case Failure(error) => fail(s"Expected pipeline pipeline4 to exist: $error")
+      }
+    }
+  }
+
+  "PipelineMonitor" should {
+    "terminate if the Pipeline is single-step" in {
+      val singleStepConfig = PipelineConfig(
+        Phase[ExtractPhaseKind](
+          ExtractPhaseKind.TestLines,
+          ExtractPhase.writeConfig(
+            ExtractPhaseKind.TestLines, TestLinesExtractConfig("testtest\ntest\ntest\ntest\ntest\ntest"))),
+        Phase[TransformPhaseKind](
+          TransformPhaseKind.Identity,
+          TransformPhase.writeConfig(
+            TransformPhaseKind.Identity, IdentityTransformerConfig())),
+        Phase[LoadPhaseKind](
+          LoadPhaseKind.MemSQL,
+          LoadPhase.writeConfig(
+            LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))))
+
+      apiRef ? PipelinePut("pipeline5", single_step=Some(true), batch_interval=None, config=singleStepConfig)
+
+      whenReady((apiRef ? PipelineGet("pipeline5")).mapTo[Try[Pipeline]]) {
+        case Success(pipeline) => {
+          val pm = new DefaultPipelineMonitor(apiRef, pipeline, sc, streamingContext)
+          pm.ensureStarted
+          assert(pm.isAlive)
+
+          Thread.sleep(2000)
+
+          whenReady((apiRef ? PipelineGet("pipeline5")).mapTo[Try[Pipeline]]) {
+            case Success(pipeline) => {
+              assert(pipeline.thread_state == PipelineThreadState.THREAD_STOPPED)
+              assert(pipeline.state == PipelineState.FINISHED)
+
+              val events = pipeline.metricsQueue
+              assert(events.length == 4)
+              assert(events(0).event_type == PipelineEventType.PipelineStart)
+              assert(events(1).event_type == PipelineEventType.BatchStart)
+              assert(events(2).event_type == PipelineEventType.BatchEnd)
+              assert(events(3).event_type == PipelineEventType.PipelineEnd)
+            }
+            case Failure(error) => fail(s"Expected pipeline5 to exist: $error")
+          }
+        }
+        case Failure(error) => fail(s"Expected pipeline5 to exist: $error")
       }
     }
   }

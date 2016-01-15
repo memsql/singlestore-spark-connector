@@ -25,19 +25,23 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   def actorRefFactory: ActorSystem = system
   val apiRef = system.actorOf(Props[ApiActor], "api")
 
-  val kafkaConfig = PipelineConfig(Phase[ExtractPhaseKind](
-                                    ExtractPhaseKind.ZookeeperManagedKafka,
-                                    ExtractPhase.writeConfig(
-                                      ExtractPhaseKind.ZookeeperManagedKafka, ZookeeperManagedKafkaExtractConfig(List("test1:2181", "asdf:1000"), "topic"))),
-                                   Phase[TransformPhaseKind](
-                                    TransformPhaseKind.Json,
-                                    TransformPhase.writeConfig(
-                                      TransformPhaseKind.Json, JsonTransformConfig("data"))),
-                                  Phase[LoadPhaseKind](
-                                    LoadPhaseKind.MemSQL,
-                                    LoadPhase.writeConfig(
-                                      LoadPhaseKind.MemSQL, MemSQLLoadConfig("db", "table", None, None))),
-                                  config_version=CurrentPipelineConfigVersion)
+  val kafkaConfig = PipelineConfig(
+    Phase[ExtractPhaseKind](
+      ExtractPhaseKind.ZookeeperManagedKafka,
+      ExtractPhase.writeConfig(
+        ExtractPhaseKind.ZookeeperManagedKafka,
+        ZookeeperManagedKafkaExtractConfig(List("test1:2181", "asdf:1000"), "topic"))),
+    Phase[TransformPhaseKind](
+      TransformPhaseKind.Json,
+      TransformPhase.writeConfig(
+        TransformPhaseKind.Json,
+        JsonTransformConfig("data"))),
+    Phase[LoadPhaseKind](
+      LoadPhaseKind.MemSQL,
+      LoadPhase.writeConfig(
+        LoadPhaseKind.MemSQL,
+        MemSQLLoadConfig("db", "table", None, None))),
+    config_version=CurrentPipelineConfigVersion)
 
   val userConfig = kafkaConfig.copy(extract = Phase[ExtractPhaseKind](
                                                 ExtractPhaseKind.User,
@@ -46,10 +50,30 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
                                                     "com.memsql.spark.interface.support.DummyExtractor",
                                                     JsString("")))))
   val kafkaConfigEntity = HttpEntity(`application/json`, kafkaConfig.toJson.toString)
-  val basicPipeline = Pipeline("asdf", state=PipelineState.RUNNING, batch_interval=100, config=kafkaConfig, last_updated=0)
+
+  val basicPipeline = Pipeline(
+    "asdf",
+    state = PipelineState.RUNNING,
+    single_step = false,
+    batch_interval = 100,
+    config = kafkaConfig,
+    last_updated = 0)
+
+  val singleStepPipeline = Pipeline(
+    "hjkl",
+    state = PipelineState.RUNNING,
+    single_step = true,
+    batch_interval = 0,
+    config = kafkaConfig,
+    last_updated = 0)
+
   def putPipeline(pipeline: Pipeline): Unit = {
     val configEntity = HttpEntity(`application/json`, pipeline.config.toJson.toString)
-    Post(s"/pipeline/put?pipeline_id=${pipeline.pipeline_id}&batch_interval=${pipeline.batch_interval}", configEntity) ~> route ~> check {
+    val path = s"""/pipeline/put
+                  |?pipeline_id=${pipeline.pipeline_id}
+                  |&single_step=${pipeline.single_step}
+                  |&batch_interval=${pipeline.batch_interval}""".stripMargin.replaceAll("\n", "")
+    Post(path, configEntity) ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
@@ -113,8 +137,8 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     }
 
     Post("/pipeline/put?pipeline_id=asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
-      assert(responseAs[String].contains("missing required query parameter 'batch_interval'"))
-      assert(status == NotFound)
+      assert(responseAs[String].contains("batch_interval must be at least 1 second if single_step is not true"))
+      assert(status == BadRequest)
     }
 
     Post("/pipeline/put?pipeline_id=asdf&batch_interval=1234") ~> sealRoute(route) ~> check {
@@ -488,7 +512,8 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       //whose value should be the same as basicPipeline, excepting last_updated
       val webPipelineJson = webPipelinesJson.elements(0).asJsObject
       val basicPipelineJson = basicPipeline.toJson.asJsObject
-      assert(webPipelineJson.fields.filterKeys(_ != "last_updated") == basicPipelineJson.fields.filterKeys(_ != "last_updated"))
+      assert(webPipelineJson.fields.filterKeys(_ != "last_updated") ==
+             basicPipelineJson.fields.filterKeys(_ != "last_updated"))
 
       //and the value of last_updated should have changed
       val last_updated = webPipelineJson.getFields("last_updated")(0).toString.toLong
@@ -498,7 +523,26 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       assert(status == OK)
     }
 
+    putPipeline(singleStepPipeline)
+
+    Get("/pipeline/query?show_single_step=true") ~> route ~> check {
+      //we expect two pipelines
+      val webPipelinesJson = responseAs[String].parseJson.asInstanceOf[JsArray]
+      assert(webPipelinesJson.elements.length == 2)
+    }
+
+    Get("/pipeline/query") ~> route ~> check {
+      //we expect only the long-running pipeline
+      val webPipelinesJson = responseAs[String].parseJson.asInstanceOf[JsArray]
+      assert(webPipelinesJson.elements.length == 1)
+    }
+
     Delete("/pipeline/delete?pipeline_id=asdf") ~> route ~> check {
+      assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
+      assert(status == OK)
+    }
+
+    Delete("/pipeline/delete?pipeline_id=hjkl") ~> route ~> check {
       assert(responseAs[String] == JsObject("success" -> JsBoolean(true)).toString)
       assert(status == OK)
     }
