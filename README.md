@@ -9,6 +9,13 @@ This git repository contains a number of Scala projects that provide interoperat
 | [MemSQL etlLib](#memsql-etllib) | A library of interfaces for building custom MemSQL Streamliner Pipelines |
 | [MemSQL Spark Connector](#memsql-spark-connector) | Scala tools for connecting to MemSQL from Spark |
 
+Supported Spark version
+-----------------------
+
+Right now this project is only supported for Spark version 1.5.1.  It has been
+primarily tested against the MemSQL Spark Distribution which you can download
+here: http://versions.memsql.com/memsql-spark/latest
+
 Documentation
 -------------
 
