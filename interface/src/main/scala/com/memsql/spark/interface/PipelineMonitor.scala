@@ -82,6 +82,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   private[interface] val extractor: Extractor = config.extract.kind match {
     case ExtractPhaseKind.Kafka => new KafkaExtractor()
     case ExtractPhaseKind.ZookeeperManagedKafka => new ZookeeperManagedKafkaExtractor()
+    case ExtractPhaseKind.S3 => new S3Extractor()
     case ExtractPhaseKind.TestLines => new TestLinesExtractor()
     case ExtractPhaseKind.User => {
       val className = extractConfig.asInstanceOf[UserExtractConfig].class_name

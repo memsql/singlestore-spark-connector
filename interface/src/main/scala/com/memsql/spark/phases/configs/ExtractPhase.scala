@@ -6,11 +6,12 @@ import com.memsql.spark.etl.api.{PhaseConfig, UserExtractConfig}
 import com.memsql.spark.etl.utils.JsonEnumProtocol
 import spray.json._
 
-import com.memsql.spark.phases.{PythonExtractConfig, ZookeeperManagedKafkaExtractConfig, TestLinesExtractConfig, KafkaExtractConfig}
+import com.memsql.spark.phases._
 
 object ExtractPhase extends JsonEnumProtocol {
   val kafkaConfigFormat = jsonFormat3(KafkaExtractConfig)
   val zookeeperManagedKafkaConfigFormat = jsonFormat2(ZookeeperManagedKafkaExtractConfig)
+  val s3ConfigFormat = jsonFormat4(S3ExtractConfig)
   val testLinesConfigFormat = jsonFormat1(TestLinesExtractConfig)
   val userConfigFormat = jsonFormat2(UserExtractConfig)
   val pythonConfigFormat = jsonFormat2(PythonExtractConfig)
@@ -20,6 +21,7 @@ object ExtractPhase extends JsonEnumProtocol {
       case ExtractPhaseKind.User => userConfigFormat.read(config)
       case ExtractPhaseKind.ZookeeperManagedKafka => zookeeperManagedKafkaConfigFormat.read(config)
       case ExtractPhaseKind.Kafka => kafkaConfigFormat.read(config)
+      case ExtractPhaseKind.S3 => s3ConfigFormat.read(config)
       case ExtractPhaseKind.TestLines => testLinesConfigFormat.read(config)
       case ExtractPhaseKind.Python => pythonConfigFormat.read(config)
     }
@@ -30,6 +32,7 @@ object ExtractPhase extends JsonEnumProtocol {
       case ExtractPhaseKind.User => userConfigFormat.write(config.asInstanceOf[UserExtractConfig])
       case ExtractPhaseKind.ZookeeperManagedKafka => zookeeperManagedKafkaConfigFormat.write(config.asInstanceOf[ZookeeperManagedKafkaExtractConfig])
       case ExtractPhaseKind.Kafka => kafkaConfigFormat.write(config.asInstanceOf[KafkaExtractConfig])
+      case ExtractPhaseKind.S3 => s3ConfigFormat.write(config.asInstanceOf[S3ExtractConfig])
       case ExtractPhaseKind.TestLines => testLinesConfigFormat.write(config.asInstanceOf[TestLinesExtractConfig])
       case ExtractPhaseKind.Python => pythonConfigFormat.write(config.asInstanceOf[PythonExtractConfig])
     }
