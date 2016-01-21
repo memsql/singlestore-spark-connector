@@ -1,7 +1,7 @@
 package com.memsql.spark.phases
 
 import com.memsql.spark.connector.dataframe.BigIntUnsignedType
-import com.memsql.spark.etl.api.{StringTransformer, PhaseConfig}
+import com.memsql.spark.etl.api.PhaseConfig
 import com.memsql.spark.etl.utils.{PhaseLogger, SimpleJsonSchema}
 import org.apache.commons.csv._
 import org.apache.spark.rdd._
@@ -13,8 +13,6 @@ import spray.json.JsValue
 
 import scala.collection.JavaConversions._
 
-class CSVTransformerException(message: String) extends Exception(message)
-
 case class CSVTransformerConfig(
   delimiter: Option[Char],
   escape: Option[String],
@@ -22,25 +20,15 @@ case class CSVTransformerConfig(
   null_string: Option[String],
   columns: JsValue) extends PhaseConfig
 
-class CSVTransformer extends StringTransformer {
+class CSVTransformer extends CSVTransformerBase {
   override def transform(sqlContext: SQLContext, rdd: RDD[String], transformConfig: PhaseConfig, logger: PhaseLogger): DataFrame = {
     val config = transformConfig.asInstanceOf[CSVTransformerConfig]
 
-    val csvFormat = getCSVFormat(config)
-    val nullString = config.null_string
+    val csvFormat = getCSVFormat(config.delimiter, config.escape, config.quote)
     val columns = SimpleJsonSchema.parseColumnDefs(config.columns)
     val schema = SimpleJsonSchema.columnsToStruct(columns)
 
-    val parsedRDD = rdd.flatMap(parseCSVLines(_, csvFormat))
-
-    val nulledRDD = nullString match {
-      case Some(nullS) => parsedRDD.map { line =>
-        line.map { value =>
-          if (value.trim() == nullS) null else value
-        }
-      }
-      case None => parsedRDD
-    }
+    val nulledRDD = getNulledRDD(rdd, csvFormat, config.null_string)
 
     val rowRDD = nulledRDD.map(x => {
       // For each row, remove the values where their corresponding column
@@ -81,25 +69,5 @@ class CSVTransformer extends StringTransformer {
       Row.fromSeq(values)
     })
     sqlContext.createDataFrame(rowRDD, schema)
-  }
-
-  private def getCSVFormat(config: CSVTransformerConfig): CSVFormat = {
-    val format = CSVFormat.newFormat(config.delimiter.getOrElse(','))
-      .withIgnoreSurroundingSpaces()
-      .withIgnoreEmptyLines(false)
-      .withRecordSeparator('\n')
-      .withQuote(config.quote.getOrElse('"'))
-
-    config.escape match {
-      case None => format.withEscape('\\')
-      case Some("") => format
-      case Some(x) if x.size == 1 => format.withEscape(x.head)
-      case _ => throw new CSVTransformerException("Escape is not a single character")
-    }
-  }
-
-  // TODO: support non-standard line delimiters
-  private def parseCSVLines(s: String, format: CSVFormat): Iterable[List[String]] = {
-    CSVParser.parse(s, format).map(record => record.toList)
   }
 }

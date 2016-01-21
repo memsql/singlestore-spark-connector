@@ -79,11 +79,13 @@ trait WebService extends HttpService {
       }
     } ~
     path("pipeline" / "put") {
-      parameter('pipeline_id.as[String], 'single_step.as[Boolean].?, 'batch_interval.as[Long].?) {
-        (pipeline_id, single_step, batch_interval) =>
+      parameter('pipeline_id.as[String], 'single_step.as[Boolean].?, 'batch_interval.as[Long].?, 'trace_batch_count.as[Int].?) {
+        (pipeline_id, single_step, batch_interval, trace_batch_count) =>
         entity(as[PipelineConfig]) { config =>
           post { ctx =>
-            val future = (api ? PipelinePut(pipeline_id, single_step, batch_interval, config)).mapTo[Try[Boolean]]
+            val future = (api ? PipelinePut(pipeline_id = pipeline_id, single_step = single_step,
+              batch_interval = batch_interval, trace_batch_count = trace_batch_count,
+              config = config)).mapTo[Try[Boolean]]
             future.map {
               case Success(resp) => ctx.complete(Map[String, Boolean]("success" -> resp).toJson.toString)
               case Failure(error) => ctx.complete(StatusCodes.BadRequest, error.toString)

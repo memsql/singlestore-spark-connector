@@ -26,6 +26,7 @@ object ApiActor {
   case class PipelinePut(pipeline_id: String,
                          single_step: Option[Boolean],
                          batch_interval: Option[Long],
+                         trace_batch_count: Option[Int] = None,
                          config: PipelineConfig)
 
   case class PipelineUpdate(pipeline_id: String,
@@ -74,7 +75,7 @@ trait ApiService {
       }
     }
 
-    case PipelinePut(pipeline_id, single_step, batch_interval, config) => {
+    case PipelinePut(pipeline_id, single_step, batch_interval, trace_batch_count, config) => {
       try {
         pipelines.get(pipeline_id) match {
           case p: Some[Pipeline] => sender ! Failure(ApiException(s"pipeline with id $pipeline_id already exists"))
@@ -91,13 +92,15 @@ trait ApiService {
             }
             val singleStep = single_step.getOrElse(false)
             val batchInterval = batch_interval.getOrElse(0L)
-            pipelines = pipelines + (pipeline_id -> Pipeline(
+            val newPipeline = Pipeline(
               pipeline_id,
               RUNNING,
               singleStep,
               batchInterval,
               config,
-              clock.currentTimeMillis))
+              clock.currentTimeMillis)
+            newPipeline.traceBatchCount = trace_batch_count.getOrElse(0)
+            pipelines = pipelines + (pipeline_id -> newPipeline)
             sender ! Success(true)
           }
         }

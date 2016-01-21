@@ -89,6 +89,43 @@ class CSVTransformerSpec extends TestKitSpec("CSVTransformerSpec") with LocalSpa
       assert(df.count == 4)
     }
 
+
+    "work on DataFrame with extraneous spaces in the input" in {
+      val config = CSVTransformerConfig(
+        delimiter = Some(','),
+        escape = Some("\\"),
+        quote = Some('\''),
+        null_string = Some("NULL"),
+        columns = """[{"name": "id", "column_type": "string"}, {"name": "name", "column_type": "string"}]""".parseJson
+      )
+
+      val schema = StructType(StructField("string", StringType, false) :: Nil)
+      val sampleData = List(
+        "1,      hello   ",
+        "2,  world",
+        "3     ,foo   ",
+        "4  ,bar   ",
+        "5,NULL   ",
+        "6,   NULL   "
+      )
+      val rowRDD = sqlContext.sparkContext.parallelize(sampleData).map(Row(_))
+      val dfIn = sqlContext.createDataFrame(rowRDD, schema)
+
+      val df = transformer.transform(sqlContext, dfIn, config, logger)
+      val schemaOut = StructType(
+        StructField("id", StringType, true) ::
+        StructField("name", StringType, true) :: Nil)
+
+      assert(df.schema == schemaOut)
+      assert(df.collect()(0) == Row("1", "hello"))
+      assert(df.collect()(1) == Row("2", "world"))
+      assert(df.collect()(2) == Row("3", "foo"))
+      assert(df.collect()(3) == Row("4", "bar"))
+      assert(df.collect()(4) == Row("5", null))
+      assert(df.collect()(5) == Row("6", null))
+      assert(df.count == 6)
+    }
+
     "NOT work on DataFrame with column different than String or Binary" in {
       val config = CSVTransformerConfig(
         delimiter = Some(','),
