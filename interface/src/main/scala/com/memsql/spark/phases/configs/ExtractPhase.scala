@@ -11,7 +11,8 @@ import com.memsql.spark.phases._
 object ExtractPhase extends JsonEnumProtocol {
   val kafkaConfigFormat = jsonFormat3(KafkaExtractConfig)
   val zookeeperManagedKafkaConfigFormat = jsonFormat2(ZookeeperManagedKafkaExtractConfig)
-  val s3ConfigFormat = jsonFormat4(S3ExtractConfig)
+  implicit val s3TaskConfigFormat = jsonFormat1(S3ExtractTaskConfig)
+  val s3ConfigFormat = jsonFormat5(S3ExtractConfig)
   val testLinesConfigFormat = jsonFormat1(TestLinesExtractConfig)
   val userConfigFormat = jsonFormat2(UserExtractConfig)
   val pythonConfigFormat = jsonFormat2(PythonExtractConfig)

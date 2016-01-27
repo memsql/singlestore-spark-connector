@@ -11,10 +11,13 @@ import org.apache.spark.streaming.StreamingContext
 
 
 // Reading from a public S3 bucket without providing valid credentials is not yet supported.
+case class S3ExtractTaskConfig(key: String)
+
 case class S3ExtractConfig(aws_access_key_id: String,
                            aws_secret_access_key: String,
                            bucket: String,
-                           key: String) extends PhaseConfig
+                           task_config: S3ExtractTaskConfig,
+                           max_records: Option[Int]) extends PhaseConfig
 
 case class S3ExtractException(message: String) extends Exception(message)
 
@@ -38,10 +41,10 @@ class S3Extractor extends Extractor {
     hadoopConf.setBoolean("fs.s3n.impl.disable.cache", true)
 
     val bucket = s3config.bucket
-    val key = s3config.key
+    val key = s3config.task_config.key
     val path = s"s3n://${bucket}/${key}"
 
-    val rowRDD = try {
+    var rowRDD = try {
       sc.newAPIHadoopFile(
         path,
         classOf[TextInputFormat],
@@ -53,6 +56,10 @@ class S3Extractor extends Extractor {
       case e: IllegalArgumentException if e.getMessage contains "Invalid hostname in URI" => {
         throw S3ExtractException(s"Invalid bucket: ${bucket}")
       }
+    }
+
+    if (s3config.max_records.isDefined) {
+      rowRDD = sc.parallelize(rowRDD.take(s3config.max_records.get))
     }
 
     val schema = StructType(
