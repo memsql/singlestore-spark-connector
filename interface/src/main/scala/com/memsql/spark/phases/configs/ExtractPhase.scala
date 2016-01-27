@@ -13,6 +13,8 @@ object ExtractPhase extends JsonEnumProtocol {
   val zookeeperManagedKafkaConfigFormat = jsonFormat2(ZookeeperManagedKafkaExtractConfig)
   implicit val s3TaskConfigFormat = jsonFormat1(S3ExtractTaskConfig)
   val s3ConfigFormat = jsonFormat5(S3ExtractConfig)
+  val mysqlTaskConfigFormat = jsonFormat0(MySQLTaskExtractConfig)
+  val mysqlConfigFormat = jsonFormat7(MySQLExtractConfig)
   val testLinesConfigFormat = jsonFormat1(TestLinesExtractConfig)
   val userConfigFormat = jsonFormat2(UserExtractConfig)
   val pythonConfigFormat = jsonFormat2(PythonExtractConfig)
@@ -23,6 +25,7 @@ object ExtractPhase extends JsonEnumProtocol {
       case ExtractPhaseKind.ZookeeperManagedKafka => zookeeperManagedKafkaConfigFormat.read(config)
       case ExtractPhaseKind.Kafka => kafkaConfigFormat.read(config)
       case ExtractPhaseKind.S3 => s3ConfigFormat.read(config)
+      case ExtractPhaseKind.MySQL => mysqlConfigFormat.read(config)
       case ExtractPhaseKind.TestLines => testLinesConfigFormat.read(config)
       case ExtractPhaseKind.Python => pythonConfigFormat.read(config)
     }
@@ -34,6 +37,7 @@ object ExtractPhase extends JsonEnumProtocol {
       case ExtractPhaseKind.ZookeeperManagedKafka => zookeeperManagedKafkaConfigFormat.write(config.asInstanceOf[ZookeeperManagedKafkaExtractConfig])
       case ExtractPhaseKind.Kafka => kafkaConfigFormat.write(config.asInstanceOf[KafkaExtractConfig])
       case ExtractPhaseKind.S3 => s3ConfigFormat.write(config.asInstanceOf[S3ExtractConfig])
+      case ExtractPhaseKind.MySQL => mysqlConfigFormat.write(config.asInstanceOf[MySQLExtractConfig])
       case ExtractPhaseKind.TestLines => testLinesConfigFormat.write(config.asInstanceOf[TestLinesExtractConfig])
       case ExtractPhaseKind.Python => pythonConfigFormat.write(config.asInstanceOf[PythonExtractConfig])
     }
