@@ -45,11 +45,7 @@ class S3ExtractorSpec extends TestKitSpec("S3ExtractorSpec") with LocalSparkCont
   }
 
   def stepExtractor(config: S3ExtractConfig): Option[DataFrame] = {
-    try {
-      extractor.next(ssc, System.currentTimeMillis, sqlContext, config, 0, logger)
-    } finally {
-      extractor.cleanup(ssc, sqlContext, config, 0, logger)
-    }
+    extractor.next(ssc, System.currentTimeMillis, sqlContext, config, 0, logger)
   }
 
   "S3Extractor" should {

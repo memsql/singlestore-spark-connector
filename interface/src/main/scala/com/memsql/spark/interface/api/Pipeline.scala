@@ -30,6 +30,7 @@ case class Pipeline(pipeline_id: String,
   @volatile private[interface] var metricsQueue = new BoundedQueue[PipelineEvent](MAX_METRICS_QUEUE_SIZE)
   @volatile private[interface] var traceBatchCount = 0
   @volatile private[interface] var thread_state = PipelineThreadState.THREAD_STOPPED
+  @volatile private[interface] var jobGroupId: Option[String] = None
 
   private[interface] def enqueueMetricRecord(records: PipelineEvent*) = {
     metricsQueue.enqueue(records: _*)

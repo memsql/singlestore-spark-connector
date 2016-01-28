@@ -35,10 +35,13 @@ object ApiActor {
                             config: Option[PipelineConfig] = None,
                             trace_batch_count: Option[Int] = None,
                             error: Option[String] = None, _validate: Boolean = false,
-                            threadState: Option[PipelineThreadState] = None)
+                            threadState: Option[PipelineThreadState] = None,
+                            jobGroupId: Option[String] = None)
 
   case class PipelineMetrics(pipeline_id: String,
                              last_timestamp: Option[Long])
+
+  case class PipelineProgress(pipeline_id: String)
 
   case class PipelineTraceBatchDecrement(pipeline_id: String)
 
@@ -47,7 +50,7 @@ object ApiActor {
   implicit val timeout = Timeout(5.seconds)
 }
 
-class ApiActor extends Actor with ApiService {
+case class ApiActor(sparkProgress: SparkProgress) extends Actor with ApiService {
   override def receive: Receive = handleMessage
 }
 
@@ -55,6 +58,7 @@ trait ApiService {
   import ApiActor._
   def sender: ActorRef
 
+  def sparkProgress: SparkProgress
   private var pipelines = Map[String, Pipeline]()
 
   private[interface] def clock = new Clock()
@@ -111,7 +115,8 @@ trait ApiService {
       }
     }
 
-    case PipelineUpdate(pipeline_id, state, batch_interval, config, trace_batch_count, error, _validate, threadState) => {
+    case PipelineUpdate(pipeline_id, state, batch_interval, config,
+                        trace_batch_count, error, _validate, threadState, jobGroupId) => {
       pipelines.get(pipeline_id) match {
         case Some(pipeline) => {
           var updated = false
@@ -121,6 +126,7 @@ trait ApiService {
           var newError = pipeline.error
           var newTraceBatchCount = pipeline.traceBatchCount
           var newThreadState = pipeline.thread_state
+          var newJobGroupId = pipeline.jobGroupId
 
           try {
             if (state.isDefined) {
@@ -166,7 +172,7 @@ trait ApiService {
               updated |= newError != pipeline.error
             }
 
-            // NOTE: we don't update the pipeline if only the trace_batch_count is changed
+            // NOTE: changing only the following parameters won't update the pipeline
             if (trace_batch_count.isDefined) {
               newTraceBatchCount = trace_batch_count.get
             }
@@ -175,7 +181,14 @@ trait ApiService {
               newThreadState = threadState.get
             }
 
+            if (jobGroupId.isDefined) {
+              newJobGroupId = jobGroupId
+            }
+
+            val traceBatchCountChanged = (newTraceBatchCount != pipeline.traceBatchCount)
             val threadStateChanged = (newThreadState != pipeline.thread_state)
+            val jobGroupIdChanged = (newJobGroupId != pipeline.jobGroupId)
+
             // update all fields in the pipeline and respond with success
             if (updated) {
               val newLastUpdated = clock.currentTimeMillis
@@ -190,11 +203,13 @@ trait ApiService {
               newPipeline.thread_state = newThreadState
               newPipeline.traceBatchCount = newTraceBatchCount
               newPipeline.metricsQueue = pipeline.metricsQueue
+              newPipeline.jobGroupId = pipeline.jobGroupId
               pipelines = pipelines + (pipeline_id -> newPipeline)
               sender ! Success(true)
-            } else if (threadStateChanged || newTraceBatchCount != pipeline.traceBatchCount) {
-              pipeline.thread_state = newThreadState
+            } else if (traceBatchCountChanged || threadStateChanged || jobGroupIdChanged) {
               pipeline.traceBatchCount = newTraceBatchCount
+              pipeline.thread_state = newThreadState
+              pipeline.jobGroupId = newJobGroupId
               sender ! Success(true)
             } else {
               sender ! Success(false)
@@ -232,6 +247,18 @@ trait ApiService {
           }
           val metricRecords = pipeline.metricsQueue.filter(_.timestamp > lastTimestamp).toList
           sender ! Success(metricRecords)
+        }
+        case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
+      }
+    }
+
+    case PipelineProgress(pipeline_id) => {
+      pipelines.get(pipeline_id) match {
+        case Some(pipeline) => {
+          pipeline.jobGroupId.flatMap(sparkProgress.get) match {
+            case Some(sparkProgressInfo) => sender ! Success(sparkProgressInfo)
+            case _ => sender ! Failure(ApiException(s"no progress messages associated with pipeline id $pipeline_id"))
+          }
         }
         case _ => sender ! Failure(ApiException(s"no pipeline exists with id $pipeline_id"))
       }

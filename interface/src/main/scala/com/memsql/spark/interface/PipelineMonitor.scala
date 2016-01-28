@@ -7,7 +7,6 @@ import akka.pattern.ask
 import akka.actor.ActorRef
 import com.memsql.spark.SaveToMemSQLException
 import com.memsql.spark.connector.MemSQLContext
-import com.memsql.spark.interface.api.PipelineThreadState.PipelineThreadState
 import com.memsql.spark.phases._
 import com.memsql.spark.etl.api._
 import com.memsql.spark.etl.api.configs._
@@ -21,7 +20,6 @@ import com.memsql.spark.interface.util.{PipelineLogger, BaseException}
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.streaming.StreamingContext
-import org.apache.spark.ui.jobs.JobProgressListener
 import scala.collection.mutable.HashSet
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -59,7 +57,9 @@ class DefaultPipelineMonitor(override val api: ActorRef,
                                       val pipeline: Pipeline,
                              override val sparkContext: SparkContext,
                              override val streamingContext: StreamingContext,
-                                      val jobProgressListener: JobProgressListener = null) extends PipelineMonitor with Logging {
+                                      val sparkProgressListener: SparkProgressListener = null)
+  extends PipelineMonitor with Logging {
+
   override val pipeline_id = pipeline.pipeline_id
 
   // keep a copy of the pipeline info so we can determine when the pipeline has been updated
@@ -240,6 +240,8 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     logDebug(s"Computing next DataFrame for pipeline $pipeline_id: $time")
 
     val batch_id = UUID.randomUUID.toString
+    api ! PipelineUpdate(pipeline_id, jobGroupId = Some(batch_id))
+
     currentBatchId = batch_id
     var batch_type = PipelineBatchType.Normal
     if (trace) {
@@ -494,14 +496,14 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   }
 
   private[interface] def getTaskErrors(batch_id: String): Option[List[TaskErrorRecord]] = {
-    if (jobProgressListener == null) {
+    if (sparkProgressListener == null) {
       return None // scalastyle:ignore
     }
 
-    val maybeJobAndStageIds = jobProgressListener.jobGroupToJobIds.get(batch_id) match {
+    val maybeJobAndStageIds = sparkProgressListener.jobGroupToJobIds.get(batch_id) match {
       case Some(jobIds) => {
         Some(jobIds.toList.flatMap { jobId =>
-          jobProgressListener.jobIdToData.get(jobId) match {
+          sparkProgressListener.jobIdToData.get(jobId) match {
             case Some(jobData) => jobData.stageIds.map(x => (jobId, x))
             case None => {
               logDebug(s"Could not find information for job $jobId in pipeline $pipeline_id")
@@ -524,10 +526,10 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     val errorRecords = maybeJobAndStageIds match {
       case Some(jobAndStageIds) => {
         Some(jobAndStageIds.flatMap { case (jobId, stageId) =>
-          jobProgressListener.stageIdToInfo.get(stageId) match {
+          sparkProgressListener.stageIdToInfo.get(stageId) match {
             case Some(stageInfo) => {
               val attemptId = stageInfo.attemptId
-              jobProgressListener.stageIdToData.get((stageId, attemptId)) match {
+              sparkProgressListener.stageIdToData.get((stageId, attemptId)) match {
                 case Some(stageData) => {
                   stageData.taskData.filter { case (taskId, taskData) =>
                     taskData.errorMessage match {

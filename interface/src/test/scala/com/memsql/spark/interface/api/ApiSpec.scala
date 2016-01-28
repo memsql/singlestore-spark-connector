@@ -21,7 +21,8 @@ import LoadPhaseKind._
 // scalastyle:off magic.number
 class ApiSpec extends TestKitSpec("ApiActorSpec") {
   var mockTime = new MockTime()
-  val apiRef = system.actorOf(Props(classOf[TestApiActor], mockTime))
+  val sparkProgress = new SparkProgress()
+  val apiRef = system.actorOf(Props(classOf[TestApiActor], mockTime, sparkProgress))
 
   "Api actor" should {
     val config = PipelineConfig(
@@ -408,6 +409,22 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
           assert(pipeline.traceBatchCount == 3)
           assert(pipeline.batch_interval == 2)
           assert(pipeline.single_step == false)
+          assert(pipeline.jobGroupId == None)
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+
+      mockTime.tick
+      apiRef ! PipelineUpdate("pipeline1", jobGroupId = Some("foo"))
+      expectMsg(Success(true))
+      apiRef ! PipelineGet("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] =>
+          val pipeline = resp.get.asInstanceOf[Pipeline]
+          assert(pipeline.thread_state == PipelineThreadState.THREAD_RUNNING)
+          assert(pipeline.traceBatchCount == 3)
+          assert(pipeline.batch_interval == 2)
+          assert(pipeline.single_step == false)
+          assert(pipeline.jobGroupId == Some("foo"))
         case Failure(err) => fail(s"unexpected response $err")
       }
     }
@@ -451,6 +468,45 @@ class ApiSpec extends TestKitSpec("ApiActorSpec") {
         case resp: Success[_] =>
           val l = resp.get.asInstanceOf[List[BatchEndEvent]]
           assert(l == List(record2))
+        case Failure(err) => fail(s"unexpected response $err")
+      }
+    }
+
+    "return progress when available" in {
+      apiRef ! PipelineProgress("pipeline1")
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
+
+      // Associate a Spark job group ID with a pipeline
+      val jobGroupId = UUID.randomUUID.toString
+      apiRef ! PipelineUpdate("pipeline1", jobGroupId = Some(jobGroupId))
+      expectMsg(Success(true))
+
+      // Looks like Spark hasn't sent messages yet
+      apiRef ! PipelineProgress("pipeline1")
+      receiveOne(1.second) match {
+        case Success(resp) => fail(s"unexpected response $resp")
+        case Failure(err) => assert(err.isInstanceOf[ApiException])
+      }
+
+      // Update Spark progress
+      sparkProgress.updateJobStarted(jobGroupId, 0, Seq())
+
+      // Get expected progress info
+      val maybeExpectedProgressInfo = sparkProgress.get(jobGroupId)
+      assert(maybeExpectedProgressInfo.isDefined)
+
+      val expectedProgressInfo = maybeExpectedProgressInfo.get
+
+      // API call should return expected progress info
+      apiRef ! PipelineProgress("pipeline1")
+      receiveOne(1.second) match {
+        case resp: Success[_] => {
+          val progressInfo = resp.get.asInstanceOf[SparkProgressInfo]
+          assert(progressInfo === expectedProgressInfo)
+        }
         case Failure(err) => fail(s"unexpected response $err")
       }
     }

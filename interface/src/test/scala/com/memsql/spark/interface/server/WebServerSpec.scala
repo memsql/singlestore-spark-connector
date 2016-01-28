@@ -1,5 +1,7 @@
 package com.memsql.spark.interface.server
 
+import java.util.UUID
+
 import akka.actor.{ActorSystem, Props}
 import com.memsql.spark.etl.api.UserExtractConfig
 import com.memsql.spark.etl.api.configs._
@@ -22,8 +24,10 @@ import ApiJsonProtocol._
 class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
   override val appWebUIPort = -1
 
+  val sparkProgress = new SparkProgress()
+
   def actorRefFactory: ActorSystem = system
-  val apiRef = system.actorOf(Props[ApiActor], "api")
+  val apiRef = system.actorOf(Props(classOf[ApiActor], sparkProgress), "api")
 
   val kafkaConfig = PipelineConfig(
     Phase[ExtractPhaseKind](
@@ -558,5 +562,39 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
     Put("/pipeline/query") ~> sealRoute(route) ~> check { assert(status == MethodNotAllowed) }
     Patch("/pipeline/query") ~> sealRoute(route) ~> check { assert(status == MethodNotAllowed) }
     Delete("/pipeline/query") ~> sealRoute(route) ~> check { assert(status == MethodNotAllowed) }
+  }
+
+  "WebServer /pipeline/progress" should "respond to a valid GET" in {
+    putPipeline(basicPipeline)
+
+    Get("/pipeline/progress?pipeline_id=doesntexist") ~> sealRoute(route) ~> check {
+      assert(responseAs[String].contains("no pipeline exists with id doesntexist"))
+      assert(status == NotFound)
+    }
+
+    Get("/pipeline/progress?pipeline_id=asdf") ~> sealRoute(route) ~> check {
+      assert(responseAs[String].contains("no progress messages associated with pipeline id asdf"))
+      assert(status == NotFound)
+    }
+  }
+
+  it should "reject other methods" in {
+    Post("/pipeline/progress") ~> sealRoute(route) ~> check { assert(status == NotFound) }
+    Put("/pipeline/progress") ~> sealRoute(route) ~> check { assert(status == NotFound) }
+    Patch("/pipeline/progress") ~> sealRoute(route) ~> check { assert(status == NotFound) }
+    Delete("/pipeline/progress") ~> sealRoute(route) ~> check { assert(status == NotFound) }
+
+    Post("/pipeline/progress?pipeline_id=asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+      assert(status == MethodNotAllowed)
+    }
+    Put("/pipeline/progress?pipeline_id=asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+      assert(status == MethodNotAllowed)
+    }
+    Patch("/pipeline/progress?pipeline_id=asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+      assert(status == MethodNotAllowed)
+    }
+    Delete("/pipeline/progress?pipeline_id=asdf", kafkaConfigEntity) ~> sealRoute(route) ~> check {
+      assert(status == MethodNotAllowed)
+    }
   }
 }

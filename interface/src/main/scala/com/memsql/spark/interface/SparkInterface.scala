@@ -2,7 +2,7 @@ package com.memsql.spark.interface
 
 import com.memsql.spark.connector.MemSQLConf
 import com.memsql.spark.etl.utils.Logging
-import com.memsql.spark.interface.api.{Pipeline, PipelineState, ApiActor}
+import com.memsql.spark.interface.api._
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.event.Logging._
@@ -12,7 +12,6 @@ import ApiActor._
 import com.memsql.spark.interface.util.Paths
 import com.memsql.spark.interface.util.ErrorUtils._
 import org.apache.log4j.PropertyConfigurator
-import org.apache.spark.ui.jobs.JobProgressListener
 import org.apache.spark.{SparkConf, SparkContext, SparkContextHelper}
 import org.apache.spark.streaming.{Duration, StreamingContext}
 import spray.can.Http
@@ -72,8 +71,8 @@ class SparkInterface(val providedConfig: Config) extends Application {
 
   override val sparkContext = new SparkContext(sparkConf)
   override val streamingContext = new StreamingContext(sparkContext, new Duration(PIPELINE_UPDATE_INTERVAL.toMillis))
-  override val jobProgressListener = new JobProgressListener(sparkConf)
-  sparkContext.addSparkListener(jobProgressListener)
+  override val sparkProgressListener = new SparkProgressListener(sparkConf)
+  sparkContext.addSparkListener(sparkProgressListener)
 
   // Use the sparkContext to get the master URL. This forces the sparkContext
   // be evaluated, ensuring that we attempt to connect to the master before
@@ -84,7 +83,7 @@ class SparkInterface(val providedConfig: Config) extends Application {
 
   val appWebUIPort = SparkContextHelper.getUIBoundPort(sparkContext)
 
-  override val api = system.actorOf(Props[ApiActor], "api")
+  override val api = system.actorOf(Props(classOf[ApiActor], sparkProgressListener.sparkProgress), "api")
   override val web = system.actorOf(Props(classOf[WebServer], appWebUIPort), "web")
 
   IO(Http) ? Http.Bind(web, interface = "0.0.0.0", port = config.port) onComplete {
@@ -110,7 +109,7 @@ trait Application extends Logging {
   private[interface] def sparkConf: SparkConf
   private[interface] def sparkContext: SparkContext
   private[interface] def streamingContext: StreamingContext
-  private[interface] def jobProgressListener: JobProgressListener = null
+  private[interface] def sparkProgressListener: SparkProgressListener = null
 
   private[interface] var pipelineMonitors = Map[String, PipelineMonitor]()
 
@@ -206,7 +205,7 @@ trait Application extends Logging {
 
   private[interface] def newPipelineMonitor(pipeline: Pipeline): Try[PipelineMonitor] = {
     try {
-      Success(new DefaultPipelineMonitor(api, pipeline, sparkContext, streamingContext, jobProgressListener))
+      Success(new DefaultPipelineMonitor(api, pipeline, sparkContext, streamingContext, sparkProgressListener))
     } catch {
       case e: Exception => {
         val errorMessage = s"Failed to initialize pipeline ${pipeline.pipeline_id}"

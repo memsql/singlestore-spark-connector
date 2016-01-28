@@ -27,6 +27,8 @@ object ApiJsonProtocol extends JsonEnumProtocol {
   implicit val pipelineStateFormat = jsonEnum(PipelineState)
   implicit val pipelineThreadStateFormat = jsonEnum(PipelineThreadState)
 
+  implicit val sparkProgressInfoFormat = jsonFormat6(SparkProgressInfo)
+
   val basePipelineFormat = jsonFormat(Pipeline.apply, "pipeline_id", "state", "single_step", "batch_interval", "config", "last_updated", "error")
 
   implicit object pipelineEventFormat extends RootJsonFormat[PipelineEvent] {

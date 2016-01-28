@@ -48,7 +48,7 @@ class SlowTransformer extends Transformer {
 }
 
 class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with LocalSparkContext {
-  val apiRef = system.actorOf(Props[ApiActor], "api")
+  val apiRef = system.actorOf(Props(classOf[ApiActor], new SparkProgress()), "api")
   var sqlContext: SQLContext = _
   var streamingContext: StreamingContext = _
   implicit val timeout = Timeout(5.seconds)

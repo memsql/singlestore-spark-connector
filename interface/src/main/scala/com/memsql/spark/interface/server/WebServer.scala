@@ -129,6 +129,17 @@ trait WebService extends HttpService {
         }
       }
     } ~
+    path("pipeline" / "progress") {
+      parameter('pipeline_id.as[String]) { pipeline_id =>
+        get { ctx =>
+          val future = (api ? PipelineProgress(pipeline_id)).mapTo[Try[SparkProgressInfo]]
+          future.map {
+            case Success(resp) => ctx.complete(resp.toJson.toString)
+            case Failure(error) => ctx.complete(StatusCodes.NotFound, error.toString)
+          }
+        }
+      }
+    } ~
     path("pipeline" / "delete") {
       parameter('pipeline_id.as[String]) { pipeline_id =>
         delete { ctx =>

@@ -27,7 +27,8 @@ import spray.json._
 // scalastyle:off magic.number
 class SparkInterfaceSpec extends TestKitSpec("SparkInterfaceSpec") with LocalSparkContext with Logging {
   var mockTime = new MockTime()
-  val apiRef = system.actorOf(Props(classOf[TestApiActor], mockTime))
+  val sparkProgress = new SparkProgress()
+  val apiRef = system.actorOf(Props(classOf[TestApiActor], mockTime, sparkProgress))
   implicit val timeout = Timeout(5.seconds)
 
   override def beforeEach(): Unit = {

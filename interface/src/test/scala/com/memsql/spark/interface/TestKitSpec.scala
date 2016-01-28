@@ -2,13 +2,14 @@ package com.memsql.spark.interface
 
 import akka.actor.{Actor, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
-import com.memsql.spark.interface.api.ApiService
+import com.memsql.spark.interface.api.{ApiService, SparkProgress}
 import com.memsql.spark.interface.util.{Clock, Paths}
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{WordSpecLike, BeforeAndAfterAll, Matchers}
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpecLike}
+
 import scala.sys.process._
 
-class TestApiActor(mockTime: Clock) extends Actor with ApiService {
+case class TestApiActor(mockTime: Clock, sparkProgress: SparkProgress) extends Actor with ApiService {
   override def clock: Clock = mockTime
   override def receive: Receive = handleMessage
 }

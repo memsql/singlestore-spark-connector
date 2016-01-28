@@ -136,7 +136,7 @@ lazy val jarInspector = (project in file("jarInspector")).
   )
 
 lazy val interface = (project in file("interface")).
-  dependsOn(connectorLib).
+  dependsOn(connectorLib % "test->test;compile->compile").
   dependsOn(etlLib % "test->test;compile->compile").
   dependsOn(jarInspector).
   settings(commonSettings: _*).
