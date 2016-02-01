@@ -1,0 +1,2 @@
+ -s dockertest/hdfs_utils_test.py::test_hdfs_utils_sanity --psyduck-time-limit=16
+ -s dockertest/hdfs_utils_test.py::test_hdfs_utils_errors --psyduck-time-limit=16

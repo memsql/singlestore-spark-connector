@@ -10,6 +10,7 @@ connectorLib/src/main/scala/com/memsql/spark/connector/target/*
 etlLib/target/*
 interface/target/*
 jarInspector/target/*
+hdfsUtils/target/*
 target/*
 test_root/*
 *.pyc
@@ -18,3 +19,4 @@ test_root/*
 *.swp
 .idea
 .DS_Store
+dockertest/hdfs_server.txt

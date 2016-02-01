@@ -135,10 +135,22 @@ lazy val jarInspector = (project in file("jarInspector")).
     )
   )
 
+lazy val hdfsUtils = (project in file("hdfsUtils")).
+  settings(commonSettings: _*).
+  settings(
+    name := "hdfsUtils",
+    libraryDependencies  ++= Seq(
+      "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
+      "io.spray" %% "spray-json" % sprayVersion,
+      "com.github.scopt" %% "scopt" % scoptVersion
+    )
+  )
+
 lazy val interface = (project in file("interface")).
   dependsOn(connectorLib % "test->test;compile->compile").
   dependsOn(etlLib % "test->test;compile->compile").
   dependsOn(jarInspector).
+  dependsOn(hdfsUtils).
   settings(commonSettings: _*).
   enablePlugins(BuildInfoPlugin).
   settings(
@@ -214,7 +226,7 @@ lazy val root = (project in file(".")).
       "org.apache.spark" %% "spark-streaming" % sparkVersion % Provided,
       "mysql" % "mysql-connector-java" % mysqlConnectorVersion
     ),
-    unidocProjectFilter in (ScalaUnidoc, unidoc) := inAnyProject -- inProjects(tests, jarInspector),
+    unidocProjectFilter in (ScalaUnidoc, unidoc) := inAnyProject -- inProjects(tests, jarInspector, hdfsUtils),
     site.includeScaladoc(),
     site.addMappingsToSiteDir(mappings in (ScalaUnidoc, packageDoc), "latest/api"),
     git.remoteRepo := s"git@github.com:memsql/memsql-spark-connector.git"

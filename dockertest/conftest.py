@@ -73,7 +73,7 @@ class DockerFactory(object):
             assert "PSYDUCK_RUN_ID" in os.environ, "Psyduck run id not found"
 
             resp = requests.post("http://" + SWITCHMAN_IP + "/api/v1/container-start", data=json.dumps({
-                "image": "psy3.memcompute.com/psy3-test-%s:latest" % os.environ['PSYDUCK_RUN_ID'],
+                "image": "psy3.memcompute.com/psy3-test-base:%s" % os.environ['PSYDUCK_RUN_ID'],
                 "command": "/bin/sh -c 'while true; do sleep 1; done'"
             }))
 
@@ -346,6 +346,13 @@ class LocalContext:
 
         assert resp.status_code == 200, "pipeline update failed: %s" % resp.text
         return resp.json()
+
+    def get_hdfs_server(self):
+        try:
+            with open(os.path.join(self.ROOT_PATH, "memsql-spark-connector", "dockertest", "hdfs_server.txt"), "r") as f:
+                return f.read().strip()
+        except OSError:
+            assert False, "Make sure that dockertest/hdfs_server.txt exists. It should contain a single line of the form 'hdfs://<hdfs server>:<hdfs port>'"
 
 @pytest.fixture(scope='function')
 def local_context(request):
