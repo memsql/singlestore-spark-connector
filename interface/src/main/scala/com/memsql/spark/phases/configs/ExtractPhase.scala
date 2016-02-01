@@ -13,7 +13,7 @@ object ExtractPhase extends JsonEnumProtocol {
   val zookeeperManagedKafkaConfigFormat = jsonFormat2(ZookeeperManagedKafkaExtractConfig)
   implicit val s3TaskConfigFormat = jsonFormat1(S3ExtractTaskConfig)
   val s3ConfigFormat = jsonFormat5(S3ExtractConfig)
-  val mysqlTaskConfigFormat = jsonFormat0(MySQLTaskExtractConfig)
+  implicit val mysqlTaskConfigFormat = jsonFormat0(MySQLExtractTaskConfig)
   val mysqlConfigFormat = jsonFormat7(MySQLExtractConfig)
   val testLinesConfigFormat = jsonFormat1(TestLinesExtractConfig)
   val userConfigFormat = jsonFormat2(UserExtractConfig)
