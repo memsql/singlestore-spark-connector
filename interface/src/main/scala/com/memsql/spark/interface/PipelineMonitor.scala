@@ -83,6 +83,7 @@ class DefaultPipelineMonitor(override val api: ActorRef,
     case ExtractPhaseKind.Kafka => new KafkaExtractor()
     case ExtractPhaseKind.ZookeeperManagedKafka => new ZookeeperManagedKafkaExtractor()
     case ExtractPhaseKind.S3 => new S3Extractor()
+    case ExtractPhaseKind.HDFS => new HDFSExtractor()
     case ExtractPhaseKind.MySQL => new MySQLExtractor()
     case ExtractPhaseKind.TestLines => new TestLinesExtractor()
     case ExtractPhaseKind.User => {
@@ -486,10 +487,17 @@ class DefaultPipelineMonitor(override val api: ActorRef,
 
   private[interface] def getLoadColumns(): Option[List[(String, String)]] = {
     if (sqlContext.isInstanceOf[MemSQLContext] && pipelineInstance.loadConfig.isInstanceOf[MemSQLLoadConfig]) {
-      val memSQLContext = sqlContext.asInstanceOf[MemSQLContext]
-      val memSQLLoadConfig = pipelineInstance.loadConfig.asInstanceOf[MemSQLLoadConfig]
-      val columnsSchema = memSQLContext.table(memSQLLoadConfig.getTableIdentifier).schema
-      Some(columnsSchema.fields.map(field => (field.name, field.dataType.typeName)).toList)
+      try {
+        val memSQLContext = sqlContext.asInstanceOf[MemSQLContext]
+        val memSQLLoadConfig = pipelineInstance.loadConfig.asInstanceOf[MemSQLLoadConfig]
+        val columnsSchema = memSQLContext.table(memSQLLoadConfig.getTableIdentifier).schema
+        Some(columnsSchema.fields.map(field => (field.name, field.dataType.typeName)).toList)
+      } catch {
+        case e: Exception => {
+          logDebug(s"Could not get load columns: ${e.toString}")
+          None
+        }
+      }
     } else {
       None
     }
