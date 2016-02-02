@@ -6,6 +6,7 @@ import com.memsql.spark.etl.api.PhaseConfig
 import com.memsql.spark.etl.api.configs.LoadPhaseKind._
 import com.memsql.spark.etl.utils.JsonEnumProtocol
 import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.memsql.CreateMode
 import spray.json._
 
 object MemSQLKeyType extends Enumeration {
@@ -55,7 +56,8 @@ case class LoadConfigOptions(on_duplicate_key_sql: Option[String]=None,
                              table_keys: Option[List[MemSQLKeyConfig]]=None,
                              table_extra_columns: Option[List[MemSQLColumnConfig]]=None,
                              use_keyless_sharding_optimization: Option[Boolean]=None,
-                             duplicate_key_behavior: Option[MemSQLDupKeyBehavior]=None) {
+                             duplicate_key_behavior: Option[MemSQLDupKeyBehavior]=None,
+                             createMode: Option[CreateMode.CreateMode]=None) {
 
   if (on_duplicate_key_sql.isDefined && duplicate_key_behavior != Some(MemSQLDupKeyBehavior.Update)) {
     throw new IllegalArgumentException("If on_duplicate_key_sql is defined, duplicate_key_behavior must be Update.")
@@ -122,7 +124,8 @@ object LoadPhaseImplicits extends JsonEnumProtocol {
   implicit val memSQLextraColumnConfigFormat = jsonFormat5(MemSQLColumnConfig)
   implicit val memSQLTableTypeTypeFormat = jsonEnum(MemSQLTableConfig)
   implicit val memSQLErrorBehaviorFormat = jsonEnum(MemSQLDupKeyBehavior)
-  implicit val memSQLOptionsFormat = jsonFormat6(LoadConfigOptions)
+  implicit val createModeFormat = jsonEnum(CreateMode)
+  implicit val memSQLOptionsFormat = jsonFormat7(LoadConfigOptions)
 }
 import com.memsql.spark.etl.api.configs.LoadPhaseImplicits._
 

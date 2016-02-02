@@ -15,9 +15,14 @@ class MemSQLLoader extends Loader {
     val memSQLLoadConfig = loadConfig.asInstanceOf[MemSQLLoadConfig]
     val options = memSQLLoadConfig.options.getOrElse(memSQLLoadConfig.getDefaultOptions)
 
+    var createMode = options.createMode.getOrElse(CreateMode.DatabaseAndTable)
+    if (hasInserted) {
+      createMode = CreateMode.Skip
+    }
+
     val saveConfig = SaveToMemSQLConf(
       saveMode = options.getSaveMode,
-      createMode = if (hasInserted) CreateMode.Skip else CreateMode.DatabaseAndTable,
+      createMode = createMode,
       onDuplicateKeySQL = options.on_duplicate_key_sql,
       insertBatchSize = options.upsert_batch_size.getOrElse(memSQLConf.defaultInsertBatchSize),
       loadDataCompression = memSQLConf.defaultLoadDataCompression,
