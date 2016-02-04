@@ -9,7 +9,7 @@ import com.memsql.spark.phases.{PythonTransformConfig, CSVTransformerConfig, CSV
 object TransformPhase extends DefaultJsonProtocol {
   val jsonConfigFormat = jsonFormat1(JsonTransformConfig)
   val csvTransformerConfigFormat = jsonFormat5(CSVTransformerConfig)
-  val csvSamplingTransformerConfigFormat = jsonFormat5(CSVSamplingTransformerConfig)
+  val csvSamplingTransformerConfigFormat = jsonFormat6(CSVSamplingTransformerConfig)
   val identityTransformerConfigFormat = jsonFormat0(IdentityTransformerConfig)
   val userConfigFormat = jsonFormat2(UserTransformConfig)
   val pythonConfigFormat = jsonFormat2(PythonTransformConfig)

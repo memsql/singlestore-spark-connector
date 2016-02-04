@@ -71,7 +71,7 @@ class SparkProgressSpec extends TestKitSpec("ProgressSpec") with TestBase with B
     val bucket = "loader-tests"
 
     val taskConfig = S3ExtractTaskConfig(key)
-    S3ExtractConfig(awsAccessKeyID, awsSecretAccessKey, bucket, taskConfig, None)
+    S3ExtractConfig(awsAccessKeyID, awsSecretAccessKey, bucket, taskConfig, None, None)
   }
 
   val testPipelineConfig = PipelineConfig(

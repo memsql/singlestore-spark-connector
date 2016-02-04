@@ -39,9 +39,9 @@ class S3ExtractorSpec extends TestKitSpec("S3ExtractorSpec") with LocalSparkCont
 
   val bucket = "loader-tests"
 
-  def testConfig(key: String, max_records: Option[Int] = None): S3ExtractConfig = {
+  def testConfig(key: String, max_records: Option[Int] = None, num_records_to_skip: Option[Int] = None): S3ExtractConfig = {
     val task_config = S3ExtractTaskConfig(key = key)
-    S3ExtractConfig(awsAccessKeyID, awsSecretAccessKey, bucket, task_config, max_records)
+    S3ExtractConfig(awsAccessKeyID, awsSecretAccessKey, bucket, task_config, max_records, num_records_to_skip)
   }
 
   def stepExtractor(config: S3ExtractConfig): Option[DataFrame] = {
@@ -84,7 +84,7 @@ class S3ExtractorSpec extends TestKitSpec("S3ExtractorSpec") with LocalSparkCont
     }
 
     "fail on bad credentials" in {
-      val config = S3ExtractConfig("foo", "bar", bucket, S3ExtractTaskConfig("one_line/file1"), None)
+      val config = S3ExtractConfig("foo", "bar", bucket, S3ExtractTaskConfig("one_line/file1"), None, None)
       val dfOption = stepExtractor(config)
 
       dfOption match {
@@ -121,8 +121,32 @@ class S3ExtractorSpec extends TestKitSpec("S3ExtractorSpec") with LocalSparkCont
       }
     }
 
+    "skip lines if necessary" in {
+      val config = testConfig("big_files/file1", num_records_to_skip = Some(1))
+      val dfOption = stepExtractor(config)
+
+      dfOption match {
+        case Some(df) => {
+          assert(df.count == 299999)
+        }
+        case None => fail("extractor did not return a dataframe")
+      }
+    }
+
+    "skip lines if necessary in one-line files" in {
+      val config = testConfig("one_line/file1", num_records_to_skip = Some(1))
+      val dfOption = stepExtractor(config)
+
+      dfOption match {
+        case Some(df) => {
+          assert(df.count == 0)
+        }
+        case None => fail("extractor did not return a dataframe")
+      }
+    }
+
     "fail on a non-existent bucket" in {
-      val config = S3ExtractConfig(awsAccessKeyID, awsSecretAccessKey, "this_bucket_does_not_exist", S3ExtractTaskConfig("foo"), None)
+      val config = S3ExtractConfig(awsAccessKeyID, awsSecretAccessKey, "this_bucket_does_not_exist", S3ExtractTaskConfig("foo"), None, None)
 
       an[S3ExtractException] should be thrownBy {
         extractor.next(ssc, System.currentTimeMillis, sqlContext, config, 0, logger)
@@ -147,7 +171,7 @@ class S3ExtractorSpec extends TestKitSpec("S3ExtractorSpec") with LocalSparkCont
       import scala.concurrent.ExecutionContext.Implicits.global
 
       val config1 = testConfig("big_files/file2")
-      val config2 = S3ExtractConfig("foo", "bar", bucket, S3ExtractTaskConfig("one_line/file1"), None)
+      val config2 = S3ExtractConfig("foo", "bar", bucket, S3ExtractTaskConfig("one_line/file1"), None, None)
 
       val dfOption1 = stepExtractor(config1)
       val dfOption2 = stepExtractor(config2)

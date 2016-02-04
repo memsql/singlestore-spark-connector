@@ -17,7 +17,8 @@ case class S3ExtractConfig(aws_access_key_id: String,
                            aws_secret_access_key: String,
                            bucket: String,
                            task_config: S3ExtractTaskConfig,
-                           max_records: Option[Int]) extends PhaseConfig
+                           max_records: Option[Int],
+                           num_records_to_skip: Option[Int]) extends PhaseConfig
 
 case class S3ExtractException(message: String) extends Exception(message)
 
@@ -58,6 +59,12 @@ class S3Extractor extends Extractor {
       }
     }
 
+    if (s3config.num_records_to_skip.isDefined) {
+      rowRDD = rowRDD
+        .zipWithIndex
+        .filter(x => x._2 >= s3config.num_records_to_skip.get)
+        .map(x => x._1)
+    }
     if (s3config.max_records.isDefined) {
       rowRDD = sc.parallelize(rowRDD.take(s3config.max_records.get))
     }

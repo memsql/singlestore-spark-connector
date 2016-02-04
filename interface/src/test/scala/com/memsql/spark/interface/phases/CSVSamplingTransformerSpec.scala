@@ -35,8 +35,9 @@ class CSVSamplingTransformerSpec extends TestKitSpec("CSVSamplingTransformerSpec
         escape = Some("\\"),
         quote = Some('\''),
         null_string = Some("NULL"),
-        sample_size = Some(10)
-    )
+        sample_size = Some(10),
+        has_headers = Some(false)
+      )
 
       val schema = StructType(StructField("string", StringType, false) :: Nil)
       val sampleData = List(
@@ -51,7 +52,7 @@ class CSVSamplingTransformerSpec extends TestKitSpec("CSVSamplingTransformerSpec
       val df = transformer.transform(sqlContext, dfIn, config, logger)
       val schemaOut = StructType(
         StructField("column_1", StringType, true) ::
-        StructField("column_2", StringType, true) :: Nil)
+          StructField("column_2", StringType, true) :: Nil)
 
       assert(df.schema == schemaOut)
       assert(df.first == Row("1", "hello"))
@@ -59,51 +60,84 @@ class CSVSamplingTransformerSpec extends TestKitSpec("CSVSamplingTransformerSpec
     }
   }
 
-    "only return a sample of large DataFrames" in {
-      val config = CSVSamplingTransformerConfig(
-        delimiter = Some(','),
-        escape = Some("\\"),
-        quote = Some('\''),
-        null_string = Some("NULL"),
-        sample_size = Some(10)
-      )
+  "only return a sample of large DataFrames" in {
+    val config = CSVSamplingTransformerConfig(
+      delimiter = Some(','),
+      escape = Some("\\"),
+      quote = Some('\''),
+      null_string = Some("NULL"),
+      sample_size = Some(10),
+      has_headers = Some(false)
+    )
 
-      val schema = StructType(StructField("string", StringType, false) :: Nil)
-      val sampleData = (0 to 100).map(x => s"$x,test")
-      val rowRDD = sqlContext.sparkContext.parallelize(sampleData).map(Row(_))
-      val dfIn = sqlContext.createDataFrame(rowRDD, schema)
+    val schema = StructType(StructField("string", StringType, false) :: Nil)
+    val sampleData = (0 to 100).map(x => s"$x,test")
+    val rowRDD = sqlContext.sparkContext.parallelize(sampleData).map(Row(_))
+    val dfIn = sqlContext.createDataFrame(rowRDD, schema)
 
-      val df = transformer.transform(sqlContext, dfIn, config, logger)
-      val schemaOut = StructType(
-        StructField("column_1", StringType, true) ::
+    val df = transformer.transform(sqlContext, dfIn, config, logger)
+    val schemaOut = StructType(
+      StructField("column_1", StringType, true) ::
         StructField("column_2", StringType, true) :: Nil)
 
-      assert(df.schema == schemaOut)
-      assert(df.first == Row("0", "test"))
-      assert(df.count == 10)
+    assert(df.schema == schemaOut)
+    assert(df.first == Row("0", "test"))
+    assert(df.count == 10)
+  }
+
+  "skip header lines when so instructed" in {
+    val config = CSVSamplingTransformerConfig(
+      delimiter = Some(','),
+      escape = Some("\\"),
+      quote = Some('\''),
+      null_string = Some("NULL"),
+      sample_size = Some(10),
+      has_headers = Some(true)
+    )
+
+    val schema = StructType(StructField("string", StringType, false) :: Nil)
+    val sampleData = List(
+      "id,data",
+      "1,hello",
+      "2,world",
+      "3,foo",
+      "4,bar"
+    )
+    val rowRDD = sqlContext.sparkContext.parallelize(sampleData).map(Row(_))
+    val dfIn = sqlContext.createDataFrame(rowRDD, schema)
+
+    val df = transformer.transform(sqlContext, dfIn, config, logger)
+    val schemaOut = StructType(
+      StructField("id", StringType, true) ::
+        StructField("data", StringType, true) :: Nil)
+
+    assert(df.schema == schemaOut)
+    assert(df.first == Row("1", "hello"))
+    assert(df.count == 4)
+  }
+
+  "fail on variable-sized rows" in {
+    val config = CSVSamplingTransformerConfig(
+      delimiter = Some(','),
+      escape = Some("\\"),
+      quote = Some('\''),
+      null_string = Some("NULL"),
+      sample_size = Some(10),
+      has_headers = Some(false)
+    )
+
+    val schema = StructType(StructField("string", StringType, false) :: Nil)
+    val sampleData = List(
+      "1,hello",
+      "2,foo,bar"
+    )
+
+    val rowRDD = sqlContext.sparkContext.parallelize(sampleData).map(Row(_))
+    val dfIn = sqlContext.createDataFrame(rowRDD, schema)
+    try {
+      transformer.transform(sqlContext, dfIn, config, logger)
+    } catch {
+      case e: Throwable => assert(e.isInstanceOf[CSVTransformerException])
     }
-
-    "fail on variable-sized rows" in {
-      val config = CSVSamplingTransformerConfig(
-        delimiter = Some(','),
-        escape = Some("\\"),
-        quote = Some('\''),
-        null_string = Some("NULL"),
-        sample_size = Some(10)
-      )
-
-      val schema = StructType(StructField("string", StringType, false) :: Nil)
-      val sampleData = List(
-        "1,hello",
-        "2,foo,bar"
-      )
-
-      val rowRDD = sqlContext.sparkContext.parallelize(sampleData).map(Row(_))
-      val dfIn = sqlContext.createDataFrame(rowRDD, schema)
-      try {
-        transformer.transform(sqlContext, dfIn, config, logger)
-      } catch {
-        case e: Throwable => assert(e.isInstanceOf[CSVTransformerException])
-      }
-    }
+  }
 }
