@@ -15,7 +15,8 @@ case class HDFSExtractTaskConfig(path: String)
 case class HDFSExtractConfig(hdfs_server: String,
                              hdfs_port: Int,
                              task_config: HDFSExtractTaskConfig,
-                             max_records: Option[Int]) extends PhaseConfig
+                             max_records: Option[Int],
+                             num_records_to_skip: Option[Int]) extends PhaseConfig
 
 case class HDFSExtractException(message: String) extends Exception(message)
 
@@ -52,6 +53,12 @@ class HDFSExtractor extends Extractor {
       }
     }
 
+    if (hdfsConfig.num_records_to_skip.isDefined) {
+      rowRDD = rowRDD
+        .zipWithIndex
+        .filter(x => x._2 >= hdfsConfig.num_records_to_skip.get)
+        .map(x => x._1)
+    }
     if (hdfsConfig.max_records.isDefined) {
       rowRDD = sc.parallelize(rowRDD.take(hdfsConfig.max_records.get))
     }
