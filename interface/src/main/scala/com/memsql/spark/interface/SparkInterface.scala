@@ -97,7 +97,7 @@ class SparkInterface(val providedConfig: Config) extends Application {
 }
 
 trait Application extends Logging {
-  val PIPELINE_UPDATE_INTERVAL = 5.seconds
+  val PIPELINE_UPDATE_INTERVAL = 1.seconds
 
   private[interface] lazy val config: Config = Config()
   Paths.initialize(config.dataDir)
