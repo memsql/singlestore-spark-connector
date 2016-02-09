@@ -17,11 +17,14 @@ case class InsertStrategy(tableFragment: QueryFragment,
       val numRowsAffected = {
         partition
           .grouped(conf.insertBatchSize)
-          .map(group => insertQuery.flush(conn, group.toList))
+          .map(group => {
+            val numRows = insertQuery.flush(conn, group.toList)
+            conn.commit()
+            numRows
+          })
           .sum
       }
 
-      conn.commit()
       numRowsAffected
     }
   }
