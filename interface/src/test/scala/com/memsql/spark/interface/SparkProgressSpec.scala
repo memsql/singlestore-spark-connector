@@ -113,23 +113,23 @@ class SparkProgressSpec extends TestKitSpec("ProgressSpec") with TestBase with B
       apiRef ! PipelineProgress("p0")
       receiveOne(1.second).asInstanceOf[Try[SparkProgressInfo]] match {
         case Success(resp) => {
-          assert(resp.totalTasks == 2)
-          assert(resp.tasksFailed == 0)
-          assert(0 <= resp.tasksSucceeded && resp.tasksSucceeded <= 2)
+          assert(resp.total_tasks == 2)
+          assert(resp.tasks_failed == 0)
+          assert(0 <= resp.tasks_succeeded && resp.tasks_succeeded <= 2)
 
           // the timing is unpredictable - we might catch any of these intermediate progress states,
           // and any of them are valid
-          resp.tasksSucceeded match {
+          resp.tasks_succeeded match {
             case 0 => {
-              assert(resp.bytesRead == 0)
-              assert(resp.recordsRead == 0)
+              assert(resp.bytes_read == 0)
+              assert(resp.records_read == 0)
             }
             case 1 => {
-              assert(resp.bytesRead == 67108864 || resp.bytesRead == 14516570)
+              assert(resp.bytes_read == 67108864 || resp.bytes_read == 14516570)
             }
             case 2 => {
-              assert(resp.bytesRead == 81625434)
-              assert(resp.recordsRead == 300000)
+              assert(resp.bytes_read == 81625434)
+              assert(resp.records_read == 300000)
             }
             case _ => assert(false)
           }
@@ -145,11 +145,11 @@ class SparkProgressSpec extends TestKitSpec("ProgressSpec") with TestBase with B
       apiRef ! PipelineProgress("p0")
       receiveOne(1.second).asInstanceOf[Try[SparkProgressInfo]] match {
         case Success(resp) => {
-          assert(resp.bytesRead == 81625434)
-          assert(resp.recordsRead == 300000)
-          assert(resp.totalTasks == 2)
-          assert(resp.tasksSucceeded == 2)
-          assert(resp.tasksFailed == 0)
+          assert(resp.bytes_read == 81625434)
+          assert(resp.records_read == 300000)
+          assert(resp.total_tasks == 2)
+          assert(resp.tasks_succeeded == 2)
+          assert(resp.tasks_failed == 0)
         }
         case Failure(err) => fail(s"unexpected response $err")
       }
@@ -178,11 +178,11 @@ class SparkProgressSpec extends TestKitSpec("ProgressSpec") with TestBase with B
       apiRef ! PipelineProgress("p1")
       receiveOne(1.second).asInstanceOf[Try[SparkProgressInfo]] match {
         case Success(resp) => {
-          assert(resp.bytesRead == 81625434)
-          assert(resp.recordsRead == 300000)
-          assert(resp.totalTasks == 2)
-          assert(resp.tasksSucceeded == 2)
-          assert(resp.tasksFailed == 0)
+          assert(resp.bytes_read == 81625434)
+          assert(resp.records_read == 300000)
+          assert(resp.total_tasks == 2)
+          assert(resp.tasks_succeeded == 2)
+          assert(resp.tasks_failed == 0)
         }
         case Failure(err) => fail(s"unexpected response $err")
       }
@@ -190,11 +190,11 @@ class SparkProgressSpec extends TestKitSpec("ProgressSpec") with TestBase with B
       apiRef ! PipelineProgress("p2")
       receiveOne(1.second).asInstanceOf[Try[SparkProgressInfo]] match {
         case Success(resp) => {
-          assert(resp.bytesRead == 81625434)
-          assert(resp.recordsRead == 300000)
-          assert(resp.totalTasks == 2)
-          assert(resp.tasksSucceeded == 2)
-          assert(resp.tasksFailed == 0)
+          assert(resp.bytes_read == 81625434)
+          assert(resp.records_read == 300000)
+          assert(resp.total_tasks == 2)
+          assert(resp.tasks_succeeded == 2)
+          assert(resp.tasks_failed == 0)
         }
         case Failure(err) => fail(s"unexpected response $err")
       }
