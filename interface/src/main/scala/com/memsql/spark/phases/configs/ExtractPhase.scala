@@ -14,7 +14,7 @@ object ExtractPhase extends JsonEnumProtocol {
   implicit val s3TaskConfigFormat = jsonFormat1(S3ExtractTaskConfig)
   val s3ConfigFormat = jsonFormat6(S3ExtractConfig)
   implicit val mysqlTaskConfigFormat = jsonFormat0(MySQLExtractTaskConfig)
-  val mysqlConfigFormat = jsonFormat7(MySQLExtractConfig)
+  val mysqlConfigFormat = jsonFormat8(MySQLExtractConfig)
   implicit val hdfsTaskConfigFormat = jsonFormat1(HDFSExtractTaskConfig)
   val hdfsConfigFormat = jsonFormat5(HDFSExtractConfig)
   val testLinesConfigFormat = jsonFormat1(TestLinesExtractConfig)

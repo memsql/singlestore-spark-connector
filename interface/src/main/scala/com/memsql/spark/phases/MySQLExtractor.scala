@@ -14,6 +14,7 @@ case class MySQLExtractConfig(host: String,
                               password: String,
                               db_name: String,
                               table_name: String,
+                              max_records: Option[Int],
                               task_config: MySQLExtractTaskConfig) extends PhaseConfig
 
 class MySQLExtractor extends Extractor {
@@ -32,12 +33,17 @@ class MySQLExtractor extends Extractor {
     val table_name = mysqlConfig.table_name
 
     val url = s"jdbc:mysql://${host}:${port}"
-    val df = sqlContext.read.format("jdbc")
+    var df = sqlContext.read.format("jdbc")
       .option("url", url)
       .option("user", mysqlConfig.user)
       .option("password", mysqlConfig.password)
       .option("dbtable", s"${db_name}.${table_name}")
       .load()
+
+    if (mysqlConfig.max_records.isDefined) {
+      df = df.limit(mysqlConfig.max_records)
+    }
+
     Some(df)
   }
 }
