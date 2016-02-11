@@ -406,6 +406,10 @@ class DefaultPipelineMonitor(override val api: ActorRef,
       case NonFatal(e) => {
         logError(s"Phase error in pipeline $pipeline_id", e)
         error = Some(getStackTraceAsString(e))
+
+        if (singleStep) {
+          throw e
+        }
       }
     }
     if (logger != null) {
