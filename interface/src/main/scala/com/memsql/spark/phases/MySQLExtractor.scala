@@ -41,7 +41,7 @@ class MySQLExtractor extends Extractor {
       .load()
 
     if (mysqlConfig.max_records.isDefined) {
-      df = df.limit(mysqlConfig.max_records)
+      df = df.limit(mysqlConfig.max_records.get)
     }
 
     Some(df)
