@@ -146,11 +146,25 @@ lazy val hdfsUtils = (project in file("hdfsUtils")).
     )
   )
 
+lazy val samplingUtils = (project in file("samplingUtils")).
+  settings(commonSettings: _*).
+  settings(
+    name := "samplingUtils",
+    libraryDependencies  ++= Seq(
+      "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
+      "org.apache.spark" %% "spark-sql" % sparkVersion  % Provided,
+      "io.spray" %% "spray-json" % sprayVersion,
+      "com.github.scopt" %% "scopt" % scoptVersion,
+      "org.apache.commons" % "commons-csv" % "1.2"
+    )
+  )
+
 lazy val interface = (project in file("interface")).
   dependsOn(connectorLib % "test->test;compile->compile").
   dependsOn(etlLib % "test->test;compile->compile").
   dependsOn(jarInspector).
   dependsOn(hdfsUtils).
+  dependsOn(samplingUtils).
   settings(commonSettings: _*).
   enablePlugins(BuildInfoPlugin).
   settings(

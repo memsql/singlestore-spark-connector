@@ -11,6 +11,7 @@ etlLib/target/*
 interface/target/*
 jarInspector/target/*
 hdfsUtils/target/*
+samplingUtils/target/*
 target/*
 test_root/*
 *.pyc
