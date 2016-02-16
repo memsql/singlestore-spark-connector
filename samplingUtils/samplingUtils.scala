@@ -64,6 +64,8 @@ object JsonProto extends DefaultJsonProtocol {
 }
 import JsonProto._
 
+class CSVSamplingException(message: String) extends Exception(message)
+
 object SamplingUtils {
   val VERSION = "0.0.1"
   val SAMPLE_SIZE = 10
@@ -246,6 +248,13 @@ object SamplingUtils {
         columns = firstRow.zipWithIndex.map{ case(x, i) => ( s"column_${i + 1}", "string" ) }
         records = rows
       }
+
+      rows.zipWithIndex.foreach{ case (row, i) => {
+        if (row.size != firstRow.size) {
+          throw new CSVSamplingException(s"Row ${i + 1} has length ${row.size} but the first row has length ${firstRow.size}")
+        }
+      }}
+
       val jsValueRecords = records.map(record => record.map(x => {
         if (!nullString.isEmpty && x == nullString) {
           JsNull
