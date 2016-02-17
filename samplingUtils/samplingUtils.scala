@@ -104,7 +104,7 @@ object SamplingUtils {
           opt[String]("delimiter") required() action { (x, c) => c.copy(hdfsConfig = c.hdfsConfig.copy(delimiter = x)) },
           opt[String]("escape") action { (x, c) => c.copy(hdfsConfig = c.hdfsConfig.copy(escape = Some(x))) },
           opt[String]("quote") required() action { (x, c) => c.copy(hdfsConfig = c.hdfsConfig.copy(quote = x)) },
-          opt[String]("null-string") required() action { (x, c) => c.copy(s3Config = c.s3Config.copy(null_string = x)) },
+          opt[String]("null-string") required() action { (x, c) => c.copy(hdfsConfig = c.hdfsConfig.copy(null_string = x)) },
           opt[Unit]("has-headers") action { (_, c) => c.copy(hdfsConfig = c.hdfsConfig.copy(has_headers = true)) }
       )
 
