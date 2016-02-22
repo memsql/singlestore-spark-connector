@@ -17,8 +17,10 @@ case class LoadDataStrategy(tableFragment: QueryFragment,
                            ) extends IngestStrategy {
 
   override def loadPartition(connInfo: MemSQLConnectionInfo, partition: Iterator[Row]): Long = {
+    val BUFFER_SIZE = 524288
+
     val basestream = new PipedOutputStream
-    val input = new PipedInputStream(basestream)
+    val input = new PipedInputStream(basestream, BUFFER_SIZE)
 
     val compressionType =
       if (connInfo.isColocated) { CompressionType.Skip }
