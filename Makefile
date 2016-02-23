@@ -65,7 +65,7 @@ publish:
 	sbt "project connectorLib" publishSigned \
 	"project etlLib" publishSigned \
 	"project interface" assembly
-	aws s3api put-object --bucket download.memsql.com --key memsql-spark-interface-$(VERSION)/memsql-spark-interface-$(VERSION).jar interface/target/scala-2.10/MemSQL\ Spark\ Interface-assembly-$(VERSION).jar
+	aws s3api put-object --bucket download.memsql.com --key memsql-spark-interface-$(VERSION)/memsql-spark-interface-$(VERSION).jar --body interface/target/scala-2.10/MemSQL\ Spark\ Interface-assembly-$(VERSION).jar
 	s3cmd setacl --acl-public s3://download.memsql.com/memsql-spark-interface-$(VERSION)/memsql-spark-interface-$(VERSION).jar
 
 .PHONY: publish-docs
