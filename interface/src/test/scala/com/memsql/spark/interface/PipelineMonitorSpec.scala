@@ -179,7 +179,7 @@ class PipelineMonitorSpec extends TestKitSpec("PipelineMonitorSpec") with TestBa
         Phase[ExtractPhaseKind](
           ExtractPhaseKind.TestLines,
           ExtractPhase.writeConfig(
-            ExtractPhaseKind.TestLines, TestLinesExtractConfig("testtest\ntest\ntest\ntest\ntest\ntest"))),
+            ExtractPhaseKind.TestLines, TestLinesExtractConfig("\"testtest\"\n\"test\"\n\"test\"\n\"test\"\n\"test\"\n\"test\""))),
         Phase[TransformPhaseKind](
           TransformPhaseKind.User,
           TransformPhase.writeConfig(
