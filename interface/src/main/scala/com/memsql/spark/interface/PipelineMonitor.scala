@@ -402,6 +402,10 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         logError(s"Phase error in pipeline $pipeline_id, preserving rows count", e.exception)
         error = Some(getStackTraceAsString(e.exception))
         count = Some(e.successfullyInserted)
+
+        if (singleStep) {
+          throw e
+        }
       }
       case NonFatal(e) => {
         logError(s"Phase error in pipeline $pipeline_id", e)
