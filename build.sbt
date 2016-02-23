@@ -55,7 +55,8 @@ lazy val commonSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { _ => false },
-  javaVersionPrefix in javaVersionCheck := Some("1.7")
+  javaVersionPrefix in javaVersionCheck := Some("1.7"),
+  excludeFilter in unmanagedSources := HiddenFileFilter || "prelude.scala"
 )
 
 lazy val connectorLib = (project in file("connectorLib")).
