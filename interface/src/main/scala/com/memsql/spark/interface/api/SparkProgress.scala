@@ -42,16 +42,15 @@ class SparkProgress {
                          taskMetrics: TaskMetrics): Unit = {
     reason match {
       case Success => {
-        for (inputMetrics <- taskMetrics.inputMetrics) {
-          val progress = progressMap.getOrElseUpdate(jobGroupId, SparkProgressInfo(jobGroupId))
+        val progress = progressMap.getOrElseUpdate(jobGroupId, SparkProgressInfo(jobGroupId))
+        val tasks_succeeded = progress.tasks_succeeded + 1
+        progressMap(jobGroupId) = progressMap(jobGroupId).copy(tasks_succeeded = tasks_succeeded)
 
+        for (inputMetrics <- taskMetrics.inputMetrics) {
           val bytes_read = progress.bytes_read + inputMetrics.bytesRead
           val records_read = progress.records_read + inputMetrics.recordsRead
-          val tasks_succeeded = progress.tasks_succeeded + 1
-
           progressMap(jobGroupId) = progressMap(jobGroupId).copy(bytes_read = bytes_read,
-                                                                 records_read = records_read,
-                                                                 tasks_succeeded = tasks_succeeded)
+                                                                 records_read = records_read)
         }
       }
       case _ => {
