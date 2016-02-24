@@ -1,17 +1,16 @@
 package com.memsql.spark.phases
 
+import java.math.BigDecimal
+
 import com.memsql.spark.connector.dataframe.BigIntUnsignedType
 import com.memsql.spark.etl.api.PhaseConfig
 import com.memsql.spark.etl.utils.{PhaseLogger, SimpleJsonSchema}
-import org.apache.commons.csv._
 import org.apache.spark.rdd._
 import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.catalyst.util._
 import org.apache.spark.unsafe.types.UTF8String
 import spray.json.JsValue
-
-import scala.collection.JavaConversions._
 
 case class CSVTransformerConfig(
   delimiter: Option[Char],
@@ -51,6 +50,7 @@ class CSVTransformer extends CSVTransformerBase {
               case Some(BigIntUnsignedType) => value.toLong
               case Some(FloatType) => value.toFloat
               case Some(DoubleType) => value.toDouble
+              case Some(DecimalType()) => new BigDecimal(value)
               case Some(BooleanType) => value.toBoolean
               case Some(TimestampType) => {
                 DateTimeUtils.stringToTimestamp(UTF8String.fromString(value)) match {

@@ -1,7 +1,6 @@
 package com.memsql.spark.etl.utils
 
 import com.memsql.spark.connector.dataframe.{BigIntUnsignedType, GeographyType, GeographyPointType, JsonType}
-import org.apache.spark.sql.types.StructField
 import spray.json._
 import org.apache.spark.sql.types._
 
@@ -15,24 +14,30 @@ object SimpleJsonSchemaProtocol extends JsonEnumProtocol {
   implicit object columnTypeFormat extends RootJsonFormat[DataType] {
     def read(value: JsValue): DataType = value match {
       case JsString(column) => column.toUpperCase match {
-        case "BYTE"            => ByteType
-        case "SHORT"           => ShortType
-        case "INT"             => IntegerType
-        case "INTEGER"         => IntegerType
         case "BIGINT"          => LongType
         case "BIGINT UNSIGNED" => BigIntUnsignedType
-        case "FLOAT"           => FloatType
-        case "DOUBLE"          => DoubleType
-        case "STRING"          => StringType
         case "BINARY"          => BinaryType
         case "BOOL"            => BooleanType
         case "BOOLEAN"         => BooleanType
-        case "TIMESTAMP"       => TimestampType
+        case "BYTE"            => ByteType
         case "DATE"            => TimestampType
         case "DATETIME"        => TimestampType
-        case "JSON"            => JsonType
+        case "DECIMAL"         => {
+          val doublePrecision = 30
+          val doubleScale = 15
+          DecimalType(doublePrecision, doubleScale)
+        }
+        case "DOUBLE"          => DoubleType
+        case "FLOAT"           => FloatType
         case "GEOGRAPHY"       => GeographyType
         case "GEOGRAPHYPOINT"  => GeographyPointType
+        case "INT"             => IntegerType
+        case "INTEGER"         => IntegerType
+        case "JSON"            => JsonType
+        case "SHORT"           => ShortType
+        case "TEXT"            => StringType
+        case "TIMESTAMP"       => TimestampType
+        case "STRING"          => StringType
         case _ => throw new DeserializationException("Unknown type " + column)
       }
       case _ => throw new DeserializationException("ColumnType must be a string")

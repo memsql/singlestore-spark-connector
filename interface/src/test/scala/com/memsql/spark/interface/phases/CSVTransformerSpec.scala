@@ -1,6 +1,7 @@
 // scalastyle:off magic.number
 package com.memsql.spark.interface.phases
 
+import java.math.BigDecimal
 import java.sql.Timestamp
 
 import com.memsql.spark.connector.dataframe._
@@ -10,7 +11,7 @@ import com.memsql.spark.interface.TestKitSpec
 import com.memsql.spark.interface.util.PipelineLogger
 import com.memsql.spark.phases.{CSVTransformerConfig, CSVTransformer, CSVTransformerException}
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.{SQLContext, Row, DataFrame}
+import org.apache.spark.sql.{SQLContext, Row}
 import org.apache.spark.sql.types._
 import org.apache.spark.streaming.{Duration, StreamingContext}
 import spray.json._
@@ -223,41 +224,73 @@ class CSVTransformerSpec extends TestKitSpec("CSVTransformerSpec") with LocalSpa
     }
 
 
-    "convert values to the expected type" in {
+    "convert values to the expected type, for all types supported by ops-loader" in {
+
+      // We want to cover every type that could show up in a dropdown in Streamliner Import.
+      val columns = """[
+          { "name": "bigint_unsigned", "column_type": "bigint unsigned" },
+          { "name": "bigint", "column_type": "bigint" },
+          { "name": "binary", "column_type": "binary" },
+          { "name": "bool", "column_type": "bool" },
+          { "name": "boolean", "column_type": "boolean" },
+          { "name": "byte", "column_type": "byte" },
+          { "name": "date", "column_type": "date" },
+          { "name": "datetime", "column_type": "datetime" },
+          { "name": "decimal", "column_type": "decimal" },
+          { "name": "double", "column_type": "double" },
+          { "name": "float", "column_type": "float" },
+          { "name": "geography", "column_type": "geography" },
+          { "name": "geography_point", "column_type": "geographypoint" },
+          { "name": "int", "column_type": "int" },
+          { "name": "integer", "column_type": "integer" },
+          { "name": "json", "column_type": "json" },
+          { "name": "short", "column_type": "short" },
+          { "name": "text", "column_type": "text" },
+          { "name": "timestamp", "column_type": "timestamp" },
+          { "name": "string", "column_type": "string" },
+          { "name": "notype" }
+        ]""".parseJson
+
       val config = CSVTransformerConfig(
         delimiter = Some(','),
         escape = Some("\\"),
         quote = Some('\''),
         null_string = Some("NULL"),
-        columns = """[
-          { "name": "short", "column_type": "short" },
-          { "name": "integer", "column_type": "integer" },
-          { "name": "bigint", "column_type": "bigint" },
-          { "name": "bigint_unsigned", "column_type": "bigint unsigned" },
-          { "name": "float", "column_type": "float" },
-          { "name": "double", "column_type": "double" },
-          { "name": "boolean", "column_type": "boolean" },
-          { "name": "timestamp", "column_type": "timestamp" },
-          { "name": "byte", "column_type": "byte" },
-          { "name": "binary", "column_type": "binary" },
-
-          { "name": "string", "column_type": "string" },
-          { "name": "json", "column_type": "json" },
-          { "name": "geography", "column_type": "geography" },
-          { "name": "geography_point", "column_type": "geographypoint" },
-          { "name": "notype" }
-        ]""".parseJson
+        columns
       )
 
       val schema = StructType(StructField("string", StringType, false) :: Nil)
+
+      // Fields we are sending to CSVTransformer
       val sampleData = List(
-        "256", "2048", "10000000", "999999999", "1.2", "4.7", "false", "2014-02-02T12:25:36", "1", "2",
-        "string", "[]", "geo1", "geopoint1", "string2"
+        "999999999",
+        "10000000",
+        "2",
+        "true",
+        "false",
+        "1",
+        "2014-02-02",
+        "2014-02-02T12:25:35",
+        "7.3",
+        "4.7",
+        "1.2",
+        "geo1",
+        "geopoint1",
+        "2048",
+        "2049",
+        "[]",
+        "256",
+        "text",
+        "2014-02-02T12:25:36",
+        "string",
+        "notype"
       )
       val rowRDD = sqlContext.sparkContext.parallelize(List(sampleData.mkString(","))).map(Row(_))
       val dfIn = sqlContext.createDataFrame(rowRDD, schema)
 
       val transformedDf = transformer.transform(sqlContext, dfIn, config, logger)
+
+      // Fields we get out of CSVTransformer
       val transformedValues = transformedDf.first().toSeq.toList.map {
         // convert arrays for comparison
         case arr: Array[_] => arr.toSeq.toList
@@ -270,13 +303,42 @@ class CSVTransformerSpec extends TestKitSpec("CSVTransformerSpec") with LocalSpa
 
         case default => default
       }
+
+      // Fields we expect to get out of CSVTransformer
       val expectedValues = List(
-        256.toShort, 2048, 10000000.toLong, new BigIntUnsignedValue(999999999).value, 1.2f, 4.7, false,
-        new Timestamp(114, 1, 2, 12, 25, 36, 0), 1.toByte, List('2'.toByte),
-        "string", new JsonValue("[]").value, new GeographyValue("geo1").value, new GeographyPointValue("geopoint1").value, "string2"
+        new BigIntUnsignedValue(999999999).value,
+        10000000.toLong,
+        List('2'.toByte),
+        true,
+        false,
+        1.toByte,
+        new Timestamp(114, 1, 2, 0, 0, 0, 0),
+        new Timestamp(114, 1, 2, 12, 25, 35, 0),
+        new BigDecimal(7.3),
+        4.7,
+        1.2f,
+        new GeographyValue("geo1").value,
+        new GeographyPointValue("geopoint1").value,
+        2048,
+        2049,
+        new JsonValue("[]").value,
+        256.toShort,
+        "text",
+        new Timestamp(114, 1, 2, 12, 25, 36, 0),
+        "string",
+        "notype"
       )
 
-      assert(transformedValues == expectedValues)
+      // Compare everything except BigDecimals
+      assert(
+        transformedValues.filterNot(_.isInstanceOf[BigDecimal])
+          == expectedValues.filterNot(_.isInstanceOf[BigDecimal]))
+
+      // Compare BigDecimals without getting precision errors
+      assert(
+        transformedValues.filter(_.isInstanceOf[BigDecimal]).map(_.asInstanceOf[BigDecimal].doubleValue)
+          == expectedValues.filter(_.isInstanceOf[BigDecimal]).map(_.asInstanceOf[BigDecimal].doubleValue)
+      )
     }
   }
 }
