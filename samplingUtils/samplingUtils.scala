@@ -64,7 +64,7 @@ object JsonProto extends DefaultJsonProtocol {
 }
 import JsonProto._
 
-class CSVSamplingException(message: String) extends Exception(message)
+case class CSVSamplingException(message: String, lines: List[String]) extends Exception(message)
 
 object SamplingUtils {
   val VERSION = "0.0.1"
@@ -141,7 +141,13 @@ object SamplingUtils {
             } else {
               e.getMessage
             }
-            result = SamplingResult(success = false, error = Some(error))
+            var lines: Option[List[List[JsValue]]] = None
+            var columns: Option[List[(String,String)]] = None
+            if (e.isInstanceOf[CSVSamplingException]) {
+              lines = Some(e.asInstanceOf[CSVSamplingException].lines.map(l => List(JsString(l))))
+              columns = Some(List(( "line", "string" )))
+            }
+            result = SamplingResult(success = false, error = Some(error), columns = columns, records = lines)
           }
         }
         if (result == null) {
@@ -234,35 +240,40 @@ object SamplingUtils {
       } else {
         fileIn
       }
-      val reader = new BufferedReader(new InputStreamReader(innerInputStream))
+      val lines = scala.io.Source.fromInputStream(innerInputStream).getLines.take(SAMPLE_SIZE).toList
 
-      val rows = csvFormat.parse(reader).iterator.take(SAMPLE_SIZE).map(record => record.toList).toList
-
-      val firstRow = rows.head
-      var columns: List[(String, String)] = null
-      var records: List[List[String]] = null
-      if (hasHeaders) {
-        columns = firstRow.map(x => ( x, "string" ))
-        records = rows.tail
-      } else {
-        columns = firstRow.zipWithIndex.map{ case(x, i) => ( s"column_${i + 1}", "string" ) }
-        records = rows
-      }
-
-      rows.zipWithIndex.foreach{ case (row, i) => {
-        if (row.size != firstRow.size) {
-          throw new CSVSamplingException(s"Row ${i + 1} has length ${row.size} but the first row has length ${firstRow.size}")
-        }
-      }}
-
-      val jsValueRecords = records.map(record => record.map(x => {
-        if (!nullString.isEmpty && x == nullString) {
-          JsNull
+      try {
+        val rows = lines.flatMap(l => CSVParser.parse(l, csvFormat).map(record => record.toList)).toList
+        val firstRow = rows.head
+        var columns: List[(String, String)] = null
+        var records: List[List[String]] = null
+        if (hasHeaders) {
+          columns = firstRow.map(x => ( x, "string" ))
+          records = rows.tail
         } else {
-          JsString(x)
+          columns = firstRow.zipWithIndex.map{ case(x, i) => ( s"column_${i + 1}", "string" ) }
+          records = rows
         }
-      }))
-      SamplingResult(success = true, columns = Some(columns), records = Some(jsValueRecords))
+
+        rows.zipWithIndex.foreach{ case (row, i) => {
+          if (row.size != firstRow.size) {
+            throw new IllegalArgumentException(s"Row ${i + 1} has length ${row.size} but the first row has length ${firstRow.size}")
+          }
+        }}
+
+        val jsValueRecords = records.map(record => record.map(x => {
+          if (!nullString.isEmpty && x == nullString) {
+            JsNull
+          } else {
+            JsString(x)
+          }
+        }))
+        SamplingResult(success = true, columns = Some(columns), records = Some(jsValueRecords))
+      } catch {
+        case e: Exception => {
+          throw new CSVSamplingException(e.getMessage, lines)
+        }
+      }
     } finally {
       if (fileIn != null) {
         try {
