@@ -297,6 +297,7 @@ class CSVTransformerSpec extends TestKitSpec("CSVTransformerSpec") with LocalSpa
 
         // compare raw value for custom types
         case bigInt: BigIntUnsignedValue => bigInt.value
+        case datetime: DatetimeValue => datetime.value
         case json: JsonValue => json.value
         case geo: GeographyValue => geo.value
         case geoPoint: GeographyPointValue => geoPoint.value
@@ -313,7 +314,7 @@ class CSVTransformerSpec extends TestKitSpec("CSVTransformerSpec") with LocalSpa
         false,
         1.toByte,
         new Timestamp(114, 1, 2, 0, 0, 0, 0),
-        new Timestamp(114, 1, 2, 12, 25, 35, 0),
+        new DatetimeValue(new Timestamp(114, 1, 2, 12, 25, 35, 0)),
         new BigDecimal(7.3),
         4.7,
         1.2f,
@@ -331,13 +332,13 @@ class CSVTransformerSpec extends TestKitSpec("CSVTransformerSpec") with LocalSpa
 
       // Compare everything except BigDecimals
       assert(
-        transformedValues.filterNot(_.isInstanceOf[BigDecimal])
-          == expectedValues.filterNot(_.isInstanceOf[BigDecimal]))
+        expectedValues.filterNot(_.isInstanceOf[BigDecimal])
+          == transformedValues.filterNot(_.isInstanceOf[BigDecimal]))
 
       // Compare BigDecimals without getting precision errors
       assert(
-        transformedValues.filter(_.isInstanceOf[BigDecimal]).map(_.asInstanceOf[BigDecimal].doubleValue)
-          == expectedValues.filter(_.isInstanceOf[BigDecimal]).map(_.asInstanceOf[BigDecimal].doubleValue)
+        expectedValues.filter(_.isInstanceOf[BigDecimal]).map(_.asInstanceOf[BigDecimal].doubleValue)
+          == transformedValues.filter(_.isInstanceOf[BigDecimal]).map(_.asInstanceOf[BigDecimal].doubleValue)
       )
     }
   }

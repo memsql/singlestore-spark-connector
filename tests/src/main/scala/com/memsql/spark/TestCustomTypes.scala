@@ -20,6 +20,12 @@ class TestCustomTypes extends TestApp with Logging {
       Seq(BigIntUnsignedValue.fromString("0"),
           BigIntUnsignedValue.fromString("9223372036854775808"))),
 
+    TypeMapping(DatetimeType, MemSQLType("DATETIME", Some("DATETIME")),
+      Seq(DatetimeValue.fromString("2014-02-02T12:25:35"),
+          DatetimeValue.fromString("2014-02-02 12:25:35"),
+          DatetimeValue.fromString("0"),
+          DatetimeValue.fromString("2014-02-02"))),
+
     TypeMapping(GeographyPointType, MemSQLType("GEOGRAPHYPOINT"),
       Seq(Array(80, 79, 73, 78, 84, 40, 48, 46, 48, 48, 48, 48, 48, 48,
         48, 52, 32, 48, 46, 48, 48, 48, 48, 48, 48, 48, 52, 41).map(_.toByte),

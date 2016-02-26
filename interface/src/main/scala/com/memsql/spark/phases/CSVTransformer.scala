@@ -2,7 +2,7 @@ package com.memsql.spark.phases
 
 import java.math.BigDecimal
 
-import com.memsql.spark.connector.dataframe.BigIntUnsignedType
+import com.memsql.spark.connector.dataframe.{BigIntUnsignedType, DatetimeType}
 import com.memsql.spark.etl.api.PhaseConfig
 import com.memsql.spark.etl.utils.{PhaseLogger, SimpleJsonSchema}
 import org.apache.spark.rdd._
@@ -52,7 +52,7 @@ class CSVTransformer extends CSVTransformerBase {
               case Some(DoubleType) => value.toDouble
               case Some(DecimalType()) => new BigDecimal(value)
               case Some(BooleanType) => value.toBoolean
-              case Some(TimestampType) => {
+              case Some(TimestampType) | Some(DatetimeType) => {
                 DateTimeUtils.stringToTimestamp(UTF8String.fromString(value)) match {
                   case None => null
                   case Some(timestamp) => DateTimeUtils.toJavaTimestamp(timestamp)

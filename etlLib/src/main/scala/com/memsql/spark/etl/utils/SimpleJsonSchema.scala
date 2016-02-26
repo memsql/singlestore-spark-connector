@@ -1,6 +1,6 @@
 package com.memsql.spark.etl.utils
 
-import com.memsql.spark.connector.dataframe.{BigIntUnsignedType, GeographyType, GeographyPointType, JsonType}
+import com.memsql.spark.connector.dataframe.{BigIntUnsignedType, DatetimeType, GeographyType, GeographyPointType, JsonType}
 import spray.json._
 import org.apache.spark.sql.types._
 
@@ -21,7 +21,7 @@ object SimpleJsonSchemaProtocol extends JsonEnumProtocol {
         case "BOOLEAN"         => BooleanType
         case "BYTE"            => ByteType
         case "DATE"            => TimestampType
-        case "DATETIME"        => TimestampType
+        case "DATETIME"        => DatetimeType
         case "DECIMAL"         => {
           val doublePrecision = 30
           val doubleScale = 15
