@@ -15,6 +15,7 @@ import com.memsql.spark.etl.utils.Logging
 import com.memsql.spark.interface.api._
 import com.memsql.spark.interface.api.PipelineBatchType.PipelineBatchType
 import com.memsql.spark.interface.util.ErrorUtils._
+import com.memsql.spark.util.StringConversionUtils
 import ApiActor._
 import com.memsql.spark.interface.util.{PipelineLogger, BaseException}
 import org.apache.spark.SparkContext
@@ -449,23 +450,10 @@ class DefaultPipelineMonitor(override val api: ActorRef,
         row.toSeq.map(record => {
           val sb = new StringBuilder()
           record match {
-            case null => sb.append("null")
-            case bytes: Array[Byte] => {
-              // Build up a string with hex encoding such that printable ASCII
-              // characters get added as-is but other characters are added as an
-              // escape sequence (e.g. \x7f).
-              bytes.foreach(b => {
-                if (b >= 0x20 && b <= 0x7e) {
-                  sb.append(b.toChar)
-                } else {
-                  sb.append("\\x%02x".format(b))
-                }
-              })
-            }
-            case default => sb.append(record.toString)
+            case null => "null"
+            case bytes: Array[Byte] => StringConversionUtils.byteArrayToReadableString(bytes)
+            case default => record.toString
           }
-
-          sb.toString
         }).toList
       } catch {
         case e: Exception => List(s"Could not get string representation of record: $e")

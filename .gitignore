@@ -5,6 +5,7 @@ project/project/*
 project/target/*
 tests/target/*
 examples/target/*
+common/target/*
 connectorLib/target/*
 connectorLib/src/main/scala/com/memsql/spark/connector/target/*
 etlLib/target/*

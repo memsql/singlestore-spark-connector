@@ -59,6 +59,12 @@ lazy val commonSettings = Seq(
   excludeFilter in unmanagedSources := HiddenFileFilter || "prelude.scala"
 )
 
+lazy val common = (project in file("common")).
+  settings(commonSettings: _*).
+  settings(
+    name := "common"
+  )
+
 lazy val connectorLib = (project in file("connectorLib")).
   settings(commonSettings: _*).
   settings(
@@ -149,6 +155,7 @@ lazy val hdfsUtils = (project in file("hdfsUtils")).
 
 lazy val samplingUtils = (project in file("samplingUtils")).
   settings(commonSettings: _*).
+  dependsOn(common).
   settings(
     name := "samplingUtils",
     libraryDependencies  ++= Seq(
@@ -163,6 +170,7 @@ lazy val samplingUtils = (project in file("samplingUtils")).
 lazy val interface = (project in file("interface")).
   dependsOn(connectorLib % "test->test;compile->compile").
   dependsOn(etlLib % "test->test;compile->compile").
+  dependsOn(common).
   dependsOn(jarInspector).
   dependsOn(hdfsUtils).
   dependsOn(samplingUtils).

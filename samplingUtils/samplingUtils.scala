@@ -1,14 +1,15 @@
 package com.memsql.sampling_utils
 
-import org.apache.spark.sql.execution.datasources.jdbc.JDBCRDDHelper
+import com.memsql.spark.util.StringConversionUtils
 import java.io.{BufferedReader, InputStreamReader, InputStream, PrintWriter, StringWriter}
-import java.util.Properties
 import java.sql.{DriverManager, ResultSet}
+import java.util.Properties
 import org.apache.commons.csv._
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.log4j.PropertyConfigurator
+import org.apache.spark.sql.execution.datasources.jdbc.JDBCRDDHelper
 import scala.collection.JavaConversions._
 import spray.json._
 
@@ -224,7 +225,15 @@ object SamplingUtils {
       def next() = rs
     }
     val rows = resultSetIterator.take(SAMPLE_SIZE).map(rs => {
-      (1 to metadata.getColumnCount).map(i => JsString(rs.getObject(i).toString)).toList
+      (1 to metadata.getColumnCount).map(i => {
+        val obj = rs.getObject(i)
+        val stringValue = obj match {
+          case null => "null"
+          case bytes: Array[Byte] => StringConversionUtils.byteArrayToReadableString(bytes)
+          case default => obj.toString
+        }
+        JsString(stringValue)
+      }).toList
     }).toList
     SamplingResult(success = true, columns = Some(columns), records = Some(rows))
   }
