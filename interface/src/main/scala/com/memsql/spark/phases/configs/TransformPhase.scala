@@ -4,12 +4,11 @@ import com.memsql.spark.etl.api.{UserTransformConfig, PhaseConfig}
 import spray.json._
 import TransformPhaseKind._
 
-import com.memsql.spark.phases.{PythonTransformConfig, CSVTransformerConfig, CSVSamplingTransformerConfig, IdentityTransformerConfig, JsonTransformConfig}
+import com.memsql.spark.phases.{PythonTransformConfig, CSVTransformerConfig, IdentityTransformerConfig, JsonTransformConfig}
 
 object TransformPhase extends DefaultJsonProtocol {
   val jsonConfigFormat = jsonFormat1(JsonTransformConfig)
   val csvTransformerConfigFormat = jsonFormat5(CSVTransformerConfig)
-  val csvSamplingTransformerConfigFormat = jsonFormat6(CSVSamplingTransformerConfig)
   val identityTransformerConfigFormat = jsonFormat0(IdentityTransformerConfig)
   val userConfigFormat = jsonFormat2(UserTransformConfig)
   val pythonConfigFormat = jsonFormat2(PythonTransformConfig)
@@ -18,7 +17,6 @@ object TransformPhase extends DefaultJsonProtocol {
     kind match {
       case TransformPhaseKind.Json => jsonConfigFormat.read(config)
       case TransformPhaseKind.Csv => csvTransformerConfigFormat.read(config)
-      case TransformPhaseKind.CsvSampling => csvSamplingTransformerConfigFormat.read(config)
       case TransformPhaseKind.Identity => identityTransformerConfigFormat.read(config)
       case TransformPhaseKind.User => userConfigFormat.read(config)
       case TransformPhaseKind.Python => pythonConfigFormat.read(config)
@@ -29,7 +27,6 @@ object TransformPhase extends DefaultJsonProtocol {
     kind match {
       case TransformPhaseKind.Json => jsonConfigFormat.write(config.asInstanceOf[JsonTransformConfig])
       case TransformPhaseKind.Csv => csvTransformerConfigFormat.write(config.asInstanceOf[CSVTransformerConfig])
-      case TransformPhaseKind.CsvSampling => csvSamplingTransformerConfigFormat.write(config.asInstanceOf[CSVSamplingTransformerConfig])
       case TransformPhaseKind.Identity => identityTransformerConfigFormat.write(config.asInstanceOf[IdentityTransformerConfig])
       case TransformPhaseKind.User => userConfigFormat.write(config.asInstanceOf[UserTransformConfig])
       case TransformPhaseKind.Python => pythonConfigFormat.write(config.asInstanceOf[PythonTransformConfig])

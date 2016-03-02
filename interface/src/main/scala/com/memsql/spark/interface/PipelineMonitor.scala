@@ -98,7 +98,6 @@ class DefaultPipelineMonitor(override val api: ActorRef,
   private[interface] val transformer: Transformer = config.transform.kind match {
     case TransformPhaseKind.Json => new JSONTransformer
     case TransformPhaseKind.Csv => new CSVTransformer
-    case TransformPhaseKind.CsvSampling => new CSVSamplingTransformer
     case TransformPhaseKind.Identity => new IdentityTransformer
     case TransformPhaseKind.User => {
       val className = transformConfig.asInstanceOf[UserTransformConfig].class_name
