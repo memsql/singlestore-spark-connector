@@ -41,7 +41,11 @@ trait WebService extends HttpService {
   val route = {
     path("version") {
       get {
-        complete(JsObject("name" -> JsString("MemSQL Spark Interface"), "version" -> JsString(Main.VERSION)))
+        complete(JsObject(
+          "name" -> JsString("MemSQL Spark Interface"),
+          "version" -> JsString(Main.VERSION),
+          "commit_hash" -> JsString(Main.COMMIT_HASH)
+        ))
       }
     } ~
     path("ping") {

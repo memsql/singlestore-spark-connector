@@ -4,12 +4,13 @@ import com.memsql.spark.interface.meta.BuildInfo
 
 object Main {
   val VERSION = BuildInfo.version
+  val COMMIT_HASH = BuildInfo.commitHash
 
   def main(args: Array[String]): Unit = {
     val parser = new scopt.OptionParser[Config]("memsql-spark-interface") {
       override def showUsageOnError = true
 
-      head("MemSQL Spark Interface", VERSION)
+      head("MemSQL Spark Interface", s"$VERSION ($COMMIT_HASH)")
       opt[Int]('P', "port") action { (x, c) => c.copy(port = x) } text "MemSQL Spark Interface port"
       opt[String]('D', "dataDir") required() action { (x, c) => c.copy(dataDir = x) } text "MemSQL Spark Interface data directory"
 

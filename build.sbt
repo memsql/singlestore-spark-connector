@@ -178,7 +178,9 @@ lazy val interface = (project in file("interface")).
   enablePlugins(BuildInfoPlugin).
   settings(
     name := "MemSQL Spark Interface",
-    buildInfoKeys := Seq[BuildInfoKey](version),
+    buildInfoKeys := Seq[BuildInfoKey](version, BuildInfoKey.action("commitHash") {
+        Process("git rev-parse HEAD").lines.head
+    }),
     buildInfoPackage := "com.memsql.spark.interface.meta",
     libraryDependencies ++= {
       Seq(

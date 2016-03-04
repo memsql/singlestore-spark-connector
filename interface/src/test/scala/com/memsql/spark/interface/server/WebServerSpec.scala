@@ -88,6 +88,7 @@ class WebServerSpec extends UnitSpec with ScalatestRouteTest with WebService {
       val resp = responseAs[String].parseJson.asJsObject
       assert(resp.getFields("name")(0) == JsString("MemSQL Spark Interface"))
       assert(resp.getFields("version")(0) == JsString(Main.VERSION))
+      assert(resp.getFields("commit_hash")(0) == JsString(Main.COMMIT_HASH))
       assert(status == OK)
     }
   }
