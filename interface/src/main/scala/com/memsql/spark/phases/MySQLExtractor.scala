@@ -6,15 +6,13 @@ import org.apache.spark.sql.{DataFrame, SQLContext}
 import org.apache.spark.streaming.StreamingContext
 
 
-case class MySQLExtractTaskConfig()
+case class MySQLExtractTaskConfig(table_name: String)
 
 case class MySQLExtractConfig(host: String,
                               port: Int,
                               user: String,
                               password: String,
                               db_name: String,
-                              table_name: String,
-                              max_records: Option[Int],
                               task_config: MySQLExtractTaskConfig) extends PhaseConfig
 
 class MySQLExtractor extends Extractor {
@@ -30,7 +28,7 @@ class MySQLExtractor extends Extractor {
     val host = mysqlConfig.host
     val port = mysqlConfig.port
     val db_name = mysqlConfig.db_name
-    val table_name = mysqlConfig.table_name
+    val table_name = mysqlConfig.task_config.table_name
 
     val url = s"jdbc:mysql://${host}:${port}"
     var df = sqlContext.read.format("jdbc")
@@ -39,10 +37,6 @@ class MySQLExtractor extends Extractor {
       .option("password", mysqlConfig.password)
       .option("dbtable", s"${db_name}.${table_name}")
       .load()
-
-    if (mysqlConfig.max_records.isDefined) {
-      df = df.limit(mysqlConfig.max_records.get)
-    }
 
     Some(df)
   }
