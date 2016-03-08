@@ -4,6 +4,7 @@ package org.apache.spark.sql.memsql
 
 import com.memsql.spark.SaveToMemSQLException
 import com.memsql.spark.connector._
+import com.memsql.spark.connector.dataframe.{JsonType, JsonValue}
 import com.memsql.spark.connector.sql.{PrimaryKey, TableIdentifier}
 import org.apache.spark.sql.memsql.test.{SharedMemSQLContext, TestUtils}
 import org.apache.spark.sql.types._
@@ -174,8 +175,8 @@ class SaveToMemSQLSpec extends FlatSpec with SharedMemSQLContext with Matchers {
 
     val schema = StructType(
       Array(
-        StructField("a",IntegerType,true),
-        StructField("b",StringType,true)
+        StructField("a", IntegerType, true),
+        StructField("b", StringType, true)
       )
     )
     val df = msc.createDataFrame(rdd, schema)
@@ -183,5 +184,39 @@ class SaveToMemSQLSpec extends FlatSpec with SharedMemSQLContext with Matchers {
     a[SaveToMemSQLException] should be thrownBy {
       df.saveToMemSQL(dbName, "exception_table")
     }
+  }
+
+  "saveToMemSQL" should "properly create a table with JSON columns" in {
+    val rdd = sc.parallelize(
+      Array(
+        Row(1, "[]"),
+        Row(2, "\"foobar\"")
+      )
+    )
+
+    val schema = StructType(
+      Array(
+        StructField("id", IntegerType, false),
+        StructField("data", JsonType, false)
+      )
+    )
+    val df = msc.createDataFrame(rdd, schema)
+    df.saveToMemSQL(dbName, "json_test")
+
+    val rdd2 = sc.parallelize(
+      Array(
+        Row(1, new JsonValue("[]")),
+        Row(2, new JsonValue("\"foobar\""))
+      )
+    )
+
+    val schema2 = StructType(
+      Array(
+        StructField("id", IntegerType, false),
+        StructField("data", JsonType, true)
+      )
+    )
+    val df2 = msc.createDataFrame(rdd2, schema2)
+    df2.saveToMemSQL(dbName, "json_test_nullable")
   }
 }

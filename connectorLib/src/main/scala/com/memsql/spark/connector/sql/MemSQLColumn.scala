@@ -46,7 +46,7 @@ case class ColumnDefinition(name: String,
           ""
         } else if (nullable) {
           "DEFAULT NULL"
-        } else if (colTypeLower == "text" || colTypeLower == "blob") {
+        } else if (colTypeLower == "text" || colTypeLower == "blob" || colTypeLower == "json") {
           "DEFAULT ''"
         } else {
           "DEFAULT '0'"
