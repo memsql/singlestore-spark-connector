@@ -48,6 +48,8 @@ case class ColumnDefinition(name: String,
           "DEFAULT NULL"
         } else if (colTypeLower == "text" || colTypeLower == "blob" || colTypeLower == "json") {
           "DEFAULT ''"
+        } else if (colTypeLower == "geographypoint" || colTypeLower == "geography") {
+          "DEFAULT 'POINT(0 90)'"
         } else {
           "DEFAULT '0'"
         }

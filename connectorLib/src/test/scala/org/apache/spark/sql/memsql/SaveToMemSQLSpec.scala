@@ -4,7 +4,7 @@ package org.apache.spark.sql.memsql
 
 import com.memsql.spark.SaveToMemSQLException
 import com.memsql.spark.connector._
-import com.memsql.spark.connector.dataframe.{JsonType, JsonValue}
+import com.memsql.spark.connector.dataframe._
 import com.memsql.spark.connector.sql.{PrimaryKey, TableIdentifier}
 import org.apache.spark.sql.memsql.test.{SharedMemSQLContext, TestUtils}
 import org.apache.spark.sql.types._
@@ -218,5 +218,73 @@ class SaveToMemSQLSpec extends FlatSpec with SharedMemSQLContext with Matchers {
     )
     val df2 = msc.createDataFrame(rdd2, schema2)
     df2.saveToMemSQL(dbName, "json_test_nullable")
+  }
+
+  "saveToMemSQL" should "properly create a table with GEOGRAPHYPOINT columns" in {
+    val rdd = sc.parallelize(
+      Array(
+        Row(1, "POINT(0 0)"),
+        Row(2, "POINT(90 90)")
+      )
+    )
+
+    val schema = StructType(
+      Array(
+        StructField("id", IntegerType, false),
+        StructField("point", GeographyPointType, false)
+      )
+    )
+    val df = msc.createDataFrame(rdd, schema)
+    df.saveToMemSQL(dbName, "geographypoint_test")
+
+    val rdd2 = sc.parallelize(
+      Array(
+        Row(1, new GeographyPointValue("POINT(0 0)")),
+        Row(2, new GeographyPointValue("POINT(90 90)"))
+      )
+    )
+
+    val schema2 = StructType(
+      Array(
+        StructField("id", IntegerType, false),
+        StructField("point", GeographyPointType, true)
+      )
+    )
+    val df2 = msc.createDataFrame(rdd2, schema2)
+    df2.saveToMemSQL(dbName, "geographypoint_test_nullable")
+  }
+
+  "saveToMemSQL" should "properly create a table with GEOGRAPHY columns" in {
+    val rdd = sc.parallelize(
+      Array(
+        Row(1, "POINT(0 0)"),
+        Row(2, "POINT(90 90)")
+      )
+    )
+
+    val schema = StructType(
+      Array(
+        StructField("id", IntegerType, false),
+        StructField("geo", GeographyType, false)
+      )
+    )
+    val df = msc.createDataFrame(rdd, schema)
+    df.saveToMemSQL(dbName, "geography_test")
+
+    val rdd2 = sc.parallelize(
+      Array(
+        Row(1, new GeographyValue("POINT(0 0)")),
+        Row(2, new GeographyValue("POINT(90 90)"))
+      )
+    )
+
+    val schema2 = StructType(
+      Array(
+        StructField("id", IntegerType, false),
+        StructField("geo", GeographyType, true)
+      )
+    )
+    val df2 = msc.createDataFrame(rdd2, schema2)
+    df2.saveToMemSQL(dbName, "geography_test_nullable")
   }
 }
