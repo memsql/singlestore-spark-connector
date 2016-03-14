@@ -43,7 +43,7 @@ class SparkProgressListener(conf: SparkConf) extends JobProgressListener(conf) {
 
     val stageId = taskEnd.stageId
     val maybeJobId = stageIdToLastStartedJobId.get(stageId)
-    val maybeJobGroupId: Option[JobGroupId] = maybeJobId.map(jobIdToJobGroup(_))
+    val maybeJobGroupId: Option[JobGroupId] = maybeJobId.flatMap(jobIdToJobGroup.get)
 
     for (jobId <- maybeJobId; jobGroupId <- maybeJobGroupId) {
       val reason = taskEnd.reason
