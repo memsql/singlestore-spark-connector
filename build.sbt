@@ -1,6 +1,6 @@
 import UnidocKeys._
 
-lazy val sparkVersion = "1.5.1"
+lazy val sparkVersion = "1.5.2"
 lazy val mysqlConnectorVersion = "5.1.34"
 lazy val akkaVersion = "2.3.9"
 lazy val sprayVersion = "1.3.2"
@@ -14,7 +14,7 @@ lazy val testScalastyle = taskKey[Unit]("testScalastyle")
 
 lazy val commonSettings = Seq(
   organization := "com.memsql",
-  version := "1.3.0-SNAPSHOT",
+  version := "1.3.1-SNAPSHOT",
   scalaVersion := "2.10.5",
   assemblyScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Compile).toTask("").value,
   assembly <<= assembly dependsOn assemblyScalastyle,

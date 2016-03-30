@@ -12,7 +12,7 @@ This git repository contains a number of Scala projects that provide interoperat
 Supported Spark version
 -----------------------
 
-Right now this project is only supported for Spark version 1.5.1.  It has been
+Right now this project is only supported for Spark version 1.5.2.  It has been
 primarily tested against the MemSQL Spark Distribution which you can download
 here: http://versions.memsql.com/memsql-spark/latest
 

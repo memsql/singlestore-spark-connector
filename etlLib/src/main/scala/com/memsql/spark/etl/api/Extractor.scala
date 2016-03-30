@@ -10,7 +10,7 @@ import com.memsql.spark.etl.utils.{PhaseLogger, ByteUtils}
 
 /**
  * Thrown when an Extractor is checkpointed without overriding [[Extractor.batchCheckpoint]]
- * and [[Extractor.batchRetry)]]
+ * and [[Extractor.batchRetry]]
  */
 class ExtractorCheckpointException(message: String) extends Exception(message: String)
 

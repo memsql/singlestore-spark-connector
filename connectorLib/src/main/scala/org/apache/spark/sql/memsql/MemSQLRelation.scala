@@ -52,7 +52,7 @@ case class MemSQLQueryRelation(cluster: MemSQLCluster,
 
 object UnpackLogicalRelation {
   def unapply(l: LogicalRelation): Option[MemSQLRelation] = l match {
-    case LogicalRelation(r: TableScan) => r match {
+    case LogicalRelation(r: TableScan, _) => r match {
       case r: MemSQLRelation => Some(r)
       case _ => None
     }
