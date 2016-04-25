@@ -1,6 +1,7 @@
 package com.memsql.sampling_utils
 
 import com.memsql.spark.util.StringConversionUtils
+import java.nio.charset.MalformedInputException
 import java.io.{BufferedReader, InputStreamReader, InputStream, PrintWriter, StringWriter}
 import java.sql.{DriverManager, ResultSet}
 import java.util.Properties
@@ -249,7 +250,14 @@ object SamplingUtils {
       } else {
         fileIn
       }
-      val lines = scala.io.Source.fromInputStream(innerInputStream).getLines.take(SAMPLE_SIZE).toList
+      var lines: List[String] = null
+      try {
+        lines = scala.io.Source.fromInputStream(innerInputStream).getLines.take(SAMPLE_SIZE).toList
+      } catch {
+        case e: MalformedInputException => {
+          throw new IllegalArgumentException("Could not parse file. Is the file in UTF-8 encoding?")
+        }
+      }
 
       try {
         val rows = lines.flatMap(l => CSVParser.parse(l, csvFormat).map(record => record.toList)).toList
