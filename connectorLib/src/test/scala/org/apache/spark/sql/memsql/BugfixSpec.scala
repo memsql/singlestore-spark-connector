@@ -127,4 +127,24 @@ class BugfixSpec extends FlatSpec with SharedMemSQLContext with Matchers {
     val numRows = stringsToTest.length
     df1_data.showString(numRows) shouldBe df2_data.showString(numRows)
   }
+
+  "SQLBuilder" should "support the 'isin' DF operator without a typecast error" in {
+    val rdd = sc.parallelize(
+      Seq(
+        Row("k1", "v1")
+      )
+    )
+    val schema = StructType(
+      Seq(
+        StructField("k", StringType),
+        StructField("v", StringType)
+      )
+    )
+
+    val df = msc.createDataFrame(rdd, schema)
+    df.saveToMemSQL("isin_test")
+
+    val df2 = msc.table("isin_test")
+    df2.where(df2.col("v").isin("v1")).collect
+  }
 }

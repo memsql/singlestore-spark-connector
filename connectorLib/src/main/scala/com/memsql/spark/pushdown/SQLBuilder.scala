@@ -136,7 +136,11 @@ class SQLBuilder(fields: Seq[NamedExpression]=Nil) {
    * @note Use this variant if the parameter is one of the Catalyst Types
    */
   def param(p: Any, t: DataType): SQLBuilder = {
-    params += CatalystTypeConverters.convertToScala(p, t)
+    val paramValue = p match {
+      case l: Literal => l.value
+      case _ => p
+    }
+    params += CatalystTypeConverters.convertToScala(paramValue, t)
     this
   }
 
