@@ -22,8 +22,12 @@ class PartitionPushdownSpec extends FlatSpec with SharedMemSQLContext with Match
 
     withStatement(stmt => {
       stmt.execute("CREATE TABLE x(a BIGINT PRIMARY KEY, b BIGINT)")
+      stmt.execute("CREATE TABLE x_columnar(a BIGINT, b BIGINT, KEY(a) USING CLUSTERED COLUMNSTORE)")
+      stmt.execute("CREATE TABLE x_columnar_2(a BIGINT, KEY USING CLUSTERED COLUMNSTORE(a), SHARD KEY(a))")
       stmt.execute("CREATE TABLE y(c BIGINT PRIMARY KEY, d BIGINT)")
       stmt.execute("INSERT INTO x VALUES" + insertQuery)
+      stmt.execute("INSERT INTO x_columnar VALUES" + insertQuery)
+      stmt.execute("INSERT INTO x_columnar_2 SELECT a FROM x_columnar")
       stmt.execute("INSERT INTO y VALUES" + insertQuery)
     })
 
@@ -69,6 +73,21 @@ class PartitionPushdownSpec extends FlatSpec with SharedMemSQLContext with Match
     assertPushdown("SELECT a FROM x GROUP BY a, b")
     assertPushdown("SELECT count(*) FROM x GROUP BY a")
     assertPushdown("SELECT sum(b) FROM x GROUP BY a")
+  }
+
+  "MemSQLRDD" should "pushdown simple queries on columnar tables" in {
+    assertPushdown("SELECT * FROM x_columnar")
+    assertPushdown(s"SELECT * FROM ${dbName}.x_columnar")
+    assertPushdown("SELECT a FROM x_columnar")
+    assertPushdown("SELECT a AS blah FROM x_columnar")
+    assertPushdown("SELECT * FROM x_columnar WHERE a > 17")
+    assertPushdown("SELECT * FROM x_columnar WHERE a > 17 AND b < 42")
+    assertPushdown("SELECT a FROM x_columnar GROUP BY a, b")
+
+    // The following use GatherMerge and are therefore not amenable to query pushdown
+    assertNoPushdown("SELECT a FROM x_columnar GROUP BY a")
+    assertNoPushdown("SELECT count(*) FROM x_columnar GROUP BY a")
+    assertNoPushdown("SELECT sum(b) FROM x_columnar GROUP BY a")
   }
 
   "MemSQLRDD" should "pushdown joins to reference tables in other databases" in {
