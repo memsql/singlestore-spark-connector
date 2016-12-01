@@ -26,7 +26,11 @@ case class MemSQLConnectionInfo(dbHost: String,
     *       and will not work in plenty of valid cases.
     */
   def isColocated: Boolean = Option(TaskContext.get) match {
-    case Some(tc) => tc.taskMetrics().hostname == dbHost
+    case Some(tc) => false
+      /* todo: We need a way to get the executor hostname and they removed it from
+       * taskmetrics(). We can potentially use utils.getHostName() but it is private so it would require moving this
+       * to org.apache.spark package
+       */
     case None => InetAddress.getLocalHost.getHostName == dbHost
   }
 }

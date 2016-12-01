@@ -7,7 +7,7 @@ import java.sql.Connection
 import scala.reflect.ClassTag
 import scala.util.Try
 
-import org.apache.spark.{Logging, Partition, SparkContext, TaskContext}
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import com.memsql.spark.connector.util.{MemSQLConnectionInfo, NextIterator}
 import com.memsql.spark.connector.util.JDBCImplicits._
@@ -46,15 +46,15 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
                                   sql: String,
                                   sqlParams: Seq[Any] = Nil,
                                   databaseName: Option[String] = None,
-                                  mapRow: (ResultSet) => T = MemSQLRDD.resultSetToArray(_)
-                                 ) extends RDD[T](sc, Nil) with Logging {
+                                  mapRow: (ResultSet) => T = MemSQLRDD.resultSetToArray _
+                                 ) extends RDD[T](sc, Nil){
 
   override def getPartitions: Array[Partition] = {
     // databaseName is required for partition pushdown
     databaseName match {
       case None => getSinglePartition
       case Some(dbName) => {
-        cluster.withMasterConn(conn => {
+        cluster.withMasterConn[Array[Partition]](conn => {
           val partitionQueryFn = getPartitionQueryFn(conn, dbName)
 
           conn.withStatement(stmt => {

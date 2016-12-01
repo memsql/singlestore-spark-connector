@@ -5,6 +5,11 @@ import java.sql.{ResultSet, ResultSetMetaData, Types => JDBCTypes}
 import com.google.common.primitives.UnsignedLongs
 import org.apache.spark.sql.types._
 
+/* TODO: Spark currently doesn't support user-defined datatypes in Spark 2.0
+ * https://issues.apache.org/jira/browse/SPARK-14155
+ * This blocks us from porting over the GeometryType, GeographyType, UnsignedBigIntegerType, etc
+ * which we need in order to support all MemSQL data types in a Spark dataframe
+ */
 object TypeConversions {
   val MEMSQL_DECIMAL_MAX_PRECISION = 65
   val MEMSQL_DECIMAL_MAX_SCALE = 30
@@ -61,7 +66,7 @@ object TypeConversions {
       case JDBCTypes.INTEGER => IntegerType
       case JDBCTypes.BIGINT => rsmd.isSigned(ix) match {
         case true => LongType
-        case _ => BigIntUnsignedType
+        case _ => throw new IllegalArgumentException("Can't translate type " + rsmd.getColumnTypeName(ix))
       }
 
       case JDBCTypes.DOUBLE => DoubleType
@@ -75,7 +80,7 @@ object TypeConversions {
       case JDBCTypes.TIMESTAMP => TimestampType
       case JDBCTypes.DATE => DateType
       // MySQL TIME type is represented as a long in milliseconds
-      case JDBCTypes.TIME => LongType
+      case JDBCTypes.TIME => StringType
 
       case JDBCTypes.CHAR => StringType
       case JDBCTypes.VARCHAR => StringType
@@ -111,7 +116,8 @@ object TypeConversions {
       case JDBCTypes.TIMESTAMP => row.getTimestamp(ix)
       case JDBCTypes.DATE => row.getDate(ix)
       // MySQL TIME type is represented as a long in milliseconds
-      case JDBCTypes.TIME => row.getTime(ix).getTime
+
+      case JDBCTypes.TIME => Option(row.getTime(ix)).map(_.toString).getOrElse(null)
 
       case JDBCTypes.CHAR => row.getString(ix)
       case JDBCTypes.VARCHAR => row.getString(ix)

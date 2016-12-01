@@ -27,7 +27,7 @@ case class MemSQLCluster(conf: MemSQLConf) {
 
   def getAggregators: Seq[MemSQLConnectionInfo] = getAggregators(false)
   def getAggregators(includeMaster: Boolean): List[MemSQLConnectionInfo] = {
-    val aggs = withMasterConn { conn =>
+    val aggs = withMasterConn[List[MemSQLConnectionInfo]] { conn =>
       conn.withStatement { stmt =>
         val result = stmt.executeQuery("SHOW AGGREGATORS")
 
@@ -54,7 +54,7 @@ case class MemSQLCluster(conf: MemSQLConf) {
   }
 
   def getMasterPartitions(dbName: String): List[MemSQLConnectionInfo] = {
-    withAggregatorConn(conn => {
+    withAggregatorConn[List[MemSQLConnectionInfo]](conn => {
       conn.withStatement(stmt => {
         stmt.executeQuery(s"SHOW PARTITIONS FROM $dbName")
           .toIterator
@@ -73,7 +73,7 @@ case class MemSQLCluster(conf: MemSQLConf) {
   }
 
   def getQuerySchema(query: String, queryParams: Seq[Any]=Nil): StructType = {
-    withMasterConn { conn =>
+    withMasterConn[StructType] { conn =>
       val limitedQuery = s"SELECT * FROM ($query) lzalias LIMIT 0"
 
       val metadata = conn.withPreparedStatement(limitedQuery, stmt => {
@@ -136,7 +136,7 @@ case class MemSQLCluster(conf: MemSQLConf) {
     }
 
     val query = MemSQLTable(tableIdent, columns ++ extraColumns, keys ++ extraKeys, ifNotExists = true)
-    withMasterConn { conn =>
+    withMasterConn[Boolean] { conn =>
       conn.withStatement(stmt => {
         stmt.execute(query.toSQL)
       })
