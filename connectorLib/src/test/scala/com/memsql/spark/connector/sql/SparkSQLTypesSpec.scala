@@ -26,8 +26,8 @@ class SparkSQLTypesSpec extends FlatSpec with SharedMemSQLContext {
     (DoubleType, Seq(7.8, 9.1, 1.0000000000000001)),
     (StringType, Seq("hi", "there", "buddy")),
     (BinaryType, Seq("how".map(_.toByte).toArray, "are".map(_.toByte).toArray, "you".map(_.toByte).toArray)),
-    (TimestampType, Seq(new Timestamp(90, 8, 23, 1, 1, 4, 0), new Timestamp(90, 8, 23, 1, 1, 5, 0), new Timestamp(90, 8, 23, 1, 1, 6, 0))),
-    (DateType, Seq(new Date(90, 8, 23), new Date(90, 9, 23), new Date(90, 10, 23)))
+    (TimestampType, Seq(new Timestamp(1000), new Timestamp(2000), new Timestamp(3000))),
+    (DateType, Seq(new Date(10000), new Date(30000), new Date(40000)))
   )
 
   it should "handle all SparkSQL types" in {

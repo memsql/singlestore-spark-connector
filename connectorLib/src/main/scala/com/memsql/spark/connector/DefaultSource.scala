@@ -21,9 +21,15 @@ class DefaultSource extends RelationProvider
                               parameters: Map[String, String]): BaseRelation = {
     val conf = MemSQLConf(sqlContext.sparkContext.getConf)
     val cluster = MemSQLCluster(conf)
-    val tableIdent = DefaultSource.getTableIdentifier(parameters)
 
-    MemSQLTableRelation(cluster, tableIdent, sqlContext)
+    parameters.get("path") match {
+      case Some(path) => MemSQLTableRelation(cluster, DefaultSource.getTableIdentifier(path), sqlContext)
+
+      case None => parameters.get("query") match {
+        case Some(query) => MemSQLQueryRelation(cluster, query, sqlContext)
+        case None => throw new UnsupportedOperationException("Must specify a path or query when loading a MemSQL DataSource")
+      }
+    }
   }
 
   override def createRelation(sqlContext: SQLContext,
@@ -33,9 +39,14 @@ class DefaultSource extends RelationProvider
                              ): BaseRelation = {
     val conf = MemSQLConf(sqlContext.sparkContext.getConf)
     val cluster = MemSQLCluster(conf)
-    val tableIdent = DefaultSource.getTableIdentifier(parameters)
     val saveConf = SaveToMemSQLConf(conf, Some(mode), parameters)
 
+    val path = parameters.get("path").getOrElse("")
+    if (path == "") {
+      throw new UnsupportedOperationException("Must specify a path when saving to MemSQL")
+    }
+
+    val tableIdent = DefaultSource.getTableIdentifier(path)
     val relation = MemSQLTableRelation(cluster, tableIdent, sqlContext)
     relation.insert(data, saveConf)
 
@@ -44,12 +55,8 @@ class DefaultSource extends RelationProvider
 }
 
 object DefaultSource {
-  def getTableIdentifier(parameters: Map[String, String]): TableIdentifier = {
-    val path = parameters.get("path")
-    if (path.isEmpty) {
-      throw new UnsupportedOperationException("Must specify a path when saving or loading a MemSQL DataSource")
-    }
-    val sparkTableIdent = CatalystSqlParser.parseTableIdentifier(path.get)
+  def getTableIdentifier(path: String): TableIdentifier = {
+    val sparkTableIdent = CatalystSqlParser.parseTableIdentifier(path)
     TableIdentifier(sparkTableIdent.table, sparkTableIdent.database)
   }
 }

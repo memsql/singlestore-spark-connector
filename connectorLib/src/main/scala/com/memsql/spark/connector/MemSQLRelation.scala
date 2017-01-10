@@ -12,19 +12,19 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 import com.memsql.spark.connector.util.JDBCImplicits._
 
-abstract class MemSQLRelation extends BaseRelation with TableScan {
+case class MemSQLQueryRelation(cluster: MemSQLCluster,
+                               query: String,
+                               sqlContext: SQLContext) extends BaseRelation with TableScan {
 
-  def cluster: MemSQLCluster
-  def database: Option[String]
-  def query: String
-  def sqlContext: SQLContext
+  override def schema: StructType = cluster.getQuerySchema(query)
 
-  lazy val schema: StructType = cluster.getQuerySchema(query)
-
-  override def buildScan: RDD[Row] = {
-    MemSQLRDD(sqlContext.sparkContext, cluster, query,
-      databaseName=database,
-      mapRow=_.toRow)
+  def buildScan(): RDD[Row] = {
+    MemSQLRDD(
+      sqlContext.sparkContext,
+      cluster,
+      query,
+      mapRow=_.toRow
+    )
   }
 }
 
@@ -148,10 +148,3 @@ case class MemSQLTableRelation(cluster: MemSQLCluster,
   def insert(data: DataFrame, saveConf: SaveToMemSQLConf): Unit =
     data.saveToMemSQL(tableIdentifier, saveConf)
 }
-
-/*
-case class MemSQLQueryRelation(cluster: MemSQLCluster,
-                               database: Option[String],
-                               query: String,
-                               sqlContext: SQLContext) extends MemSQLRelation
-*/
