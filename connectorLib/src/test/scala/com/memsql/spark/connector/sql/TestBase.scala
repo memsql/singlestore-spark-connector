@@ -4,10 +4,10 @@ import java.net.InetAddress
 import java.security.MessageDigest
 import java.sql.{Connection, PreparedStatement, Statement}
 
-import com.memsql.spark.connector.MemSQLConnectionPool
+import com.memsql.spark.connector.{MemSQLCluster, MemSQLConnectionPool}
 import com.memsql.spark.connector.util.JDBCImplicits._
 import com.memsql.spark.connector.util.MemSQLConnectionInfo
-import org.apache.spark.sql.{SparkSession, SQLContext}
+import org.apache.spark.sql.{SQLContext, SparkSession}
 import org.apache.spark.{SparkConf, SparkContext}
 
 trait TestBase {
@@ -23,6 +23,8 @@ trait TestBase {
   val masterHost = sys.env.get("MEMSQL_HOST_TEST").getOrElse("172.17.0.2")
   val masterConnectionInfo: MemSQLConnectionInfo =
     MemSQLConnectionInfo(masterHost, 3306, "root", "", dbName) // scalastyle:ignore
+  val leafConnectionInfo: MemSQLConnectionInfo =
+    MemSQLConnectionInfo(masterHost, 3307, "root", "", dbName) // scalastyle:ignore
 
   var ss: SparkSession = null
   var sc: SparkContext = null
@@ -57,6 +59,9 @@ trait TestBase {
 
   def withStatement[T](handle: Statement => T): T =
     withConnection(conn => conn.withStatement(handle))
+
+  def withStatement[T](info: MemSQLConnectionInfo)(handle: Statement => T): T =
+    withConnection(info)(conn => conn.withStatement(handle))
 
   def withPreparedStatement[T](query: String, handle: PreparedStatement => T): T =
     withConnection(conn => conn.withPreparedStatement(query, handle))

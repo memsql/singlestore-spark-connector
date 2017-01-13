@@ -15,7 +15,7 @@ class ExtraColumnsSpec extends FlatSpec with SharedMemSQLContext with Matchers {
       saveToMemSQL(), the extra columns included in the MemSQL table that we create.
       This only works if the table does not already exist.
     */
-  it should "add extra columns to tables with default values" in {
+  "Saving a dataframe to MemSQL with extraColumns parameter in SaveToMemSQLConf" should "populate the extra columns with default values" in {
     val rdd = sc.parallelize(Array(Row(1)))
     val schema = StructType(
       Array(
@@ -71,7 +71,7 @@ class ExtraColumnsSpec extends FlatSpec with SharedMemSQLContext with Matchers {
     years should be >= 2015
   }
 
-  it should "extracolumn param doesn't add columns to an existing table" in {
+  it should "not add the extra columns to an existing table" in {
     val firstRDD = sc.parallelize(Seq(Row(1, 0), Row(1, 0)))
     val firstSchema = StructType(
       Array(
