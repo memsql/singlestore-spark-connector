@@ -18,53 +18,27 @@ version:
 
 .PHONY: clean
 clean:
-	sbt clean \
-		"project connectorLib" clean \
-		"project etlLib" clean \
-		"project interface" clean \
-		"project tests" clean
-	rm -rf distribution/
+	sbt clean
 
 .PHONY: style
 style:
-	sbt "project etlLib" scalastyle \
-	    "project connectorLib" scalastyle \
-	    "project interface" scalastyle
+	sbt scalastyle
 
 .PHONY: build
 build: clean
 	sbt assembly
 
-.PHONY: build-test
-build-test: clean
-	sbt "project tests" assembly
-
-.PHONY: build-sample
-build-sample:
-	cd dockertest/sample_pipelines; sbt assembly
+.PHONY: test
+test:
+	sbt test
 
 .PHONY: docs
 docs: clean
 	sbt unidoc
 
-.PHONY: package
-package: docs build
-	mkdir -p distribution/dist/memsql-$(VERSION)
-	cp README.md distribution/dist/memsql-$(VERSION)/
-	cp target/scala-2.10/MemSQL-assembly-$(VERSION).jar distribution/dist/memsql-$(VERSION)/
-	cp -r target/scala-2.10/unidoc/ distribution/dist/memsql-$(VERSION)/docs/
-	cd distribution/dist; \
-	tar cvzf memsql-$(VERSION).tar.gz memsql-$(VERSION)/
-
-.PHONY: psytest
-psytest: build-test build-sample
-	psy dockertest dockertest/.psyduck
-
 .PHONY: publish
 publish:
-	sbt "project connectorLib" publishSigned \
-	"project etlLib" publishSigned \
-	"project interface" assembly
+	sbt publishSigned \
 	aws s3api put-object --bucket download.memsql.com --key memsql-spark-interface-$(VERSION)/memsql-spark-interface-$(VERSION).jar --body interface/target/scala-2.10/MemSQL\ Spark\ Interface-assembly-$(VERSION).jar --acl public-read
 
 .PHONY: publish-docs
@@ -73,5 +47,4 @@ publish-docs:
 
 .PHONY: release
 release: publish publish-docs
-	sbt "project connectorLib" sonatypeRelease \
-	"project etlLib" sonatypeRelease
+	sbt sonatypeRelease

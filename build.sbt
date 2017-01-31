@@ -2,9 +2,7 @@ import UnidocKeys._
 
 lazy val sparkVersion = "2.0.2"
 lazy val mysqlConnectorVersion = "5.1.34"
-lazy val akkaVersion = "2.3.9"
 lazy val sprayVersion = "1.3.2"
-lazy val scoptVersion = "3.2.0"
 lazy val scalatestVersion = "2.2.5"
 lazy val commonsDBCPVersion = "2.1.1"
 lazy val guavaVersion = "19.0"
@@ -14,7 +12,7 @@ lazy val testScalastyle = taskKey[Unit]("testScalastyle")
 
 lazy val commonSettings = Seq(
   organization := "com.memsql",
-  version := "1.3.3",
+  version := "2.0.0-SNAPSHOT",
   scalaVersion := "2.11.8",
   assemblyScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Compile).toTask("").value,
   assembly <<= assembly dependsOn assemblyScalastyle,
@@ -30,7 +28,7 @@ lazy val commonSettings = Seq(
     }
   },
   pomExtra := {
-    <url>http://memsql.github.io/spark-streamliner</url>
+    <url>http://memsql.github.io/memsql-spark-connector</url>
     <licenses>
       <license>
         <name>Apache 2</name>
@@ -55,18 +53,33 @@ lazy val commonSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { _ => false },
-  javaVersionPrefix in javaVersionCheck := Some("1.7"),
   excludeFilter in unmanagedSources := HiddenFileFilter || "prelude.scala"
 )
 
-lazy val connectorLib = (project in file("connectorLib")).
+lazy val examples = (project in file("examples")).
+  dependsOn(root % "compile->test; test->test").
   settings(commonSettings: _*).
+  settings(
+    name := "examples",
+    libraryDependencies ++= {
+      Seq(
+        "mysql" % "mysql-connector-java" % mysqlConnectorVersion,
+        "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
+        "org.apache.spark" %% "spark-sql" % sparkVersion  % Provided
+      )
+    }
+  )
+
+lazy val root = (project in file(".")).
+  settings(commonSettings: _*).
+  settings(unidocSettings: _*).
+  settings(site.settings ++ ghpages.settings: _*).
   settings(
     name := "MemSQL-Connector",
     description := "Spark MemSQL Connector",
     libraryDependencies  ++= Seq(
       "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
-      "org.apache.spark" %% "spark-sql" % sparkVersion  % Provided,
+      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
       "mysql" % "mysql-connector-java" % mysqlConnectorVersion,
       "org.apache.commons" % "commons-dbcp2" % commonsDBCPVersion,
       "org.scalatest" %% "scalatest" % scalatestVersion % Test,
@@ -86,37 +99,7 @@ lazy val connectorLib = (project in file("connectorLib")).
         findManagedDependency("org.apache.spark", "spark-sql").map(d => d -> url(s"https://spark.apache.org/docs/$sparkVersion/api/scala/"))
       )
       links.collect { case Some(d) => d }.toMap
-    }
-  )
-
-lazy val examples = (project in file("examples")).
-  dependsOn(connectorLib % "compile->test; test->test").
-  settings(commonSettings: _*).
-  settings(
-    name := "examples",
-    libraryDependencies ++= {
-      Seq(
-        "mysql" % "mysql-connector-java" % mysqlConnectorVersion,
-        "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
-        "org.apache.spark" %% "spark-streaming" % sparkVersion % Provided,
-        "org.apache.spark" %% "spark-sql" % sparkVersion  % Provided
-      )
-    }
-  )
-
-lazy val root = (project in file(".")).
-  dependsOn(connectorLib).
-  settings(commonSettings: _*).
-  settings(unidocSettings: _*).
-  settings(site.settings ++ ghpages.settings: _*).
-  settings(
-    name := "MemSQL",
-    libraryDependencies  ++= Seq(
-      "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
-      "org.apache.spark" %% "spark-sql" % sparkVersion  % Provided,
-      "org.apache.spark" %% "spark-streaming" % sparkVersion % Provided,
-      "mysql" % "mysql-connector-java" % mysqlConnectorVersion
-    ),
+    },
     unidocProjectFilter in (ScalaUnidoc, unidoc) := inAnyProject -- inProjects(),
     site.includeScaladoc(),
     site.addMappingsToSiteDir(mappings in (ScalaUnidoc, packageDoc), "latest/api"),

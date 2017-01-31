@@ -1,2 +1,0 @@
- -s dockertest/jar_inspector_test.py::test_jar_inspector_sanity --psyduck-time-limit=16
- -s dockertest/jar_inspector_test.py::test_jar_inspector_external_jar --psyduck-time-limit=16

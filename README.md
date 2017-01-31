@@ -1,21 +1,14 @@
-MemSQL Spark Library
+MemSQL Spark 2.0 Connector
 ====================
 
-This git repository contains a number of Scala projects that provide interoperation between [MemSQL](http://www.memsql.com) and a Spark cluster.
+This git repository contains the MemSQL 2.0 Spark connector, which enables users to load data from MemSQL tables into Spark Dataframes, and write Spark Dataframes to MemSQL tables.
 
-| Name | Description |
-| ---- | ----------- |
-| [MemSQL Spark Interface](#memsql-spark-interface) | A Spark app providing an API to run MemSQL Streamliner Pipelines on Spark |
-| [MemSQL etlLib](#memsql-etllib) | A library of interfaces for building custom MemSQL Streamliner Pipelines |
-| [MemSQL Spark Connector](#memsql-spark-connector) | Scala tools for connecting to MemSQL from Spark |
 
 Supported Spark version
 -----------------------
 
-Right now this project is only supported for Spark version 1.5.2.  It has been
-primarily tested against the MemSQL Spark Distribution which you can download
-here: http://versions.memsql.com/memsql-spark/latest
-
+Right now this project is only supported for Spark version 2.0.0+.  It has been
+primarily tested against the Spark version 2.0.2
 Documentation
 -------------
 
@@ -23,15 +16,6 @@ You can find Scala documentation for everything exposed in this repo here: [mems
 
 You can find MemSQL documentation on our Spark ecosystem here: [docs.memsql.com/latest/spark/](http://docs.memsql.com/latest/spark/)
 
-MemSQL Spark Interface
-----------------------
-
-The MemSQL Spark Interface is a Spark application that runs in a Spark cluster. The Interface provides an HTTP API to run real-time pipelines on Spark.  It is also required to interface [MemSQL Ops](http://docs.memsql.com/latest/ops/) with a Spark cluster.
-
-MemSQL etlLib
--------------
-
-The MemSQL ETL library provides interfaces and utilities required when writing custom pipeline JARs.  You can learn more about doing this [on our docs](http://docs_staging.memsql.com/latest/spark/memsql-spark-interface/).
 
 MemSQL Spark Connector
 ----------------------
@@ -75,7 +59,8 @@ val df = memsqlContext.read.format("com.memsql.spark.connector").load("db.table"
 
 ###saveToMemsql
 
-The saveToMemsql function writes a `DataFrame` to a MemSQL table.
+// count the number of rows
+println(s"The number of customers from Illinois is ${customersFromIllinois.count()}")
 
 ```
 import org.apache.spark.sql._
@@ -110,7 +95,7 @@ Inside a project definition you can depend on our MemSQL Connector like so:
 libraryDependencies  += "com.memsql" %% "memsql-connector" % "VERSION"
 ```
 
-And our ETL interface for [MemSQL Streamliner](http://memsql.github.io/spark-streamliner):
+The `mode` specifies how to handle existing data if present. The default, if unspecified, is "error", which means that if data already exists in people.students, an error is to be thrown.
 
 ```
 libraryDependencies  += "com.memsql" %% "memsql-etl" % "VERSION"
