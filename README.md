@@ -1,124 +1,135 @@
 MemSQL Spark 2.0 Connector
 ====================
+The MemSQL 2.0 Spark connector enables users to load data from MemSQL tables into Spark Dataframes, and write Spark Dataframes to MemSQL tables.
 
-This git repository contains the MemSQL 2.0 Spark connector, which enables users to load data from MemSQL tables into Spark Dataframes, and write Spark Dataframes to MemSQL tables.
+
+Requirements
+------------
+
+This library requires Spark 2.0+ and has been primarily tested against Spark version 2.0.2. For support with Spark 1.x, please check the [1.x branch](https://github.com/memsql/memsql-spark-connector/tree/1.3.3).
 
 
-Supported Spark version
------------------------
-
-Right now this project is only supported for Spark version 2.0.0+.  It has been
-primarily tested against the Spark version 2.0.2
 Documentation
 -------------
 
 You can find Scala documentation for everything exposed in this repo here: [memsql.github.io/memsql-spark-connector](http://memsql.github.io/memsql-spark-connector)
 
-You can find MemSQL documentation on our Spark ecosystem here: [docs.memsql.com/latest/spark/](http://docs.memsql.com/latest/spark/)
 
+Installation
+------------
 
-MemSQL Spark Connector
-----------------------
-
-The MemSQL Spark connector provides tools for reading from and writing to
-MemSQL databases in Spark.
-
-The connector provides a number of integrations with Apache Spark including a custom RDD type, DataFrame helpers and a MemSQL Context.
-
-###MemSQLContext
-
-The MemSQL Context maintains metadata about a MemSQL cluster and extends the Spark SQLContext.
+Inside a project definition you can depend on the MemSQL Connector using sbt:
 
 ```
-import com.memsql.spark.connector.MemSQLContext
+libraryDependencies  += "com.memsql" %% "memsql-connector" % "2.0.0"
+```
 
-// NOTE: The connection details for your MemSQL Master Aggregator must be in
-// the Spark configuration. See http://memsql.github.io/memsql-spark-connector/latest/api/#com.memsql.spark.connector.MemSQLConf
-// for details.
-val memsqlContext = new MemSQLContext(sparkContext)
+or Maven:
 
-val myTableDF = memsqlContext.table("my_table")
-// myTableDF now is a Spark DataFrame which represents the specified MemSQL table
+```xml
+<dependency>
+    <groupId>com.memsql</groupId>
+    <artifactId>memsql-connector_2.11</artifactId>
+    <version>2.0.0</version>
+</dependency>
+```
+
+
+Usage
+-----
+
+MemSQL Spark Connector leverages Spark SQL's Data Sources API. The connection to MemSQL requires setting the following Spark configuration settings.
+
+| Setting name             | Default value if not specified |
+| --------------------     | ------------------------------ |
+| spark.memsql.host        | localhost                      |
+| spark.memsql.port        | 3306                           |
+| spark.memsql.password    | None                           |
+
+
+### Loading data from MemSQL
+
+The following example creates a Dataframe from the table "illinois" in the database "customers". To use the library, pass in "com.memsql.spark.connector" as the `format` parameter so Spark will call the MemSQL Spark Connector code. The option `path` is the full path of the table using the syntax "$database_name.$table_name".
+
+```scala
+import org.apache.spark.SparkConf
+import org.apache.spark.sql.SparkSession
+
+val conf = new SparkConf().setAppName("MemSQL Spark Connector Example").set("spark.memsql.host", "10.0.0.190").set("spark.memsql.password", "foobar")
+val spark = SparkSession.builder().config(conf).getOrCreate()
+
+val customersFromIllinois = spark
+	.read
+	.format("com.memsql.spark.connector")
+	.options(Map("path" -> ("customers.illinois")))
+	.load()
+// customersFromIllinois is now a Spark DataFrame which represents the specified MemSQL table
 // and can be queried using Spark DataFrame query functions
-```
-
-You can also use `memsqlContext.sql` to pull arbitrary tables and expressions
-into a `DataFrame`
-
-```
-val df = memsqlContext.sql("SELECT * FROM test_table")
-
-val result = df.select(df("test_column")).where(df("other_column") === 1).limit(1)
-// Result now contains the first row where other_column == 1
-```
-
-Additionally you can use the `DataFrameReader` API
-```
-val df = memsqlContext.read.format("com.memsql.spark.connector").load("db.table")
-```
-
-###saveToMemsql
 
 // count the number of rows
 println(s"The number of customers from Illinois is ${customersFromIllinois.count()}")
 
+// print out the DataFrame
+customersFromIllinois.show()
 ```
-import org.apache.spark.sql._
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.memsql.SparkImplicits._
 
+Instead of specifying a MemSQL table as the `path` in the options, the user can opt to create a DataFrame from a SQL query with the option `query`. This can minimize the amount of data transferred from MemSQL to Spark, and push down distributed computations to MemSQL instead of Spark.
+
+```scala
+import org.apache.spark.SparkConf
+import org.apache.spark.sql.SparkSession
+
+val conf = new SparkConf().setAppName("MemSQL Spark Connector Example").set("spark.memsql.host", "10.0.0.190").set("spark.memsql.password", "foobar")
+val spark = SparkSession.builder().config(conf).getOrCreate()
+
+val customersFromIllinois = spark
+	.read
+	.format("com.memsql.spark.connector")
+	.options(Map("query" -> ("select age_group, count(*) from customers.illinois where number_of_orders > 3 GROUP BY age_group")))
+	.load()
+
+customersFromIllinois.show()
+// +-----------+---------+
+// | age_group | count(*)|
+// +-----------+---------+
+// |  13-18    |   128   |
+// |  19-25    |   150   |
+// |  26+      |   140   |
+// +-----------+---------+
+```
+
+### Saving data to MemSQL
+
+Similarly, use Spark SQL's Data Sources API to save a DataFrame to MemSQL. To save a DataFrame in the MemSQL table "students":
+
+```scala
 ...
 
-val rdd = sc.parallelize(Array(Row("foo", "bar"), Row("baz", "qux")))
-val schema = StructType(Seq(StructField("col1", StringType, false),
-                            StructField("col2", StrindType, false)))
+val rdd = sc.parallelize(Array(Row("John Smith", 12), Row("Jane Doe", 13)))
+val schema = StructType(Seq(StructField("Name", StringType, false),
+                            StructField("Age", IntegerType, false)))
 val df = sqlContext.createDataFrame(rdd, schema)
-df.saveToMemSQL("db", "table")
-```
-
-You can also use the `DataFrameWriter` API
-```
-df.write.format("com.memsql.spark.connector").save("db.table")
-```
-
-Using
------
-
-In order to compile this library you must have the [Simple Build
-Tool (aka sbt)](http://www.scala-sbt.org/) installed.
-
-Artifacts are published to Maven Central [http://repo1.maven.org/maven2/com/memsql/].
-
-Inside a project definition you can depend on our MemSQL Connector like so:
-
-```
-libraryDependencies  += "com.memsql" %% "memsql-connector" % "VERSION"
+df
+	.write
+	.format("com.memsql.spark.connector")
+	.mode("error")
+	.save("people.students")
 ```
 
 The `mode` specifies how to handle existing data if present. The default, if unspecified, is "error", which means that if data already exists in people.students, an error is to be thrown.
 
-```
-libraryDependencies  += "com.memsql" %% "memsql-etl" % "VERSION"
-```
 
-Building
---------
+Building and Testing
+--------------------
 
-You can use SBT to compile all of the projects in this repo.  To build all of the projects you can use:
+You can use SBT to compile the library
 
 ```
-sbt "project etlLib" build \
-    "project connectorLib" build \
-    "project interface" build
+sbt build
 ```
-
-Testing
--------
 
 All unit tests can be run via sbt.  They will also run at build time automatically.
 
 ```
-sbt 'project etlLib' test
-sbt 'project connectorLib' test
-sbt 'project interface' test
+sbt test
 ```

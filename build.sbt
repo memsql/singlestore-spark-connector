@@ -1,5 +1,3 @@
-import UnidocKeys._
-
 lazy val sparkVersion = "2.0.2"
 lazy val mysqlConnectorVersion = "5.1.34"
 lazy val sprayVersion = "1.3.2"
@@ -12,7 +10,7 @@ lazy val testScalastyle = taskKey[Unit]("testScalastyle")
 
 lazy val commonSettings = Seq(
   organization := "com.memsql",
-  version := "2.0.0-SNAPSHOT",
+  version := "2.0.0",
   scalaVersion := "2.11.8",
   assemblyScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Compile).toTask("").value,
   assembly <<= assembly dependsOn assemblyScalastyle,
@@ -72,7 +70,6 @@ lazy val examples = (project in file("examples")).
 
 lazy val root = (project in file(".")).
   settings(commonSettings: _*).
-  settings(unidocSettings: _*).
   settings(site.settings ++ ghpages.settings: _*).
   settings(
     name := "MemSQL-Connector",
@@ -100,8 +97,6 @@ lazy val root = (project in file(".")).
       )
       links.collect { case Some(d) => d }.toMap
     },
-    unidocProjectFilter in (ScalaUnidoc, unidoc) := inAnyProject -- inProjects(),
     site.includeScaladoc(),
-    site.addMappingsToSiteDir(mappings in (ScalaUnidoc, packageDoc), "latest/api"),
     git.remoteRepo := s"git@github.com:memsql/memsql-spark-connector.git"
   )

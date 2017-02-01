@@ -34,16 +34,15 @@ test:
 
 .PHONY: docs
 docs: clean
-	sbt unidoc
+	sbt doc
 
 .PHONY: publish
 publish:
-	sbt publishSigned \
-	aws s3api put-object --bucket download.memsql.com --key memsql-spark-interface-$(VERSION)/memsql-spark-interface-$(VERSION).jar --body interface/target/scala-2.10/MemSQL\ Spark\ Interface-assembly-$(VERSION).jar --acl public-read
+	sbt publishSigned
 
 .PHONY: publish-docs
 publish-docs:
-	sbt unidoc makeSite ghpagesPushSite
+	sbt doc makeSite ghpagesPushSite
 
 .PHONY: release
 release: publish publish-docs
