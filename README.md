@@ -38,18 +38,21 @@ or Maven:
 Usage
 -----
 
-MemSQL Spark Connector leverages Spark SQL's Data Sources API. The connection to MemSQL requires setting the following Spark configuration settings.
+MemSQL Spark Connector leverages Spark SQL's Data Sources API. The connection to MemSQL relies on the following Spark configuration settings.
 
-| Setting name             | Default value if not specified |
-| --------------------     | ------------------------------ |
-| spark.memsql.host        | localhost                      |
-| spark.memsql.port        | 3306                           |
-| spark.memsql.password    | None                           |
+| Setting name                    | Default value if not specified  |
+| --------------------            | ------------------------------  |
+| spark.memsql.host               | localhost                       |
+| spark.memsql.port               | 3306                            |
+| spark.memsql.user               | root                            |
+| spark.memsql.password           | None                            |
+| spark.memsql.defaultDB          | None                            |
+| spark.memsql.defaultSaveMode    | "error" (see description below) |
 
 
 ### Loading data from MemSQL
 
-The following example creates a Dataframe from the table "illinois" in the database "customers". To use the library, pass in "com.memsql.spark.connector" as the `format` parameter so Spark will call the MemSQL Spark Connector code. The option `path` is the full path of the table using the syntax "$database_name.$table_name".
+The following example creates a Dataframe from the table "illinois" in the database "customers". To use the library, pass in "com.memsql.spark.connector" as the `format` parameter so Spark will call the MemSQL Spark Connector code. The option `path` is the full path of the table using the syntax "$database_name.$table_name". If there is only a table name, the connector will look for the table in the default database set in the configuration.
 
 ```scala
 import org.apache.spark.SparkConf
@@ -116,8 +119,27 @@ df
 	.save("people.students")
 ```
 
-The `mode` specifies how to handle existing data if present. The default, if unspecified, is "error", which means that if data already exists in people.students, an error is to be thrown.
+The `mode` specifies how to handle duplicate keys when the MemSQL table has a primary key. The default, if unspecified, is "error", which means that if a row with the same primary key already exists in MemSQL's people.students table, an error is to be thrown. Other save modes:
 
+| Save mode string | Description                                                                                                            |
+| -----------------| -----------                                                                                                            |
+| "error"          | MemSQL will error when encountering a record with duplicate keys                                                       |
+| "ignore"         | MemSQL will ignore records with duplicate keys and, without rolling back, continue inserting records with unique keys. |
+| "overwrite"      | MemSQL will replace the existing record with the new record                                                            |
+
+
+The second interface to save data to MemSQL is via the `saveToMemSQL` implicit function on a DataFrame you wish to save:
+```scala
+...
+
+val rdd = sc.parallelize(Array(Row("John Smith", 12), Row("Jane Doe", 13)))
+val schema = StructType(Seq(StructField("Name", StringType, false),
+                            StructField("Age", IntegerType, false)))
+val df = sqlContext.createDataFrame(rdd, schema)
+df.saveToMemSQL("people.students")  
+      // The database name can be omitted if "spark.memsql.defaultDatabase" is set 
+      // in the Spark configuration df.sqlContext.sparkContext.getConf.getAll
+```
 
 Building and Testing
 --------------------
