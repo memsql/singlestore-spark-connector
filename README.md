@@ -141,6 +141,63 @@ df.saveToMemSQL("people.students")
       // in the Spark configuration df.sqlContext.sparkContext.getConf.getAll
 ```
 
+Types
+-----
+
+When saving a Dataframe from Spark to MemSQL, the SparkType of each Dataframe column will be converted to the following MemSQL type:
+
+| SparkType     | MemSQL Type |
+| ---------     | ----------- |
+| ShortType     | SMALLINT    |
+| FloatType     | FLOAT       |
+| DoubleType    | DOUBLE      |
+| LongType      | BIGINT      |
+| IntegerType   | INT         |
+| BooleanType   | BOOLEAN     |
+| StringType    | TEXT        |
+| BinaryType    | BLOB        |
+| DecimalType   | DECIMAL     |
+| TimeStampType | TIMESTAMP   |
+| DateType      | DATE        |
+
+When reading a MemSQL table as a Spark Dataframe, the MemSQL column type will be converted to the following SparkType:
+
+| MemSQL Type       | SparkType     |
+| -----------       | ----------    |
+| TINYINT, SMALLINT | ShortType     |
+| INTEGER           | IntegerType   |
+| BIGINT (signed)   | LongType      |
+| DOUBLE, NUMERIC   | DoubleType    |
+| REAL              | FloatType     |
+| DECIMAL           | DecimalType   |
+| TIMESTAMP         | TimestampType |
+| DATE              | DateType      |
+| TIME              | StringType    |
+| CHAR, VARCHAR     | StringType    |
+| BIT, BLOG, BINARY | BinaryType    |
+
+MemSQL Spark 2.0 Connector does not support GeoSpatial or JSON MemSQL types since Spark 2.0 has currently disabled user defined types (see [JIRA issue](https://issues.apache.org/jira/browse/SPARK-14155)). These types, when read, will become BinaryType.
+
+Changes from MemSQL Spark 1.X Connector
+---------------------------------------
+
+While the MemSQL Spark 1.X Connector relied on Spark SQL experimental developer APIs, the MemSQL Spark 2.0 Connector uses only the official and stable APIs for loading data from an external data source documented [here](http://spark.apache.org/docs/latest/api/scala/index.html#org.apache.spark.sql.sources.package). In certain cases, we can "push down" distributed computations to MemSQL. This means that instead of having Spark perform a a transformation (eg. filter, join, etc) on the data it retrieved from MemSQL, you can let MemSQL do the operation on the data and pass the result to Spark. The MemSQL Spark 2.0 Connector supports column and filter pushdown; if you would like to push down joins or aggregates, consider explicitly including it in the user-specified `query` option. E.g. instead of
+
+```scala
+val people = spark.read.format("com.memsql.spark.connector").options(Map("path" -> ("db.people"))).load()
+val department = spark.read.format("com.memsql.spark.connector").options(Map("path" -> ("db.department"))).load()
+val result = people.join(department, people("deptId") === department("id"))
+```
+Do:
+
+```scala
+val result = spark
+	.read
+	.format("com.memsql.spark.connector")
+	.options(Map("query" -> ("select * from people join department on people.deptId = department.id")))
+	.load()
+```
+
 Building and Testing
 --------------------
 
