@@ -26,7 +26,7 @@ class DefaultSource extends RelationProvider
       case Some(path) => MemSQLTableRelation(cluster, DefaultSource.getTableIdentifier(path), sqlContext)
 
       case None => parameters.get("query") match {
-        case Some(query) => MemSQLQueryRelation(cluster, query, sqlContext)
+        case Some(query) => MemSQLQueryRelation(cluster, query, parameters.get("database"), sqlContext)
         case None => throw new UnsupportedOperationException("Must specify a path or query when loading a MemSQL DataSource")
       }
     }

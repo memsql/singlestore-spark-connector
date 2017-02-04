@@ -2,7 +2,9 @@
 
 package com.memsql.spark.connector.sql
 
+import com.memsql.spark.connector.rdd.MemSQLRDD
 import org.scalatest.FlatSpec
+import com.memsql.spark.connector.util.JDBCImplicits._
 
 /**
   * Read MemSQL tables as dataframes using the Spark DataSource API and
@@ -55,8 +57,41 @@ class UserQuerySpec extends FlatSpec with SharedMemSQLContext{
         assert(table4_collect(i)(0) == i)
       }
     }
-
-
-
   }
+
+  // To enable partition pushdown for custom queries, a database must be specified.
+  // First we check if the user has added one to the options
+  "A custom-query MemSQL Dataframe" should "populate databaseName with user-specified database name if available" in {
+    this.withConnection(conn => {
+      conn.withStatement(stmt => {
+        stmt.execute("CREATE DATABASE uniqueDB")
+        stmt.execute("USE uniqueDB")
+        stmt.execute("CREATE TABLE mytable(id int)")
+      })
+    })
+
+    val table = ss
+        .read
+        .format("com.memsql.spark.connector")
+        .options(Map("query" -> ("SELECT * FROM uniqueDB.mytable"), "database" -> "uniqueDB"))
+        .load()
+
+    assert(table.rdd.getNumPartitions > 1)
+
+    this.withConnection(conn => {
+      conn.withStatement(stmt => {
+        stmt.execute("DROP DATABASE uniqueDB")
+      })
+    })
+  }
+
+  it should "populate databaseName with Spark config spark.memsql.defaultDatabase if user did not specify a database name in options" in {
+    val table = ss
+      .read
+      .format("com.memsql.spark.connector")
+      .options(Map("query" -> ("SELECT * FROM " + dbName + ".t")))
+      .load()
+    assert(table.rdd.getNumPartitions > 1)
+  }
+
 }

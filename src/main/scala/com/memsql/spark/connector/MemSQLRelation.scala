@@ -14,15 +14,32 @@ import scala.collection.mutable.ListBuffer
 
 case class MemSQLQueryRelation(cluster: MemSQLCluster,
                                query: String,
+                               databaseName: Option[String],
                                sqlContext: SQLContext) extends BaseRelation with TableScan {
 
   override def schema: StructType = cluster.getQuerySchema(query)
+
+  // Partition pushdown requires a database name.
+  // If one was not supplied by the user in the option parameters,
+  // Check the Spark configuration settings for "spark.memsql.defaultDatabase"
+  val database: Option[String] = {
+    databaseName match {
+      case Some(s) => databaseName
+      case None => {
+        sqlContext.sparkContext.memSQLConf.defaultDBName match {
+          case "" => None
+          case noneEmptyString => Some(noneEmptyString)
+        }
+      }
+    }
+  }
 
   def buildScan(): RDD[Row] = {
     MemSQLRDD(
       sqlContext.sparkContext,
       cluster,
       query,
+      databaseName = database,
       mapRow=_.toRow
     )
   }
