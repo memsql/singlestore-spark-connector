@@ -46,19 +46,24 @@ MemSQL Spark Connector leverages Spark SQL's Data Sources API. The connection to
 | spark.memsql.port               | 3306                            |
 | spark.memsql.user               | root                            |
 | spark.memsql.password           | None                            |
-| spark.memsql.defaultDB          | None                            |
+| spark.memsql.defaultDatabase    | None                            |
 | spark.memsql.defaultSaveMode    | "error" (see description below) |
 
+Additionally, note that all MemSQL credentials have to be the same on all nodes
 
 ### Loading data from MemSQL
 
-The following example creates a Dataframe from the table "illinois" in the database "customers". To use the library, pass in "com.memsql.spark.connector" as the `format` parameter so Spark will call the MemSQL Spark Connector code. The option `path` is the full path of the table using the syntax "$database_name.$table_name". If there is only a table name, the connector will look for the table in the default database set in the configuration.
+The following example creates a Dataframe from the table "illinois" in the database "customers". To use the library, pass in "com.memsql.spark.connector" as the `format` parameter so Spark will call the MemSQL Spark Connector code. The option `path` is the full path of the table using the syntax `$database_name`.`$table_name`. If there is only a table name, the connector will look for the table in the default database set in the configuration.
 
 ```scala
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
 
-val conf = new SparkConf().setAppName("MemSQL Spark Connector Example").set("spark.memsql.host", "10.0.0.190").set("spark.memsql.password", "foobar")
+val conf = new SparkConf()
+	.setAppName("MemSQL Spark Connector Example")
+	.set("spark.memsql.host", "10.0.0.190")
+	.set("spark.memsql.password", "foobar")
+	.set("spark.memsql.defaultDatabase", "customers")
 val spark = SparkSession.builder().config(conf).getOrCreate()
 
 val customersFromIllinois = spark
@@ -76,19 +81,23 @@ println(s"The number of customers from Illinois is ${customersFromIllinois.count
 customersFromIllinois.show()
 ```
 
-Instead of specifying a MemSQL table as the `path` in the options, the user can opt to create a DataFrame from a SQL query with the option `query`. This can minimize the amount of data transferred from MemSQL to Spark, and push down distributed computations to MemSQL instead of Spark.
+Instead of specifying a MemSQL table as the `path` in the options, the user can opt to create a DataFrame from a SQL query with the option `query`. This can minimize the amount of data transferred from MemSQL to Spark, and push down distributed computations to MemSQL instead of Spark. For best performance, either specify the database name using the option `database`, OR make sure a default database is set in the Spark configuration. Either setting enables the connector to query the MemSQL leaf nodes directly, instead of going through the master aggregator
 
 ```scala
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
 
-val conf = new SparkConf().setAppName("MemSQL Spark Connector Example").set("spark.memsql.host", "10.0.0.190").set("spark.memsql.password", "foobar")
+val conf = new SparkConf()
+	.setAppName("MemSQL Spark Connector Example")
+	.set("spark.memsql.host", "10.0.0.190")
+	.set("spark.memsql.password", "foobar")
 val spark = SparkSession.builder().config(conf).getOrCreate()
 
 val customersFromIllinois = spark
 	.read
 	.format("com.memsql.spark.connector")
-	.options(Map("query" -> ("select age_group, count(*) from customers.illinois where number_of_orders > 3 GROUP BY age_group")))
+	.options(Map("query" -> ("select age_group, count(*) from customers.illinois where number_of_orders > 3 GROUP BY age_group"),
+				 "database" -> "customers"))
 	.load()
 
 customersFromIllinois.show()
