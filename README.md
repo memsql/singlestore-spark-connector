@@ -81,7 +81,7 @@ println(s"The number of customers from Illinois is ${customersFromIllinois.count
 customersFromIllinois.show()
 ```
 
-Instead of specifying a MemSQL table as the `path` in the options, the user can opt to create a DataFrame from a SQL query with the option `query`. This can minimize the amount of data transferred from MemSQL to Spark, and push down distributed computations to MemSQL instead of Spark. For best performance, either specify the database name using the option `database`, OR make sure a default database is set in the Spark configuration. Either setting enables the connector to query the MemSQL leaf nodes directly, instead of going through the master aggregator
+Instead of specifying a MemSQL table as the `path` in the options, the user can opt to create a DataFrame from a SQL query with the option `query`. This can minimize the amount of data transferred from MemSQL to Spark, and push down distributed computations to MemSQL instead of Spark. For best performance, either specify the database name using the option `database`, OR make sure a default database is set in the Spark configuration. Either setting enables the connector to query the MemSQL leaf nodes directly, instead of going through the master aggregator.
 
 ```scala
 import org.apache.spark.SparkConf
