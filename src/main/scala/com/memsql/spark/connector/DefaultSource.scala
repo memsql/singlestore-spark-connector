@@ -19,14 +19,27 @@ class DefaultSource extends RelationProvider
 
   override def createRelation(sqlContext: SQLContext,
                               parameters: Map[String, String]): BaseRelation = {
-    val conf = MemSQLConf(sqlContext.sparkContext.getConf)
+    val conf = sqlContext.sparkContext.memSQLConf
     val cluster = MemSQLCluster(conf)
+    val disablePartitionPushdown: Boolean = {
+      conf.disablePartitionPushdown || {
+        parameters.get("disablePartitionPushdown") match {
+          case None => false
+          case Some(s) => {
+            s.toLowerCase.trim match {
+              case "true" => true
+              case _ => false
+            }
+          }
+        }
+      }
+    }
 
     parameters.get("path") match {
-      case Some(path) => MemSQLTableRelation(cluster, DefaultSource.getTableIdentifier(path), sqlContext)
+      case Some(path) => MemSQLTableRelation(cluster, DefaultSource.getTableIdentifier(path), sqlContext, disablePartitionPushdown)
 
       case None => parameters.get("query") match {
-        case Some(query) => MemSQLQueryRelation(cluster, query, parameters.get("database"), sqlContext)
+        case Some(query) => MemSQLQueryRelation(cluster, query, parameters.get("database"), sqlContext, disablePartitionPushdown)
         case None => throw new UnsupportedOperationException("Must specify a path or query when loading a MemSQL DataSource")
       }
     }
@@ -37,17 +50,30 @@ class DefaultSource extends RelationProvider
                               parameters: Map[String, String],
                               data: DataFrame
                              ): BaseRelation = {
-    val conf = MemSQLConf(sqlContext.sparkContext.getConf)
+    val conf = sqlContext.sparkContext.memSQLConf
     val cluster = MemSQLCluster(conf)
     val saveConf = SaveToMemSQLConf(conf, Some(mode), parameters)
+    val disablePartitionPushdown: Boolean = {
+      conf.disablePartitionPushdown || {
+        parameters.get("disablePartitionPushdown") match {
+          case None => false
+          case Some(s) => {
+            s match {
+              case "true" => true
+              case _ => false
+            }
+          }
+        }
+      }
 
+    }
     val path = parameters.get("path").getOrElse("")
     if (path == "") {
       throw new UnsupportedOperationException("Must specify a path when saving to MemSQL")
     }
 
     val tableIdent = DefaultSource.getTableIdentifier(path)
-    val relation = MemSQLTableRelation(cluster, tableIdent, sqlContext)
+    val relation = MemSQLTableRelation(cluster, tableIdent, sqlContext, disablePartitionPushdown)
     relation.insert(data, saveConf)
 
     relation

@@ -46,43 +46,48 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
                                   sql: String,
                                   sqlParams: Seq[Any] = Nil,
                                   databaseName: Option[String] = None,
-                                  mapRow: (ResultSet) => T = MemSQLRDD.resultSetToArray _
+                                  mapRow: (ResultSet) => T = MemSQLRDD.resultSetToArray _,
+                                  disablePartitionPushdown: Boolean = false
                                  ) extends RDD[T](sc, Nil){
 
   override def getPartitions: Array[Partition] = {
-    // databaseName is required for partition pushdown
-    databaseName match {
-      case None => getSinglePartition
-      case Some(dbName) => {
-        cluster.withMasterConn[Array[Partition]](conn => {
-          val partitionQueryFn = getPartitionQueryFn(conn, dbName)
+    if(disablePartitionPushdown) {
+      getSinglePartition
+    } else {
+      // databaseName is required for partition pushdown
+      databaseName match {
+        case None => getSinglePartition
+        case Some(dbName) => {
+          cluster.withMasterConn[Array[Partition]](conn => {
+            val partitionQueryFn = getPartitionQueryFn(conn, dbName)
 
-          conn.withStatement(stmt => {
-            partitionQueryFn match {
-              case Some(pq) => {
-                stmt.executeQuery(s"SHOW PARTITIONS ON `${dbName}`")
-                  .toIterator
-                  .filter(r => r.getString("Role") == "Master")
-                  .map(r => {
-                    val (ordinal, host, port) = (r.getInt("Ordinal"), r.getString("Host"), r.getInt("Port"))
+            conn.withStatement(stmt => {
+              partitionQueryFn match {
+                case Some(pq) => {
+                  stmt.executeQuery(s"SHOW PARTITIONS ON `${dbName}`")
+                    .toIterator
+                    .filter(r => r.getString("Role") == "Master")
+                    .map(r => {
+                      val (ordinal, host, port) = (r.getInt("Ordinal"), r.getString("Host"), r.getInt("Port"))
 
-                    val partitionQuery = pq(ordinal)
+                      val partitionQuery = pq(ordinal)
 
-                    val connInfo = cluster.getMasterInfo.copy(
-                      dbHost = host,
-                      dbPort = port,
-                      dbName = MemSQLRDD.getDatabaseShardName(dbName, ordinal))
+                      val connInfo = cluster.getMasterInfo.copy(
+                        dbHost = host,
+                        dbPort = port,
+                        dbName = MemSQLRDD.getDatabaseShardName(dbName, ordinal))
 
-                    new MemSQLRDDPartition(ordinal, connInfo, Some(partitionQuery))
-                  })
-                  .toArray
+                      new MemSQLRDDPartition(ordinal, connInfo, Some(partitionQuery))
+                    })
+                    .toArray
+                }
+                case None => {
+                  getSinglePartition
+                }
               }
-              case None => {
-                getSinglePartition
-              }
-            }
+            })
           })
-        })
+        }
       }
     }
   }

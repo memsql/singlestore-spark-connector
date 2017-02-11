@@ -45,7 +45,8 @@ case class MemSQLConf(masterHost: String,
                       defaultSaveMode: SaveMode,
                       defaultCreateMode: CreateMode,
                       defaultInsertBatchSize: Int,
-                      defaultLoadDataCompression: CompressionType) {
+                      defaultLoadDataCompression: CompressionType,
+                      disablePartitionPushdown: Boolean) {
 
   val masterConnectionInfo: MemSQLConnectionInfo =
     MemSQLConnectionInfo(masterHost, masterPort, user, password, defaultDBName)
@@ -63,6 +64,8 @@ object MemSQLConf {
   val DEFAULT_INSERT_BATCH_SIZE = 10000
   val DEFAULT_LOAD_DATA_COMPRESSION = CompressionType.GZip
 
+  val DEFAULT_DISABLE_PARTITION_PUSHDOWN = false
+
   def getDefaultHost: String = InetAddress.getLocalHost.getHostAddress
 
   def apply(sparkConf: SparkConf): MemSQLConf =
@@ -77,6 +80,7 @@ object MemSQLConf {
         sparkConf.get("spark.memsql.defaultCreateMode", DEFAULT_CREATE_MODE.toString)),
       defaultInsertBatchSize = sparkConf.getInt("spark.memsql.defaultInsertBatchSize", DEFAULT_INSERT_BATCH_SIZE),
       defaultLoadDataCompression = CompressionType.withName(
-        sparkConf.get("spark.memsql.defaultLoadDataCompression", DEFAULT_LOAD_DATA_COMPRESSION.toString))
+        sparkConf.get("spark.memsql.defaultLoadDataCompression", DEFAULT_LOAD_DATA_COMPRESSION.toString)),
+      disablePartitionPushdown =  sparkConf.getBoolean("spark.memsql.disablePartitionPushdown", DEFAULT_DISABLE_PARTITION_PUSHDOWN)
     )
 }

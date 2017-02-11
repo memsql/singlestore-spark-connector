@@ -2,18 +2,20 @@
 
 package com.memsql.spark.connector.sql
 
-import com.memsql.spark.connector.rdd.MemSQLRDD
 import org.scalatest.FlatSpec
-import com.memsql.spark.connector.util.JDBCImplicits._
 
 /**
   * Read MemSQL tables as dataframes using the Spark DataSource API and
   * a SQL query to specify the desired data
   */
 class UserQuerySpec extends FlatSpec with SharedMemSQLContext{
-  "UserQuerySpec" should "create dataframe from user-specified query" in {
-    TestUtils.setupBasic(this)
+  override def beforeAll(): Unit = {
+    super.beforeAll()
 
+    TestUtils.setupBasic(this)
+  }
+
+  "UserQuerySpec" should "create dataframe from user-specified query" in {
     // Verify that we can read from each table
     for (name <- Seq("t", "s", "r")) {
       val table = ss
@@ -61,31 +63,16 @@ class UserQuerySpec extends FlatSpec with SharedMemSQLContext{
 
   // To enable partition pushdown for custom queries, a database must be specified.
   // First we check if the user has added one to the options
-  "A custom-query MemSQL Dataframe" should "populate databaseName with user-specified database name if available" in {
-    this.withConnection(conn => {
-      conn.withStatement(stmt => {
-        stmt.execute("CREATE DATABASE uniqueDB")
-        stmt.execute("USE uniqueDB")
-        stmt.execute("CREATE TABLE mytable(id int)")
-      })
-    })
-
+  "A custom-query MemSQL Dataframe" should "have more than one partition if user has specified database name" in {
     val table = ss
         .read
         .format("com.memsql.spark.connector")
-        .options(Map("query" -> ("SELECT * FROM uniqueDB.mytable"), "database" -> "uniqueDB"))
+        .options(Map("query" -> ("SELECT * FROM t"), "database" -> dbName))
         .load()
-
     assert(table.rdd.getNumPartitions > 1)
-
-    this.withConnection(conn => {
-      conn.withStatement(stmt => {
-        stmt.execute("DROP DATABASE uniqueDB")
-      })
-    })
   }
 
-  it should "populate databaseName with Spark config spark.memsql.defaultDatabase if user did not specify a database name in options" in {
+  it should "have more than one partition if user has specified defaultDB in Spark configuration" in {
     val table = ss
       .read
       .format("com.memsql.spark.connector")

@@ -40,16 +40,17 @@ Usage
 
 MemSQL Spark Connector leverages Spark SQL's Data Sources API. The connection to MemSQL relies on the following Spark configuration settings.
 
-| Setting name                    | Default value if not specified  |
-| --------------------            | ------------------------------  |
-| spark.memsql.host               | localhost                       |
-| spark.memsql.port               | 3306                            |
-| spark.memsql.user               | root                            |
-| spark.memsql.password           | None                            |
-| spark.memsql.defaultDatabase    | None                            |
-| spark.memsql.defaultSaveMode    | "error" (see description below) |
+| Setting name                             | Default value if not specified  |
+| --------------------                     | ------------------------------  |
+| spark.memsql.host                        | localhost                       |
+| spark.memsql.port                        | 3306                            |
+| spark.memsql.user                        | root                            |
+| spark.memsql.password                    | None                            |
+| spark.memsql.defaultDatabase             | None                            |
+| spark.memsql.defaultSaveMode             | "error" (see description below) |
+| spark.memsql.disablePartitionPushdown    | false                           |
 
-Additionally, note that all MemSQL credentials have to be the same on all nodes
+Note that all MemSQL credentials have to be the same on all nodes to take advantage of partition pushdown, which queries leaves directly.
 
 ### Loading data from MemSQL
 

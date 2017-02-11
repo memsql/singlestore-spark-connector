@@ -15,7 +15,8 @@ import scala.collection.mutable.ListBuffer
 case class MemSQLQueryRelation(cluster: MemSQLCluster,
                                query: String,
                                databaseName: Option[String],
-                               sqlContext: SQLContext) extends BaseRelation with TableScan {
+                               sqlContext: SQLContext,
+                               disablePartitionPushdown: Boolean) extends BaseRelation with TableScan {
 
   override def schema: StructType = cluster.getQuerySchema(query)
 
@@ -40,14 +41,16 @@ case class MemSQLQueryRelation(cluster: MemSQLCluster,
       cluster,
       query,
       databaseName = database,
-      mapRow=_.toRow
+      mapRow=_.toRow,
+      disablePartitionPushdown=disablePartitionPushdown
     )
   }
 }
 
 case class MemSQLTableRelation(cluster: MemSQLCluster,
                                tableIdentifier: TableIdentifier,
-                               sqlContext: SQLContext)
+                               sqlContext: SQLContext,
+                               disablePartitionPushdown: Boolean)
   extends BaseRelation
     with PrunedFilteredScan
     with InsertableRelation {
@@ -63,7 +66,8 @@ case class MemSQLTableRelation(cluster: MemSQLCluster,
       cluster,
       queryString,
       databaseName=database,
-      mapRow=_.toRow)
+      mapRow=_.toRow,
+      disablePartitionPushdown=disablePartitionPushdown)
   }
 
   //PrunedScan
@@ -101,7 +105,8 @@ case class MemSQLTableRelation(cluster: MemSQLCluster,
       queryString,
       sqlParams=params,
       databaseName=database,
-      mapRow=_.toRow)
+      mapRow=_.toRow,
+      disablePartitionPushdown=disablePartitionPushdown)
   }
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = {
