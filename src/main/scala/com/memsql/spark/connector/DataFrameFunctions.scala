@@ -9,7 +9,7 @@ import org.apache.spark.sql.types.BinaryType
 import scala.util.Random
 
 class DataFrameFunctions(df: DataFrame) {
-  def getMemSQLConf: MemSQLConf = MemSQLConf(df.sqlContext.sparkContext.getConf)
+  def getMemSQLConf: MemSQLConf = MemSQLConf(df.sparkSession.conf)
 
   def getMemSQLCluster: MemSQLCluster = MemSQLCluster(getMemSQLConf)
 

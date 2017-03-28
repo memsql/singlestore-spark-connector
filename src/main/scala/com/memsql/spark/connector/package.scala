@@ -11,20 +11,17 @@ package object connector {
   /* MemSQL functions on DataFrames */
   implicit def dataFrameFunctions(df: DataFrame): DataFrameFunctions = new DataFrameFunctions(df)
 
-  implicit def sparkContextFunctions(sc: SparkContext): SparkContextFunctions = new SparkContextFunctions(sc)
-
-  class SparkContextFunctions(sc: SparkContext) extends Serializable {
-    var memSQLConf: MemSQLConf = MemSQLConf(sc.getConf)
-    def setDatabase(dbName: String): Unit = memSQLConf = memSQLConf.copy(defaultDBName = dbName)
-    def getDatabase: String = memSQLConf.defaultDBName
-
-    def getMemSQLCluster: MemSQLCluster = MemSQLCluster(memSQLConf)
-  }
-
   implicit def sparkSessionFunctions(sparkSession: SparkSession): SparkSessionFunctions = new SparkSessionFunctions(sparkSession)
 
   class SparkSessionFunctions(sparkSession: SparkSession) extends Serializable {
-    var memSQLConf: MemSQLConf = MemSQLConf(sparkSession.sparkContext.getConf)
+    def memSQLConf: MemSQLConf = MemSQLConf(sparkSession.conf)
+
+    def setDatabase(dbName: String): Unit = {
+      sparkSession.conf.set("spark.memsql.defaultDatabase", dbName)
+    }
+    def getDatabase: String = memSQLConf.defaultDBName
+
+    def getMemSQLCluster: MemSQLCluster = MemSQLCluster(memSQLConf)
   }
 
   implicit def schemaFunctions(schema: StructType): SchemaFunctions = new SchemaFunctions(schema)

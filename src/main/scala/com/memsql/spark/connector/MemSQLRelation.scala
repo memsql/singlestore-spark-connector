@@ -27,7 +27,7 @@ case class MemSQLQueryRelation(cluster: MemSQLCluster,
     databaseName match {
       case Some(s) => databaseName
       case None => {
-        sqlContext.sparkContext.memSQLConf.defaultDBName match {
+        sqlContext.sparkSession.memSQLConf.defaultDBName match {
           case "" => None
           case noneEmptyString => Some(noneEmptyString)
         }

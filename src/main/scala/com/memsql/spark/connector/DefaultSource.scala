@@ -19,7 +19,7 @@ class DefaultSource extends RelationProvider
 
   override def createRelation(sqlContext: SQLContext,
                               parameters: Map[String, String]): BaseRelation = {
-    val conf = sqlContext.sparkContext.memSQLConf
+    val conf = sqlContext.sparkSession.memSQLConf
     val cluster = MemSQLCluster(conf)
     val disablePartitionPushdown: Boolean = {
       conf.disablePartitionPushdown || {
@@ -50,7 +50,7 @@ class DefaultSource extends RelationProvider
                               parameters: Map[String, String],
                               data: DataFrame
                              ): BaseRelation = {
-    val conf = sqlContext.sparkContext.memSQLConf
+    val conf = sqlContext.sparkSession.memSQLConf
     val cluster = MemSQLCluster(conf)
     val saveConf = SaveToMemSQLConf(conf, Some(mode), parameters)
     val disablePartitionPushdown: Boolean = {

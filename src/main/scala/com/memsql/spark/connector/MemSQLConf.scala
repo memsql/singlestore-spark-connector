@@ -1,9 +1,9 @@
 package com.memsql.spark.connector
 
 import java.net.InetAddress
+
 import com.memsql.spark.connector.util.MemSQLConnectionInfo
-import org.apache.spark.SparkConf
-import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.{RuntimeConfig, SaveMode}
 import com.memsql.spark.connector.CompressionType.CompressionType
 import com.memsql.spark.connector.CreateMode.CreateMode
 
@@ -68,19 +68,29 @@ object MemSQLConf {
 
   def getDefaultHost: String = InetAddress.getLocalHost.getHostAddress
 
-  def apply(sparkConf: SparkConf): MemSQLConf =
+  def apply(runtimeConf: RuntimeConfig): MemSQLConf =
     MemSQLConf(
-      masterHost = sparkConf.get("spark.memsql.host", getDefaultHost),
-      masterPort = sparkConf.getInt("spark.memsql.port", DEFAULT_PORT),
-      user = sparkConf.get("spark.memsql.user", DEFAULT_USER),
-      password = sparkConf.get("spark.memsql.password", DEFAULT_PASS),
-      defaultDBName = sparkConf.get("spark.memsql.defaultDatabase", DEFAULT_DATABASE),
-      defaultSaveMode = SaveMode.valueOf(sparkConf.get("spark.memsql.defaultSaveMode", DEFAULT_SAVE_MODE.name)),
+      masterHost = runtimeConf.get("spark.memsql.host", getDefaultHost),
+
+      masterPort = runtimeConf.getOption("spark.memsql.port").map(_.toInt).getOrElse(DEFAULT_PORT),
+
+      user = runtimeConf.get("spark.memsql.user", DEFAULT_USER),
+
+      password = runtimeConf.get("spark.memsql.password", DEFAULT_PASS),
+
+      defaultDBName = runtimeConf.get("spark.memsql.defaultDatabase",DEFAULT_DATABASE),
+
+      defaultSaveMode = SaveMode.valueOf(
+        runtimeConf.get("spark.memsql.defaultSaveMode", DEFAULT_SAVE_MODE.name)),
+
       defaultCreateMode = CreateMode.withName(
-        sparkConf.get("spark.memsql.defaultCreateMode", DEFAULT_CREATE_MODE.toString)),
-      defaultInsertBatchSize = sparkConf.getInt("spark.memsql.defaultInsertBatchSize", DEFAULT_INSERT_BATCH_SIZE),
+        runtimeConf.get("spark.memsql.defaultCreateMode", DEFAULT_CREATE_MODE.toString)),
+
+      defaultInsertBatchSize = runtimeConf.getOption("spark.memsql.defaultInsertBatchSize").map(_.toInt).getOrElse(DEFAULT_INSERT_BATCH_SIZE),
+
       defaultLoadDataCompression = CompressionType.withName(
-        sparkConf.get("spark.memsql.defaultLoadDataCompression", DEFAULT_LOAD_DATA_COMPRESSION.toString)),
-      disablePartitionPushdown =  sparkConf.getBoolean("spark.memsql.disablePartitionPushdown", DEFAULT_DISABLE_PARTITION_PUSHDOWN)
+        runtimeConf.get("spark.memsql.defaultLoadDataCompression", DEFAULT_LOAD_DATA_COMPRESSION.toString)),
+
+      disablePartitionPushdown = runtimeConf.getOption("spark.memsql.disablePartitionPushdown").map(_.toBoolean).getOrElse(DEFAULT_DISABLE_PARTITION_PUSHDOWN)
     )
 }
