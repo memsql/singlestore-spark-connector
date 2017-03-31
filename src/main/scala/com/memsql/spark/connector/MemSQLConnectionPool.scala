@@ -27,7 +27,7 @@ object MemSQLConnectionPool {
   }
 
   def connect(info: MemSQLConnectionInfo): Connection = {
-    if (!pools.contains(info)) {
+    if (!pools.containsKey(info)) {
       val newPool = createPool(info)
       pools.putIfAbsent(info, newPool)
     }
