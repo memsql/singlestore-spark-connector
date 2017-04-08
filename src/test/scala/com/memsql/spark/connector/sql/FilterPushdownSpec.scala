@@ -17,11 +17,11 @@ class FilterPushdownSpec extends FlatSpec with SharedMemSQLContext{
       conn.withStatement(stmt => {
         stmt.execute("""
           CREATE TABLE pushdown
-          (id INT PRIMARY KEY, data VARCHAR(200), key(data))
+          (id INT PRIMARY KEY, data VARCHAR(200), `col#int` INTEGER, `col#str` VARCHAR(200), key(data))
         """)
 
         val insertValues = Range(0, 20)
-          .map(i => s"""($i, 'test_data_${"%02d".format(i)}')""")
+          .map(i => s"""($i, 'test_data_${"%02d".format(i)}', $i, 'special_char_col_${"%02d".format(i)}')""")
           .mkString(",")
 
         stmt.execute("INSERT INTO pushdown VALUES" + insertValues)
@@ -56,7 +56,7 @@ class FilterPushdownSpec extends FlatSpec with SharedMemSQLContext{
     assert(result(0)(0) == 2)
   }
 
-  it should "pushdown two filters to MemSQL" in {
+  it should "pushdown filters to MemSQL" in {
     // import implicits to make $ notation work in filters
     val spark = ss
     import spark.implicits._
@@ -66,7 +66,10 @@ class FilterPushdownSpec extends FlatSpec with SharedMemSQLContext{
       .format("com.memsql.spark.connector")
       .options(Map( "path" -> (dbName + ".pushdown")))
       .load()
-      .filter("id > 2").filter($"data".contains("14"))
+      .filter("id > 2")
+      .filter("`col#int` = 14")
+      .filter($"data".contains("14"))
+      .filter($"col#str".contains("special_char_col_14"))
 
     val result = pushdownDataframe.collect()
 
