@@ -3,7 +3,7 @@ package com.memsql.spark.connector
 import java.sql.{Date, Timestamp}
 
 import com.memsql.spark.connector.rdd.MemSQLRDD
-import com.memsql.spark.connector.sql.TableIdentifier
+import com.memsql.spark.connector.sql.{ColumnReference, TableIdentifier}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
@@ -78,7 +78,7 @@ case class MemSQLTableRelation(cluster: MemSQLCluster,
 
     val columnListAsString: String = {
       val sb = new StringBuilder()
-      requiredColumns.foreach(x => sb.append(",").append(x))
+      requiredColumns.foreach(x => sb.append(",").append(ColumnReference(x).quotedName))
       if (sb.isEmpty) "1" else sb.substring(1)
     }
 
@@ -136,43 +136,43 @@ case class MemSQLTableRelation(cluster: MemSQLCluster,
     Option(f match {
       case EqualTo(attr, value) => {
         params += value
-        s"""$attr = ?"""
+        s"""`$attr` = ?"""
       }
       case LessThan(attr, value) => {
         params += value
-        s"""$attr < ?"""
+        s"""`$attr` < ?"""
       }
       case GreaterThan(attr, value) => {
         params += value
-        s"""$attr > ?"""
+        s"""`$attr` > ?"""
       }
       case LessThanOrEqual(attr, value) => {
         params += value
-        s"""$attr <= ?"""
+        s"""`$attr` <= ?"""
       }
       case GreaterThanOrEqual(attr, value) => {
         params += value
-        s"""$attr >= ?"""
+        s"""`$attr` >= ?"""
       }
-      case IsNotNull(attr) => s"""$attr IS NOT NULL"""
-      case IsNull(attr) => s"""$attr IS NULL"""
+      case IsNotNull(attr) => s"""`$attr` IS NOT NULL"""
+      case IsNull(attr) => s"""`$attr` IS NULL"""
       case StringStartsWith(attr, value) => {
         params += s"${escapeWildcards(value)}%"
-        s"""$attr LIKE ?"""
+        s"""`$attr` LIKE ?"""
       }
       case StringEndsWith(attr, value) => {
         params += s"%${escapeWildcards(value)}"
-        s"""$attr LIKE ?"""
+        s"""`$attr` LIKE ?"""
       }
       case StringContains(attr, value) => {
         params += s"%${escapeWildcards(value)}%"
-        s"""$attr LIKE ?"""
+        s"""`$attr` LIKE ?"""
       }
       case In(attr, value) if value.isEmpty =>
-        s"""CASE WHEN $attr IS NULL THEN NULL ELSE FALSE END"""
+        s"""CASE WHEN `$attr` IS NULL THEN NULL ELSE FALSE END"""
       case In(attr, value) => {
         params ++= value
-        s"""$attr IN (${(1 to value.length).map(_ => "?").mkString(", ")})"""
+        s"""`$attr` IN (${(1 to value.length).map(_ => "?").mkString(", ")})"""
       }
       case Not(f) => compileFilter(f, params).map(p => s"(NOT ($p))").getOrElse(null)
       case Or(f1, f2) =>
