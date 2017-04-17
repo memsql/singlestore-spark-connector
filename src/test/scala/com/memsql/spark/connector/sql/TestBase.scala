@@ -20,7 +20,7 @@ trait TestBase {
     "connector_tests_" + hostMD5.slice(0, 2).map("%02x".format(_)).mkString
   }
 
-  val masterHost = sys.env.get("MEMSQL_HOST_TEST").getOrElse("172.17.0.4")
+  val masterHost = sys.env.get("MEMSQL_HOST_TEST").getOrElse("127.0.0.1")
   val masterConnectionInfo: MemSQLConnectionInfo =
     MemSQLConnectionInfo(masterHost, 3306, "root", "", dbName) // scalastyle:ignore
   val leafConnectionInfo: MemSQLConnectionInfo =
