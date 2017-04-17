@@ -146,8 +146,8 @@ val rdd = sc.parallelize(Array(Row("John Smith", 12), Row("Jane Doe", 13)))
 val schema = StructType(Seq(StructField("Name", StringType, false),
                             StructField("Age", IntegerType, false)))
 val df = sqlContext.createDataFrame(rdd, schema)
-df.saveToMemSQL("people.students")  
-      // The database name can be omitted if "spark.memsql.defaultDatabase" is set 
+df.saveToMemSQL("people.students")
+      // The database name can be omitted if "spark.memsql.defaultDatabase" is set
       // in the Spark configuration df.sqlContext.sparkContext.getConf.getAll
 ```
 
@@ -214,7 +214,7 @@ Building and Testing
 You can use SBT to compile the library
 
 ```
-sbt build
+sbt compile
 ```
 
 All unit tests can be run via sbt.  They will also run at build time automatically.
