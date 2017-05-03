@@ -10,10 +10,7 @@ import com.memsql.spark.connector.util.JDBCImplicits._
 
 object WriteToMemSQLApp {
   def main(args: Array[String]) {
-    val connInfo = MemSQLConnectionInfo("127.0.0.1", 3306, "root", "", "information_schema") // scalastyle:ignore
-
-    val dbName = "memsqlrdd_db"
-    val tableName = "output"
+    val connInfo = MemSQLConnectionInfo("127.0.0.1", 3306, "root", "", "information_schema")
 
     var conf = new SparkConf()
       .setAppName("Write to MemSQL Example")
@@ -28,18 +25,42 @@ object WriteToMemSQLApp {
 
     MemSQLConnectionPool.withConnection(connInfo)(conn => {
       conn.withStatement(stmt => {
-        stmt.execute(s"CREATE DATABASE IF NOT EXISTS $dbName")
-        stmt.execute(s"DROP TABLE IF EXISTS $dbName.$tableName")
-        stmt.execute(s"""
-          CREATE TABLE $dbName.$tableName
-          (data VARCHAR(200), SHARD KEY (data))
-        """)
+        stmt.execute("CREATE DATABASE IF NOT EXISTS db")
+        stmt.execute("DROP TABLE IF EXISTS db.t")
+        stmt.execute("CREATE TABLE db.t (data VARCHAR(200), SHARD KEY (data))")
       })
     })
 
-    val rdd = ss.sparkContext.parallelize(Range(0, 1000).map(i => Row("test_data_%04d".format(i)))) // scalastyle:ignore
+    /*
+    Create and save the dataframe:
+    +------------------+
+    | data             |
+    +------------------+
+    |  test_data_00    |
+    |  test_data_01    |
+    |  ...             |
+    |  test_data_09    |
+    +------------------+
+    into MemSQL as db.t
+    */
+    val rdd = ss.sparkContext.parallelize(Range(0, 10).map(i => Row("test_data_%02d".format(i))))
     val schema = StructType(Seq(StructField("data", StringType, false)))
     val df = ss.createDataFrame(rdd, schema)
-    df.saveToMemSQL(dbName, tableName)
+    df.saveToMemSQL("db", "t")
+
+    /* Read the table from MemSQL back into Spark, and save it to HDFS as a parquet file */
+    val df_2 = spark.read
+      .format("com.memsql.spark.connector")
+      .options(Map("path" -> ("db.t")))
+      .load()
+
+    df_2.write
+      .format("parquet")
+      .mode(SaveMode.Overwrite)
+      .save("hdfs://1.3.3.7/test_data.parquet") /* HDFS path to save file */
+
+    /* Load dataframe from HDFS, and save to MemSQL again */
+    val df_3 = spark.read.parquet("hdfs://1.3.3.7/test_data.parquet")
+    val df_3.saveToMemSQL("db", "t")
   }
 }
