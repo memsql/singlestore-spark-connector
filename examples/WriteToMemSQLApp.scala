@@ -61,6 +61,6 @@ object WriteToMemSQLApp {
 
     /* Load dataframe from HDFS, and save to MemSQL again */
     val df_3 = spark.read.parquet("hdfs://1.3.3.7/test_data.parquet")
-    val df_3.saveToMemSQL("db", "t")
+    df_3.saveToMemSQL("db", "t")
   }
 }

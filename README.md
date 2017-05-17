@@ -21,7 +21,7 @@ Installation
 Inside a project definition you can depend on the MemSQL Connector using sbt:
 
 ```
-libraryDependencies  += "com.memsql" %% "memsql-connector" % "2.0.0"
+libraryDependencies  += "com.memsql" %% "memsql-connector" % "2.0.2"
 ```
 
 or Maven:
@@ -30,7 +30,7 @@ or Maven:
 <dependency>
     <groupId>com.memsql</groupId>
     <artifactId>memsql-connector_2.11</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.2</version>
 </dependency>
 ```
 
@@ -49,6 +49,9 @@ MemSQL Spark Connector leverages Spark SQL's Data Sources API. The connection to
 | spark.memsql.defaultDatabase             | None                            |
 | spark.memsql.defaultSaveMode             | "error" (see description below) |
 | spark.memsql.disablePartitionPushdown    | false                           |
+| spark.memsql.defaultCreateMode           | DatabaseAndTable                |
+
+`defaultCreateMode` specifies whether the connector will create the database and/or table if it doesn't already exist, when saving data to MemSQL. The possible values are `DatabaseAndTable`, `Table`, and `Skip`. The user will need the corresponding create permissions if the value is not `Skip`.
 
 Note that all MemSQL credentials have to be the same on all nodes to take advantage of partition pushdown, which queries leaves directly.
 
