@@ -16,7 +16,8 @@ case class MemSQLQueryRelation(cluster: MemSQLCluster,
                                query: String,
                                databaseName: Option[String],
                                sqlContext: SQLContext,
-                               disablePartitionPushdown: Boolean) extends BaseRelation with TableScan {
+                               disablePartitionPushdown: Boolean,
+                               enableStreaming: Boolean) extends BaseRelation with TableScan {
 
   override def schema: StructType = cluster.getQuerySchema(query)
 
@@ -42,7 +43,8 @@ case class MemSQLQueryRelation(cluster: MemSQLCluster,
       query,
       databaseName = database,
       mapRow=_.toRow,
-      disablePartitionPushdown=disablePartitionPushdown
+      disablePartitionPushdown=disablePartitionPushdown,
+      enableStreaming=enableStreaming
     )
   }
 }
@@ -50,7 +52,8 @@ case class MemSQLQueryRelation(cluster: MemSQLCluster,
 case class MemSQLTableRelation(cluster: MemSQLCluster,
                                tableIdentifier: TableIdentifier,
                                sqlContext: SQLContext,
-                               disablePartitionPushdown: Boolean)
+                               disablePartitionPushdown: Boolean,
+                               enableStreaming: Boolean)
   extends BaseRelation
     with PrunedFilteredScan
     with InsertableRelation {
@@ -67,7 +70,8 @@ case class MemSQLTableRelation(cluster: MemSQLCluster,
       queryString,
       databaseName=database,
       mapRow=_.toRow,
-      disablePartitionPushdown=disablePartitionPushdown)
+      disablePartitionPushdown=disablePartitionPushdown,
+      enableStreaming=enableStreaming)
   }
 
   //PrunedScan
@@ -106,7 +110,8 @@ case class MemSQLTableRelation(cluster: MemSQLCluster,
       sqlParams=params,
       databaseName=database,
       mapRow=_.toRow,
-      disablePartitionPushdown=disablePartitionPushdown)
+      disablePartitionPushdown=disablePartitionPushdown,
+      enableStreaming=enableStreaming)
   }
 
   override def unhandledFilters(filters: Array[Filter]): Array[Filter] = {

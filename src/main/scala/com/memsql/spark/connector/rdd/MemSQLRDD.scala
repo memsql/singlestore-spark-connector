@@ -47,7 +47,8 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
                                   sqlParams: Seq[Any] = Nil,
                                   databaseName: Option[String] = None,
                                   mapRow: (ResultSet) => T = MemSQLRDD.resultSetToArray _,
-                                  disablePartitionPushdown: Boolean = false
+                                  disablePartitionPushdown: Boolean = false,
+                                  enableStreaming: Boolean = false
                                  ) extends RDD[T](sc, Nil){
 
   override def getPartitions: Array[Partition] = {
@@ -242,6 +243,9 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
 
     val conn = MemSQLConnectionPool.connect(partition.connectionInfo)
     val stmt = conn.prepareStatement(query, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
+    if (enableStreaming) {
+      stmt.setFetchSize(Integer.MIN_VALUE)
+    }
     stmt.fillParams(queryParams)
 
     val rs = stmt.executeQuery

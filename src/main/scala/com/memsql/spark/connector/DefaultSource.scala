@@ -22,24 +22,15 @@ class DefaultSource extends RelationProvider
     val conf = sqlContext.sparkSession.memSQLConf
     val cluster = MemSQLCluster(conf)
     val disablePartitionPushdown: Boolean = {
-      conf.disablePartitionPushdown || {
-        parameters.get("disablePartitionPushdown") match {
-          case None => false
-          case Some(s) => {
-            s.toLowerCase.trim match {
-              case "true" => true
-              case _ => false
-            }
-          }
-        }
-      }
+      conf.disablePartitionPushdown || DefaultSource.getValueAsBoolean(parameters, "disablePartitionPushdown")
     }
+    val enableStreaming: Boolean = DefaultSource.getValueAsBoolean(parameters, "enableStreaming")
 
     parameters.get("path") match {
-      case Some(path) => MemSQLTableRelation(cluster, DefaultSource.getTableIdentifier(path), sqlContext, disablePartitionPushdown)
+      case Some(path) => MemSQLTableRelation(cluster, DefaultSource.getTableIdentifier(path), sqlContext, disablePartitionPushdown, enableStreaming)
 
       case None => parameters.get("query") match {
-        case Some(query) => MemSQLQueryRelation(cluster, query, parameters.get("database"), sqlContext, disablePartitionPushdown)
+        case Some(query) => MemSQLQueryRelation(cluster, query, parameters.get("database"), sqlContext, disablePartitionPushdown, enableStreaming)
         case None => throw new UnsupportedOperationException("Must specify a path or query when loading a MemSQL DataSource")
       }
     }
@@ -54,26 +45,17 @@ class DefaultSource extends RelationProvider
     val cluster = MemSQLCluster(conf)
     val saveConf = SaveToMemSQLConf(conf, Some(mode), parameters)
     val disablePartitionPushdown: Boolean = {
-      conf.disablePartitionPushdown || {
-        parameters.get("disablePartitionPushdown") match {
-          case None => false
-          case Some(s) => {
-            s match {
-              case "true" => true
-              case _ => false
-            }
-          }
-        }
-      }
-
+      conf.disablePartitionPushdown || DefaultSource.getValueAsBoolean(parameters, "disablePartitionPushdown")
     }
+    val enableStreaming: Boolean = DefaultSource.getValueAsBoolean(parameters, "enableStreaming")
+
     val path = parameters.get("path").getOrElse("")
     if (path == "") {
       throw new UnsupportedOperationException("Must specify a path when saving to MemSQL")
     }
 
     val tableIdent = DefaultSource.getTableIdentifier(path)
-    val relation = MemSQLTableRelation(cluster, tableIdent, sqlContext, disablePartitionPushdown)
+    val relation = MemSQLTableRelation(cluster, tableIdent, sqlContext, disablePartitionPushdown, enableStreaming)
     relation.insert(data, saveConf)
 
     relation
@@ -84,5 +66,17 @@ object DefaultSource {
   def getTableIdentifier(path: String): TableIdentifier = {
     val sparkTableIdent = CatalystSqlParser.parseTableIdentifier(path)
     TableIdentifier(sparkTableIdent.table, sparkTableIdent.database)
+  }
+
+  def getValueAsBoolean(parameters: Map[String, String], key: String): Boolean = {
+    parameters.get(key) match {
+      case None => false
+      case Some(s) => {
+        s.toLowerCase.trim match {
+          case "true" => true
+          case _ => false
+        }
+      }
+    }
   }
 }
