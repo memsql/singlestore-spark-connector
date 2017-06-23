@@ -1,12 +1,12 @@
 package com.memsql.spark.connector.rdd
 
 import java.sql.ResultSet
-import com.memsql.spark.connector.{MemSQLConnectionPool, MemSQLCluster}
+
+import com.memsql.spark.connector.{MemSQLCluster, MemSQLConnectionPool}
 import java.sql.Connection
 
 import scala.reflect.ClassTag
-import scala.util.Try
-
+import scala.util.{Failure, Success, Try}
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import com.memsql.spark.connector.util.{MemSQLConnectionInfo, NextIterator}
@@ -203,13 +203,30 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
       head ++ tail
     }
 
+    // Check there is only one gather and it either first or only preceeded by project
+    def checkGather(executors: Seq[String]): Boolean = {
+      val numGather = executors.count(executor => executor.toLowerCase == "gather")
+      if (numGather != 1) {
+        false
+      } else {
+        /* Check that gather is only preceeded by project */
+        val dropProject = executors.dropWhile(executor => executor.toLowerCase == "project")
+        if (dropProject(0).toLowerCase == "gather"){
+          true
+        } else {
+          false
+        }
+      }
+    }
+
     // Examine the EXPLAIN output. If all executors are amenable to pushdown, and if there is a single "query" field
     // in the EXPLAIN output, return that query.
     val generatedQuery: Option[String] = {
-      val noBadExecutors =
-        Try(getFields("executor", jsonAst))
-          .map(_.forall(executorWhitelist.contains))
-          .getOrElse(false)
+      val noBadExecutors = {
+        val executors = Try(getFields("executor", jsonAst))
+
+        executors.map(checkGather(_)).getOrElse(false) && executors.map(_.forall(executorWhitelist.contains)).getOrElse(false)
+      }
 
       val generatedQueries = Try(getFields("query", jsonAst)).getOrElse(Seq())
       if (noBadExecutors && generatedQueries.length == 1) {
@@ -244,6 +261,9 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
     val conn = MemSQLConnectionPool.connect(partition.connectionInfo)
     val stmt = conn.prepareStatement(query, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
     if (enableStreaming) {
+      // setFetchSize(Integer.MIN_VALUE) enables row-by-row streaming for the MySQL JDBC connector
+      // https://dev.mysql.com/doc/connector-j/5.1/en/connector-j-reference-implementation-notes.html
+      // Currently, it does not allow custom fetch size
       stmt.setFetchSize(Integer.MIN_VALUE)
     }
     stmt.fillParams(queryParams)
