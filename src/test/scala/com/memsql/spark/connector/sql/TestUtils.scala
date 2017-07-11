@@ -185,6 +185,7 @@ object TestUtils {
       false,
       extraColumns,
       extraKeys,
+      false,
       false
     )
   }

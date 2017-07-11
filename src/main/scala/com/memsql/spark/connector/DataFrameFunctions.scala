@@ -71,11 +71,15 @@ class DataFrameFunctions(df: DataFrame) {
         df.foreachPartition(partition => {
           val partitionId = TaskContext.getPartitionId
 
-          val targetNode = availableNodes.filter(_.isColocated) match {
-            case s@(_ :: _) => s(Random.nextInt(s.length))
-            case Nil => {
-              val choice = (randomStart + partitionId) % availableNodes.length
-              availableNodes(choice)
+          val targetNode = if (saveConf.writeToMaster) {
+            cluster.getMasterInfo
+          } else {
+            availableNodes.filter(_.isColocated) match {
+              case s@(_ :: _) => s(Random.nextInt(s.length))
+              case Nil => {
+                val choice = (randomStart + partitionId) % availableNodes.length
+                availableNodes(choice)
+              }
             }
           }
 

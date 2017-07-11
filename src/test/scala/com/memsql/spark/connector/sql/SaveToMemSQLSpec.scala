@@ -205,4 +205,25 @@ class SaveToMemSQLSpec extends FlatSpec with SharedMemSQLContext with Matchers {
       df.saveToMemSQL(dbName, "exception_table")
     }
   }
+
+  "saveToMemSQL" should "still work when writeToMaster is set" in {
+    val rdd = sc.parallelize(Array(Row()))
+    val schema = StructType(Array[StructField]())
+    val df = ss.createDataFrame(rdd, schema)
+
+    val saveConf = SaveToMemSQLConf(ss.memSQLConf,
+      params = Map("writeToMaster" -> "true")
+    )
+    val tableIdent = TableIdentifier(dbName, "empty_rows_table_2")
+    df.saveToMemSQL(tableIdent, saveConf)
+
+    val schema1 = StructType(
+      Array(
+        StructField("memsql_insert_time", TimestampType, true)
+      )
+    )
+    val df_t = ss.read.format("com.memsql.spark.connector").options(Map( "path" -> (dbName + ".empty_rows_table_2"))).load()
+    assert(df_t.schema.equals(schema1))
+    assert(df_t.count == 1)
+  }
 }

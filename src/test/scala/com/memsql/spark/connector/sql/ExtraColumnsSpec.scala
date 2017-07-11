@@ -37,6 +37,7 @@ class ExtraColumnsSpec extends FlatSpec with SharedMemSQLContext with Matchers {
       false,
       extraColumns,
       Nil,
+      false,
       false
     )
 
@@ -90,6 +91,7 @@ class ExtraColumnsSpec extends FlatSpec with SharedMemSQLContext with Matchers {
       false,
       Nil, /* ExtraColumns */
       Nil,
+      false,
       false
     )
 
@@ -118,6 +120,7 @@ class ExtraColumnsSpec extends FlatSpec with SharedMemSQLContext with Matchers {
       false,
       extraColumns,
       Nil,
+      false,
       false
     )
 

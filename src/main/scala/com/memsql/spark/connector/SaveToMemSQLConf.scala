@@ -24,7 +24,8 @@ case class SaveToMemSQLConf(saveMode: SaveMode,
                             useKeylessShardingOptimization: Boolean,
                             extraColumns: Seq[ColumnDefinition],
                             extraKeys: Seq[MemSQLKey],
-                            dryRun: Boolean)
+                            dryRun: Boolean,
+                            writeToMaster: Boolean)
 
 object SaveToMemSQLConf {
   /**
@@ -46,7 +47,8 @@ object SaveToMemSQLConf {
       useKeylessShardingOptimization = params.getOrElse("useKeylessShardingOptimization", "false").toBoolean,
       extraColumns = Nil,
       extraKeys = Nil,
-      dryRun = params.getOrElse("dryRun", "false").toBoolean
+      dryRun = params.getOrElse("dryRun", "false").toBoolean,
+      writeToMaster = params.getOrElse("writeToMaster", "false").toBoolean
     )
   }
 }
