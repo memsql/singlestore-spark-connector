@@ -1,3 +1,10 @@
+2017-07-19 Version 2.0.3
+        * Handle special characters column names in query
+        * Add option to enable jdbc connector to stream result sets row-by-row
+        * Fix groupby queries incorrectly pushed down to leaves
+        * Add option to write to master aggregator only
+        * Add support for reading MemSQL columns of type unsigned bigint and unsigned int
+
 2017-04-17
         * Pull MemSQL configuration from runtime configuration in sparkSession.conf instead of static config in sparkContext
         * Fix connection pooling bug where extraneous connections were created
