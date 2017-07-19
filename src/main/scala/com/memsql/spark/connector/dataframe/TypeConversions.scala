@@ -38,13 +38,12 @@ object TypeConversions {
 
   def JDBCTypeToDataFrameType(rsmd: ResultSetMetaData, ix: Int): DataType = {
     rsmd.getColumnType(ix) match {
+      // scalastyle:off
+
       case JDBCTypes.TINYINT => ShortType
       case JDBCTypes.SMALLINT => ShortType
-      case JDBCTypes.INTEGER => IntegerType
-      case JDBCTypes.BIGINT => rsmd.isSigned(ix) match {
-        case true => LongType
-        case _ => throw new IllegalArgumentException("Can't translate type " + rsmd.getColumnTypeName(ix))
-      }
+      case JDBCTypes.INTEGER => if (rsmd.isSigned(ix)) { IntegerType } else { LongType }
+      case JDBCTypes.BIGINT => if (rsmd.isSigned(ix)) { LongType } else { DecimalType(20,0) }
 
       case JDBCTypes.DOUBLE => DoubleType
       case JDBCTypes.NUMERIC => DoubleType
@@ -56,7 +55,7 @@ object TypeConversions {
 
       case JDBCTypes.TIMESTAMP => TimestampType
       case JDBCTypes.DATE => DateType
-      // MySQL TIME type is represented as a long in milliseconds
+      // MySQL TIME type is represented as a string
       case JDBCTypes.TIME => StringType
 
       case JDBCTypes.CHAR => StringType
@@ -79,10 +78,11 @@ object TypeConversions {
     val result = dataType match {
       case JDBCTypes.TINYINT => row.getShort(ix)
       case JDBCTypes.SMALLINT => row.getShort(ix)
-      case JDBCTypes.INTEGER => row.getInt(ix)
-      case JDBCTypes.BIGINT => isSigned match {
-        case true => row.getLong(ix)
-        case _ => Option(row.getString(ix)).map(UnsignedLongs.parseUnsignedLong).getOrElse(null)
+      case JDBCTypes.INTEGER => if (isSigned) { row.getInt(ix).asInstanceOf[Any] } else { row.getLong(ix).asInstanceOf[Any] }
+      case JDBCTypes.BIGINT => if (isSigned) {
+        row.getLong(ix)
+      } else {
+        Option(row.getBigDecimal(ix)).map(Decimal(_, 20, 0)).getOrElse(null)
       }
 
       case JDBCTypes.DOUBLE => row.getDouble(ix)
@@ -92,7 +92,6 @@ object TypeConversions {
 
       case JDBCTypes.TIMESTAMP => row.getTimestamp(ix)
       case JDBCTypes.DATE => row.getDate(ix)
-      // MySQL TIME type is represented as a long in milliseconds
 
       case JDBCTypes.TIME => Option(row.getTime(ix)).map(_.toString).getOrElse(null)
 
