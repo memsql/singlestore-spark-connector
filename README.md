@@ -140,6 +140,26 @@ The `mode` specifies how to handle duplicate keys when the MemSQL table has a pr
 | "ignore"         | MemSQL will ignore records with duplicate keys and, without rolling back, continue inserting records with unique keys. |
 | "overwrite"      | MemSQL will replace the existing record with the new record                                                            |
 
+Other MemSQL write settings can be specified using `.option(...)` or `.options(...)`.  To perform a dry run of the previous example:
+
+```scala
+df
+	.write
+	.format("com.memsql.spark.connector")
+	.mode("error")
+	.option("dryRun", "true")
+	.save("people.students")
+```
+
+| Option name         | Description                                                                                          |
+| ------------------- | ---------------------------------------------------------------------------------------------------- |
+| writeToMaster       | Force this write to be sent to the master aggregator                                                 |
+| dryRun              | Don't actually perform the write (this will still create the database and table if they don't exist) |
+| saveMode            | See Spark configuration settings                                                                     |
+| createMode          | See Spark configuration settings                                                                     |
+| insertBatchSize     | See Spark configuration settings                                                                     |
+| loadDataCompression | See Spark configuration settings                                                                     |
+
 
 The second interface to save data to MemSQL is via the `saveToMemSQL` implicit function on a DataFrame you wish to save:
 ```scala
@@ -153,6 +173,22 @@ df.saveToMemSQL("people.students")
       // The database name can be omitted if "spark.memsql.defaultDatabase" is set
       // in the Spark configuration df.sqlContext.sparkContext.getConf.getAll
 ```
+
+A call to `saveToMemSQL` can take three forms:
+```scala
+# Table only
+df.saveToMemSQL("tbl")
+
+# Database and table
+df.saveToMemSQL("db", "tbl")
+
+# Database, table, and options
+val saveConf = SaveToMemSQLConf(ss.memSQLConf, params=Map("dryRun" -> "true"))
+df.saveToMemSQL(TableIdentifier("db", "tbl"), saveConf)
+```
+
+Any options not specified in `saveConf` will default to those in the `MemSQLConf`.
+
 
 Types
 -----
