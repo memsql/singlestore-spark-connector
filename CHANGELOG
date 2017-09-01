@@ -1,3 +1,7 @@
+2017-8-31 Version 2.0.4
+        * Switch threads in LoadDataStrategy so that the parent thread reads from the RDD and the new thread writes
+          to MemSQL so that Spark has access to the thread-local variables it expects
+
 2017-07-19 Version 2.0.3
         * Handle special characters column names in query
         * Add option to enable jdbc connector to stream result sets row-by-row
