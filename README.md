@@ -21,7 +21,7 @@ Installation
 Inside a project definition you can depend on the MemSQL Connector using sbt:
 
 ```
-libraryDependencies  += "com.memsql" %% "memsql-connector" % "2.0.4"
+libraryDependencies  += "com.memsql" %% "memsql-connector" % "2.0.5"
 ```
 
 or Maven:

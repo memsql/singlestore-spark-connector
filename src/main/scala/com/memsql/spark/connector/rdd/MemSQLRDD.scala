@@ -80,7 +80,7 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
 
                       new MemSQLRDDPartition(ordinal, connInfo, Some(partitionQuery))
                     })
-                    .toArray
+                    .toArray.sortBy(_.index).asInstanceOf[Array[Partition]]
                 }
                 case None => {
                   getSinglePartition

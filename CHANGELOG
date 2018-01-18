@@ -1,4 +1,7 @@
-2017-8-31 Version 2.0.4
+2018-01-18 Version 2.0.5
+        * Explicitly sort MemSQLRDD partitions due to MemSQL 6.0 no longer returning partitions in sorted order by ordinal.
+
+2017-08-31 Version 2.0.4
         * Switch threads in LoadDataStrategy so that the parent thread reads from the RDD and the new thread writes
           to MemSQL so that Spark has access to the thread-local variables it expects
 
