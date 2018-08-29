@@ -1,16 +1,17 @@
 package com.memsql.spark.connector
 
 import java.io.{PipedInputStream, PipedOutputStream}
+import java.nio.charset.StandardCharsets
 import java.util.zip.GZIPOutputStream
 
-import com.memsql.spark.connector.sql.{QueryFragments, QueryFragment}
+import com.memsql.spark.connector.sql.{QueryFragment, QueryFragments}
 import com.memsql.spark.connector.util.MemSQLConnectionInfo
 import com.mysql.jdbc.Statement
 import org.apache.commons.dbcp2.DelegatingStatement
 import org.apache.spark.sql.{Row, SaveMode}
 import com.memsql.spark.connector.util.JDBCImplicits._
 
-import scala.concurrent.{Future, Await}
+import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 case class LoadDataStrategy(tableFragment: QueryFragment,
@@ -82,7 +83,7 @@ case class LoadDataStrategy(tableFragment: QueryFragment,
               valueString
             }
           }
-          outstream.write(value.getBytes)
+          outstream.write(value.getBytes(StandardCharsets.UTF_8))
           outstream.write(if (i== row.size - 1) '\n' else '\t')
         }
       }

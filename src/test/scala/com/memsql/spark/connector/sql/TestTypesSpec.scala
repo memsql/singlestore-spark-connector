@@ -38,11 +38,12 @@ class TestTypesSpec extends FlatSpec with SharedMemSQLContext{
     TypeMapping(DoubleType, MemSQLType("DOUBLE"), Seq(0.0, 1.9, null)),
 
     TypeMapping(StringType, MemSQLType("CHAR"), Seq("", "a", null)),
-    TypeMapping(StringType, MemSQLType("VARCHAR", Some("VARCHAR(255)")), Seq("", "abc", null)),
-    TypeMapping(StringType, MemSQLType("TINYTEXT"), Seq("", "def", null)),
-    TypeMapping(StringType, MemSQLType("MEDIUMTEXT"), Seq("", "ghi", null)),
-    TypeMapping(StringType, MemSQLType("LONGTEXT"), Seq("", "jkl", null)),
-    TypeMapping(StringType, MemSQLType("TEXT"), Seq("", "mno", null)),
+    TypeMapping(StringType, MemSQLType("VARCHAR", Some("VARCHAR(255)")), Seq("", "a£bc", null)),
+    TypeMapping(StringType, MemSQLType("TINYTEXT"), Seq("", "de£f", null)),
+    TypeMapping(StringType, MemSQLType("MEDIUMTEXT"), Seq("", "gh£i", null)),
+    TypeMapping(StringType, MemSQLType("LONGTEXT"), Seq("", "j£kl", null)),
+    TypeMapping(StringType, MemSQLType("TEXT"), Seq("", "mn£o", null)),
+
     TypeMapping(StringType, MemSQLType("ENUM", Some("ENUM('a', 'b', 'c')")), Seq("", "a", null)),
     TypeMapping(StringType, MemSQLType("SET", Some("SET('d', 'e', 'f')")), Seq("", "d", null)),
 
@@ -61,9 +62,10 @@ class TestTypesSpec extends FlatSpec with SharedMemSQLContext{
     TypeMapping(StringType, MemSQLType("TIME"), Seq("12:00:00", "06:43:23", null)),
     //TODO: TIME types shouldn't be longs because MemSQL turns 64000L to 6:40:00
 
-    // TIMESTAMP columns will turn NULL inputs into the current time, unless explicitly created as "TIMESTAMP NULL"
-    TypeMapping(TimestampType, MemSQLType("TIMESTAMP", Some("TIMESTAMP NULL")),
-      Seq(new Timestamp(0), new Timestamp(1449615940000L), null)),
+    // we can't test NULL in timestamp because MemSQL converts null's into NOW() on insert
+    TypeMapping(TimestampType, MemSQLType("TIMESTAMP", Some("TIMESTAMP")),
+      Seq(new Timestamp(1449615940000L), new Timestamp(1449615940000L), new Timestamp(1431615940000L))),
+
     TypeMapping(TimestampType, MemSQLType("DATETIME"),
       Seq(new Timestamp(0), new Timestamp(1449615941000L), null))
   )
@@ -140,8 +142,8 @@ class TestTypesSpec extends FlatSpec with SharedMemSQLContext{
               } else {
                 val zeroValue = typeMapping.values.head
                 Seq(
-                  df.filter(df(column) > zeroValue),
-                  df.filter(df(column) > zeroValue && df("id") > 0)
+                  df.filter(df(column) >= zeroValue),
+                  df.filter(df(column) >= zeroValue && df("id") > 0)
                 )
               }
             }
