@@ -1,3 +1,6 @@
+2018-09-14 Version 2.0.6
+        * Force utf-8 encoding when loading data into MemSQL
+
 2018-01-18 Version 2.0.5
         * Explicitly sort MemSQLRDD partitions due to MemSQL 6.0 no longer returning partitions in sorted order by ordinal.
 

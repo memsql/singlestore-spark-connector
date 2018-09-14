@@ -63,8 +63,8 @@ class TestTypesSpec extends FlatSpec with SharedMemSQLContext{
     //TODO: TIME types shouldn't be longs because MemSQL turns 64000L to 6:40:00
 
     // we can't test NULL in timestamp because MemSQL converts null's into NOW() on insert
-    TypeMapping(TimestampType, MemSQLType("TIMESTAMP", Some("TIMESTAMP")),
-      Seq(new Timestamp(1449615940000L), new Timestamp(1449615940000L), new Timestamp(1431615940000L))),
+    TypeMapping(TimestampType, MemSQLType("TIMESTAMP", Some("TIMESTAMP NULL")),
+      Seq(new Timestamp(0), new Timestamp(1449615940000L), null)),
 
     TypeMapping(TimestampType, MemSQLType("DATETIME"),
       Seq(new Timestamp(0), new Timestamp(1449615941000L), null))
