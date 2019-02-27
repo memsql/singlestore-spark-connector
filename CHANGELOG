@@ -1,3 +1,6 @@
+2019-02-27 Version 2.0.7
+        * Add support for EXPLAIN JSON in MemSQL versions 6.7 and later to fix partition pushdown.
+
 2018-09-14 Version 2.0.6
         * Force utf-8 encoding when loading data into MemSQL
 
