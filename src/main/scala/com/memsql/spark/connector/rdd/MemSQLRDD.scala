@@ -177,7 +177,21 @@ case class MemSQLRDD[T: ClassTag](@transient sc: SparkContext,
       "HashGroupBy",
       "StreamingGroupBy")
 
-    val jsonAst = jsonStr.parseJson
+    def extractExplain(json: JsValue): JsValue = {
+      // Feature-detect the explain format version.
+      val fields = json.asJsObject.fields
+      if (fields contains "version") {
+        // In explain format version 2 (introduced in MemSQL 6.7), the output
+        // we want is nested under the "explain" key as the only element of an
+        // array.
+        fields("explain").convertTo[JsArray].elements(0)
+      } else {
+        // If no "version" key exists, this is format version 1 (MemSQL 6.5.x
+        // and below), which is exactly the output we want.
+        json
+      }
+    }
+    val jsonAst = extractExplain(jsonStr.parseJson)
 
     // Traverses the "inputs" fields of EXPLAIN JSON output to find values of the given key.
     def getFields(key: String, jsonAst: JsValue): Seq[String] = {
