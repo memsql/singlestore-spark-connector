@@ -1,0 +1,13 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Test MySQL 5" type="SbtRunConfiguration" factoryName="sbt Task" show_console_on_std_err="false" show_console_on_std_out="false">
+    <option name="allowRunningInParallel" value="false" />
+    <option name="tasks" value="test" />
+    <option name="useSbtShell" value="false" />
+    <option name="vmparams" value="-Xms512M -Xmx1024M -Xss1M -XX:+CMSClassUnloadingEnabled -Dmysql.driver=mysql5" />
+    <option name="workingDir" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+      <option name="Sh.BeforeRunTask" RUN_CONFIG_NAME="ensure-test-memsql-cluster" RUN_CONFIG_TYPE="ShConfigurationType" />
+    </method>
+  </configuration>
+</component>

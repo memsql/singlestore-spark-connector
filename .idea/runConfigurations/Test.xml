@@ -1,0 +1,32 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Test" type="ScalaTestRunConfiguration" factoryName="ScalaTest" show_console_on_std_err="false" show_console_on_std_out="false">
+    <module name="memsql-spark-utils" />
+    <option name="allowRunningInParallel" value="false" />
+    <option name="testKind" value="All in package" />
+    <option name="classBuf">
+      <list>
+        <option value="com.memsql.spark.SQLGenTest" />
+        <option value="com.memsql.spark.SanityTest" />
+        <option value="com.memsql.spark.SQLPushdownTest" />
+        <option value="com.memsql.spark.SQLGenTest" />
+        <option value="com.memsql.spark.SQLPushdownTest" />
+        <option value="com.memsql.spark.SanityTest" />
+      </list>
+    </option>
+    <option name="envs">
+      <map />
+    </option>
+    <option name="javaOptions" value="" />
+    <option name="jrePath" />
+    <option name="searchTest" value="In whole project" />
+    <option name="showProgressMessages" value="true" />
+    <option name="testArgs" value="" />
+    <option name="testPackagePath" value="" />
+    <option name="useSbt" value="false" />
+    <option name="useUiWithSbt" value="true" />
+    <option name="workingDirectory" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
