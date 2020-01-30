@@ -38,4 +38,4 @@ jobs:
     if: tag =~ ^v
     script:
     - openssl aes-256-cbc -K "${encrypted_7cf4e52aa9ef_key}" -iv "${encrypted_7cf4e52aa9ef_iv}" -in ci/secring.asc.enc -out ci/secring.asc -d
-    - sbt ++$TRAVIS_SCALA_VERSION publishSigned sonatypeRelease
+    - sbt ++$TRAVIS_SCALA_VERSION publishSigned
