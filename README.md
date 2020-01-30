@@ -1,6 +1,8 @@
-MemSQL Spark 2.0 Connector
+MemSQL Spark Connector 2.0
 ====================
-The MemSQL 2.0 Spark connector enables users to load data from MemSQL tables into Spark Dataframes, and write Spark Dataframes to MemSQL tables.
+The MemSQL Spark connector 2.0 enables users to load data from MemSQL tables into Spark Dataframes, and write Spark Dataframes to MemSQL tables.
+
+> :eyes: [Check out the beta of the MemSQL Spark Connector 3.0.0](https://github.com/memsql/memsql-spark-connector/tree/3.0.0-beta)
 
 
 Requirements
