@@ -1,3 +1,5 @@
+import xerial.sbt.Sonatype._
+
 /*
   To run tests with a specific mysql driver use this java option:
     -Dmysql.driver=mysql5
@@ -20,6 +22,7 @@ lazy val root = project
     name := "memsql-spark-connector",
     organization := "com.memsql",
     scalaVersion := "2.11.11",
+    version := "3.0.0-beta-spark-2.3",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
     ),
@@ -37,9 +40,19 @@ lazy val root = project
       "MrPowers"       % "spark-fast-tests" % "0.20.0-s_2.11" % Test,
       mysqlDriver      % Test
     ),
-
     Test / testOptions += Tests.Argument("-oF"),
-    // Test / testOptions += Tests.Argument("-oN"),
     Test / fork := true,
-    Test / javaOptions ++= Seq("-Xms512M", "-Xmx2048M"),
+    Test / javaOptions ++= Seq("-Xms512M", "-Xmx2048M")
   )
+
+credentials += Credentials(
+  "GnuPG Key ID",
+  "gpg",
+  "CDD996495CF08BB2041D86D8D1EB3D14F1CD334F",
+  "ignored" // this field is ignored; passwords are supplied by pinentry
+)
+
+publishTo := sonatypePublishToBundle.value
+publishMavenStyle := true
+sonatypeSessionName := s"[sbt-sonatype] ${name.value} ${version.value}"
+sonatypeProjectHosting := Some(GitHubHosting("memsql", "memsql-spark-connector", "carl@memsql.com"))

@@ -3,29 +3,30 @@ dist: trusty
 jdk: oraclejdk8
 language: scala
 scala:
-- 2.11.11
+  - 2.11.11
 services:
-- docker
+  - docker
 before_cache:
-- rm -fv $HOME/.ivy2/.sbt.ivy.lock
-- find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
-- find $HOME/.sbt        -name "*.lock"               -print -delete
+  - rm -fv $HOME/.ivy2/.sbt.ivy.lock
+  - find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
+  - find $HOME/.sbt        -name "*.lock"               -print -delete
 cache:
   directories:
-  - "$HOME/.ivy2"
-  - "$HOME/.sbt"
+    - "$HOME/.ivy2"
+    - "$HOME/.sbt"
+
 env:
   matrix:
-  - DRIVER=mariadb
-  - DRIVER=mysql5
-  - DRIVER=mysql8
+    - DRIVER=mariadb
+    - DRIVER=mysql5
+    - DRIVER=mysql8
   global:
-  - secure: RsoGCkw1zlpDD1R25FOhfEE3c+fskjipmZ227k9kGJS2NXHLAylGQalmkmq9yfDch4O2oUvuucsXL4Z+TQ9o6v4Hff7HKyVNUnF6r57DboRTrpDMpZ/ZtXPbB2QlQVFTeQTuRj3wbcoz3Ezb6mj43xS/rA+UJKud73tXKNJXXfNEGNYpbA/wS9XXxXVsM/SePGn5LaeAkPq2yWjXEL4vuANs5DVNn2Fn9G0QSWUhkvk5ETl1UDBf9aO9rUF7uWLndsLHOeet59MszfTlz/WC2ugau4RXLjO87L7eDYMhq6M5JvLaT+3yGS7fX6nipUbfGSLVtY3DOKoFiroX2m8B+zEbS/RE1PaIkyiPxDR6iiJCEMG7nHhbChXdQr2DqjlyC+pGqSn97Z/EfIwVP5ZKteAUQ8R71tjWubjzxTpkg6ZDMwEbutR6Z9qc8JqA25lIaZmy/EG0ZULsqN8Qz4Xm3WfFhN86HeayGteOK3mYLsM7tsbi0n7lAGt1zwQYsPhjFnNuiDvL08GgGR5CUnLkl1thot3uIJSeMs/0ZzgY0LDlsKslldIPVNXO75psg86x1nA/qUw9lWDi2JFpQaZjGNBo9v0p/rHLhhQUztgNM/ON3sQ7Kmk/VmjUV2/V9KsbccHx+QiE4zEHm6gZV7w2qwax+qCHaO/rAtcFW4gc01M=
-  - secure: ONCGeBvv1FR114zgAS4NJo8iEfudUq6KWpfgDkqLMsZmzxjCGJpVwh7q4rVUSeXqhkjqVe4P2iAIRARWFgeXZ0PbJf9IujF2ezIpiQupJupExK0dND/cLMQi71kIdTPJFeRPe0JVujD+PMCFbAiUMiK13BVf+grFUhJ+OX4OdyRPzkVzOHmEHoeiWubkZtW614mHU5IpSy+dBD2y6Bq2ZW7em9zrGKamX3nBFiRuKj1t6QTHE+ARodfbXWAfX58GSHYgBAZzd4lrxH/2t1y/BjxhddmVJRk73azqAhg68AB2UDM8Yfluu4qFh1fXTa39fa3+8RtFz4C75jiwZkrulQKJMfjlVOcA1wLovtKuPBVLmBCAUl1i1qUEeYF/NWorWInTyd3Jkw3NtR2vcK2d1+mO1lB8KiuYUd/HZGXUGlcaVa5lEWVmbM47KljZEuwQAHywG4QHH6SsvMCx8NI2Pl6D+gTFElBNoQ19mhNNeGcdeYp7RfeahWqKrjiYxV8xen8w5XDICsjBKULf1uz5sS+N8kV+Ud+X/ONqEvvNlzUuKL+c62fd6t0qNCQjnDcoNEIZyy3kH0a3D0rbDiGT277/QAgKs3Qo/XqjFSQuLphhkmlZgBKFggo7Fhe+Uk69gmI52+UWXkq3+rxxM6VvdYG17eBX7iWjPNAX0NyRJOE=
-  - SONATYPE_USERNAME=memsql
-  - MEMSQL_PORT=5506
-  - MEMSQL_USER=root
-  - MEMSQL_DB=test
+    - secure: RsoGCkw1zlpDD1R25FOhfEE3c+fskjipmZ227k9kGJS2NXHLAylGQalmkmq9yfDch4O2oUvuucsXL4Z+TQ9o6v4Hff7HKyVNUnF6r57DboRTrpDMpZ/ZtXPbB2QlQVFTeQTuRj3wbcoz3Ezb6mj43xS/rA+UJKud73tXKNJXXfNEGNYpbA/wS9XXxXVsM/SePGn5LaeAkPq2yWjXEL4vuANs5DVNn2Fn9G0QSWUhkvk5ETl1UDBf9aO9rUF7uWLndsLHOeet59MszfTlz/WC2ugau4RXLjO87L7eDYMhq6M5JvLaT+3yGS7fX6nipUbfGSLVtY3DOKoFiroX2m8B+zEbS/RE1PaIkyiPxDR6iiJCEMG7nHhbChXdQr2DqjlyC+pGqSn97Z/EfIwVP5ZKteAUQ8R71tjWubjzxTpkg6ZDMwEbutR6Z9qc8JqA25lIaZmy/EG0ZULsqN8Qz4Xm3WfFhN86HeayGteOK3mYLsM7tsbi0n7lAGt1zwQYsPhjFnNuiDvL08GgGR5CUnLkl1thot3uIJSeMs/0ZzgY0LDlsKslldIPVNXO75psg86x1nA/qUw9lWDi2JFpQaZjGNBo9v0p/rHLhhQUztgNM/ON3sQ7Kmk/VmjUV2/V9KsbccHx+QiE4zEHm6gZV7w2qwax+qCHaO/rAtcFW4gc01M=
+    - secure: ONCGeBvv1FR114zgAS4NJo8iEfudUq6KWpfgDkqLMsZmzxjCGJpVwh7q4rVUSeXqhkjqVe4P2iAIRARWFgeXZ0PbJf9IujF2ezIpiQupJupExK0dND/cLMQi71kIdTPJFeRPe0JVujD+PMCFbAiUMiK13BVf+grFUhJ+OX4OdyRPzkVzOHmEHoeiWubkZtW614mHU5IpSy+dBD2y6Bq2ZW7em9zrGKamX3nBFiRuKj1t6QTHE+ARodfbXWAfX58GSHYgBAZzd4lrxH/2t1y/BjxhddmVJRk73azqAhg68AB2UDM8Yfluu4qFh1fXTa39fa3+8RtFz4C75jiwZkrulQKJMfjlVOcA1wLovtKuPBVLmBCAUl1i1qUEeYF/NWorWInTyd3Jkw3NtR2vcK2d1+mO1lB8KiuYUd/HZGXUGlcaVa5lEWVmbM47KljZEuwQAHywG4QHH6SsvMCx8NI2Pl6D+gTFElBNoQ19mhNNeGcdeYp7RfeahWqKrjiYxV8xen8w5XDICsjBKULf1uz5sS+N8kV+Ud+X/ONqEvvNlzUuKL+c62fd6t0qNCQjnDcoNEIZyy3kH0a3D0rbDiGT277/QAgKs3Qo/XqjFSQuLphhkmlZgBKFggo7Fhe+Uk69gmI52+UWXkq3+rxxM6VvdYG17eBX7iWjPNAX0NyRJOE=
+    - SONATYPE_USERNAME=memsql
+    - MEMSQL_PORT=5506
+    - MEMSQL_USER=root
+    - MEMSQL_DB=test
 
 script:
   - "./scripts/ensure-test-memsql-cluster.sh"
@@ -34,8 +35,9 @@ script:
 
 jobs:
   include:
-  - stage: publish
-    if: tag =~ ^v
-    script:
-    - openssl aes-256-cbc -K "${encrypted_7cf4e52aa9ef_key}" -iv "${encrypted_7cf4e52aa9ef_iv}" -in ci/secring.asc.enc -out ci/secring.asc -d
-    - sbt ++$TRAVIS_SCALA_VERSION publishSigned
+    - stage: publish
+      if: tag =~ ^v
+      script:
+        - openssl aes-256-cbc -K $encrypted_7cf4e52aa9ef_key -iv $encrypted_7cf4e52aa9ef_iv -in ci/secring.asc.enc -out ci/secring.asc -d
+        - gpg --import ci/secring.asc
+        - sbt ++$TRAVIS_SCALA_VERSION publish sonatypePrepare sonatypeBundleUpload sonatypeRelease
