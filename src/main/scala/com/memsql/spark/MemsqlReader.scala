@@ -71,7 +71,7 @@ case class MemsqlReader(query: String,
     }
 
     val newReader = copy(query = stmt.sql, variables = stmt.variables)
-    log.debug(s"CatalystScan rewrite:\n${newReader}")
+    log.trace(s"CatalystScan additional rewrite:\n${newReader}")
 
     newReader.buildScan
   }

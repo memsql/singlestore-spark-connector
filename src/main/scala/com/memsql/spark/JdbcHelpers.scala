@@ -156,19 +156,19 @@ object JdbcHelpers extends LazyLogging {
 
   def createTable(conn: Connection, table: TableIdentifier, schema: StructType): Unit = {
     val sql = s"CREATE TABLE ${table.quotedString} ${schemaToString(schema)}"
-    log.debug(s"Executing SQL:\n$sql")
+    log.trace(s"Executing SQL:\n$sql")
     conn.withStatement(stmt => stmt.executeUpdate(sql))
   }
 
   def truncateTable(conn: Connection, table: TableIdentifier): Unit = {
     val sql = s"TRUNCATE TABLE ${table.quotedString}"
-    log.debug(s"Executing SQL:\n$sql")
+    log.trace(s"Executing SQL:\n$sql")
     conn.withStatement(stmt => stmt.executeUpdate(sql))
   }
 
   def dropTable(conn: Connection, table: TableIdentifier): Unit = {
     val sql = s"DROP TABLE ${table.quotedString}"
-    log.debug(s"Executing SQL:\n$sql")
+    log.trace(s"Executing SQL:\n$sql")
     conn.withStatement(stmt => stmt.executeUpdate(sql))
   }
 

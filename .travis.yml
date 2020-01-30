@@ -1,4 +1,4 @@
-dist: xenial
+dist: trusty
 jdk: oraclejdk8
 language: scala
 scala:
@@ -7,9 +7,7 @@ services:
   - docker
 
 env:
-  - MEMSQL_PORT="5506"
-  - MEMSQL_USER=root
-  - MEMSQL_DB=test
+  - MEMSQL_PORT="5506" MEMSQL_USER=root MEMSQL_DB=test
 
 script:
   - ./scripts/ensure-test-memsql-cluster.sh

@@ -11,6 +11,8 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
   var df: DataFrame = _
 
   override def beforeEach(): Unit = {
+    super.beforeEach()
+
     df = spark.createDF(
       List((1, "Albert"), (5, "Ronny"), (7, "Ben"), (9, "David")),
       List(("id", IntegerType, true), ("name", StringType, true))

@@ -4,20 +4,27 @@ import java.sql.{Connection, DriverManager}
 import java.util.Properties
 
 import com.github.mrpowers.spark.fast.tests.DataFrameComparer
+import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funspec.AnyFunSpec
 
-trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterAll with DataFrameComparer {
+trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterEach with DataFrameComparer {
   final val masterHost: String     = sys.props.getOrElse("memsql.host", "localhost")
   final val masterPort: String     = sys.props.getOrElse("memsql.port", "5506")
   final val masterUser: String     = sys.props.getOrElse("memsql.user", "root")
   final val masterPassword: String = sys.props.getOrElse("memsql.password", "")
+  final val continuousIntegration: Boolean = sys.env
+    .getOrElse("CONTINUOUS_INTEGRATION", "false") == "true"
 
   var spark: SparkSession = _
 
-  override def beforeAll(): Unit = {
-    super.beforeAll()
+  override def beforeEach(): Unit = {
+    super.beforeEach()
+
+    if (!continuousIntegration) {
+      LogManager.getLogger("com.memsql.spark").setLevel(Level.TRACE)
+    }
 
     spark = SparkSession
       .builder()
@@ -32,7 +39,8 @@ trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterAll with DataFr
       .getOrCreate()
   }
 
-  override def afterAll(): Unit = {
+  override def afterEach(): Unit = {
+    super.afterEach()
     spark.close()
   }
 

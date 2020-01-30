@@ -17,7 +17,7 @@ class SQLPushdownRule extends Rule[LogicalPlan] {
       return root
     }
 
-    log.debug(s"Optimizing plan:\n${root.treeString(true)}")
+    log.trace(s"Optimizing plan:\n${root.treeString(true)}")
 
     val initializeRelations: PartialFunction[LogicalPlan, LogicalPlan] = {
       case SQLGen.Relation(relation: SQLGen.Relation) => relation.renameOutput
@@ -42,7 +42,7 @@ class SQLPushdownRule extends Rule[LogicalPlan] {
 
     val out = ptr.transform(finalizeRelations)
 
-    log.debug(s"Optimized Plan:\n${out.treeString(true)}")
+    log.trace(s"Optimized Plan:\n${out.treeString(true)}")
     out
   }
 }

@@ -1,19 +1,19 @@
 package com.memsql.spark
 
-import org.apache.spark.sql.{DataFrame, SaveMode}
-import org.scalatest.{BeforeAndAfterAll, ParallelTestExecution}
-import org.scalatest.prop.TableDrivenPropertyChecks
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
+import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.functions._
+import org.scalatest.BeforeAndAfterEach
+import org.scalatest.prop.TableDrivenPropertyChecks
 
 class SQLPushdownTest
     extends IntegrationSuiteBase
     with TableDrivenPropertyChecks
-    with BeforeAndAfterAll {
+    with BeforeAndAfterEach {
 
-  override def beforeAll() = {
-    super.beforeAll()
+  override def beforeEach() = {
+    super.beforeEach()
+
     executeQuery("create database if not exists pushdown")
     spark.sql("create database if not exists pushdown")
     spark.sql("create database if not exists pushdown_jdbc")
@@ -88,16 +88,19 @@ class SQLPushdownTest
   def testQuery(q: String, o: Boolean = false) = {
     spark.sql("use pushdown_jdbc")
     val jdbcDF = spark.sql(q)
-    println("--- Showing JDBC DataFrame ---")
-    jdbcDF.show(1)
+    // verify that the jdbc DF works first
+    jdbcDF.collect()
 
     spark.sql("use pushdown")
     val memsqlDF = spark.sql(q)
-    println("--- Showing MemSQL DataFrame ---")
-    memsqlDF.show(1)
-
-    println("--- Comparing MemSQL DataFrame to JDBC DataFrame ---")
-    assertApproximateDataFrameEquality(memsqlDF, jdbcDF, 0.1, orderedComparison = o)
+    try {
+      assertApproximateDataFrameEquality(memsqlDF, jdbcDF, 0.1, orderedComparison = o)
+    } catch {
+      case e: Throwable => {
+        if (continuousIntegration) { println(memsqlDF.explain(true)) }
+        throw e
+      }
+    }
   }
 
   def testOrderedQuery(q: String) = {
@@ -111,15 +114,15 @@ class SQLPushdownTest
   }
 
   describe("datatypes") {
-    it("select 1") { testQuery("select 1") }
-
     it("null literal") { testQuery("select null from users") }
     it("int literal") { testQuery("select 1 from users") }
     it("bool literal") { testQuery("select true from users") }
+
     // due to a bug in our dataframe comparison library we need to alias the column 4.9 to x...
     // this is because when the library asks spark for a column called "4.9", spark thinks the
     // library wants the table 4 and column 9.
     it("float literal") { testQuery("select 4.9 as x from movies") }
+
     it("negative float literal") { testQuery("select -24.345 as x from movies") }
     it("negative int literal") { testQuery("select -1 from users") }
 

@@ -4,9 +4,9 @@
  */
 
 val mysqlDriver = sys.props.getOrElse("mysql.driver", "mariadb") match {
-  case "mariadb" => "org.mariadb.jdbc" % "mariadb-java-client" % "2.+"
-  case "mysql5"  => "mysql" % "mysql-connector-java" % "5.+"
-  case "mysql8"  => "mysql" % "mysql-connector-java" % "8.+"
+  case "mariadb" => "org.mariadb.jdbc" % "mariadb-java-client"  % "2.+"
+  case "mysql5"  => "mysql"            % "mysql-connector-java" % "5.+"
+  case "mysql8"  => "mysql"            % "mysql-connector-java" % "8.+"
   case _ =>
     throw new IllegalArgumentException(
       "java option mysql.driver should be one of { mariadb, mysql5, mysql8 }"
@@ -27,15 +27,20 @@ lazy val root = project
     resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven",
     libraryDependencies ++= Seq(
       // runtime dependencies
-      "org.apache.spark" %% "spark-core" % "2.3.4",
-      "org.apache.spark" %% "spark-sql" % "2.3.4",
-      "org.apache.commons" % "commons-dbcp2" % "2.7.0",
+      "org.apache.spark"       %% "spark-core"             % "2.3.4",
+      "org.apache.spark"       %% "spark-sql"              % "2.3.4",
+      "org.apache.commons"     % "commons-dbcp2"           % "2.7.0",
       "org.scala-lang.modules" % "scala-java8-compat_2.11" % "0.9.0",
       // test dependencies
-      "org.scalatest" %% "scalatest" % "3.1.0" % Test,
+      "org.scalatest"  %% "scalatest" % "3.1.0" % Test,
       "org.scalacheck" %% "scalacheck" % "1.14.1" % Test,
-      "mrpowers" % "spark-daria" % "0.35.0-s_2.11" % Test,
-      "MrPowers" % "spark-fast-tests" % "0.20.0-s_2.11" % Test,
-      mysqlDriver % Test
+      "mrpowers"       % "spark-daria" % "0.35.0-s_2.11" % Test,
+      "MrPowers"       % "spark-fast-tests" % "0.20.0-s_2.11" % Test,
+      mysqlDriver      % Test
     ),
+
+    Test / testOptions += Tests.Argument("-oF"),
+    // Test / testOptions += Tests.Argument("-oN"),
+    Test / fork := true,
+    Test / javaOptions ++= Seq("-Xms512M", "-Xmx2048M"),
   )

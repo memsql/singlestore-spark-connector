@@ -166,7 +166,7 @@ object SQLGen extends LazyLogging {
         reader.schema
       } catch {
         case e: Exception => {
-          log.debug(reader.toString)
+          log.error(s"Failed to compute schema for reader:\n${reader.toString}")
           throw e
         }
       }
@@ -407,7 +407,7 @@ object Expression {
     val out = ExpressionGen.apply.lift(arg)
 
     if (out.isEmpty) {
-      log.warn(s"Failed to convert expression: ${arg.asCode}")
+      log.debug(s"Warning: MemSQL SQL pushdown was unable to convert expression: ${arg.asCode}")
     }
 
     out
