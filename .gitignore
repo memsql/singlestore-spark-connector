@@ -1,9 +1,0 @@
-project/project/*
-project/target/*
-examples/target/*
-target/*
-*~
-*.class
-*.swp
-.idea
-.DS_Store
