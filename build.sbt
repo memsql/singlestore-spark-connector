@@ -14,12 +14,12 @@ val mysqlDriver = sys.props.getOrElse("mysql.driver", "mariadb") match {
 }
 
 lazy val root = project
-  .withId("memsql-spark-utils")
+  .withId("memsql-spark-connector")
   .in(file("."))
   .settings(
-    name := "memsql-spark-utils",
+    name := "memsql-spark-connector",
     organization := "com.memsql",
-    version := "1.0.0",
+    version := "3.0.0-spark-2.3-beta",
     scalaVersion := "2.11.11",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"

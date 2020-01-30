@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/memsql-spark-utils.iml" filepath="$PROJECT_DIR$/.idea/modules/memsql-spark-utils.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/memsql-spark-utils-build.iml" filepath="$PROJECT_DIR$/.idea/modules/memsql-spark-utils-build.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/memsql-spark-connector.iml" filepath="$PROJECT_DIR$/.idea/modules/memsql-spark-connector.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/memsql-spark-connector-build.iml" filepath="$PROJECT_DIR$/.idea/modules/memsql-spark-connector-build.iml" />
     </modules>
   </component>
 </project>

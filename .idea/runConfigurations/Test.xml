@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Test" type="ScalaTestRunConfiguration" factoryName="ScalaTest" show_console_on_std_err="false" show_console_on_std_out="false">
-    <module name="memsql-spark-utils" />
+    <module name="memsql-spark-connector" />
     <option name="allowRunningInParallel" value="false" />
     <option name="testKind" value="All in package" />
     <option name="classBuf">
