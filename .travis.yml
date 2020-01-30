@@ -1,17 +1,31 @@
 dist: trusty
 jdk: oraclejdk8
 language: scala
+
 scala:
   - 2.11.11
+
 services:
   - docker
 
+before_cache:
+  # Cleanup the cached directories to avoid unnecessary cache updates
+  - rm -fv $HOME/.ivy2/.sbt.ivy.lock
+  - find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
+  - find $HOME/.sbt        -name "*.lock"               -print -delete
+
+cache:
+  directories:
+    - "$HOME/.ivy2"
+    - "$HOME/.sbt"
+
 env:
-  - MEMSQL_PORT="5506" MEMSQL_USER=root MEMSQL_DB=test
+  - DRIVER=mariadb
+  - DRIVER=mysql5
+  - DRIVER=mysql8
 
 script:
   - ./scripts/ensure-test-memsql-cluster.sh
   - export MEMSQL_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' memsql-spark-utils-test)
-  - sbt test
-  - sbt test -Dmysql.driver=mysql5
-  - sbt test -Dmysql.driver=mysql8
+  - export MEMSQL_PORT="5506" MEMSQL_USER=root MEMSQL_DB=test
+  - sbt ++$TRAVIS_SCALA_VERSION test -Dmysql.driver=$DRIVER
