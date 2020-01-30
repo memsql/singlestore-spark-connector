@@ -1,0 +1,19 @@
+dist: xenial
+jdk: oraclejdk8
+language: scala
+scala:
+  - 2.11.11
+services:
+  - docker
+
+env:
+  - MEMSQL_PORT="5506"
+  - MEMSQL_USER=root
+  - MEMSQL_DB=test
+
+script:
+  - ./scripts/ensure-test-memsql-cluster.sh
+  - export MEMSQL_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' memsql-spark-utils-test)
+  - sbt test
+  - sbt test -Dmysql.driver=mysql5
+  - sbt test -Dmysql.driver=mysql8
