@@ -14,3 +14,12 @@ if [[ "${EXISTS}" -eq 0 ]]; then
 fi
 
 docker start ${CONTAINER_NAME}
+
+echo -n "Waiting for MemSQL to start... "
+while true; do
+    if mysql -u root -h 127.0.0.1 -P 5506 -e "select 1" >/dev/null; then
+        break
+    fi
+    sleep 0.2
+done
+echo "success!"
