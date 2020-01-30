@@ -1,5 +1,5 @@
 # MemSQL Spark Connector
-## Version: 3.0.0-beta [![Build Status](https://travis-ci.com/memsql/memsql-spark-connector.svg?branch=3.0.0-beta)](https://travis-ci.com/memsql/memsql-spark-connector)
+## Version: 3.0.0-beta [![Build Status](https://travis-ci.com/memsql/memsql-spark-connector.svg?branch=3.0.0-beta)](https://travis-ci.com/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 > :warning: **This is a beta release**: [Go back to the stable branch](https://github.com/memsql/memsql-spark-connector)
 
