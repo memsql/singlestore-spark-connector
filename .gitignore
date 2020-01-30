@@ -44,3 +44,5 @@ atlassian-ide-plugin.xml
 /target
 /build
 /spark-warehouse
+
+/ci/secring.asc

@@ -19,7 +19,6 @@ lazy val root = project
   .settings(
     name := "memsql-spark-connector",
     organization := "com.memsql",
-    version := "3.0.0-spark-2.3-beta",
     scalaVersion := "2.11.11",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
