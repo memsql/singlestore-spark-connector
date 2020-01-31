@@ -1,19 +1,13 @@
 package com.memsql.spark
 
-import java.sql.{Connection, PreparedStatement, SQLSyntaxErrorException}
-import java.util
+import java.sql.SQLSyntaxErrorException
 
 import com.memsql.spark.SQLGen.VariableList
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression => CatalystExpression}
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
-import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
-import org.apache.spark.sql.sources.v2.reader.{DataReader, DataReaderFactory, DataSourceReader}
 import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
-import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{Row, SQLContext}
-
-import scala.collection.JavaConverters._
 
 object MemsqlReader extends LazyLogging {
   def apply(opts: CaseInsensitiveMap[String], sqlContext: SQLContext): MemsqlReader = {
@@ -27,26 +21,18 @@ case class MemsqlReader(query: String,
                         @transient val sqlContext: SQLContext,
                         isFinal: Boolean = false)
     extends BaseRelation
-    with DataSourceReader
     with LazyLogging
     with TableScan
     with CatalystScan {
 
-  override lazy val schema              = JdbcHelpers.loadSchema(options, query, variables)
-  override def readSchema(): StructType = schema
-
-  override def createDataReaderFactories(): util.List[DataReaderFactory[Row]] = {
-    val out: List[DataReaderFactory[Row]] = List(
-      new PartitionReaderFactory(query, variables, options, schema)
-    )
-    out.asJava
-  }
+  override lazy val schema = JdbcHelpers.loadSchema(options, query, variables)
 
   override def buildScan(): RDD[Row] = {
     MemsqlRDD(query, variables, options, schema, sqlContext.sparkContext)
   }
 
-  override def buildScan(rawColumns: Seq[Attribute], rawFilters: Seq[Expression]): RDD[Row] = {
+  override def buildScan(rawColumns: Seq[Attribute],
+                         rawFilters: Seq[CatalystExpression]): RDD[Row] = {
     // we don't have to push down *everything* using this interface since Spark will
     // run the projection and filter again upon receiving the results from MemSQL
     val projection = rawColumns.flatMap(ExpressionGen.apply.lift(_)).reduceOption(_ + "," + _)
@@ -97,40 +83,5 @@ case class MemsqlReader(query: String,
       |$explain
       |---------------
       """.stripMargin
-  }
-}
-
-class PartitionReaderFactory(query: String,
-                             variables: VariableList,
-                             options: MemsqlOptions,
-                             schema: StructType)
-    extends DataReaderFactory[Row]
-    with LazyLogging {
-
-  override def createDataReader(): DataReader[Row] = {
-    val conn =
-      JdbcUtils.createConnectionFactory(
-        JdbcHelpers.getMasterJDBCOptions(options)
-      )()
-    val stmt = conn.prepareStatement(query)
-    JdbcHelpers.fillStatement(stmt, variables)
-    val rs   = stmt.executeQuery()
-    val rows = JdbcUtils.resultSetToRows(rs, schema)
-
-    // TODO: make sure that the PartitionReader is interruptable
-    new PartitionReader(conn, stmt, rows)
-  }
-}
-
-class PartitionReader(conn: Connection, stmt: PreparedStatement, rows: Iterator[Row])
-    extends DataReader[Row] {
-
-  override def next(): Boolean = rows.hasNext
-
-  override def get(): Row = rows.next()
-
-  override def close(): Unit = {
-    stmt.close()
-    conn.close()
   }
 }

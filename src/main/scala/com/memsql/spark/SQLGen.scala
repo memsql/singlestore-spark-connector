@@ -125,11 +125,12 @@ object SQLGen extends LazyLogging {
 
   case class Raw(override val sql: String) extends SQLChunk
 
-  case class Ident(name: String, qualifier: Option[String] = None) extends SQLChunk {
+  case class Ident(name: String) extends SQLChunk {
     override val sql: String = MemsqlDialect.quoteIdentifier(name)
 
     // it's not clear that we ever need to fully-qualify references since we do field renames with expr-ids
     // If this changes then you can change this code to something like this:
+    // (and grab the qualifier when creating Ident)
     //      qualifier
     //        .map(q => s"${MemsqlDialect.quoteIdentifier(q)}.")
     //        .getOrElse("") + MemsqlDialect.quoteIdentifier(name)
@@ -143,7 +144,7 @@ object SQLGen extends LazyLogging {
   ) extends SQLChunk {
 
     val output = rawOutput.map(
-      a => AttributeReference(a.name, a.dataType, a.nullable, a.metadata)(a.exprId, Some(name))
+      a => AttributeReference(a.name, a.dataType, a.nullable, a.metadata)(a.exprId)
     )
 
     override val sql: String = {
@@ -197,18 +198,6 @@ object SQLGen extends LazyLogging {
   object Relation {
     def unapply(source: LogicalPlan): Option[Joinable] =
       source match {
-        case DataSourceV2Relation(output, reader: MemsqlReader) => {
-          def convertBack(output: Seq[AttributeReference],
-                          sql: String,
-                          variables: VariableList,
-                          isFinal: Boolean): LogicalPlan = {
-            new DataSourceV2Relation(
-              output,
-              reader.copy(query = sql, variables = variables, isFinal = isFinal))
-          }
-
-          Some(Relation(output, reader, aliasGen.next, convertBack))
-        }
         case LogicalRelation(reader: MemsqlReader, output, catalogTable, isStreaming) => {
           def convertBack(output: Seq[AttributeReference],
                           sql: String,
@@ -229,7 +218,7 @@ object SQLGen extends LazyLogging {
   case class Attr(a: Attribute) extends Chunk {
     override def toSQL(fieldMap: Map[ExprId, Attribute]): String = {
       val target = fieldMap.getOrElse(a.exprId, a)
-      Ident(s"${target.name}#${target.exprId.id}", target.qualifier).sql
+      Ident(s"${target.name}#${target.exprId.id}").sql
     }
   }
 

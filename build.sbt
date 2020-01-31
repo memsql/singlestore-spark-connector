@@ -1,6 +1,12 @@
 import xerial.sbt.Sonatype._
 
 /*
+  To run tests or publish with a specific spark version use this java option:
+    -Dspark.version=2.3.4
+ */
+val sparkVersion = sys.props.get("spark.version").getOrElse("2.4.0")
+
+/*
   To run tests with a specific mysql driver use this java option:
     -Dmysql.driver=mysql5
  */
@@ -22,15 +28,15 @@ lazy val root = project
     name := "memsql-spark-connector",
     organization := "com.memsql",
     scalaVersion := "2.11.11",
-    version := "3.0.0-beta-spark-2.3",
+    version := s"3.0.0-beta-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
     ),
     resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven",
     libraryDependencies ++= Seq(
       // runtime dependencies
-      "org.apache.spark"       %% "spark-core"             % "2.3.4",
-      "org.apache.spark"       %% "spark-sql"              % "2.3.4",
+      "org.apache.spark"       %% "spark-core"             % sparkVersion % "provided, test",
+      "org.apache.spark"       %% "spark-sql"              % sparkVersion % "provided, test",
       "org.apache.commons"     % "commons-dbcp2"           % "2.7.0",
       "org.scala-lang.modules" % "scala-java8-compat_2.11" % "0.9.0",
       // test dependencies

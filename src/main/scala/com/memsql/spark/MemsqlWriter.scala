@@ -25,18 +25,8 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 
 case class PartitionWriteSuccess() extends WriterCommitMessage
 
-class MemsqlWriter(table: TableIdentifier, conf: MemsqlOptions) extends DataSourceWriter {
-
-  override def createWriterFactory(): DataWriterFactory[Row] =
-    new PartitionWriterFactory(table, conf)
-
-  override def commit(messages: Array[WriterCommitMessage]): Unit = Unit
-
-  override def abort(messages: Array[WriterCommitMessage]): Unit = Unit
-}
-
 class PartitionWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
-    extends DataWriterFactory[Row]
+    extends Serializable
     with LazyLogging {
 
   final val BUFFER_SIZE = 524288
@@ -44,7 +34,7 @@ class PartitionWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
     def setLocalInfileInputStream(input: InputStream)
   }
 
-  override def createDataWriter(partitionId: Int, attemptNumber: Int): DataWriter[Row] = {
+  def createDataWriter(partitionId: Int, attemptNumber: Int): DataWriter[Row] = {
     val basestream  = new PipedOutputStream
     val inputstream = new PipedInputStream(basestream, BUFFER_SIZE)
 
