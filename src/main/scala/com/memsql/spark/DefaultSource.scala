@@ -36,9 +36,14 @@ class DefaultSource
 
   override def createRelation(sqlContext: SQLContext,
                               parameters: Map[String, String]): BaseRelation = {
-    SQLPushdownRule.ensureInjected(sqlContext.sparkSession)
-    val opts = CaseInsensitiveMap(includeGlobalParams(sqlContext, parameters))
-    MemsqlReader(opts, sqlContext)
+    val params  = CaseInsensitiveMap(includeGlobalParams(sqlContext, parameters))
+    val options = MemsqlOptions(params)
+    if (options.disablePushdown) {
+      SQLPushdownRule.ensureRemoved(sqlContext.sparkSession)
+    } else {
+      SQLPushdownRule.ensureInjected(sqlContext.sparkSession)
+    }
+    MemsqlReader(MemsqlOptions.getQuery(params), Nil, options, sqlContext)
   }
 
   override def createRelation(sqlContext: SQLContext,

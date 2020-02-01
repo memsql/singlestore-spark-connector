@@ -24,7 +24,7 @@ class SQLPushdownRule extends Rule[LogicalPlan] {
     // We first need to rename the outputs of each MemSQL relation in the tree.  This transform is
     // done to ensure that we can handle projections which involve ambiguous column name references.
     var ptr, nextPtr = root.transform({
-      case SQLGen.Relation(relation: SQLGen.Relation) => relation.renameOutput
+      case SQLGen.Relation(relation) => relation.renameOutput
     })
 
     val transforms =

@@ -13,7 +13,8 @@ case class MemsqlOptions(
     truncate: Boolean,
     loadDataCompression: MemsqlOptions.CompressionType.Value,
     jdbcExtraOptions: Map[String, String],
-    enableAsserts: Boolean
+    enableAsserts: Boolean,
+    disablePushdown: Boolean
 ) extends LazyLogging {
   @transient lazy val masterConnectionInfo: PartitionConnectionInfo =
     PartitionConnectionInfo(
@@ -61,7 +62,8 @@ object MemsqlOptions {
   final val TRUNCATE              = newOption("truncate")
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
 
-  final val ENABLE_ASSERTS = newOption("enableAsserts")
+  final val ENABLE_ASSERTS   = newOption("enableAsserts")
+  final val DISABLE_PUSHDOWN = newOption("disablePushdown")
 
   def getTable(options: CaseInsensitiveMap[String]): Option[TableIdentifier] =
     options
@@ -117,7 +119,8 @@ object MemsqlOptions {
         // https://github.com/scala/bug/issues/7005
         // mapping everything through the identity function fixes it...
         .map(identity),
-      enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean
+      enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean,
+      disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean
     )
   }
 }

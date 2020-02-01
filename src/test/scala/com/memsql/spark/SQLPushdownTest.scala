@@ -128,7 +128,9 @@ class SQLPushdownTest
   }
 
   describe("window functions") {
-    it("rank order by") { testQuery("select rank() over (order by first_name) as out from users") }
+    it("rank order by") {
+      testQuery("select out as a from (select rank() over (order by first_name) as out from users)")
+    }
     it("rank partition order by") {
       testQuery(
         "select rank() over (partition by first_name order by first_name) as out from users")
@@ -174,7 +176,7 @@ class SQLPushdownTest
 
   describe("joins") {
     it("implicit inner join") {
-      testQuery("select * from users, reviews where users.id = reviews.user_id")
+      testQuery("select * from users as a, reviews where a.id = reviews.user_id")
     }
     it("explicit inner join") {
       testQuery("select * from users inner join reviews on users.id = reviews.user_id")

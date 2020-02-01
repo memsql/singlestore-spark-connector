@@ -293,11 +293,12 @@ object SQLGen extends LazyLogging {
         .groupby(groupingExpr)
         .output(plan.output)
 
-    case plan @ Window(Expression(windowExpressions), _, _, Relation(relation)) =>
+    case plan @ Window(Expression(windowExpressions), _, _, Relation(relation)) => {
       newStatement(plan)
-        .select(windowExpressions.map(Raw("*,") + _))
+        .select(windowExpressions.map(exp => Raw("*,") + exp))
         .from(relation)
         .output(plan.output)
+    }
 
     case plan @ Join(Relation(left),
                      Relation(right),
@@ -413,16 +414,18 @@ object Expression {
   def unapply(arg: Option[Expression]): Option[Option[Joinable]] =
     arg.map(ExpressionGen.apply.lift)
 
-  def unapply(args: Seq[Expression]): Option[Option[Joinable]] =
+  def unapply(args: Seq[Expression]): Option[Option[Joinable]] = {
     if (args.isEmpty) {
       Some(None)
     } else {
-      val expressionNames = new mutable.HashSet[String]()
-      val hasDuplicates = args.exists({
-        case a @ NamedExpression(name, _) => !expressionNames.add(s"${name}#${a.exprId.id}")
-        case _                            => false
-      })
-      if (hasDuplicates) return None
+      if (args.lengthCompare(1) > 0) {
+        val expressionNames = new mutable.HashSet[String]()
+        val hasDuplicates = args.exists({
+          case a @ NamedExpression(name, _) => !expressionNames.add(s"${name}#${a.exprId.id}")
+          case _                            => false
+        })
+        if (hasDuplicates) return None
+      }
 
       args
         .map(ExpressionGen.apply.lift)
@@ -432,5 +435,6 @@ object Expression {
         }
         .map(j => Some(j))
     }
+  }
 
 }

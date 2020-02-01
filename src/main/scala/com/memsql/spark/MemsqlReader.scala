@@ -10,12 +10,6 @@ import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
 import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
-object MemsqlReader extends LazyLogging {
-  def apply(opts: CaseInsensitiveMap[String], sqlContext: SQLContext): MemsqlReader = {
-    MemsqlReader(MemsqlOptions.getQuery(opts), Nil, MemsqlOptions(opts), sqlContext)
-  }
-}
-
 case class MemsqlReader(query: String,
                         variables: VariableList,
                         options: MemsqlOptions,

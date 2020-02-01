@@ -4,7 +4,7 @@ import xerial.sbt.Sonatype._
   To run tests or publish with a specific spark version use this java option:
     -Dspark.version=2.3.4
  */
-val sparkVersion = sys.props.get("spark.version").getOrElse("2.4.0")
+val sparkVersion = sys.props.get("spark.version").getOrElse("2.4.4")
 
 /*
   To run tests with a specific mysql driver use this java option:
