@@ -6,12 +6,6 @@ scala:
   - 2.11.11
 services:
   - docker
-before_cache:
-  - rm -fv $HOME/.ivy2/.sbt.ivy.lock
-  - find $HOME/.ivy2/cache -name "ivydata-*.properties" -print -delete
-cache:
-  directories:
-    - "$HOME/.ivy2"
 
 env:
   matrix:
