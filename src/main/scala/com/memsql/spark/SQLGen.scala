@@ -293,6 +293,12 @@ object SQLGen extends LazyLogging {
         .groupby(groupingExpr)
         .output(plan.output)
 
+    case plan @ Window(Expression(windowExpressions), _, _, Relation(relation)) =>
+      newStatement(plan)
+        .select(windowExpressions.map(Raw("*,") + _))
+        .from(relation)
+        .output(plan.output)
+
     case plan @ Join(Relation(left),
                      Relation(right),
                      joinType @ (Inner | Cross),

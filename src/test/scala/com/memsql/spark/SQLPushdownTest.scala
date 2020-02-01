@@ -40,7 +40,7 @@ class SQLPushdownTest
       s"create table pushdown_jdbc.reviews using jdbc options (${jdbcOptionsSQL("pushdown.reviews")})")
   }
 
-  def testQuery(q: String, o: Boolean = false) = {
+  def testQuery(q: String, o: Boolean = false, expectPartialPushdown: Boolean = false) = {
     spark.sql("use pushdown_jdbc")
     val jdbcDF = spark.sql(q)
     // verify that the jdbc DF works first
@@ -48,6 +48,15 @@ class SQLPushdownTest
 
     spark.sql("use pushdown")
     val memsqlDF = spark.sql(q)
+    if (!continuousIntegration) { memsqlDF.show(4) }
+
+    if (!expectPartialPushdown) {
+      memsqlDF.queryExecution.optimizedPlan match {
+        case SQLGen.Relation(_) => true
+        case _                  => fail(s"Failed to pushdown entire query")
+      }
+    }
+
     try {
       assertApproximateDataFrameEquality(memsqlDF, jdbcDF, 0.1, orderedComparison = o)
     } catch {
@@ -58,8 +67,8 @@ class SQLPushdownTest
     }
   }
 
-  def testOrderedQuery(q: String) = {
-    testQuery(q, true)
+  def testOrderedQuery(q: String, expectPartialPushdown: Boolean = false) = {
+    testQuery(q, true, expectPartialPushdown)
   }
 
   describe("sanity test the tables") {
@@ -72,6 +81,7 @@ class SQLPushdownTest
     it("null literal") { testQuery("select null from users") }
     it("int literal") { testQuery("select 1 from users") }
     it("bool literal") { testQuery("select true from users") }
+    it("float, bool literal") { testQuery("select 1.2 as x, true from users") }
 
     // due to a bug in our dataframe comparison library we need to alias the column 4.9 to x...
     // this is because when the library asks spark for a column called "4.9", spark thinks the
@@ -100,6 +110,9 @@ class SQLPushdownTest
 
   describe("aggregations") {
     it("count") { testQuery("select count(*) from users") }
+    it("count distinct") { testQuery("select count(distinct first_name) from users") }
+    it("first") { testQuery("select first(first_name) from users group by id") }
+    it("last") { testQuery("select last(first_name) from users group by id") }
     it("floor(avg(age))") { testQuery("select floor(avg(age)) from users") }
     it("top 3 email domains") {
       testOrderedQuery("""
@@ -111,6 +124,32 @@ class SQLPushdownTest
         |   order by 2 desc, 1 asc
         |   limit 3
         |""".stripMargin)
+    }
+  }
+
+  describe("window functions") {
+    it("rank order by") { testQuery("select rank() over (order by first_name) as out from users") }
+    it("rank partition order by") {
+      testQuery(
+        "select rank() over (partition by first_name order by first_name) as out from users")
+    }
+    it("row_number order by") {
+      testQuery("select row_number() over (order by first_name) as out from users")
+    }
+    it("dense_rank order by") {
+      testQuery("select dense_rank() over (order by first_name) as out from users")
+    }
+    it("lag order by") {
+      testQuery("select first_name, lag(first_name) over (order by first_name) as out from users")
+    }
+    it("lead order by") {
+      testQuery("select first_name, lead(first_name) over (order by first_name) as out from users")
+    }
+    it("ntile(3) order by") {
+      testQuery("select first_name, ntile(3) over (order by first_name) as out from users")
+    }
+    it("percent_rank order by") {
+      testQuery("select first_name, percent_rank() over (order by first_name) as out from users")
     }
   }
 
@@ -174,7 +213,7 @@ class SQLPushdownTest
       testOrderedQuery("select * from users as a natural join users order by a.id")
     }
     it("select same column twice from table") {
-      testQuery("select first_name, first_name from users")
+      testQuery("select first_name, first_name from users", expectPartialPushdown = true)
     }
     it("select same column twice from table with aliases") {
       testOrderedQuery("select first_name as a, first_name as a from users order by id")
@@ -183,7 +222,8 @@ class SQLPushdownTest
       testOrderedQuery("select first_name as a, last_name as a from users order by id")
     }
     it("select same column twice in subquery") {
-      testQuery("select * from (select first_name, first_name from users) as x")
+      testQuery("select * from (select first_name, first_name from users) as x",
+                expectPartialPushdown = true)
     }
     it("select same column twice from subquery with aliases") {
       testOrderedQuery(
@@ -194,30 +234,21 @@ class SQLPushdownTest
   describe("partial pushdown") {
     it("ignores spark UDFs") {
       spark.udf.register("myUpper", (s: String) => s.toUpperCase)
-      testQuery("select myUpper(first_name), id from users where id in (10,11,12)")
+      testQuery("select myUpper(first_name), id from users where id in (10,11,12)",
+                expectPartialPushdown = true)
     }
 
-    it("supports a join between memsql and jdbc dataframe with some basic pushdowns") {
-      val actualDF = spark
-        .sql("""
-               | select users.id, concat(first(users.first_name), " ", first(users.last_name)) as full_name, count(*) as count
-               | from pushdown.users
-               | inner join pushdown_jdbc.reviews on users.id = reviews.user_id
-               | where users.id = 10
-               | group by users.id
-               | """.stripMargin)
-
-      val expectedDF =
-        spark.createDF(List((10, "Giffer Makeswell", 4L)),
-                       List(
-                         ("id", LongType, true),
-                         ("full_name", StringType, true),
-                         ("count", LongType, false)
-                       ))
-
-      assertSmallDataFrameEquality(actualDF, expectedDF)
+    it("join with pure-jdbc relation") {
+      testQuery(
+        """
+        | select users.id, concat(first(users.first_name), " ", first(users.last_name)) as full_name
+        | from users
+        | inner join pushdown_jdbc.reviews on users.id = reviews.user_id
+        | group by users.id
+        | """.stripMargin,
+        expectPartialPushdown = true
+      )
     }
-
   }
 
 }

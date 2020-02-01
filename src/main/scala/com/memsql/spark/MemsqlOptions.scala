@@ -14,7 +14,7 @@ case class MemsqlOptions(
     loadDataCompression: MemsqlOptions.CompressionType.Value,
     jdbcExtraOptions: Map[String, String],
     enableAsserts: Boolean
-) {
+) extends LazyLogging {
   @transient lazy val masterConnectionInfo: PartitionConnectionInfo =
     PartitionConnectionInfo(
       host = masterHost,
@@ -23,8 +23,12 @@ case class MemsqlOptions(
     )
 
   def assert(condition: Boolean, message: String) = {
-    if (enableAsserts && !condition) {
-      throw new AssertionError(message)
+    if (!condition) {
+      if (enableAsserts) {
+        throw new AssertionError(message)
+      } else {
+        log.trace(s"assertion failed: ${message}")
+      }
     }
   }
 }

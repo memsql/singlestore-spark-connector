@@ -67,7 +67,7 @@ case class MemsqlRDD(query: String,
           case ((_: LongType, _: BooleanType), i)    => ((r: Row) => r.getLong(i) != 0)
 
           case ((l, r), i) => {
-            options.assert(l == r, s"unable to encode ${l} into ${r}")
+            options.assert(l == r, s"MemsqlRDD: unable to encode ${l} into ${r}")
             ((r: Row) => r.get(i))
           }
         }

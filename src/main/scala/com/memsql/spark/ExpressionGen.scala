@@ -6,7 +6,7 @@ import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 
-object ExpressionGen {
+object ExpressionGen extends LazyLogging {
   import SQLGen._
 
   final val MEMSQL_DECIMAL_MAX_PRECISION = 65
@@ -31,12 +31,30 @@ object ExpressionGen {
 
     case v: Boolean => Raw(if (v) "TRUE" else "FALSE")
 
-    case v @ (Int | Long | Short | Decimal | BigDecimal) => Raw(v.toString)
-    case v: Integer                                      => Raw(v.toString)
-    case v: Float if java.lang.Float.isFinite(v)         => Raw(v.toString)
-    case v: Double if java.lang.Double.isFinite(v)       => Raw(v.toString)
+    case v: Short                                  => Raw(v.toString)
+    case v: Int                                    => Raw(v.toString)
+    case v: Integer                                => Raw(v.toString)
+    case v: Long                                   => Raw(v.toString)
+    case v: Decimal                                => Raw(v.toString)
+    case v: BigDecimal                             => Raw(v.toString)
+    case v: Float if java.lang.Float.isFinite(v)   => Raw(v.toString)
+    case v: Double if java.lang.Double.isFinite(v) => Raw(v.toString)
 
-    case v => StringVar(v.toString)
+    case v => {
+      log.trace(s"failed to convert literal ${v} with type ${v.getClass}")
+      StringVar(v.toString)
+    }
+  }
+
+  object WindowBoundaryExpression {
+    def unapply(arg: Expression): Option[Joinable] = arg match {
+      case e: SpecialFrameBoundary       => Some(e.sql)
+      case UnaryMinus(Expression(child)) => Some(child + "PRECEDING")
+      case Literal(n: Integer, IntegerType) =>
+        Some(Raw(Math.abs(n).toString) + (if (n < 0) "PRECEDING" else "FOLLOWING"))
+      case Expression(child) => Some(child + "FOLLOWING")
+      case _                 => None
+    }
   }
 
   def apply: PartialFunction[Expression, Joinable] = {
@@ -85,7 +103,7 @@ object ExpressionGen {
     case AggregateExpression(Count(Expression(None)), _, false, _) => Raw("COUNT(*)")
     case AggregateExpression(Count(Expression(Some(children))), _, isDistinct, _) =>
       if (isDistinct) {
-        "COUNT" + block("DISTINCT" + children)
+        Raw("COUNT") + block(Raw("DISTINCT") + children)
       } else {
         f("COUNT", children)
       }
@@ -95,10 +113,12 @@ object ExpressionGen {
     // TODO: case CovSample(Expression(left), Expression(right))     => ???
 
     // First.scala
-    // TODO: case First(Expression(child), Expression(ignoreNullsExpr)) => ???
+    case AggregateExpression(First(Expression(child), Literal(false, BooleanType)), _, _, _) =>
+      f("ANY_VALUE", child)
 
     // Last.scala
-    // TODO: case Last(Expression(child), Expression(ignoreNullsExpr)) => ???
+    case AggregateExpression(Last(Expression(child), Literal(false, BooleanType)), _, _, _) =>
+      f("ANY_VALUE", child)
 
     // Max.scala
     case AggregateExpression(Max(Expression(child)), _, _, _) => f("MAX", child)
@@ -110,13 +130,34 @@ object ExpressionGen {
     case AggregateExpression(Sum(Expression(child)), _, _, _) => f("SUM", child)
 
     // windowExpressions.scala
-    // TODO: window expressions
-    // case RowNumber()                            => ???
-    // case CumeDist()                             => ???
-    // case NTile(Expression(buckets))             => ???
-    // case Rank(children: Seq[Expression])        => ???
-    // case DenseRank(children: Seq[Expression])   => ???
-    // case PercentRank(children: Seq[Expression]) => ???
+    case WindowExpression(Expression(child),
+                          WindowSpecDefinition(Expression(partitionSpec),
+                                               Expression(orderSpec),
+                                               Expression(frameSpec))) =>
+      child + "OVER" + block(
+        partitionSpec.map(Raw("PARTITION BY") + _).getOrElse(empty) +
+          orderSpec.map(Raw("ORDER BY") + _).getOrElse(empty) +
+          frameSpec
+      )
+
+    case UnspecifiedFrame => ""
+
+    case SpecifiedWindowFrame(frameType,
+                              WindowBoundaryExpression(lower),
+                              WindowBoundaryExpression(upper)) =>
+      Raw(frameType.sql) + "BETWEEN" + lower + "AND" + upper
+
+    case Lead(Expression(input), Expression(offset), Literal(null, NullType)) =>
+      f("LEAD", input, offset)
+    case Lag(Expression(input), Expression(offset), Literal(null, NullType)) =>
+      f("LAG", input, offset)
+    case RowNumber()              => "ROW_NUMBER()"
+    case NTile(Expression(child)) => f("NTILE", child)
+    case Rank(_)                  => "RANK()"
+    case DenseRank(_)             => "DENSE_RANK()"
+    case PercentRank(_)           => "PERCENT_RANK()"
+
+    // TODO: case CumeDist()               => ???
 
     // ----------------------------------
     // Binary Expressions
