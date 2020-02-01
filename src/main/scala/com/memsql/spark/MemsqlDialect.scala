@@ -9,7 +9,10 @@ import org.apache.spark.sql.types.{BooleanType, DataType, LongType, MetadataBuil
 case object MemsqlDialect extends JdbcDialect {
   override def canHandle(url: String): Boolean = url.startsWith("jdbc:memsql")
 
-  override def getJDBCType(dt: DataType): Option[JdbcType] = JdbcUtils.getCommonJDBCType(dt)
+  override def getJDBCType(dt: DataType): Option[JdbcType] = dt match {
+    case BooleanType => Option(JdbcType("BOOL", java.sql.Types.BOOLEAN))
+    case t           => JdbcUtils.getCommonJDBCType(t)
+  }
 
   override def getCatalystType(sqlType: Int,
                                typeName: String,

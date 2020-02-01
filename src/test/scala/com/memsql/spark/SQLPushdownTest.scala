@@ -3,84 +3,39 @@ package com.memsql.spark
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.types._
-import org.scalatest.BeforeAndAfterEach
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.prop.TableDrivenPropertyChecks
 
 class SQLPushdownTest
     extends IntegrationSuiteBase
     with TableDrivenPropertyChecks
-    with BeforeAndAfterEach {
+    with BeforeAndAfterEach
+    with BeforeAndAfterAll {
+
+  override def beforeAll() = {
+    super.beforeEach() // we want to run beforeEach to set up a spark session
+
+    executeQuery("create database if not exists pushdown")
+    writeTable("pushdown.users", spark.read.json("src/test/resources/data/users.json"))
+    writeTable("pushdown.movies", spark.read.json("src/test/resources/data/movies.json"))
+    writeTable("pushdown.reviews", spark.read.json("src/test/resources/data/reviews.json"))
+  }
 
   override def beforeEach() = {
     super.beforeEach()
 
-    executeQuery("create database if not exists pushdown")
-    spark.sql("create database if not exists pushdown")
-    spark.sql("create database if not exists pushdown_jdbc")
+    spark.sql("create database pushdown")
+    spark.sql("create database pushdown_jdbc")
 
-    executeQuery("drop table if exists pushdown.users")
-    executeQuery("""
-      create table pushdown.users (
-        id int primary key,
-        first_name text not null,
-        last_name text not null,
-        email text not null,
-        owns_house bool not null,
-        favorite_color text ,
-        age smallint,
-        birthday date
-      )
-    """)
-    val usersDF = spark.read.json("src/test/resources/data/users.json")
-    writeTable("pushdown.users", usersDF, SaveMode.Append)
-    executeQuery("analyze table pushdown.users")
-
-    spark.sql("drop table if exists pushdown.users")
     spark.sql("create table pushdown.users using memsql options ('dbtable'='pushdown.users')")
-
-    spark.sql("drop table if exists pushdown_jdbc.users")
     spark.sql(
       s"create table pushdown_jdbc.users using jdbc options (${jdbcOptionsSQL("pushdown.users")})")
 
-    executeQuery("drop table if exists pushdown.movies")
-    executeQuery("""
-      create table pushdown.movies (
-        id int primary key,
-        title text not null,
-        genre text not null,
-        critic_review text,
-        critic_rating float
-      )
-    """)
-    val moviesDF = spark.read.json("src/test/resources/data/movies.json")
-    writeTable("pushdown.movies", moviesDF, SaveMode.Append)
-    executeQuery("analyze table pushdown.movies")
-
-    spark.sql("drop table if exists pushdown.movies")
     spark.sql("create table pushdown.movies using memsql options ('dbtable'='pushdown.movies')")
-
-    spark.sql("drop table if exists pushdown_jdbc.movies")
     spark.sql(
       s"create table pushdown_jdbc.movies using jdbc options (${jdbcOptionsSQL("pushdown.movies")})")
 
-    executeQuery("drop table if exists pushdown.reviews")
-    executeQuery("""
-      create table pushdown.reviews (
-        user_id int not null,
-        movie_id int not null,
-        rating float not null,
-        review text not null,
-        created datetime not null
-      )
-    """)
-    val reviewsDF = spark.read.json("src/test/resources/data/reviews.json")
-    writeTable("pushdown.reviews", reviewsDF, SaveMode.Append)
-    executeQuery("analyze table pushdown.reviews")
-
-    spark.sql("drop table if exists pushdown.reviews")
     spark.sql("create table pushdown.reviews using memsql options ('dbtable'='pushdown.reviews')")
-
-    spark.sql("drop table if exists pushdown_jdbc.reviews")
     spark.sql(
       s"create table pushdown_jdbc.reviews using jdbc options (${jdbcOptionsSQL("pushdown.reviews")})")
   }
@@ -255,7 +210,7 @@ class SQLPushdownTest
       val expectedDF =
         spark.createDF(List((10, "Giffer Makeswell", 4L)),
                        List(
-                         ("id", IntegerType, true),
+                         ("id", LongType, true),
                          ("full_name", StringType, true),
                          ("count", LongType, false)
                        ))

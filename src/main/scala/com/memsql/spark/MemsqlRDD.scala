@@ -5,8 +5,10 @@ import java.sql.{Connection, PreparedStatement, ResultSet}
 import com.memsql.spark.SQLGen.VariableList
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types._
 import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
 
 case class MemsqlPartition(override val index: Int) extends Partition
@@ -15,6 +17,7 @@ case class MemsqlRDD(query: String,
                      variables: VariableList,
                      options: MemsqlOptions,
                      schema: StructType,
+                     expectedOutput: Seq[Attribute],
                      @transient val sc: SparkContext)
     extends RDD[Row](sc, Nil) {
 
@@ -51,7 +54,29 @@ case class MemsqlRDD(query: String,
     JdbcHelpers.fillStatement(stmt, variables)
     rs = stmt.executeQuery()
 
-    val rowsIter = JdbcUtils.resultSetToRows(rs, schema)
+    var rowsIter = JdbcUtils.resultSetToRows(rs, schema)
+
+    if (expectedOutput.nonEmpty) {
+      val schemaDatatypes   = schema.map(_.dataType)
+      val expectedDatatypes = expectedOutput.map(_.dataType)
+
+      if (schemaDatatypes != expectedDatatypes) {
+        val columnEncoders = schemaDatatypes.zip(expectedDatatypes).zipWithIndex.map {
+          case ((_: StringType, _: NullType), _)     => ((_: Row) => null)
+          case ((_: IntegerType, _: BooleanType), i) => ((r: Row) => r.getInt(i) != 0)
+          case ((_: LongType, _: BooleanType), i)    => ((r: Row) => r.getLong(i) != 0)
+
+          case ((l, r), i) => {
+            options.assert(l == r, s"unable to encode ${l} into ${r}")
+            ((r: Row) => r.get(i))
+          }
+        }
+
+        rowsIter = rowsIter
+          .map(row => Row.fromSeq(columnEncoders.map(_(row))))
+      }
+    }
+
     CompletionIterator[Row, Iterator[Row]](new InterruptibleIterator[Row](context, rowsIter), close)
   }
 

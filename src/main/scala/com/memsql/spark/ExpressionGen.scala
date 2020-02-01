@@ -273,10 +273,12 @@ object ExpressionGen {
 
         case StringType  => cast(child, "CHAR")
         case BinaryType  => cast(child, "BINARY")
-        case IntegerType => cast(child, "SIGNED")
-        case LongType    => cast(child, "SIGNED")
-        case FloatType   => cast(child, "DECIMAL(14, 7)")
-        case DoubleType  => cast(child, "DECIMAL(30, 15)")
+        case ShortType   => op("!:>", child, "SMALLINT")
+        case IntegerType => op("!:>", child, "INT")
+        case LongType    => op("!:>", child, "BIGINT")
+        case FloatType   => op("!:>", child, "DECIMAL(14, 7)")
+        case DoubleType  => op("!:>", child, "DECIMAL(30, 15)")
+        case BooleanType => op("!:>", child, "BOOL")
 
         // MemSQL doesn't know how to handle this cast, pass it through AS is
         case _ => child

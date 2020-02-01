@@ -7,6 +7,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression => CatalystExpression}
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
+import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
 object MemsqlReader extends LazyLogging {
@@ -19,7 +20,8 @@ case class MemsqlReader(query: String,
                         variables: VariableList,
                         options: MemsqlOptions,
                         @transient val sqlContext: SQLContext,
-                        isFinal: Boolean = false)
+                        isFinal: Boolean = false,
+                        expectedOutput: Seq[Attribute] = Nil)
     extends BaseRelation
     with LazyLogging
     with TableScan
@@ -28,7 +30,7 @@ case class MemsqlReader(query: String,
   override lazy val schema = JdbcHelpers.loadSchema(options, query, variables)
 
   override def buildScan(): RDD[Row] = {
-    MemsqlRDD(query, variables, options, schema, sqlContext.sparkContext)
+    MemsqlRDD(query, variables, options, schema, expectedOutput, sqlContext.sparkContext)
   }
 
   override def buildScan(rawColumns: Seq[Attribute],
@@ -44,20 +46,26 @@ case class MemsqlReader(query: String,
           .select(p)
           .from(SQLGen.Relation(Nil, this, SQLGen.aliasGen.next, null))
           .where(f)
+          .output(rawColumns)
       case (Some(p), None) =>
         SQLGen
           .select(p)
           .from(SQLGen.Relation(Nil, this, SQLGen.aliasGen.next, null))
+          .output(rawColumns)
       case (None, Some(f)) =>
         SQLGen.selectAll
           .from(SQLGen.Relation(Nil, this, SQLGen.aliasGen.next, null))
           .where(f)
+          .output(expectedOutput)
       case _ =>
         return buildScan
     }
 
-    val newReader = copy(query = stmt.sql, variables = stmt.variables)
-    log.trace(s"CatalystScan additional rewrite:\n${newReader}")
+    val newReader = copy(query = stmt.sql, variables = stmt.variables, expectedOutput = stmt.output)
+
+    if (log.isTraceEnabled) {
+      log.trace(s"CatalystScan additional rewrite:\n${newReader}")
+    }
 
     newReader.buildScan
   }

@@ -11,6 +11,16 @@
       <option name="featureWarnings" value="true" />
       <option name="explainTypeErrors" value="true" />
     </profile>
-    <profile name="sbt 2" modules="memsql-spark-connector,memsql-spark-utils" />
+    <profile name="sbt 2" modules="memsql-spark-utils">
+      <option name="deprecationWarnings" value="true" />
+      <option name="uncheckedWarnings" value="true" />
+      <option name="featureWarnings" value="true" />
+      <option name="explainTypeErrors" value="true" />
+    </profile>
+    <profile name="sbt 3" modules="memsql-spark-connector">
+      <option name="deprecationWarnings" value="true" />
+      <option name="uncheckedWarnings" value="true" />
+      <option name="featureWarnings" value="true" />
+    </profile>
   </component>
 </project>

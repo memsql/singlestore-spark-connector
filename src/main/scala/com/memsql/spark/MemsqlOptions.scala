@@ -12,7 +12,8 @@ case class MemsqlOptions(
     password: Option[String],
     truncate: Boolean,
     loadDataCompression: MemsqlOptions.CompressionType.Value,
-    jdbcExtraOptions: Map[String, String]
+    jdbcExtraOptions: Map[String, String],
+    enableAsserts: Boolean
 ) {
   @transient lazy val masterConnectionInfo: PartitionConnectionInfo =
     PartitionConnectionInfo(
@@ -20,6 +21,12 @@ case class MemsqlOptions(
       port = masterPort,
       database = database
     )
+
+  def assert(condition: Boolean, message: String) = {
+    if (enableAsserts && !condition) {
+      throw new AssertionError(message)
+    }
+  }
 }
 
 object MemsqlOptions {
@@ -49,6 +56,8 @@ object MemsqlOptions {
 
   final val TRUNCATE              = newOption("truncate")
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
+
+  final val ENABLE_ASSERTS = newOption("enableAsserts")
 
   def getTable(options: CaseInsensitiveMap[String]): Option[TableIdentifier] =
     options
@@ -103,7 +112,8 @@ object MemsqlOptions {
         // filterKeys produces a map which is not serializable due to a bug in Scala
         // https://github.com/scala/bug/issues/7005
         // mapping everything through the identity function fixes it...
-        .map(identity)
+        .map(identity),
+      enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean
     )
   }
 }

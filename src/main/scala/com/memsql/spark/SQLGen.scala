@@ -143,6 +143,8 @@ object SQLGen extends LazyLogging {
       toLogicalPlan: (Seq[AttributeReference], String, VariableList, Boolean) => LogicalPlan
   ) extends SQLChunk {
 
+    val isFinal = reader.isFinal
+
     val output = rawOutput.map(
       a => AttributeReference(a.name, a.dataType, a.nullable, a.metadata)(a.exprId)
     )
@@ -175,38 +177,38 @@ object SQLGen extends LazyLogging {
       val castedOutputExpr = output
         .zip(schema)
         .map({
-          case (a, f)
-              if (a.dataType == IntegerType && f.dataType == LongType) || (a.dataType == BooleanType && f.dataType == LongType) =>
-            AttributeReference(a.name, f.dataType, f.nullable, f.metadata)(a.exprId, a.qualifier)
-
           case (a, f) if a.dataType != f.dataType =>
             Alias(Cast(a, a.dataType), a.name)(a.exprId, a.qualifier, Some(a.metadata))
 
           case (a, _) => a
         })
-      val castedOutput = castedOutputExpr.map(_.toAttribute)
 
       select(castedOutputExpr match {
         case Expression(expr) => expr
         case _                => None
       }).from(this)
-        .output(castedOutput)
+        .output(output)
         .asLogicalPlan(true)
     }
   }
 
   object Relation {
-    def unapply(source: LogicalPlan): Option[Joinable] =
+    def unapply(source: LogicalPlan): Option[Relation] =
       source match {
         case LogicalRelation(reader: MemsqlReader, output, catalogTable, isStreaming) => {
           def convertBack(output: Seq[AttributeReference],
                           sql: String,
                           variables: VariableList,
                           isFinal: Boolean): LogicalPlan = {
-            new LogicalRelation(reader.copy(query = sql, variables = variables, isFinal = isFinal),
-                                output,
-                                catalogTable,
-                                isStreaming)
+            new LogicalRelation(
+              reader.copy(query = sql,
+                          variables = variables,
+                          isFinal = isFinal,
+                          expectedOutput = output),
+              output,
+              catalogTable,
+              isStreaming
+            )
           }
 
           Some(Relation(output, reader, aliasGen.next, convertBack))

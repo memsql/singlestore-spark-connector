@@ -14,6 +14,7 @@ trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterEach with DataF
   final val masterPort: String     = sys.props.getOrElse("memsql.port", "5506")
   final val masterUser: String     = sys.props.getOrElse("memsql.user", "root")
   final val masterPassword: String = sys.props.getOrElse("memsql.password", "")
+
   final val continuousIntegration: Boolean = sys.env
     .getOrElse("CONTINUOUS_INTEGRATION", "false") == "true"
 
@@ -36,6 +37,7 @@ trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterEach with DataF
       .config("spark.datasource.memsql.masterPort", masterPort)
       .config("spark.datasource.memsql.user", masterUser)
       .config("spark.datasource.memsql.password", masterPassword)
+      .config("spark.datasource.memsql.enableAsserts", "true")
       .getOrCreate()
   }
 
@@ -77,8 +79,8 @@ trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterEach with DataF
 
   def writeTable(dbtable: String, df: DataFrame, saveMode: SaveMode = SaveMode.Overwrite): Unit =
     df.write
-      .format("jdbc")
-      .options(jdbcOptions(dbtable))
+      .format("memsql")
+      .option("dbtable", dbtable)
       .mode(saveMode)
       .save()
 }

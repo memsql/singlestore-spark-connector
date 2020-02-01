@@ -17,32 +17,41 @@ class SQLPushdownRule extends Rule[LogicalPlan] {
       return root
     }
 
-    log.trace(s"Optimizing plan:\n${root.treeString(true)}")
+    if (log.isTraceEnabled) {
+      log.trace(s"Optimizing plan:\n${root.treeString(true)}")
+    }
 
-    val initializeRelations: PartialFunction[LogicalPlan, LogicalPlan] = {
+    // We first need to rename the outputs of each MemSQL relation in the tree.  This transform is
+    // done to ensure that we can handle projections which involve ambiguous column name references.
+    var ptr, nextPtr = root.transform({
       case SQLGen.Relation(relation: SQLGen.Relation) => relation.renameOutput
-    }
-    val finalizeRelations: PartialFunction[LogicalPlan, LogicalPlan] = {
-      case SQLGen.Relation(relation: SQLGen.Relation) => relation.castOutputAndFinalize
-    }
+    })
 
     val transforms =
       List(
+        // do single node rewrites, e.g. Project([a,b,c], Relation(select * from foo))
         SQLGen.fromLogicalPlan.andThen(_.asLogicalPlan()),
+        // do multi node rewrites, e.g. Sort(a, Limit(10, Relation(select * from foo)))
         SQLGen.fromNestedLogicalPlan.andThen(_.asLogicalPlan()),
+        // do single node rewrites of sort & limit (so the multi-node rewrite can match first)
         SQLGen.fromSingleLimitSort.andThen(_.asLogicalPlan())
       )
 
-    var ptr, nextPtr = root.transform(initializeRelations)
-
+    // Run our transforms in a loop until the tree converges
     do {
       ptr = nextPtr
       nextPtr = transforms.foldLeft(ptr)(_.transformUp(_))
     } while (!ptr.fastEquals(nextPtr))
 
-    val out = ptr.transform(finalizeRelations)
+    // Finalize all the relations in the tree and perform casts into the expected output datatype for Spark
+    val out = ptr.transformDown({
+      case SQLGen.Relation(relation) if !relation.isFinal => relation.castOutputAndFinalize
+    })
 
-    log.trace(s"Optimized Plan:\n${out.treeString(true)}")
+    if (log.isTraceEnabled) {
+      log.trace(s"Optimized Plan:\n${out.treeString(true)}")
+    }
+
     out
   }
 }

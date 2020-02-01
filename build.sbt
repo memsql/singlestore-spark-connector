@@ -48,7 +48,7 @@ lazy val root = project
     ),
     Test / testOptions += Tests.Argument("-oF"),
     Test / fork := true,
-    Test / javaOptions ++= Seq("-Xms512M", "-Xmx2048M")
+    //Test / javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-Dmemsql.invariant=true"),
   )
 
 credentials += Credentials(
