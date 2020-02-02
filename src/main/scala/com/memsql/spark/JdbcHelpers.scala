@@ -39,6 +39,13 @@ object JdbcHelpers extends LazyLogging {
       }
     }
 
+    val sessionVariables = Seq(
+      "collation_server=utf8_general_ci",
+      "sql_select_limit=18446744073709551615",
+      "compile_only=false",
+      "sql_mode='STRICT_ALL_TABLES,ONLY_FULL_GROUP_BY'"
+    ).mkString(";")
+
     new JDBCOptions(
       Map(
         JDBCOptions.JDBC_URL        -> url,
@@ -47,7 +54,8 @@ object JdbcHelpers extends LazyLogging {
         "password"                  -> conf.password.getOrElse(""),
         "zeroDateTimeBehavior"      -> "convertToNull",
         "allowLoadLocalInfile"      -> "true",
-        "connectTimeout"            -> MEMSQL_CONNECT_TIMEOUT
+        "connectTimeout"            -> MEMSQL_CONNECT_TIMEOUT,
+        "sessionVariables"          -> sessionVariables
       ) ++ conf.jdbcExtraOptions
     )
   }

@@ -1,5 +1,7 @@
 package com.memsql.spark
 
+import java.sql.SQLNonTransientConnectionException
+
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.types._

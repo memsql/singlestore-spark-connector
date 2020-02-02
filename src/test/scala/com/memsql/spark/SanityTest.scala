@@ -21,6 +21,32 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
     writeTable("test.foo", df)
   }
 
+  it("sets strict sql session variables") {
+    // set a large but not exactly the same sql select limit
+    executeQuery("set global sql_select_limit = 18446744000000000000")
+
+    val variables = spark.read
+      .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)
+      .option(MemsqlOptions.TABLE_NAME, "information_schema.session_variables")
+      .load()
+      .collect()
+      .groupBy(r => r.get(0))
+      .mapValues(r => r.map(_.getString(1)).head)
+
+    assert(variables("COLLATION_SERVER") == "utf8_general_ci")
+    assert(variables("SQL_SELECT_LIMIT") == "18446744073709551615")
+    assert(variables("COMPILE_ONLY") == "OFF")
+
+    val sql_mode = spark.read
+      .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)
+      .option(MemsqlOptions.QUERY, "select @@sql_mode")
+      .load()
+      .collect()
+      .head
+      .getString(0)
+    assert(sql_mode == "ONLY_FULL_GROUP_BY,STRICT_ALL_TABLES")
+  }
+
   it("DataSource V1 read sanity") {
     val x = spark.read
       .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)
