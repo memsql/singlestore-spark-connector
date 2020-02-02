@@ -152,7 +152,7 @@ output.
 ## Filing issues
 
 When filing issues please include as much information as possible as well as any
-reproduction steps. It's hard for use to reproduce issues if the problem depends
+reproduction steps. It's hard for us to reproduce issues if the problem depends
 on specific data in your MemSQL table for example.  Whenever possible please try
 to construct a minimal reproduction of the problem and include the table
 definition and table contents in the issue.
