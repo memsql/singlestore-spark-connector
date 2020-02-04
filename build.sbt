@@ -32,8 +32,7 @@ lazy val root = project
       "MrPowers"       % "spark-fast-tests" % "0.20.0-s_2.11" % Test
     ),
     Test / testOptions += Tests.Argument("-oF"),
-    Test / fork := true,
-    Test / javaOptions ++= Seq("-Xms512M", "-Xmx2048M")
+    Test / fork := true
   )
 
 credentials += Credentials(
