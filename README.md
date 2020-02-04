@@ -21,21 +21,19 @@ You can find the latest version of the connector on Maven Central and
 spark-packages.org.  The group is `com.memsql` and the artifact is
 `memsql-spark-connector_2.11`.
 
+* [Maven Central](https://search.maven.org/artifact/com.memsql/memsql-spark-connector_2.11)
+
 We release two versions of the `memsql-spark-connector`, one per Spark version.
 An example version number is: `3.0.0-beta-spark-2.3.4` which is the 3.0.0-beta
 version of the connector, compiled and tested against Spark 2.3.4.
 
-In addition to adding the `memsql-spark-connector`, you will also need to have a
-compatible mysql driver installed.  This library supports any of the following
-JDBC connectors:
+In addition to adding the `memsql-spark-connector`, you will also need to have the
+MariaDB JDBC driver installed.  This library is tested against the following
+MariaDB driver version:
 
 ```
 "org.mariadb.jdbc" % "mariadb-java-client"  % "2.+"
-"mysql"            % "mysql-connector-java" % "5.+"
-"mysql"            % "mysql-connector-java" % "8.+"
 ```
-
-> :thumbsup: We recommend using the MariaDB driver
 
 Once you have everything installed, you're almost ready to run your first
 queries against MemSQL!
@@ -46,18 +44,18 @@ The `memsql-spark-connector` is configurable globally via Spark options and
 locally when constructing a DataFrame.  The options are named the same, however
 global options have the prefix `spark.datasource.memsql.`.
 
-| Option                | Description
-| -                     | -
-| `masterHost`          | Hostname or IP address of the MemSQL Master Aggregator
-| `masterPort`          | Port number of the MemSQL Master Aggregator
-| `user`                | MemSQL username
-| `password`            | MemSQL password
-| `query`               | The query to run (mutually exclusive with dbtable)
-| `dbtable`             | The table to query (mutually exclusive with query)
-| `database`            | If set, all connections will default to using this database (default: empty)
-| `truncate`            | Truncate instead of drop an existing table during Overwrite (default: false)
-| `loadDataCompression` | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
-| `disablePushdown`     | Disable SQL Pushdown when running queries (default: false)
+| Option                    | Description
+| -                         | -
+| `masterHost` (required)   | Hostname or IP address of the MemSQL Master Aggregator
+| `masterPort` (required)   | Port number of the MemSQL Master Aggregator
+| `user`       (required)   | MemSQL username
+| `password`   (required)   | MemSQL password
+| `query`                   | The query to run (mutually exclusive with dbtable)
+| `dbtable`                 | The table to query (mutually exclusive with query)
+| `database`                | If set, all connections will default to using this database (default: empty)
+| `truncate`                | Truncate instead of drop an existing table during Overwrite (default: false)
+| `loadDataCompression`     | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
+| `disablePushdown`         | Disable SQL Pushdown when running queries (default: false)
 
 Example of configuring the `memsql-spark-connector` globally:
 ```scala
