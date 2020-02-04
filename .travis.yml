@@ -22,7 +22,7 @@ env:
 script:
   - "./scripts/ensure-test-memsql-cluster.sh"
   - export MEMSQL_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' memsql-spark-utils-test)
-  - sbt ++$TRAVIS_SCALA_VERSION test -Dmysql.driver=$DRIVER -Dspark.version=$SPARK_VERSION
+  - sbt ++$TRAVIS_SCALA_VERSION test -Dspark.version=$SPARK_VERSION
 
 jobs:
   include:
