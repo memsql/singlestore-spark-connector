@@ -30,6 +30,7 @@ class PartitionWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
     with LazyLogging {
 
   final val BUFFER_SIZE = 524288
+
   type ImplementsSetInfileStream = {
     def setLocalInfileInputStream(input: InputStream)
   }
@@ -56,7 +57,7 @@ class PartitionWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
       s"LOAD DATA LOCAL INFILE '###.$ext' INTO TABLE ${table.quotedString}"
 
     val conn = JdbcUtils.createConnectionFactory(
-      JdbcHelpers.getMasterJDBCOptions(conf)
+      JdbcHelpers.getDMLJDBCOptions(conf)
     )()
 
     val writer = Future[Long] {

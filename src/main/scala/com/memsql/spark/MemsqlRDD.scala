@@ -49,7 +49,7 @@ case class MemsqlRDD(query: String,
       close()
     }
 
-    conn = JdbcUtils.createConnectionFactory(JdbcHelpers.getMasterJDBCOptions(options))()
+    conn = JdbcUtils.createConnectionFactory(JdbcHelpers.getDMLJDBCOptions(options))()
     stmt = conn.prepareStatement(query)
     JdbcHelpers.fillStatement(stmt, variables)
     rs = stmt.executeQuery()

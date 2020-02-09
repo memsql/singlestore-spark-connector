@@ -1,5 +1,5 @@
 # MemSQL Spark Connector
-## Version: 3.0.0-beta [![Build Status](https://travis-ci.com/memsql/memsql-spark-connector.svg?branch=3.0.0-beta)](https://travis-ci.com/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## Version: 3.0.0-beta2 [![Build Status](https://travis-ci.com/memsql/memsql-spark-connector.svg?branch=3.0.0-beta)](https://travis-ci.com/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 > :warning: **This is a beta release**: [Go back to the stable branch](https://github.com/memsql/memsql-spark-connector)
 
@@ -25,7 +25,8 @@ spark-packages.org.  The group is `com.memsql` and the artifact is
 
 We release two versions of the `memsql-spark-connector`, one per Spark version.
 An example version number is: `3.0.0-beta-spark-2.3.4` which is the 3.0.0-beta
-version of the connector, compiled and tested against Spark 2.3.4.
+version of the connector, compiled and tested against Spark 2.3.4. Make sure
+you are using the most recent version of the beta.
 
 In addition to adding the `memsql-spark-connector`, you will also need to have the
 MariaDB JDBC driver installed.  This library is tested against the following
@@ -46,10 +47,10 @@ global options have the prefix `spark.datasource.memsql.`.
 
 | Option                    | Description
 | -                         | -
-| `masterHost` (required)   | Hostname or IP address of the MemSQL Master Aggregator
-| `masterPort` (required)   | Port number of the MemSQL Master Aggregator
-| `user`       (required)   | MemSQL username
-| `password`   (required)   | MemSQL password
+| `ddlEndpoint`  (required) | Hostname or IP address of the MemSQL Master Aggregator in the format `host[:port]` (port is optional). Ex. `master-agg.foo.internal:3308` or `master-agg.foo.internal`
+| `dmlEndpoints`            | Hostname or IP address of MemSQL Aggregator nodes to run queries against in the format `host[:port],host[:port],...` (port is optional, multiple hosts separated by comma). Ex. `child-agg:3308,child-agg2` (default: `ddlEndpoint`)
+| `user`                    | MemSQL username (default: `root`)
+| `password`                | MemSQL password (default: no password)
 | `query`                   | The query to run (mutually exclusive with dbtable)
 | `dbtable`                 | The table to query (mutually exclusive with query)
 | `database`                | If set, all connections will default to using this database (default: empty)
@@ -59,8 +60,8 @@ global options have the prefix `spark.datasource.memsql.`.
 
 Example of configuring the `memsql-spark-connector` globally:
 ```scala
-spark.conf.set("spark.datasource.memsql.masterHost", "memsql-master.cluster.example.com")
-spark.conf.set("spark.datasource.memsql.masterPort", "3306")
+spark.conf.set("spark.datasource.memsql.ddlEndpoint", "memsql-master.cluster.internal")
+spark.conf.set("spark.datasource.memsql.dmlEndpoints", "memsql-master.cluster.internal,memsql-child-1.cluster.internal:3307")
 spark.conf.set("spark.datasource.memsql.user", "admin")
 spark.conf.set("spark.datasource.memsql.password", "s3cur3-pa$$word")
 ```
@@ -68,14 +69,15 @@ spark.conf.set("spark.datasource.memsql.password", "s3cur3-pa$$word")
 Example of configuring the `memsql-spark-connector` using the read API:
 ```scala
 val df = spark.read
-      .format("memsql")
-      .option("dbtable", "foo")
-      .load()
+    .format("memsql")
+    .option("ddlEndpoint", "memsql-master.cluster.internal")
+    .option("user", "admin")
+    .load("foo")
 ```
 
 Example of configuring the `memsql-spark-connector` using an external table in Spark SQL:
 ```sql
-CREATE TABLE bar USING memsql OPTIONS ('dbtable'='foo.bar')
+CREATE TABLE bar USING memsql OPTIONS ('ddlEndpoint'='memsql-master.cluster.internal','dbtable'='foo.bar')
 ```
 
 ## Writing to MemSQL
@@ -85,14 +87,13 @@ The `memsql-spark-connector` supports saving dataframe's to MemSQL using the Spa
 ```scala
 df.write
     .format("memsql")
-    .option("dbtable", "foo")      // this is required for writes!
     .option("loadDataCompression", "LZ4")
     .option("truncate", "false")
     .mode(SaveMode.Overwrite)
-    .save()
+    .save("foo.bar") // in format: database.table
 ```
 
-If the target table ("foo" in the example above) does not exist the
+If the target table ("foo" in the example above) does not exist in MemSQL the
 `memsql-spark-connector` will automatically attempt to create the table. If you
 specify SaveMode.Overwrite, if the target table already exists, it will be
 recreated or truncated before load. Specify `truncate = true` to truncate rather

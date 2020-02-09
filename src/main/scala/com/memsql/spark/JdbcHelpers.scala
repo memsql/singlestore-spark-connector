@@ -13,8 +13,6 @@ import org.apache.spark.sql.types.StructType
 
 import scala.util.Try
 
-case class PartitionConnectionInfo(host: String, port: Int, database: Option[String])
-
 object JdbcHelpers extends LazyLogging {
   final val MEMSQL_CONNECT_TIMEOUT = "10" // seconds
 
@@ -30,10 +28,10 @@ object JdbcHelpers extends LazyLogging {
       Loan(conn.prepareStatement(query)).to(handle)
   }
 
-  def getJDBCOptions(conf: MemsqlOptions, info: PartitionConnectionInfo): JDBCOptions = {
+  def getJDBCOptions(conf: MemsqlOptions, hostports: String*): JDBCOptions = {
     val url: String = {
-      val base = s"jdbc:mysql://${info.host}:${info.port}"
-      info.database match {
+      val base = s"jdbc:mysql://${hostports.mkString(",")}"
+      conf.database match {
         case Some(d) => s"$base/$d"
         case None    => base
       }
@@ -51,7 +49,7 @@ object JdbcHelpers extends LazyLogging {
         JDBCOptions.JDBC_URL        -> url,
         JDBCOptions.JDBC_TABLE_NAME -> "XXX",
         "user"                      -> conf.user,
-        "password"                  -> conf.password.getOrElse(""),
+        "password"                  -> conf.password,
         "zeroDateTimeBehavior"      -> "convertToNull",
         "allowLoadLocalInfile"      -> "true",
         "connectTimeout"            -> MEMSQL_CONNECT_TIMEOUT,
@@ -60,11 +58,14 @@ object JdbcHelpers extends LazyLogging {
     )
   }
 
-  def getMasterJDBCOptions(conf: MemsqlOptions): JDBCOptions =
-    getJDBCOptions(conf, conf.masterConnectionInfo)
+  def getDDLJDBCOptions(conf: MemsqlOptions): JDBCOptions =
+    getJDBCOptions(conf, conf.ddlEndpoint)
+
+  def getDMLJDBCOptions(conf: MemsqlOptions): JDBCOptions =
+    getJDBCOptions(conf, conf.dmlEndpoints: _*)
 
   def loadSchema(conf: MemsqlOptions, query: String, variables: VariableList): StructType = {
-    val conn = JdbcUtils.createConnectionFactory(getMasterJDBCOptions(conf))()
+    val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
     try {
       val statement =
         conn.prepareStatement(MemsqlDialect.getSchemaQuery(s"($query) AS q"))
@@ -85,7 +86,7 @@ object JdbcHelpers extends LazyLogging {
   }
 
   def explainQuery(conf: MemsqlOptions, query: String, variables: VariableList): String = {
-    val conn = JdbcUtils.createConnectionFactory(getMasterJDBCOptions(conf))()
+    val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
     try {
       val statement = conn.prepareStatement(s"EXPLAIN ${query}")
       try {
@@ -184,7 +185,7 @@ object JdbcHelpers extends LazyLogging {
                            table: TableIdentifier,
                            mode: SaveMode,
                            schema: StructType): Unit = {
-    val jdbcOpts = JdbcHelpers.getMasterJDBCOptions(conf)
+    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
     val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
     try {
       if (JdbcHelpers.tableExists(conn, table)) {

@@ -1,3 +1,8 @@
+2020-02-08 Version 3.0.0-beta2
+        * Removed options: masterHost and masterPort
+        * Added ddlEndpoint and ddlEndpoints options
+        * Added path option to support specifying the dbtable via `.load("mytable")` when creating a dataframe
+
 2020-01-30 Version 3.0.0-beta
         * Full re-write of the Spark Connector
 

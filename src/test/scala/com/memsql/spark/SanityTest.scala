@@ -27,8 +27,7 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
 
     val variables = spark.read
       .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)
-      .option(MemsqlOptions.TABLE_NAME, "information_schema.session_variables")
-      .load()
+      .load("information_schema.session_variables")
       .collect()
       .groupBy(r => r.get(0))
       .mapValues(r => r.map(_.getString(1)).head)
@@ -71,17 +70,18 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
 
   it("DataSource V1 write sanity") {
     for (compression <- CompressionType.values) {
+
       for (truncate <- Seq(false, true)) {
         println(
           s"testing datasource with compression=$compression, truncate=$truncate"
         )
         df.write
           .format(DefaultSource.MEMSQL_SOURCE_NAME)
-          .option(MemsqlOptions.TABLE_NAME, "test.tb2")
-          .option(MemsqlOptions.LOAD_DATA_COMPRESSION, compression.toString)
-          .option(MemsqlOptions.TRUNCATE, truncate.toString)
+          // toLowerCase to test case insensitivity
+          .option(MemsqlOptions.LOAD_DATA_COMPRESSION, compression.toString.toLowerCase())
+          .option(MemsqlOptions.TRUNCATE, truncate.toString.toLowerCase())
           .mode(SaveMode.Overwrite)
-          .save()
+          .save("test.tb2")
 
         val x = spark.read
           .format("jdbc")

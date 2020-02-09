@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -eu
 
-IMAGE_NAME="memsql/cluster-in-a-box:centos-7.0.11-df50c6ab30-1.9.5-1.4.1"
+DEFAULT_IMAGE_NAME="memsql/cluster-in-a-box:centos-7.0.11-df50c6ab30-1.9.5-1.4.1"
+IMAGE_NAME="${MEMSQL_IMAGE:-$DEFAULT_IMAGE_NAME}"
 CONTAINER_NAME="memsql-spark-utils-test"
 
 EXISTS=$(docker inspect ${CONTAINER_NAME} >/dev/null 2>&1 && echo 1 || echo 0)

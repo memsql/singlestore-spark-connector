@@ -8,9 +8,9 @@
         <option value="com.memsql.spark.SQLGenTest" />
         <option value="com.memsql.spark.SanityTest" />
         <option value="com.memsql.spark.SQLPushdownTest" />
-        <option value="com.memsql.spark.SanityTest" />
-        <option value="com.memsql.spark.SQLPushdownTest" />
         <option value="com.memsql.spark.SQLGenTest" />
+        <option value="com.memsql.spark.SQLPushdownTest" />
+        <option value="com.memsql.spark.SanityTest" />
       </list>
     </option>
     <option name="envs">

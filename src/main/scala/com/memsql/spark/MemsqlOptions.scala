@@ -5,23 +5,17 @@ import org.apache.spark.sql.catalyst.parser.CatalystSqlParser
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 
 case class MemsqlOptions(
-    masterHost: String,
-    masterPort: Int,
-    database: Option[String],
+    ddlEndpoint: String,
+    dmlEndpoints: List[String],
     user: String,
-    password: Option[String],
+    password: String,
+    database: Option[String],
     truncate: Boolean,
     loadDataCompression: MemsqlOptions.CompressionType.Value,
     jdbcExtraOptions: Map[String, String],
     enableAsserts: Boolean,
     disablePushdown: Boolean
 ) extends LazyLogging {
-  @transient lazy val masterConnectionInfo: PartitionConnectionInfo =
-    PartitionConnectionInfo(
-      host = masterHost,
-      port = masterPort,
-      database = database
-    )
 
   def assert(condition: Boolean, message: String) = {
     if (!condition) {
@@ -38,8 +32,9 @@ object MemsqlOptions {
   object CompressionType extends Enumeration {
     val GZip, LZ4, Skip = Value
 
-    def fromString(s: String): Option[Value] = values.find(_.toString == s)
-    lazy val valuesString                    = values.mkString(", ")
+    def fromString(s: String): Option[Value] =
+      values.find(_.toString.toLowerCase() == s.toLowerCase())
+    lazy val valuesString = values.mkString(", ")
   }
 
   private val memsqlOptionNames = collection.mutable.Set[String]()
@@ -49,8 +44,8 @@ object MemsqlOptions {
     name
   }
 
-  final val MASTER_HOST = newOption("masterHost")
-  final val MASTER_PORT = newOption("masterPort")
+  final val DDL_ENDPOINT  = newOption("ddlEndpoint")
+  final val DML_ENDPOINTS = newOption("dmlEndpoints")
 
   final val USER     = newOption("user")
   final val PASSWORD = newOption("password")
@@ -58,6 +53,7 @@ object MemsqlOptions {
   final val DATABASE   = newOption("database")
   final val QUERY      = newOption("query")
   final val TABLE_NAME = newOption("dbtable")
+  final val PATH       = newOption("path")
 
   final val TRUNCATE              = newOption("truncate")
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
@@ -68,14 +64,15 @@ object MemsqlOptions {
   def getTable(options: CaseInsensitiveMap[String]): Option[TableIdentifier] =
     options
       .get(TABLE_NAME)
+      .orElse(options.get(PATH))
       .map(CatalystSqlParser.parseTableIdentifier)
 
   def getQuery(options: CaseInsensitiveMap[String]): String = {
     val table = getTable(options)
 
     require(
-      !(options.isDefinedAt(TABLE_NAME) && options.isDefinedAt(QUERY)),
-      s"Options '$TABLE_NAME' and '$QUERY' cannot both be specified."
+      !(table.isDefined && options.isDefinedAt(QUERY)),
+      s"The '$QUERY' option cannot be specified along with a table name."
     )
 
     options
@@ -83,7 +80,7 @@ object MemsqlOptions {
       .orElse(table.map(t => s"SELECT * FROM ${t.quotedString}"))
       .getOrElse(
         throw new IllegalArgumentException(
-          s"Either the '$TABLE_NAME' or '$QUERY' option must be specified."
+          s"One of the following options must be specified: $QUERY, $TABLE_NAME, $PATH"
         )
       )
   }
@@ -91,9 +88,7 @@ object MemsqlOptions {
   def apply(options: CaseInsensitiveMap[String]): MemsqlOptions = {
     val table = getTable(options)
 
-    val required = (k: String) => require(options.isDefinedAt(k), s"Option '$k' is required.")
-    required(MASTER_HOST)
-    required(MASTER_PORT)
+    require(options.isDefinedAt(DDL_ENDPOINT), s"Option '$DDL_ENDPOINT' is required.")
 
     val loadDataCompression = options
       .get(LOAD_DATA_COMPRESSION)
@@ -106,11 +101,11 @@ object MemsqlOptions {
       )
 
     new MemsqlOptions(
-      masterHost = options(MASTER_HOST),
-      masterPort = options.get(MASTER_PORT).map(_.toInt).get,
+      ddlEndpoint = options(DDL_ENDPOINT),
+      dmlEndpoints = options.getOrElse(DML_ENDPOINTS, options(DDL_ENDPOINT)).split(",").toList,
+      user = options.getOrElse(USER, "root"),
+      password = options.getOrElse(PASSWORD, ""),
       database = options.get(DATABASE).orElse(table.flatMap(t => t.database)),
-      user = options.get(USER).getOrElse("root"),
-      password = options.get(PASSWORD),
       truncate = options.get(TRUNCATE).getOrElse("false").toBoolean,
       loadDataCompression = loadDataCompression,
       jdbcExtraOptions = options.originalMap
