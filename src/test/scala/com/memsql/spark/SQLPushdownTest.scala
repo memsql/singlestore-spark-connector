@@ -1,9 +1,6 @@
 package com.memsql.spark
 
-import java.sql.SQLNonTransientConnectionException
-
-import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.prop.TableDrivenPropertyChecks
