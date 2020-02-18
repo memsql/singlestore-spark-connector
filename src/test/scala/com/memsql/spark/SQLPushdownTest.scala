@@ -76,6 +76,10 @@ class SQLPushdownTest
     it("select all reviews") { testQuery("select * from reviews") }
   }
 
+  describe("math expressions") {
+    it("tanh") { testQuery("select tanh(rating) from reviews") }
+  }
+
   describe("datatypes") {
     it("null literal") { testQuery("select null from users") }
     it("int literal") { testQuery("select 1 from users") }

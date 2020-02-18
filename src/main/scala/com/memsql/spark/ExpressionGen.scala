@@ -378,6 +378,11 @@ object ExpressionGen extends LazyLogging {
     case Bin(Expression(child))       => f("BIN", child)
     case Hex(Expression(child))       => f("HEX", child)
     case Unhex(Expression(child))     => f("UNHEX", child)
+    // tanh(x) = [exp(x) - exp(-x)] / [exp(x) + exp(-x)]
+    case Tanh(Expression(child)) =>
+      op("/",
+         op("-", f("EXP", child), f("EXP", f("-", child))),
+         op("+", f("EXP", child), f("EXP", f("-", child))))
 
     // TODO: case Cbrt(Expression(child))      => ???
     // TODO: case Cosh(Expression(child))      => ???
@@ -385,7 +390,6 @@ object ExpressionGen extends LazyLogging {
     // TODO: case Factorial(Expression(child)) => ???
     // TODO: case Rint(Expression(child))      => ???
     // TODO: case Sinh(Expression(child))      => ???
-    // TODO: case Tanh(Expression(child))      => ???
 
     // nullExpressions.scala
     case IfNull(Expression(left), Expression(right), _) => f("COALESCE", left, right)
