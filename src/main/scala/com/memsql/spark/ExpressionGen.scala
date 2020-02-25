@@ -378,18 +378,25 @@ object ExpressionGen extends LazyLogging {
     case Bin(Expression(child))       => f("BIN", child)
     case Hex(Expression(child))       => f("HEX", child)
     case Unhex(Expression(child))     => f("UNHEX", child)
-    // tanh(x) = [exp(x) - exp(-x)] / [exp(x) + exp(-x)]
+
+    // tanh(x) = (exp(x) - exp(-x)) / (exp(x) + exp(-x))
     case Tanh(Expression(child)) =>
       op("/",
          op("-", f("EXP", child), f("EXP", f("-", child))),
          op("+", f("EXP", child), f("EXP", f("-", child))))
 
-    // TODO: case Cbrt(Expression(child))      => ???
-    // TODO: case Cosh(Expression(child))      => ???
-    // TODO: case Expm1(Expression(child))     => ???
+    // sinh(x) = (exp(x) - exp(-x)) / 2
+    case Sinh(Expression(child)) =>
+      op("/", op("-", f("EXP", child), f("EXP", f("-", child))), "2")
+
+    // cosh(x) = (exp(x) + exp(-x)) / 2
+    case Cosh(Expression(child)) =>
+      op("/", op("+", f("EXP", child), f("EXP", f("-", child))), "2")
+
     // TODO: case Factorial(Expression(child)) => ???
     // TODO: case Rint(Expression(child))      => ???
-    // TODO: case Sinh(Expression(child))      => ???
+    // TODO: case Cbrt(Expression(child))      => f("POW", child, op("/", "1", "3"))
+    //  We need to wait for the engine to implement precise cbrt
 
     // nullExpressions.scala
     case IfNull(Expression(left), Expression(right), _) => f("COALESCE", left, right)

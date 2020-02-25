@@ -77,6 +77,8 @@ class SQLPushdownTest
   }
 
   describe("math expressions") {
+    it("sinh") { testQuery("select sinh(rating) from reviews") }
+    it("cosh") { testQuery("select cosh(rating) from reviews") }
     it("tanh") { testQuery("select tanh(rating) from reviews") }
   }
 

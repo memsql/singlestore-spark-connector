@@ -5,12 +5,16 @@
     <option name="testKind" value="All in package" />
     <option name="classBuf">
       <list>
+        <option value="com.memsql.spark.IssuesTest" />
         <option value="com.memsql.spark.SQLGenTest" />
         <option value="com.memsql.spark.SanityTest" />
         <option value="com.memsql.spark.SQLPushdownTest" />
-        <option value="com.memsql.spark.SQLGenTest" />
-        <option value="com.memsql.spark.SQLPushdownTest" />
+        <option value="com.memsql.spark.CustomDatatypesTest" />
+        <option value="com.memsql.spark.IssuesTest" />
         <option value="com.memsql.spark.SanityTest" />
+        <option value="com.memsql.spark.SQLGenTest" />
+        <option value="com.memsql.spark.CustomDatatypesTest" />
+        <option value="com.memsql.spark.SQLPushdownTest" />
       </list>
     </option>
     <option name="envs">
