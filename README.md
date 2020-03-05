@@ -14,11 +14,6 @@ Requirements
 This library requires Spark 2.0+ and has been primarily tested against Spark version 2.0.2. For support with Spark 1.x, please check the [1.x branch](https://github.com/memsql/memsql-spark-connector/tree/1.3.3).
 
 
-Documentation
--------------
-
-You can find Scala documentation for everything exposed in this repo here: [memsql.github.io/memsql-spark-connector](http://memsql.github.io/memsql-spark-connector)
-
 
 Installation
 ------------
