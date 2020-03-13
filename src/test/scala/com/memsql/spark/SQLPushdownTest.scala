@@ -18,6 +18,13 @@ class SQLPushdownTest
     writeTable("pushdown.users", spark.read.json("src/test/resources/data/users.json"))
     writeTable("pushdown.movies", spark.read.json("src/test/resources/data/movies.json"))
     writeTable("pushdown.reviews", spark.read.json("src/test/resources/data/reviews.json"))
+
+    writeTable("pushdown.users_sample",
+               spark.read
+                 .format("memsql")
+                 .load("pushdown.users")
+                 .sample(0.5)
+                 .limit(10))
   }
 
   override def beforeEach() = {
@@ -26,17 +33,17 @@ class SQLPushdownTest
     spark.sql("create database pushdown")
     spark.sql("create database pushdown_jdbc")
 
-    spark.sql("create table pushdown.users using memsql options ('dbtable'='pushdown.users')")
-    spark.sql(
-      s"create table pushdown_jdbc.users using jdbc options (${jdbcOptionsSQL("pushdown.users")})")
+    def makeTables(sourceTable: String) = {
+      spark.sql(
+        s"create table pushdown.${sourceTable} using memsql options ('dbtable'='pushdown.${sourceTable}')")
+      spark.sql(s"create table pushdown_jdbc.${sourceTable} using jdbc options (${jdbcOptionsSQL(
+        s"pushdown.${sourceTable}")})")
+    }
 
-    spark.sql("create table pushdown.movies using memsql options ('dbtable'='pushdown.movies')")
-    spark.sql(
-      s"create table pushdown_jdbc.movies using jdbc options (${jdbcOptionsSQL("pushdown.movies")})")
-
-    spark.sql("create table pushdown.reviews using memsql options ('dbtable'='pushdown.reviews')")
-    spark.sql(
-      s"create table pushdown_jdbc.reviews using jdbc options (${jdbcOptionsSQL("pushdown.reviews")})")
+    makeTables("users")
+    makeTables("users_sample")
+    makeTables("movies")
+    makeTables("reviews")
   }
 
   def testQuery(q: String, o: Boolean = false, expectPartialPushdown: Boolean = false) = {
@@ -72,6 +79,7 @@ class SQLPushdownTest
 
   describe("sanity test the tables") {
     it("select all users") { testQuery("select * from users") }
+    it("select all users (sampled)") { testQuery("select * from users_sample") }
     it("select all movies") { testQuery("select * from movies") }
     it("select all reviews") { testQuery("select * from reviews") }
   }
@@ -167,6 +175,11 @@ class SQLPushdownTest
     }
     it("text order expression") {
       testOrderedQuery("select * from users order by `email` like '%@gmail%', id asc")
+    }
+
+    it("text order case") {
+      testOrderedQuery(
+        "select * from users where first_name in ('Abbey', 'a') order by first_name desc, id asc")
     }
 
     it("simple limit") { testOrderedQuery("select 'a' from users limit 10") }

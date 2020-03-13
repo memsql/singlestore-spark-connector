@@ -58,6 +58,11 @@ object SQLGen extends LazyLogging {
     def asLogicalPlan(isFinal: Boolean = false): LogicalPlan =
       relations.head.toLogicalPlan(output, sql, variables, isFinal)
 
+    private def newlineIfEmpty: String = list match {
+      case Nil => ""
+      case _   => "\n"
+    }
+
     // ------------------------------------
     // Builder functions for easy chaining
     // ------------------------------------
@@ -66,6 +71,9 @@ object SQLGen extends LazyLogging {
       case Statement(otherList, _) => copy(otherList ::: list)
       case c: Chunk                => copy(c :: list)
     }
+
+    def withLogicalPlanComment(plan: LogicalPlan): Statement =
+      this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${plan.simpleString}"
 
     def selectAll(): Statement                 = this + "\nSELECT *"
     def select(c: Joinable): Statement         = this + "\nSELECT" + c
@@ -262,8 +270,7 @@ object SQLGen extends LazyLogging {
 
   def cast(j: Joinable, t: Joinable): Statement = func("CONVERT", j, t)
 
-  def newStatement(sourcePlan: LogicalPlan): Statement =
-    Statement(Raw("-- Spark LogicalPlan: " + sourcePlan.simpleString) :: Nil)
+  def newStatement(sourcePlan: LogicalPlan): Statement = empty.withLogicalPlanComment(sourcePlan)
 
   def selectAll: Statement                   = Statement(Raw("SELECT *") :: Nil)
   def select(c: Joinable): Statement         = Raw("SELECT") + c
@@ -358,17 +365,21 @@ object SQLGen extends LazyLogging {
   val fromNestedLogicalPlan: PartialFunction[LogicalPlan, Statement] = {
 
     case plan @ Limit(Expression(limitExpr),
-                      Project(Expression(projectExpr), Relation(relation))) =>
+                      innerPlan @ Project(Expression(projectExpr), Relation(relation))) =>
       newStatement(plan)
+        .withLogicalPlanComment(innerPlan)
         .select(projectExpr)
         .from(relation)
         .limit(limitExpr)
         .output(plan.output)
 
-    case plan @ Limit(
-          Expression(limitExpr),
-          Project(Expression(projectExpr), Sort(Expression(sortExpr), true, Relation(relation)))) =>
+    case plan @ Limit(Expression(limitExpr),
+                      innerPlan1 @ Project(
+                        Expression(projectExpr),
+                        innerPlan2 @ Sort(Expression(sortExpr), true, Relation(relation)))) =>
       newStatement(plan)
+        .withLogicalPlanComment(innerPlan1)
+        .withLogicalPlanComment(innerPlan2)
         .select(projectExpr)
         .from(relation)
         .orderby(sortExpr)
@@ -376,8 +387,9 @@ object SQLGen extends LazyLogging {
         .output(plan.output)
 
     case plan @ Limit(Expression(limitExpr),
-                      Sort(Expression(sortExpr), true, Relation(relation))) =>
+                      innerPlan @ Sort(Expression(sortExpr), true, Relation(relation))) =>
       newStatement(plan)
+        .withLogicalPlanComment(innerPlan)
         .selectAll()
         .from(relation)
         .orderby(sortExpr)
@@ -386,8 +398,9 @@ object SQLGen extends LazyLogging {
 
     case plan @ Sort(Expression(sortExpr),
                      true,
-                     Limit(Expression(limitExpr), Relation(relation))) =>
+                     innerPlan @ Limit(Expression(limitExpr), Relation(relation))) =>
       newStatement(plan)
+        .withLogicalPlanComment(innerPlan)
         .selectAll()
         .from(relation)
         .orderby(sortExpr)
