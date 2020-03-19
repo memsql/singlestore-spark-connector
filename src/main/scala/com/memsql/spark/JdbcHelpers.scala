@@ -9,7 +9,7 @@ import org.apache.spark.sql.catalyst.TableIdentifier
 import org.slf4j.{Logger, LoggerFactory}
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.jdbc.JdbcDialects
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{StringType, StructType}
 
 import scala.collection.mutable
 import scala.util.Try
@@ -208,8 +208,9 @@ object JdbcHelpers extends LazyLogging {
               s"Can't get JDBC type for ${field.dataType.simpleString}"
             )
           )
-        val nullable = if (field.nullable) "" else " NOT NULL"
-        s"${name} ${typ.databaseTypeDefinition}${nullable}"
+        val nullable  = if (field.nullable) "" else " NOT NULL"
+        val collation = if (field.dataType == StringType) " COLLATE UTF8_BIN" else ""
+        s"${name} ${typ.databaseTypeDefinition}${collation}${nullable}"
       })
       .mkString("(\n  ", ",\n  ", "\n)")
   }

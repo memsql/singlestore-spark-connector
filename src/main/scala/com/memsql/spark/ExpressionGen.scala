@@ -57,17 +57,6 @@ object ExpressionGen extends LazyLogging {
     }
   }
 
-  object SortOrderChild {
-    def unapply(arg: Expression): Option[Joinable] =
-      Expression
-        .unapply(arg)
-        .map(sql =>
-          arg.dataType match {
-            case StringType => Raw("BINARY") + sql
-            case _          => sql
-        })
-  }
-
   def apply: PartialFunction[Expression, Joinable] = {
     // ----------------------------------
     // Attributes
@@ -428,9 +417,9 @@ object ExpressionGen extends LazyLogging {
 
     // SortOrder.scala
     // in MemSQL, nulls always come first when direction = ascending
-    case SortOrder(SortOrderChild(child), Ascending, NullsFirst, _) => block(child) + "ASC"
+    case SortOrder(Expression(child), Ascending, NullsFirst, _) => block(child) + "ASC"
     // in MemSQL, nulls always come last when direction = descending
-    case SortOrder(SortOrderChild(child), Descending, NullsLast, _) => block(child) + "DESC"
+    case SortOrder(Expression(child), Descending, NullsLast, _) => block(child) + "DESC"
 
     // stringExpressions.scala
     case Upper(Expression(child)) => f("UPPER", child)
