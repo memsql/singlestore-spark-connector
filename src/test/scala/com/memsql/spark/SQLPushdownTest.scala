@@ -46,7 +46,10 @@ class SQLPushdownTest
     makeTables("reviews")
   }
 
-  def testQuery(q: String, o: Boolean = false, expectPartialPushdown: Boolean = false) = {
+  def testQuery(q: String,
+                alreadyOrdered: Boolean = false,
+                expectPartialPushdown: Boolean = false,
+                expectSingleRead: Boolean = false): Unit = {
     spark.sql("use pushdown_jdbc")
     val jdbcDF = spark.sql(q)
     // verify that the jdbc DF works first
@@ -56,6 +59,10 @@ class SQLPushdownTest
     val memsqlDF = spark.sql(q)
     if (!continuousIntegration) { memsqlDF.show(4) }
 
+    if (!expectSingleRead) {
+      assert(memsqlDF.rdd.getNumPartitions > 1)
+    }
+
     if (!expectPartialPushdown) {
       memsqlDF.queryExecution.optimizedPlan match {
         case SQLGen.Relation(_) => true
@@ -64,7 +71,7 @@ class SQLPushdownTest
     }
 
     try {
-      assertApproximateDataFrameEquality(memsqlDF, jdbcDF, 0.1, orderedComparison = o)
+      assertApproximateDataFrameEquality(memsqlDF, jdbcDF, 0.1, orderedComparison = alreadyOrdered)
     } catch {
       case e: Throwable => {
         if (continuousIntegration) { println(memsqlDF.explain(true)) }
@@ -73,8 +80,15 @@ class SQLPushdownTest
     }
   }
 
-  def testOrderedQuery(q: String, expectPartialPushdown: Boolean = false) = {
-    testQuery(q, true, expectPartialPushdown)
+  def testOrderedQuery(q: String, expectPartialPushdown: Boolean = false): Unit = {
+    // order by in MemSQL requires single read
+    testQuery(q, alreadyOrdered = true, expectPartialPushdown, expectSingleRead = true)
+  }
+
+  def testSingleReadQuery(q: String,
+                          alreadyOrdered: Boolean = false,
+                          expectPartialPushdown: Boolean = false): Unit = {
+    testQuery(q, alreadyOrdered, expectPartialPushdown, expectSingleRead = true)
   }
 
   describe("sanity test the tables") {
@@ -91,17 +105,17 @@ class SQLPushdownTest
   }
 
   describe("datatypes") {
-    it("null literal") { testQuery("select null from users") }
+    it("null literal") { testSingleReadQuery("select null from users") }
     it("int literal") { testQuery("select 1 from users") }
     it("bool literal") { testQuery("select true from users") }
-    it("float, bool literal") { testQuery("select 1.2 as x, true from users") }
+    it("float, bool literal") { testSingleReadQuery("select 1.2 as x, true from users") }
 
     // due to a bug in our dataframe comparison library we need to alias the column 4.9 to x...
     // this is because when the library asks spark for a column called "4.9", spark thinks the
     // library wants the table 4 and column 9.
-    it("float literal") { testQuery("select 4.9 as x from movies") }
+    it("float literal") { testSingleReadQuery("select 4.9 as x from movies") }
 
-    it("negative float literal") { testQuery("select -24.345 as x from movies") }
+    it("negative float literal") { testSingleReadQuery("select -24.345 as x from movies") }
     it("negative int literal") { testQuery("select -1 from users") }
 
     it("int") { testQuery("select id from users") }
@@ -122,13 +136,14 @@ class SQLPushdownTest
   }
 
   describe("aggregations") {
-    it("count") { testQuery("select count(*) from users") }
-    it("count distinct") { testQuery("select count(distinct first_name) from users") }
-    it("first") { testQuery("select first(first_name) from users group by id") }
-    it("last") { testQuery("select last(first_name) from users group by id") }
-    it("floor(avg(age))") { testQuery("select floor(avg(age)) from users") }
+    it("count") { testSingleReadQuery("select count(*) from users") }
+    it("count distinct") { testSingleReadQuery("select count(distinct first_name) from users") }
+    it("first") { testSingleReadQuery("select first(first_name) from users group by id") }
+    it("last") { testSingleReadQuery("select last(first_name) from users group by id") }
+    it("floor(avg(age))") { testSingleReadQuery("select floor(avg(age)) from users") }
     it("top 3 email domains") {
-      testOrderedQuery("""
+      testOrderedQuery(
+        """
         |   select domain, count(*) from (
         |     select substring(email, locate('@', email) + 1) as domain
         |     from users
@@ -136,35 +151,41 @@ class SQLPushdownTest
         |   group by 1
         |   order by 2 desc, 1 asc
         |   limit 3
-        |""".stripMargin)
+        |""".stripMargin
+      )
     }
   }
 
   describe("window functions") {
     it("rank order by") {
-      testQuery("select out as a from (select rank() over (order by first_name) as out from users)")
+      testSingleReadQuery(
+        "select out as a from (select rank() over (order by first_name) as out from users)")
     }
     it("rank partition order by") {
-      testQuery(
+      testSingleReadQuery(
         "select rank() over (partition by first_name order by first_name) as out from users")
     }
     it("row_number order by") {
-      testQuery("select row_number() over (order by first_name) as out from users")
+      testSingleReadQuery("select row_number() over (order by first_name) as out from users")
     }
     it("dense_rank order by") {
-      testQuery("select dense_rank() over (order by first_name) as out from users")
+      testSingleReadQuery("select dense_rank() over (order by first_name) as out from users")
     }
     it("lag order by") {
-      testQuery("select first_name, lag(first_name) over (order by first_name) as out from users")
+      testSingleReadQuery(
+        "select first_name, lag(first_name) over (order by first_name) as out from users")
     }
     it("lead order by") {
-      testQuery("select first_name, lead(first_name) over (order by first_name) as out from users")
+      testSingleReadQuery(
+        "select first_name, lead(first_name) over (order by first_name) as out from users")
     }
     it("ntile(3) order by") {
-      testQuery("select first_name, ntile(3) over (order by first_name) as out from users")
+      testSingleReadQuery(
+        "select first_name, ntile(3) over (order by first_name) as out from users")
     }
     it("percent_rank order by") {
-      testQuery("select first_name, percent_rank() over (order by first_name) as out from users")
+      testSingleReadQuery(
+        "select first_name, percent_rank() over (order by first_name) as out from users")
     }
   }
 
@@ -194,29 +215,32 @@ class SQLPushdownTest
 
   describe("joins") {
     it("implicit inner join") {
-      testQuery("select * from users as a, reviews where a.id = reviews.user_id")
+      testSingleReadQuery("select * from users as a, reviews where a.id = reviews.user_id")
     }
     it("explicit inner join") {
-      testQuery("select * from users inner join reviews on users.id = reviews.user_id")
+      testSingleReadQuery("select * from users inner join reviews on users.id = reviews.user_id")
     }
     it("cross join") {
-      testQuery("select * from users cross join reviews on users.id = reviews.user_id")
+      testSingleReadQuery("select * from users cross join reviews on users.id = reviews.user_id")
     }
     it("left outer join") {
-      testQuery("select * from users left outer join reviews on users.id = reviews.user_id")
+      testSingleReadQuery(
+        "select * from users left outer join reviews on users.id = reviews.user_id")
     }
     it("right outer join") {
-      testQuery("select * from users right outer join reviews on users.id = reviews.user_id")
+      testSingleReadQuery(
+        "select * from users right outer join reviews on users.id = reviews.user_id")
     }
     it("full outer join") {
-      testQuery("select * from users full outer join reviews on users.id = reviews.user_id")
+      testSingleReadQuery(
+        "select * from users full outer join reviews on users.id = reviews.user_id")
     }
     it("natural join") {
-      testQuery(
+      testSingleReadQuery(
         "select users.id, rating from users natural join (select user_id as id, rating from reviews)")
     }
     it("complex join") {
-      testQuery("""
+      testSingleReadQuery("""
           |  select users.id, round(avg(rating), 2), count(*) as num_reviews
           |  from users inner join reviews on users.id = reviews.user_id
           | group by users.id
@@ -259,7 +283,7 @@ class SQLPushdownTest
     }
 
     it("join with pure-jdbc relation") {
-      testQuery(
+      testSingleReadQuery(
         """
         | select users.id, concat(first(users.first_name), " ", first(users.last_name)) as full_name
         | from users

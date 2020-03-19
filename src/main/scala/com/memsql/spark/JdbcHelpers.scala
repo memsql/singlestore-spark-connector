@@ -3,7 +3,7 @@ package com.memsql.spark
 import java.sql.{Connection, PreparedStatement, Statement}
 import java.util.Optional
 
-import com.memsql.spark.SQLGen.VariableList
+import com.memsql.spark.SQLGen.{StringVar, VariableList}
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.slf4j.{Logger, LoggerFactory}
@@ -11,7 +11,10 @@ import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.jdbc.JdbcDialects
 import org.apache.spark.sql.types.StructType
 
+import scala.collection.mutable
 import scala.util.Try
+
+case class MemsqlPartitionInfo(ordinal: Int, name: String, hostport: String)
 
 object JdbcHelpers extends LazyLogging {
   final val MEMSQL_CONNECT_TIMEOUT = "10" // seconds
@@ -98,6 +101,67 @@ object JdbcHelpers extends LazyLogging {
             out = rs.getString(1) :: out
           }
           out.reverseIterator.mkString("\n")
+        } finally {
+          rs.close()
+        }
+      } finally {
+        statement.close()
+      }
+    } finally {
+      conn.close()
+    }
+  }
+
+  // explainJSONQuery runs `EXPLAIN JSON` on the query and returns the String
+  // representing this queries plan as JSON.
+  def explainJSONQuery(conf: MemsqlOptions, query: String, variables: VariableList): String = {
+    val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+    try {
+      val statement = conn.prepareStatement(s"EXPLAIN JSON ${query}")
+      try {
+        fillStatement(statement, variables)
+        val rs = statement.executeQuery()
+        try {
+          // we only expect one row in the output
+          if (!rs.next()) { assert(false, "EXPLAIN JSON failed to return a row") }
+          val json = rs.getString(1)
+          assert(!rs.next(), "EXPLAIN JSON returned more than one row")
+          json
+        } finally {
+          rs.close()
+        }
+      } finally {
+        statement.close()
+      }
+    } finally {
+      conn.close()
+    }
+  }
+
+  // partitionHostPorts returns a list of (ordinal, name, host:port) for all master
+  // partitions in the specified database
+  def partitionHostPorts(conf: MemsqlOptions, database: String): List[MemsqlPartitionInfo] = {
+    val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+    try {
+      val statement = conn.prepareStatement(s"""
+        SELECT HOST, PORT
+        FROM INFORMATION_SCHEMA.DISTRIBUTED_PARTITIONS
+        WHERE DATABASE_NAME = ? AND ROLE = "Master"
+        ORDER BY ORDINAL ASC
+      """)
+      try {
+        fillStatement(statement, List(StringVar(database)))
+        val rs = statement.executeQuery()
+        try {
+          var out = List.empty[MemsqlPartitionInfo]
+          var idx = 0
+          while (rs.next) {
+            out = MemsqlPartitionInfo(idx,
+                                      s"${database}_${idx}",
+                                      s"${rs.getString(1)}:${rs.getInt(2)}") :: out
+            idx += 1
+          }
+          out.reverse
         } finally {
           rs.close()
         }

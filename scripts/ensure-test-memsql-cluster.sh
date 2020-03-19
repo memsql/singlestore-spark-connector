@@ -35,4 +35,12 @@ while true; do
     sleep 0.2
 done
 
+echo "Ensuring leaf node is connected using container IP"
+CONTAINER_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME})
+CURRENT_LEAF_IP=$(mysql -u root -h 127.0.0.1 -P 5506 --batch -N -e 'select host from information_schema.leaves')
+# remove leaf with current ip
+mysql -u root -h 127.0.0.1 -P 5506 --batch -N -e "remove leaf '${CURRENT_LEAF_IP}':3307"
+# add leaf with correct ip
+mysql -u root -h 127.0.0.1 -P 5506 --batch -N -e "add leaf root@'${CONTAINER_IP}':3307"
+
 echo ". Success!"

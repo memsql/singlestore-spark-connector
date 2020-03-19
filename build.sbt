@@ -25,6 +25,7 @@ lazy val root = project
       "org.apache.commons"     % "commons-dbcp2"           % "2.7.0",
       "org.scala-lang.modules" % "scala-java8-compat_2.11" % "0.9.0",
       "org.mariadb.jdbc"       % "mariadb-java-client"     % "2.+",
+      "io.spray"               %% "spray-json"             % "1.3.5",
       // test dependencies
       "org.scalatest"  %% "scalatest"       % "3.1.0"         % Test,
       "org.scalacheck" %% "scalacheck"      % "1.14.1"        % Test,

@@ -37,6 +37,7 @@ trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterEach with DataF
       .config("spark.datasource.memsql.user", masterUser)
       .config("spark.datasource.memsql.password", masterPassword)
       .config("spark.datasource.memsql.enableAsserts", "true")
+      .config("spark.datasource.memsql.enableParallelRead", "true")
       .getOrCreate()
   }
 

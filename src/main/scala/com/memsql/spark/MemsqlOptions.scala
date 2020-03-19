@@ -14,7 +14,8 @@ case class MemsqlOptions(
     loadDataCompression: MemsqlOptions.CompressionType.Value,
     jdbcExtraOptions: Map[String, String],
     enableAsserts: Boolean,
-    disablePushdown: Boolean
+    disablePushdown: Boolean,
+    enableParallelRead: Boolean
 ) extends LazyLogging {
 
   def assert(condition: Boolean, message: String) = {
@@ -58,8 +59,9 @@ object MemsqlOptions {
   final val TRUNCATE              = newOption("truncate")
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
 
-  final val ENABLE_ASSERTS   = newOption("enableAsserts")
-  final val DISABLE_PUSHDOWN = newOption("disablePushdown")
+  final val ENABLE_ASSERTS       = newOption("enableAsserts")
+  final val DISABLE_PUSHDOWN     = newOption("disablePushdown")
+  final val ENABLE_PARALLEL_READ = newOption("enableParallelRead")
 
   def getTable(options: CaseInsensitiveMap[String]): Option[TableIdentifier] =
     options
@@ -115,7 +117,8 @@ object MemsqlOptions {
         // mapping everything through the identity function fixes it...
         .map(identity),
       enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean,
-      disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean
+      disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean,
+      enableParallelRead = options.get(ENABLE_PARALLEL_READ).getOrElse("false").toBoolean
     )
   }
 }

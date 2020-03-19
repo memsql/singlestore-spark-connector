@@ -57,6 +57,7 @@ global options have the prefix `spark.datasource.memsql.`.
 | `truncate`                | Truncate instead of drop an existing table during Overwrite (default: false)
 | `loadDataCompression`     | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
 | `disablePushdown`         | Disable SQL Pushdown when running queries (default: false)
+| `enableParallelRead`      | Enable loading data in parallel for some query shapes (default: false)
 
 Example of configuring the `memsql-spark-connector` globally:
 ```scala

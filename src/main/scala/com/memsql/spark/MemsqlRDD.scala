@@ -6,12 +6,9 @@ import com.memsql.spark.SQLGen.VariableList
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.Attribute
-import org.apache.spark.sql.catalyst.util.DateTimeUtils
-import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
+import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.types._
 import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
-
-case class MemsqlPartition(override val index: Int) extends Partition
 
 case class MemsqlRDD(query: String,
                      variables: VariableList,
@@ -21,15 +18,17 @@ case class MemsqlRDD(query: String,
                      @transient val sc: SparkContext)
     extends RDD[Row](sc, Nil) {
 
-  override protected def getPartitions: Array[Partition] = Array(MemsqlPartition(0))
+  override protected def getPartitions: Array[Partition] =
+    MemsqlQueryHelpers.GetPartitions(options, query, variables)
 
-  override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
-    var closed                  = false
-    var rs: ResultSet           = null
-    var stmt: PreparedStatement = null
-    var conn: Connection        = null
+  override def compute(rawPartition: Partition, context: TaskContext): Iterator[Row] = {
+    var closed                     = false
+    var rs: ResultSet              = null
+    var stmt: PreparedStatement    = null
+    var conn: Connection           = null
+    var partition: MemsqlPartition = rawPartition.asInstanceOf[MemsqlPartition]
 
-    def tryClose(name: String, what: AutoCloseable) = {
+    def tryClose(name: String, what: AutoCloseable): Unit = {
       try {
         if (what != null) { what.close() }
       } catch {
@@ -49,9 +48,9 @@ case class MemsqlRDD(query: String,
       close()
     }
 
-    conn = JdbcUtils.createConnectionFactory(JdbcHelpers.getDMLJDBCOptions(options))()
-    stmt = conn.prepareStatement(query)
-    JdbcHelpers.fillStatement(stmt, variables)
+    conn = JdbcUtils.createConnectionFactory(partition.connectionInfo)()
+    stmt = conn.prepareStatement(partition.query)
+    JdbcHelpers.fillStatement(stmt, partition.variables)
     rs = stmt.executeQuery()
 
     var rowsIter = JdbcUtils.resultSetToRows(rs, schema)
