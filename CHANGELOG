@@ -1,3 +1,11 @@
+2020-03-19 Version 3.0.0-beta3
+        * Created tables default to Columnstore
+        * User can override keys attached to new tables
+        * New parallelRead option which enables reading directly from MemSQL leaf nodes
+        * Created tables now set case-sensitive collation on all columns
+          to match Spark semantics
+        * More SQL expressions supported in pushdown (tanh, sinh, cosh)
+
 2020-02-08 Version 3.0.0-beta2
         * Removed options: masterHost and masterPort
         * Added ddlEndpoint and ddlEndpoints options

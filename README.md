@@ -1,5 +1,5 @@
 # MemSQL Spark Connector
-## Version: 3.0.0-beta2 [![Build Status](https://travis-ci.com/memsql/memsql-spark-connector.svg?branch=3.0.0-beta)](https://travis-ci.com/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## Version: 3.0.0-beta3 [![Build Status](https://travis-ci.com/memsql/memsql-spark-connector.svg?branch=3.0.0-beta)](https://travis-ci.com/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 > :warning: **This is a beta release suitable for development and testing purposes.** 
 
@@ -129,7 +129,7 @@ In this example, we are creating three keys:
 Note on (2): Any key can optionally specify a name, just put it after the key type.
 Key names must be unique.
 
-To create a ColumnStore table you can specify a columnstore key:
+To change the default ColumnStore sort key you can specify it explicitly:
 ```scala
 df.write
     .option("tableKey.columnstore", "id")
@@ -189,6 +189,37 @@ log4j.logger.com.memsql.spark=TRACE
 
 Make sure not to leave it in place since it generates a huge amount of tracing
 output.
+
+## Parallel Read Support
+
+If you enable parallel reads via the `enableParallelRead` option, the
+`memsql-spark-connector` will attempt to read results directly from MemSQL leaf
+nodes.  This can drastically improve performance in some cases.
+
+**:warning: Parallel reads are not consistent**
+Parallel reads read directly from partitions on the leaf nodes which skips our
+entire transaction layer. This means that the individual reads will see an
+independent version of the databases distributed state. Make sure to take this
+into account when enabling parallel read.
+
+**:warning: Parallel reads transparently fallback to single stream reads**
+Parallel reads currently only work for query-shapes which do no work on the
+Aggregator and thus can be pushed entirely down to the leaf nodes. To determine
+if a particular query is being pushed down you can ask the dataframe how many
+partitions it has like so:
+
+```scala
+df.rdd.getNumPartitions
+```
+
+If this value is > 1 then we are reading in parallel from leaf nodes.
+
+**:warning: Parallel reads require consistent authentication and connectible leaf nodes**
+In order to use parallel reads, the username and password provided to the
+`memsql-spark-connector` must be the same across all nodes in the cluster.
+
+In addition, the hostnames and ports listed by `SHOW LEAVES` must be directly
+connectible from Spark.
 
 ## Filing issues
 
