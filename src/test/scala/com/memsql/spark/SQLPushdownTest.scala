@@ -116,7 +116,7 @@ class SQLPushdownTest
     it("float literal") { testSingleReadQuery("select 4.9 as x from movies") }
 
     it("negative float literal") { testSingleReadQuery("select -24.345 as x from movies") }
-    it("negative int literal") { testQuery("select -1 from users") }
+    it("negative int literal") { testSingleReadQuery("select -1 from users") }
 
     it("int") { testQuery("select id from users") }
     it("smallint") { testQuery("select age from users") }

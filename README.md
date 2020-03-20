@@ -54,10 +54,11 @@ global options have the prefix `spark.datasource.memsql.`.
 | `query`                   | The query to run (mutually exclusive with dbtable)
 | `dbtable`                 | The table to query (mutually exclusive with query)
 | `database`                | If set, all connections will default to using this database (default: empty)
-| `truncate`                | Truncate instead of drop an existing table during Overwrite (default: false)
-| `loadDataCompression`     | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
 | `disablePushdown`         | Disable SQL Pushdown when running queries (default: false)
 | `enableParallelRead`      | Enable loading data in parallel for some query shapes (default: false)
+| `truncate`                | Truncate instead of drop an existing table during Overwrite (default: false)
+| `loadDataCompression`     | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
+| `tableKey`                | Specify additional keys to add to tables created by the connector (See below for more details)
 
 Example of configuring the `memsql-spark-connector` globally:
 ```scala
@@ -99,6 +100,46 @@ If the target table ("foo" in the example above) does not exist in MemSQL the
 specify SaveMode.Overwrite, if the target table already exists, it will be
 recreated or truncated before load. Specify `truncate = true` to truncate rather
 than re-create.
+
+### Specifying keys for tables created by the Spark Connector
+When creating a table, the `memsql-spark-connector` will read options prefixed
+with `tableKey`. These options must be formatted in a specific way in order to
+correctly specify the keys.
+
+> :warning: The default table type is MemSQL Columnstore. If you want a RowStore table,
+> you will need to specify a Primary Key using the tableKey option.
+
+To explain we will refer to the following example:
+
+```scala
+df.write
+    .format("memsql")
+    .option("tableKey.primary", "id")
+    .option("tableKey.key.created_firstname", "created, firstName")
+    .option("tableKey.unique", "username")
+    .mode(SaveMode.Overwrite)
+    .save("foo.bar") // in format: database.table
+```
+
+In this example, we are creating three keys:
+1. A primary key on the `id` column
+2. A regular key on the columns `created, firstname` with the key name `created_firstname`
+3. A unique key on the `username` column
+
+Note on (2): Any key can optionally specify a name, just put it after the key type.
+Key names must be unique.
+
+To create a ColumnStore table you can specify a columnstore key:
+```scala
+df.write
+    .option("tableKey.columnstore", "id")
+```
+
+You can also customize the shard key like so:
+```scala
+df.write
+    .option("tableKey.shard", "id, timestamp")
+```
 
 ## SQL Pushdown
 

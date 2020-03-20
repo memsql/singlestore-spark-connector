@@ -1,5 +1,6 @@
 package com.memsql.spark
 
+import com.memsql.spark.MemsqlOptions.TableKey
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.parser.CatalystSqlParser
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
@@ -10,12 +11,14 @@ case class MemsqlOptions(
     user: String,
     password: String,
     database: Option[String],
-    truncate: Boolean,
-    loadDataCompression: MemsqlOptions.CompressionType.Value,
     jdbcExtraOptions: Map[String, String],
     enableAsserts: Boolean,
     disablePushdown: Boolean,
-    enableParallelRead: Boolean
+    enableParallelRead: Boolean,
+    // write options
+    truncate: Boolean,
+    loadDataCompression: MemsqlOptions.CompressionType.Value,
+    tableKeys: List[TableKey]
 ) extends LazyLogging {
 
   def assert(condition: Boolean, message: String) = {
@@ -30,13 +33,34 @@ case class MemsqlOptions(
 }
 
 object MemsqlOptions {
-  object CompressionType extends Enumeration {
-    val GZip, LZ4, Skip = Value
-
+  abstract class OptionEnum extends Enumeration {
     def fromString(s: String): Option[Value] =
       values.find(_.toString.toLowerCase() == s.toLowerCase())
+
     lazy val valuesString = values.mkString(", ")
+
+    def fromOption(optionName: String, source: Option[String], default: Value): Value =
+      source
+        .orElse(Some(default.toString))
+        .flatMap(fromString)
+        .getOrElse(
+          sys.error(
+            s"Option '$optionName' must be one of the following values: ${valuesString}"
+          )
+        )
   }
+
+  object CompressionType extends OptionEnum {
+    val GZip, LZ4, Skip = Value
+  }
+
+  object TableKeyType extends OptionEnum {
+    val Primary, Columnstore, Unique, Shard, Key = Value
+  }
+
+  case class TableKey(keyType: TableKeyType.Value,
+                      name: Option[String] = None,
+                      columns: String = "")
 
   private val memsqlOptionNames = collection.mutable.Set[String]()
 
@@ -56,8 +80,10 @@ object MemsqlOptions {
   final val TABLE_NAME = newOption("dbtable")
   final val PATH       = newOption("path")
 
+  // Write options
   final val TRUNCATE              = newOption("truncate")
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
+  final val TABLE_KEYS            = newOption("tableKey")
 
   final val ENABLE_ASSERTS       = newOption("enableAsserts")
   final val DISABLE_PUSHDOWN     = newOption("disablePushdown")
@@ -92,15 +118,40 @@ object MemsqlOptions {
 
     require(options.isDefinedAt(DDL_ENDPOINT), s"Option '$DDL_ENDPOINT' is required.")
 
-    val loadDataCompression = options
-      .get(LOAD_DATA_COMPRESSION)
-      .orElse(Some(CompressionType.GZip.toString))
-      .flatMap(CompressionType.fromString)
-      .getOrElse(
-        sys.error(
-          s"Option '$LOAD_DATA_COMPRESSION' must be one of the following values: ${CompressionType.valuesString}"
-        )
-      )
+    val loadDataCompression = CompressionType.fromOption(LOAD_DATA_COMPRESSION,
+                                                         options.get(LOAD_DATA_COMPRESSION),
+                                                         CompressionType.GZip)
+
+    // tableKeys are specified via options with the tableKey prefix
+    // the key is `tableKey.TYPE.NAME` where
+    //    TYPE is one of "primary, unique, shard, index"
+    //    NAME is the index name - must be unique
+    // the value is a column delimited list of columns for the index
+    var tableKeys = options
+      .filterKeys(_.toLowerCase.startsWith(TABLE_KEYS.toLowerCase + "."))
+      .map {
+        case (key, columns) => {
+          val keyParts = key.split("\\.", 3)
+          if (keyParts.length < 2) {
+            sys.error(
+              s"Options starting with '$TABLE_KEYS.' must be formatted correctly. The key should be in the form `$TABLE_KEYS.INDEX_TYPE[.NAME]`."
+            )
+          }
+          val keyType = TableKeyType
+            .fromString(keyParts(1))
+            .getOrElse(
+              sys.error(
+                s"Option '$key' must specify an index type from the following options: ${TableKeyType.valuesString}")
+            )
+          TableKey(keyType, keyParts.lift(2), columns)
+        }
+      }
+      .toList
+
+    // if tableKeys is empty, or only contains shard keys, then set the default to Columnstore
+    tableKeys = if (tableKeys.forall(_.keyType == TableKeyType.Shard)) {
+      List(TableKey(TableKeyType.Columnstore))
+    } else { tableKeys }
 
     new MemsqlOptions(
       ddlEndpoint = options(DDL_ENDPOINT),
@@ -108,8 +159,6 @@ object MemsqlOptions {
       user = options.getOrElse(USER, "root"),
       password = options.getOrElse(PASSWORD, ""),
       database = options.get(DATABASE).orElse(table.flatMap(t => t.database)),
-      truncate = options.get(TRUNCATE).getOrElse("false").toBoolean,
-      loadDataCompression = loadDataCompression,
       jdbcExtraOptions = options.originalMap
         .filterKeys(key => !memsqlOptionNames(key.toLowerCase()))
         // filterKeys produces a map which is not serializable due to a bug in Scala
@@ -118,7 +167,10 @@ object MemsqlOptions {
         .map(identity),
       enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean,
       disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean,
-      enableParallelRead = options.get(ENABLE_PARALLEL_READ).getOrElse("false").toBoolean
+      enableParallelRead = options.get(ENABLE_PARALLEL_READ).getOrElse("false").toBoolean,
+      truncate = options.get(TRUNCATE).getOrElse("false").toBoolean,
+      loadDataCompression = loadDataCompression,
+      tableKeys = tableKeys
     )
   }
 }

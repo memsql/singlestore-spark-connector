@@ -1,7 +1,9 @@
 package com.memsql.spark
 
+import java.sql.SQLSyntaxErrorException
+
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import com.memsql.spark.MemsqlOptions.CompressionType
+import com.memsql.spark.MemsqlOptions.{CompressionType, TableKeyType}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{IntegerType, StringType}
 import org.apache.spark.sql.{DataFrame, SaveMode}
@@ -72,9 +74,7 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
     for (compression <- CompressionType.values) {
 
       for (truncate <- Seq(false, true)) {
-        println(
-          s"testing datasource with compression=$compression, truncate=$truncate"
-        )
+        println(s"testing datasource with compression=$compression, truncate=$truncate")
         df.write
           .format(DefaultSource.MEMSQL_SOURCE_NAME)
           // toLowerCase to test case insensitivity
@@ -92,6 +92,68 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
 
         assertSmallDataFrameEquality(x, df, true, true)
       }
+    }
+  }
+
+  describe("DataSource V1 can create table with different kinds of keys") {
+    def createTableWithKeys(keys: Map[String, String]) =
+      df.write
+        .format("memsql")
+        .mode(SaveMode.Overwrite)
+        .options(keys)
+        .save("test.keytest")
+
+    it("works for all key types") {
+      for (keyType <- TableKeyType.values) {
+        if (keyType != TableKeyType.Shard) {
+          println(s"testing create table with keyType=$keyType")
+          createTableWithKeys(
+            Map(
+              s"tableKey.shard"               -> "id",
+              s"tableKey.${keyType.toString}" -> "id"
+            ))
+        }
+      }
+    }
+
+    it("errors when the user specifies an invalid key type") {
+      assertThrows[RuntimeException] {
+        createTableWithKeys(Map(s"tableKey.foo.id" -> "id"))
+      }
+    }
+
+    it("errors when the user specifies duplicate key names") {
+      assertThrows[SQLSyntaxErrorException] {
+        createTableWithKeys(
+          Map(
+            s"tableKey.key.foo"    -> "id",
+            s"tableKey.unique.foo" -> "id"
+          )
+        )
+      }
+    }
+
+    it("errors when the user an incorrect key format") {
+      assertThrows[RuntimeException] {
+        createTableWithKeys(Map(s"tableKey.asdf" -> "id"))
+      }
+      assertThrows[RuntimeException] {
+        createTableWithKeys(Map(s"tableKey." -> "id"))
+      }
+    }
+
+    it("supports multiple columns") {
+      createTableWithKeys(Map(s"tableKey.primary.pk" -> "id, name"))
+    }
+
+    it("supports columnstore table with no specified columns in the key") {
+      createTableWithKeys(Map(s"tableKey.columnstore" -> ""))
+    }
+
+    it("supports spaces and dots in the key name") {
+      createTableWithKeys(Map(s"tableKey.primary.foo.bar" -> "id"))
+      createTableWithKeys(Map(s"tableKey.key.cool key"    -> "id"))
+      createTableWithKeys(Map(s"tableKey.key...."         -> "id"))
     }
   }
 }

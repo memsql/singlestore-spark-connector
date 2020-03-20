@@ -7,17 +7,10 @@ import java.util.zip.GZIPOutputStream
 
 import com.memsql.spark.MemsqlOptions.CompressionType
 import net.jpountz.lz4.LZ4FrameOutputStream
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
-import org.apache.spark.sql.sources.{BaseRelation, InsertableRelation}
-import org.apache.spark.sql.sources.v2.writer.{
-  DataSourceWriter,
-  DataWriter,
-  DataWriterFactory,
-  WriterCommitMessage
-}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.sources.v2.writer.{DataWriter, WriterCommitMessage}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration

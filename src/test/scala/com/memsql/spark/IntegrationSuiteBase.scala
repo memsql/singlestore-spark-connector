@@ -80,7 +80,6 @@ trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterEach with DataF
   def writeTable(dbtable: String, df: DataFrame, saveMode: SaveMode = SaveMode.Overwrite): Unit =
     df.write
       .format("memsql")
-      .option("dbtable", dbtable)
       .mode(saveMode)
-      .save()
+      .save(dbtable)
 }

@@ -3,6 +3,7 @@ package com.memsql.spark
 import java.sql.{Connection, PreparedStatement, Statement}
 import java.util.Optional
 
+import com.memsql.spark.MemsqlOptions.{TableKey, TableKeyType}
 import com.memsql.spark.SQLGen.{StringVar, VariableList}
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.catalyst.TableIdentifier
@@ -197,8 +198,8 @@ object JdbcHelpers extends LazyLogging {
     }
   }
 
-  def schemaToString(schema: StructType): String = {
-    schema.fields
+  def schemaToString(schema: StructType, tableKeys: List[TableKey]): String = {
+    val fieldsSql = schema.fields
       .map(field => {
         val name = MemsqlDialect.quoteIdentifier(field.name)
         val typ = MemsqlDialect
@@ -212,7 +213,20 @@ object JdbcHelpers extends LazyLogging {
         val collation = if (field.dataType == StringType) " COLLATE UTF8_BIN" else ""
         s"${name} ${typ.databaseTypeDefinition}${collation}${nullable}"
       })
-      .mkString("(\n  ", ",\n  ", "\n)")
+
+    def keyNameColumnsSQL(key: TableKey) =
+      s"${key.name.map(MemsqlDialect.quoteIdentifier).getOrElse("")}(${key.columns})"
+
+    val keysSql = tableKeys.map {
+      case key @ TableKey(TableKeyType.Primary, _, _) => s"PRIMARY KEY ${keyNameColumnsSQL(key)}"
+      case key @ TableKey(TableKeyType.Columnstore, _, _) =>
+        s"KEY ${keyNameColumnsSQL(key)} USING CLUSTERED COLUMNSTORE"
+      case key @ TableKey(TableKeyType.Unique, _, _) => s"UNIQUE KEY ${keyNameColumnsSQL(key)}"
+      case key @ TableKey(TableKeyType.Shard, _, _)  => s"SHARD KEY ${keyNameColumnsSQL(key)}"
+      case key @ TableKey(TableKeyType.Key, _, _)    => s"KEY ${keyNameColumnsSQL(key)}"
+    }
+
+    (fieldsSql ++ keysSql).mkString("(\n  ", ",\n  ", "\n)")
   }
 
   def tableExists(conn: Connection, table: TableIdentifier): Boolean = {
@@ -228,8 +242,11 @@ object JdbcHelpers extends LazyLogging {
     )
   }
 
-  def createTable(conn: Connection, table: TableIdentifier, schema: StructType): Unit = {
-    val sql = s"CREATE TABLE ${table.quotedString} ${schemaToString(schema)}"
+  def createTable(conn: Connection,
+                  table: TableIdentifier,
+                  schema: StructType,
+                  tableKeys: List[TableKey]): Unit = {
+    val sql = s"CREATE TABLE ${table.quotedString} ${schemaToString(schema, tableKeys)}"
     log.trace(s"Executing SQL:\n$sql")
     conn.withStatement(stmt => stmt.executeUpdate(sql))
   }
@@ -260,7 +277,7 @@ object JdbcHelpers extends LazyLogging {
               JdbcHelpers.truncateTable(conn, table)
             } else {
               JdbcHelpers.dropTable(conn, table)
-              JdbcHelpers.createTable(conn, table, schema)
+              JdbcHelpers.createTable(conn, table, schema, conf.tableKeys)
             }
           case SaveMode.ErrorIfExists =>
             sys.error(
@@ -271,7 +288,7 @@ object JdbcHelpers extends LazyLogging {
           case SaveMode.Append => // continue
         }
       } else {
-        JdbcHelpers.createTable(conn, table, schema)
+        JdbcHelpers.createTable(conn, table, schema, conf.tableKeys)
       }
     } finally {
       conn.close()

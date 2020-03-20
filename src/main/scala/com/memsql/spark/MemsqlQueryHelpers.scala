@@ -43,7 +43,6 @@ object MemsqlQueryHelpers extends LazyLogging {
         partitionsFromExplainJSON(options, options.database.head, partitionHostPorts, explainJSON)
       } catch {
         case _: DeserializationException => None
-        case e                           => throw e
       }
     } else { None }
 
