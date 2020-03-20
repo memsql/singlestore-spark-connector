@@ -50,14 +50,15 @@ object JdbcHelpers extends LazyLogging {
 
     new JDBCOptions(
       Map(
-        JDBCOptions.JDBC_URL        -> url,
-        JDBCOptions.JDBC_TABLE_NAME -> "XXX",
-        "user"                      -> conf.user,
-        "password"                  -> conf.password,
-        "zeroDateTimeBehavior"      -> "convertToNull",
-        "allowLoadLocalInfile"      -> "true",
-        "connectTimeout"            -> MEMSQL_CONNECT_TIMEOUT,
-        "sessionVariables"          -> sessionVariables
+        JDBCOptions.JDBC_URL          -> url,
+        JDBCOptions.JDBC_TABLE_NAME   -> "XXX",
+        JDBCOptions.JDBC_DRIVER_CLASS -> "org.mariadb.jdbc.Driver",
+        "user"                        -> conf.user,
+        "password"                    -> conf.password,
+        "zeroDateTimeBehavior"        -> "convertToNull",
+        "allowLoadLocalInfile"        -> "true",
+        "connectTimeout"              -> MEMSQL_CONNECT_TIMEOUT,
+        "sessionVariables"            -> sessionVariables
       ) ++ conf.jdbcExtraOptions
     )
   }
