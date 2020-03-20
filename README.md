@@ -197,12 +197,14 @@ If you enable parallel reads via the `enableParallelRead` option, the
 nodes.  This can drastically improve performance in some cases.
 
 **:warning: Parallel reads are not consistent**
+
 Parallel reads read directly from partitions on the leaf nodes which skips our
 entire transaction layer. This means that the individual reads will see an
 independent version of the databases distributed state. Make sure to take this
 into account when enabling parallel read.
 
 **:warning: Parallel reads transparently fallback to single stream reads**
+
 Parallel reads currently only work for query-shapes which do no work on the
 Aggregator and thus can be pushed entirely down to the leaf nodes. To determine
 if a particular query is being pushed down you can ask the dataframe how many
@@ -215,6 +217,7 @@ df.rdd.getNumPartitions
 If this value is > 1 then we are reading in parallel from leaf nodes.
 
 **:warning: Parallel reads require consistent authentication and connectible leaf nodes**
+
 In order to use parallel reads, the username and password provided to the
 `memsql-spark-connector` must be the same across all nodes in the cluster.
 
