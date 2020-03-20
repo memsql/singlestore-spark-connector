@@ -109,8 +109,8 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
           println(s"testing create table with keyType=$keyType")
           createTableWithKeys(
             Map(
-              s"tableKey.shard"               -> "id",
-              s"tableKey.${keyType.toString}" -> "id"
+              s"tableKey.shard"               -> "name",
+              s"tableKey.${keyType.toString}" -> "name"
             ))
         }
       }
@@ -133,21 +133,36 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
       }
     }
 
-    it("errors when the user an incorrect key format") {
+    it("throws when no type and no name is specified") {
       assertThrows[RuntimeException] {
-        createTableWithKeys(Map(s"tableKey.asdf" -> "id"))
+        // no type specified, no name specified
+        createTableWithKeys(Map(s"tableKey.." -> "id"))
       }
+    }
+
+    it("throws when no type is specified") {
       assertThrows[RuntimeException] {
+        // no type specified
         createTableWithKeys(Map(s"tableKey." -> "id"))
       }
     }
 
-    it("supports multiple columns") {
-      createTableWithKeys(Map(s"tableKey.primary.pk" -> "id, name"))
+    it("throws when no name is specified") {
+      assertThrows[RuntimeException] {
+        // no type specified
+        createTableWithKeys(Map(s"tableKey.key." -> "id"))
+      }
     }
 
-    it("supports columnstore table with no specified columns in the key") {
-      createTableWithKeys(Map(s"tableKey.columnstore" -> ""))
+    it("supports multiple columns") {
+      createTableWithKeys(Map(s"tableKey.primary"     -> "id, name"))
+      createTableWithKeys(Map(s"tableKey.columnstore" -> "id, name"))
+      createTableWithKeys(Map(s"tableKey.key"         -> "id, name"))
+      createTableWithKeys(
+        Map(
+          s"tableKey.unique" -> "id, name",
+          s"tableKey.shard"  -> "id, name"
+        ))
     }
 
     it("supports spaces and dots in the key name") {

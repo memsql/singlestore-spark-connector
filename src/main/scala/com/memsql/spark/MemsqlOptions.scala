@@ -127,7 +127,7 @@ object MemsqlOptions {
     //    TYPE is one of "primary, unique, shard, index"
     //    NAME is the index name - must be unique
     // the value is a column delimited list of columns for the index
-    var tableKeys = options
+    val tableKeys = options
       .filterKeys(_.toLowerCase.startsWith(TABLE_KEYS.toLowerCase + "."))
       .map {
         case (key, columns) => {
@@ -143,15 +143,14 @@ object MemsqlOptions {
               sys.error(
                 s"Option '$key' must specify an index type from the following options: ${TableKeyType.valuesString}")
             )
-          TableKey(keyType, keyParts.lift(2), columns)
+          val keyName = keyParts.lift(2)
+          if (keyName.contains("")) {
+            sys.error(s"Option '$key' can not have an empty name")
+          }
+          TableKey(keyType, keyName, columns)
         }
       }
       .toList
-
-    // if tableKeys is empty, or only contains shard keys, then set the default to Columnstore
-    tableKeys = if (tableKeys.forall(_.keyType == TableKeyType.Shard)) {
-      List(TableKey(TableKeyType.Columnstore))
-    } else { tableKeys }
 
     new MemsqlOptions(
       ddlEndpoint = options(DDL_ENDPOINT),

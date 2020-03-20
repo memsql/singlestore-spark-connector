@@ -199,6 +199,9 @@ object JdbcHelpers extends LazyLogging {
   }
 
   def schemaToString(schema: StructType, tableKeys: List[TableKey]): String = {
+    // spark should never call any of our code if the schema is empty
+    assert(schema.length > 0)
+
     val fieldsSql = schema.fields
       .map(field => {
         val name = MemsqlDialect.quoteIdentifier(field.name)
@@ -214,10 +217,18 @@ object JdbcHelpers extends LazyLogging {
         s"${name} ${typ.databaseTypeDefinition}${collation}${nullable}"
       })
 
+    // we want to default all tables to columnstore, but in 6.8 and below you *must*
+    // specify a sort key so we just pick the first column arbitrarily for now
+    var finalTableKeys = tableKeys
+    // if all the keys are shard keys it means there are no other keys so we can default
+    if (tableKeys.forall(_.keyType == TableKeyType.Shard)) {
+      finalTableKeys = TableKey(TableKeyType.Columnstore, columns = schema.head.name) :: tableKeys
+    }
+
     def keyNameColumnsSQL(key: TableKey) =
       s"${key.name.map(MemsqlDialect.quoteIdentifier).getOrElse("")}(${key.columns})"
 
-    val keysSql = tableKeys.map {
+    val keysSql = finalTableKeys.map {
       case key @ TableKey(TableKeyType.Primary, _, _) => s"PRIMARY KEY ${keyNameColumnsSQL(key)}"
       case key @ TableKey(TableKeyType.Columnstore, _, _) =>
         s"KEY ${keyNameColumnsSQL(key)} USING CLUSTERED COLUMNSTORE"
