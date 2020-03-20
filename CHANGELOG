@@ -1,3 +1,6 @@
+2020-03-20 Version 3.0.0-beta4
+        * Set JDBC driver to MariaDB explicitely to avoid issues with the mysql driver
+
 2020-03-19 Version 3.0.0-beta3
         * Created tables default to Columnstore
         * User can override keys attached to new tables

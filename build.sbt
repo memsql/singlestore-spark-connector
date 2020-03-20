@@ -13,7 +13,7 @@ lazy val root = project
     name := "memsql-spark-connector",
     organization := "com.memsql",
     scalaVersion := "2.11.11",
-    version := s"3.0.0-beta3-spark-${sparkVersion}",
+    version := s"3.0.0-beta4-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
     ),
