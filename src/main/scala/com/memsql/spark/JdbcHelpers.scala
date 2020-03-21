@@ -1,24 +1,21 @@
 package com.memsql.spark
 
 import java.sql.{Connection, PreparedStatement, Statement}
-import java.util.Optional
 
 import com.memsql.spark.MemsqlOptions.{TableKey, TableKeyType}
 import com.memsql.spark.SQLGen.{StringVar, VariableList}
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.slf4j.{Logger, LoggerFactory}
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.jdbc.JdbcDialects
 import org.apache.spark.sql.types.{StringType, StructType}
 
-import scala.collection.mutable
 import scala.util.Try
 
 case class MemsqlPartitionInfo(ordinal: Int, name: String, hostport: String)
 
 object JdbcHelpers extends LazyLogging {
-  final val MEMSQL_CONNECT_TIMEOUT = "10" // seconds
+  final val MEMSQL_CONNECT_TIMEOUT = "10000" // 10 seconds in ms
 
   // register the MemsqlDialect
   JdbcDialects.registerDialect(MemsqlDialect)
