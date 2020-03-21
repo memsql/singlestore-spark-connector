@@ -6,8 +6,8 @@ import java.util.Properties
 import com.github.mrpowers.spark.fast.tests.DataFrameComparer
 import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funspec.AnyFunSpec
+import org.scalatest._
 
 trait IntegrationSuiteBase
     extends AnyFunSpec
@@ -35,6 +35,24 @@ trait IntegrationSuiteBase
 
   override def afterAll() = {
     executeQuery("drop database testdb")
+  }
+
+  override def withFixture(test: NoArgTest): Outcome = {
+    def runWithRetry(attempts: Int): Outcome = {
+      if (attempts == 0) {
+        return Canceled("too many SQLNonTransientConnectionExceptions occurred")
+      }
+
+      super.withFixture(test) match {
+        case Failed(_: java.sql.SQLNonTransientConnectionException) => {
+          Thread.sleep(3000)
+          runWithRetry(attempts - 1)
+        }
+        case other => other
+      }
+    }
+
+    runWithRetry(attempts = 5)
   }
 
   override def beforeEach(): Unit = {
