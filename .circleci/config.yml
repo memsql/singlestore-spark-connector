@@ -35,7 +35,7 @@ jobs:
       MEMSQL_DB: test
       JAVA_HOME: /usr/lib/jvm/jdk1.8.0
       CONTINUOUS_INTEGRATION: true
-      SBT_OPTS: "-Xms64M -Xmx128M"
+      SBT_OPTS: "-Xmx256M"
     steps:
       - setup_environment
       - checkout
