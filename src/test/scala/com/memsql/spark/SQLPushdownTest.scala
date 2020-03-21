@@ -1,15 +1,8 @@
 package com.memsql.spark
 
-import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
-import org.scalatest.prop.TableDrivenPropertyChecks
 
-class SQLPushdownTest
-    extends IntegrationSuiteBase
-    with TableDrivenPropertyChecks
-    with BeforeAndAfterEach
-    with BeforeAndAfterAll {
+class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {
 
   override def beforeAll() = {
     super.beforeAll()

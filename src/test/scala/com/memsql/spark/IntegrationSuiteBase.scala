@@ -6,8 +6,8 @@ import java.util.Properties
 import com.github.mrpowers.spark.fast.tests.DataFrameComparer
 import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-import org.scalatest.funspec.AnyFunSpec
 import org.scalatest._
+import org.scalatest.funspec.AnyFunSpec
 
 trait IntegrationSuiteBase
     extends AnyFunSpec
@@ -25,7 +25,7 @@ trait IntegrationSuiteBase
 
   var spark: SparkSession = _
 
-  override def beforeAll() = {
+  override def beforeAll(): Unit = {
     // make memsql use less memory
     executeQuery("set global default_partitions_per_leaf = 2")
     executeQuery("set global plan_expiration_minutes = 0")
@@ -33,18 +33,24 @@ trait IntegrationSuiteBase
     executeQuery("create database testdb")
   }
 
-  override def afterAll() = {
+  override def afterAll(): Unit = {
     executeQuery("drop database testdb")
   }
 
   override def withFixture(test: NoArgTest): Outcome = {
+    def retryThrowable(t: Throwable): Boolean = t match {
+      case _: java.sql.SQLNonTransientConnectionException => true
+      case _                                              => false
+    }
+
+    @scala.annotation.tailrec
     def runWithRetry(attempts: Int): Outcome = {
       if (attempts == 0) {
         return Canceled("too many SQLNonTransientConnectionExceptions occurred")
       }
 
       super.withFixture(test) match {
-        case Failed(_: java.sql.SQLNonTransientConnectionException) => {
+        case Failed(t: Throwable) if retryThrowable(t) || retryThrowable(t.getCause) => {
           Thread.sleep(3000)
           runWithRetry(attempts - 1)
         }
