@@ -9,7 +9,12 @@ import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funspec.AnyFunSpec
 
-trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterEach with DataFrameComparer {
+trait IntegrationSuiteBase
+    extends AnyFunSpec
+    with BeforeAndAfterEach
+    with BeforeAndAfterAll
+    with DataFrameComparer
+    with LazyLogging {
   final val masterHost: String     = sys.props.getOrElse("memsql.host", "localhost")
   final val masterPort: String     = sys.props.getOrElse("memsql.port", "5506")
   final val masterUser: String     = sys.props.getOrElse("memsql.user", "root")
@@ -19,6 +24,18 @@ trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterEach with DataF
     .getOrElse("CONTINUOUS_INTEGRATION", "false") == "true"
 
   var spark: SparkSession = _
+
+  override def beforeAll() = {
+    // make memsql use less memory
+    executeQuery("set global default_partitions_per_leaf = 2")
+    executeQuery("set global plan_expiration_minutes = 0")
+
+    executeQuery("create database testdb")
+  }
+
+  override def afterAll() = {
+    executeQuery("drop database testdb")
+  }
 
   override def beforeEach(): Unit = {
     super.beforeEach()
@@ -38,6 +55,7 @@ trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterEach with DataF
       .config("spark.datasource.memsql.password", masterPassword)
       .config("spark.datasource.memsql.enableAsserts", "true")
       .config("spark.datasource.memsql.enableParallelRead", "true")
+      .config("spark.datasource.memsql.database", "testdb")
       .getOrCreate()
   }
 
@@ -60,8 +78,10 @@ trait IntegrationSuiteBase extends AnyFunSpec with BeforeAndAfterEach with DataF
       ))
   }
 
-  def executeQuery(sql: String): Unit =
+  def executeQuery(sql: String): Unit = {
+    log.trace(s"executing query: ${sql}")
     jdbcConnection.to(conn => Loan(conn.createStatement).to(_.execute(sql)))
+  }
 
   def jdbcOptions(dbtable: String): Map[String, String] = Map(
     "url"      -> s"jdbc:mysql://$masterHost:$masterPort",

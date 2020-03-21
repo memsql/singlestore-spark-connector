@@ -7,7 +7,7 @@ import com.memsql.spark.MemsqlOptions.{CompressionType, TableKeyType}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{IntegerType, StringType}
 import org.apache.spark.sql.{DataFrame, SaveMode}
-import org.scalatest.BeforeAndAfterEach
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
 class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
   var df: DataFrame = _
@@ -19,8 +19,7 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
       List((1, "Albert"), (5, "Ronny"), (7, "Ben"), (9, "David")),
       List(("id", IntegerType, true), ("name", StringType, true))
     )
-    executeQuery("create database if not exists test")
-    writeTable("test.foo", df)
+    writeTable("testdb.foo", df)
   }
 
   it("sets strict sql session variables") {
@@ -51,7 +50,7 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
   it("DataSource V1 read sanity") {
     val x = spark.read
       .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)
-      .option(MemsqlOptions.TABLE_NAME, "test.foo")
+      .option(MemsqlOptions.TABLE_NAME, "testdb.foo")
       .load()
       .withColumn("hello", lit(2))
       .filter(col("id") > 1)
@@ -81,12 +80,12 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
           .option(MemsqlOptions.LOAD_DATA_COMPRESSION, compression.toString.toLowerCase())
           .option(MemsqlOptions.TRUNCATE, truncate.toString.toLowerCase())
           .mode(SaveMode.Overwrite)
-          .save("test.tb2")
+          .save("testdb.tb2")
 
         val x = spark.read
           .format("jdbc")
-          .option("url", s"jdbc:mysql://$masterHost:$masterPort/test")
-          .option("dbtable", "test.tb2")
+          .option("url", s"jdbc:mysql://$masterHost:$masterPort/testdb")
+          .option("dbtable", "testdb.tb2")
           .option("user", "root")
           .load()
 
@@ -101,7 +100,7 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
         .format("memsql")
         .mode(SaveMode.Overwrite)
         .options(keys)
-        .save("test.keytest")
+        .save("testdb.keytest")
 
     it("works for all key types") {
       for (keyType <- TableKeyType.values) {

@@ -5,32 +5,14 @@ import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
-class CustomDatatypesTest
-    extends IntegrationSuiteBase
-    with BeforeAndAfterAll
-    with BeforeAndAfterEach {
-
-  override def beforeAll() = {
-    super.beforeAll()
-    executeQuery("drop database if exists customdatatypes")
-    executeQuery("create database customdatatypes")
-
-  }
-
-  override def beforeEach() = {
-    super.beforeEach()
-    executeQuery("""
-                   |create table customdatatypes.basic (
-                   | j JSON
-                   |)""".stripMargin)
-  }
-
-  override def afterEach() = {
-    super.afterEach()
-    executeQuery("drop table customdatatypes.basic")
-  }
+class CustomDatatypesTest extends IntegrationSuiteBase {
 
   it("JSON columns are treated as strings by Spark") {
+    executeQuery("""
+       |create table testdb.basic (
+       | j JSON
+       |)""".stripMargin)
+
     spark
       .createDF(
         List("""{"foo":"bar"}"""),
@@ -39,9 +21,9 @@ class CustomDatatypesTest
       .write
       .format("memsql")
       .mode(SaveMode.Append)
-      .save("customdatatypes.basic")
+      .save("basic")
 
-    val df = spark.read.format("memsql").load("customdatatypes.basic")
+    val df = spark.read.format("memsql").load("basic")
     assertSmallDataFrameEquality(df,
                                  spark
                                    .createDF(

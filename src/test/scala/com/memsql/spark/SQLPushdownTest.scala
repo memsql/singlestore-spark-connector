@@ -12,17 +12,17 @@ class SQLPushdownTest
     with BeforeAndAfterAll {
 
   override def beforeAll() = {
+    super.beforeAll()
     super.beforeEach() // we want to run beforeEach to set up a spark session
 
-    executeQuery("create database if not exists pushdown")
-    writeTable("pushdown.users", spark.read.json("src/test/resources/data/users.json"))
-    writeTable("pushdown.movies", spark.read.json("src/test/resources/data/movies.json"))
-    writeTable("pushdown.reviews", spark.read.json("src/test/resources/data/reviews.json"))
+    writeTable("testdb.users", spark.read.json("src/test/resources/data/users.json"))
+    writeTable("testdb.movies", spark.read.json("src/test/resources/data/movies.json"))
+    writeTable("testdb.reviews", spark.read.json("src/test/resources/data/reviews.json"))
 
-    writeTable("pushdown.users_sample",
+    writeTable("testdb.users_sample",
                spark.read
                  .format("memsql")
-                 .load("pushdown.users")
+                 .load("testdb.users")
                  .sample(0.5)
                  .limit(10))
   }
@@ -30,14 +30,14 @@ class SQLPushdownTest
   override def beforeEach() = {
     super.beforeEach()
 
-    spark.sql("create database pushdown")
-    spark.sql("create database pushdown_jdbc")
+    spark.sql("create database testdb")
+    spark.sql("create database testdb_jdbc")
 
     def makeTables(sourceTable: String) = {
       spark.sql(
-        s"create table pushdown.${sourceTable} using memsql options ('dbtable'='pushdown.${sourceTable}')")
-      spark.sql(s"create table pushdown_jdbc.${sourceTable} using jdbc options (${jdbcOptionsSQL(
-        s"pushdown.${sourceTable}")})")
+        s"create table testdb.${sourceTable} using memsql options ('dbtable'='testdb.${sourceTable}')")
+      spark.sql(s"create table testdb_jdbc.${sourceTable} using jdbc options (${jdbcOptionsSQL(
+        s"testdb.${sourceTable}")})")
     }
 
     makeTables("users")
@@ -50,12 +50,12 @@ class SQLPushdownTest
                 alreadyOrdered: Boolean = false,
                 expectPartialPushdown: Boolean = false,
                 expectSingleRead: Boolean = false): Unit = {
-    spark.sql("use pushdown_jdbc")
+    spark.sql("use testdb_jdbc")
     val jdbcDF = spark.sql(q)
     // verify that the jdbc DF works first
     jdbcDF.collect()
 
-    spark.sql("use pushdown")
+    spark.sql("use testdb")
     val memsqlDF = spark.sql(q)
     if (!continuousIntegration) { memsqlDF.show(4) }
 
@@ -287,7 +287,7 @@ class SQLPushdownTest
         """
         | select users.id, concat(first(users.first_name), " ", first(users.last_name)) as full_name
         | from users
-        | inner join pushdown_jdbc.reviews on users.id = reviews.user_id
+        | inner join testdb_jdbc.reviews on users.id = reviews.user_id
         | group by users.id
         | """.stripMargin,
         expectPartialPushdown = true
