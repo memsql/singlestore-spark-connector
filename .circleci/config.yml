@@ -100,7 +100,16 @@ workflows:
 
   publish:
     jobs:
+      - approve-publish:
+          type: approval
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
       - publish:
+          requires:
+            - approve-publish
           filters:
             tags:
               only: /^v.*/
