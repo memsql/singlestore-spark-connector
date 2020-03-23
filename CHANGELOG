@@ -1,3 +1,6 @@
+2020-03-23 Version 3.0.0-beta5
+        * Increase connection timeout to increase connector reliability
+
 2020-03-20 Version 3.0.0-beta4
         * Set JDBC driver to MariaDB explicitely to avoid issues with the mysql driver
 
