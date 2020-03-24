@@ -1,5 +1,5 @@
 # MemSQL Spark Connector
-## Version: 3.0.0-beta5 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/3.0.0-beta.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## Version: 3.0.0-beta6 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/3.0.0-beta.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 > :warning: **This is a beta release suitable for development and testing purposes.** 
 
