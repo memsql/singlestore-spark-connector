@@ -52,7 +52,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     val memsqlDF = spark.sql(q)
     if (!continuousIntegration) { memsqlDF.show(4) }
 
-    if (!expectSingleRead) {
+    if (expectSingleRead) {
+      assert(memsqlDF.rdd.getNumPartitions == 1)
+    } else {
       assert(memsqlDF.rdd.getNumPartitions > 1)
     }
 
@@ -109,7 +111,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("float literal") { testSingleReadQuery("select 4.9 as x from movies") }
 
     it("negative float literal") { testSingleReadQuery("select -24.345 as x from movies") }
-    it("negative int literal") { testSingleReadQuery("select -1 from users") }
+    it("negative int literal") { testQuery("select -1 from users") }
 
     it("int") { testQuery("select id from users") }
     it("smallint") { testQuery("select age from users") }
