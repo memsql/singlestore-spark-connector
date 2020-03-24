@@ -56,4 +56,20 @@ class IssuesTest extends IntegrationSuiteBase {
                                    List(("t", StringType, true), ("h", LongType, true))
                                  ))
   }
+
+  it("supports reading count from query") {
+    val df = spark.createDF(
+      List((1, "Albert"), (5, "Ronny"), (7, "Ben"), (9, "David")),
+      List(("id", IntegerType, true), ("name", StringType, true))
+    )
+    writeTable("testdb.testcount", df)
+    val data = spark.read
+      .format("memsql")
+      .option("query", "select count(1) from testcount where id > 1 ")
+      .option("database", "testdb")
+      .load()
+      .collect()
+    val count = data.head.getLong(0)
+    assert(count == 3)
+  }
 }

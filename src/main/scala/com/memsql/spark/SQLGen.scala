@@ -166,7 +166,7 @@ object SQLGen extends LazyLogging {
     def renameOutput: LogicalPlan =
       select(
         output
-          .map(a => alias(a.name, a.name, a.exprId))
+          .map(a => alias(MemsqlDialect.quoteIdentifier(a.name), a.name, a.exprId))
           .reduce(_ + "," + _))
         .from(this)
         .output(output)
