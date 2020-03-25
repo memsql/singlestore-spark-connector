@@ -62,8 +62,9 @@ class DefaultSource
     JdbcHelpers.prepareTableForWrite(conf, table, mode, data.schema)
 
     val partitionWriterFactory = new PartitionWriterFactory(table, conf)
+    val schema                 = data.schema
     data.foreachPartition(partition => {
-      val writer = partitionWriterFactory.createDataWriter(TaskContext.getPartitionId(), 0)
+      val writer = partitionWriterFactory.createDataWriter(schema, TaskContext.getPartitionId(), 0)
       try {
         partition.foreach(writer.write)
         writer.commit()

@@ -11,6 +11,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.sources.v2.writer.{DataWriter, WriterCommitMessage}
+import org.apache.spark.sql.types.StructType
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -28,7 +29,9 @@ class PartitionWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
     def setLocalInfileInputStream(input: InputStream)
   }
 
-  def createDataWriter(partitionId: Int, attemptNumber: Int): DataWriter[Row] = {
+  def createDataWriter(schema: StructType,
+                       partitionId: Int,
+                       attemptNumber: Int): DataWriter[Row] = {
     val basestream  = new PipedOutputStream
     val inputstream = new PipedInputStream(basestream, BUFFER_SIZE)
 
@@ -46,8 +49,10 @@ class PartitionWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
         ("tsv", basestream)
     }
 
+    val columnNames = schema.map(s => MemsqlDialect.quoteIdentifier(s.name))
+
     val query =
-      s"LOAD DATA LOCAL INFILE '###.$ext' INTO TABLE ${table.quotedString}"
+      s"LOAD DATA LOCAL INFILE '###.$ext' INTO TABLE ${table.quotedString} (${columnNames.mkString(", ")})"
 
     val conn = JdbcUtils.createConnectionFactory(
       JdbcHelpers.getDMLJDBCOptions(conf)
