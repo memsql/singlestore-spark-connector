@@ -1,3 +1,6 @@
+2020-03-25 Version 3.0.0-beta7
+        * The connector now respects column selection when loading dataframes into MemSQL
+
 2020-03-24 Version 3.0.0-beta6
         * Fix bug when you use an expression in an explicit query
 
