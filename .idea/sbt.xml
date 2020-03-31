@@ -19,5 +19,6 @@
         <option name="useSbtShellForImport" value="true" />
       </SbtProjectSettings>
     </option>
+    <option name="vmParameters" value="-Duser.timezone=GMT" />
   </component>
 </project>

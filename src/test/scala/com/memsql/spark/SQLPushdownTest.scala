@@ -1,5 +1,6 @@
 package com.memsql.spark
 
+import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
 class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {
@@ -8,9 +9,43 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     super.beforeAll()
     super.beforeEach() // we want to run beforeEach to set up a spark session
 
-    writeTable("testdb.users", spark.read.json("src/test/resources/data/users.json"))
-    writeTable("testdb.movies", spark.read.json("src/test/resources/data/movies.json"))
-    writeTable("testdb.reviews", spark.read.json("src/test/resources/data/reviews.json"))
+    // need to specific explicit schemas - otherwise Spark will infer them
+    // incorrectly from the JSON file
+    val usersSchema = StructType(
+      StructField("id", LongType)
+        :: StructField("first_name", StringType)
+        :: StructField("last_name", StringType)
+        :: StructField("email", StringType)
+        :: StructField("owns_house", BooleanType)
+        :: StructField("favorite_color", StringType, nullable = true)
+        :: StructField("age", IntegerType)
+        :: StructField("birthday", DateType)
+        :: Nil)
+
+    writeTable("testdb.users",
+               spark.read.schema(usersSchema).json("src/test/resources/data/users.json"))
+
+    val moviesSchema = StructType(
+      StructField("id", LongType)
+        :: StructField("title", StringType)
+        :: StructField("genre", StringType)
+        :: StructField("critic_review", StringType, nullable = true)
+        :: StructField("critic_rating", FloatType, nullable = true)
+        :: Nil)
+
+    writeTable("testdb.movies",
+               spark.read.schema(moviesSchema).json("src/test/resources/data/movies.json"))
+
+    val reviewsSchema = StructType(
+      StructField("user_id", LongType)
+        :: StructField("movie_id", LongType)
+        :: StructField("rating", FloatType)
+        :: StructField("review", StringType)
+        :: StructField("created", TimestampType)
+        :: Nil)
+
+    writeTable("testdb.reviews",
+               spark.read.schema(reviewsSchema).json("src/test/resources/data/reviews.json"))
 
     writeTable("testdb.users_sample",
                spark.read
@@ -42,7 +77,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   def testQuery(q: String,
                 alreadyOrdered: Boolean = false,
                 expectPartialPushdown: Boolean = false,
-                expectSingleRead: Boolean = false): Unit = {
+                expectSingleRead: Boolean = false,
+                expectEmpty: Boolean = false): Unit = {
     spark.sql("use testdb_jdbc")
     val jdbcDF = spark.sql(q)
     // verify that the jdbc DF works first
@@ -52,18 +88,22 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     val memsqlDF = spark.sql(q)
     if (!continuousIntegration) { memsqlDF.show(4) }
 
+    if (expectEmpty) {
+      assert(memsqlDF.count == 0)
+    } else {
+      assert(memsqlDF.count > 0)
+    }
+
     if (expectSingleRead) {
       assert(memsqlDF.rdd.getNumPartitions == 1)
     } else {
       assert(memsqlDF.rdd.getNumPartitions > 1)
     }
 
-    if (!expectPartialPushdown) {
-      memsqlDF.queryExecution.optimizedPlan match {
-        case SQLGen.Relation(_) => true
-        case _                  => fail(s"Failed to pushdown entire query")
-      }
-    }
+    assert((memsqlDF.queryExecution.optimizedPlan match {
+      case SQLGen.Relation(_) => false
+      case _                  => true
+    }) == expectPartialPushdown)
 
     try {
       assertApproximateDataFrameEquality(memsqlDF, jdbcDF, 0.1, orderedComparison = alreadyOrdered)
@@ -267,6 +307,45 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("select same column twice from subquery with aliases") {
       testOrderedQuery(
         "select * from (select first_name as a, first_name as a from users order by id) as x")
+    }
+  }
+
+  describe("datetime expressions") {
+    val intervals = List(
+      "1 month",
+      "3 week",
+      "2 day",
+      "7 hour",
+      "3 minute",
+      "5 second",
+      "1 month 1 week",
+      "2 month 2 hour",
+      "3 month 1 week 3 hour 5 minute 4 seconds"
+    )
+
+    // MemSQL and Spark differ on how they do last day calculations, so we ignore
+    // them in some of these tests
+
+    it("timeAdd") {
+      for (interval <- intervals) {
+        println(s"testing timeAdd with interval $interval")
+        testQuery(s"""
+            | select created, created + interval $interval
+            | from reviews
+            | where date(created) != last_day(created)
+            |""".stripMargin)
+      }
+    }
+
+    it("timeSub") {
+      for (interval <- intervals) {
+        println(s"testing timeSub with interval $interval")
+        testQuery(s"""
+            | select created, created - interval $interval
+            | from reviews
+            | where date(created) != last_day(created)
+            |""".stripMargin)
+      }
     }
   }
 

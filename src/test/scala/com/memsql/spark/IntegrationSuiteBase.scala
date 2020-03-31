@@ -1,7 +1,7 @@
 package com.memsql.spark
 
 import java.sql.{Connection, DriverManager}
-import java.util.Properties
+import java.util.{Properties, TimeZone}
 
 import com.github.mrpowers.spark.fast.tests.DataFrameComparer
 import org.apache.log4j.{Level, LogManager}
@@ -26,16 +26,15 @@ trait IntegrationSuiteBase
   var spark: SparkSession = _
 
   override def beforeAll(): Unit = {
+    // override global JVM timezone to GMT
+    TimeZone.setDefault(TimeZone.getTimeZone("GMT"))
+
     // make memsql use less memory
     executeQuery("set global default_partitions_per_leaf = 2")
     executeQuery("set global plan_expiration_minutes = 0")
 
     executeQuery("drop database if exists testdb")
     executeQuery("create database testdb")
-  }
-
-  override def afterAll(): Unit = {
-    executeQuery("drop database testdb")
   }
 
   override def withFixture(test: NoArgTest): Outcome = {
@@ -75,6 +74,9 @@ trait IntegrationSuiteBase
       .appName("memsql-integration-tests")
       .config("spark.sql.shuffle.partitions", "1")
       .config("spark.driver.bindAddress", "localhost")
+      .config("spark.driver.extraJavaOptions", "-Duser.timezone=GMT")
+      .config("spark.executor.extraJavaOptions", "-Duser.timezone=GMT")
+      .config("spark.sql.session.timeZone", "GMT")
       .config("spark.datasource.memsql.ddlEndpoint", s"${masterHost}:${masterPort}")
       .config("spark.datasource.memsql.user", masterUser)
       .config("spark.datasource.memsql.password", masterPassword)

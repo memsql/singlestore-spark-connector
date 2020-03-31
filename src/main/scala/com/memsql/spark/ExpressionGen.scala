@@ -4,7 +4,7 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.expressions.aggregate._
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.types._
-import org.apache.spark.unsafe.types.UTF8String
+import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 
 object ExpressionGen extends LazyLogging {
   import SQLGen._
@@ -22,27 +22,48 @@ object ExpressionGen extends LazyLogging {
     cast(child, s"DECIMAL($p, $s)")
   }
 
-  def convertLiteral(value: Any): Joinable = value match {
-    case v if v == null => StringVar(null)
+  object GenLiteral {
+    def unapply(arg: Expression): Option[Joinable] = arg match {
+      case Literal(v, _) if v == null      => Some(StringVar(null))
+      case Literal(v: Int, DateType)       => Some(DateVar(DateTimeUtils.toJavaDate(v)))
+      case Literal(v: Long, TimestampType) => Some(TimestampVar(DateTimeUtils.toJavaTimestamp(v)))
 
-    case v: String     => StringVar(v)
-    case v: UTF8String => StringVar(v.toString)
-    case v: Byte       => ByteVar(v)
+      case Literal(v, _) => convertLiteralValue.lift(v)
 
-    case v: Boolean => Raw(if (v) "TRUE" else "FALSE")
+      case _ => None
+    }
 
-    case v: Short                                  => Raw(v.toString)
-    case v: Int                                    => Raw(v.toString)
-    case v: Integer                                => Raw(v.toString)
-    case v: Long                                   => Raw(v.toString)
-    case v: Decimal                                => Raw(v.toString)
-    case v: BigDecimal                             => Raw(v.toString)
-    case v: Float if java.lang.Float.isFinite(v)   => Raw(v.toString)
-    case v: Double if java.lang.Double.isFinite(v) => Raw(v.toString)
+    def unapply(vals: Iterable[Any]): Option[Joinable] =
+      vals
+        .map(convertLiteralValue.lift)
+        .reduce[Option[Joinable]] {
+          case (Some(left), Some(right)) => Some(left + "," + right)
+          case _                         => None
+        }
 
-    case v => {
-      log.trace(s"failed to convert literal ${v} with type ${v.getClass}")
-      StringVar(v.toString)
+    def convertLiteralValue: PartialFunction[Any, Joinable] = {
+      case v if v == null => StringVar(null)
+
+      case v: String     => StringVar(v)
+      case v: UTF8String => StringVar(v.toString)
+      case v: Byte       => ByteVar(v)
+
+      case v: Boolean => Raw(if (v) "TRUE" else "FALSE")
+
+      // MemSQL does not support intervals which define month + remainder at the same time
+      case v: CalendarInterval if v.months == 0 =>
+        Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND"
+      case v: CalendarInterval if v.months != 0 && v.microseconds == 0 =>
+        Raw("INTERVAL") + v.months.toString + "MONTH"
+
+      case v: Short                                  => Raw(v.toString)
+      case v: Int                                    => Raw(v.toString)
+      case v: Integer                                => Raw(v.toString)
+      case v: Long                                   => Raw(v.toString)
+      case v: Decimal                                => Raw(v.toString)
+      case v: BigDecimal                             => Raw(v.toString)
+      case v: Float if java.lang.Float.isFinite(v)   => Raw(v.toString)
+      case v: Double if java.lang.Double.isFinite(v) => Raw(v.toString)
     }
   }
 
@@ -67,11 +88,7 @@ object ExpressionGen extends LazyLogging {
     // ----------------------------------
     // Literals
     // ----------------------------------
-    case Literal(v, _) if v == null => StringVar(null)
-    case Literal(v: Int, DateType)  => DateVar(DateTimeUtils.toJavaDate(v))
-    case Literal(v: Long, TimestampType) =>
-      TimestampVar(DateTimeUtils.toJavaTimestamp(v))
-    case Literal(v, _) => convertLiteral(v)
+    case GenLiteral(v) => v
 
     // ----------------------------------
     // Variable Expressions
@@ -180,19 +197,44 @@ object ExpressionGen extends LazyLogging {
     case BitwiseXor(Expression(left), Expression(right)) => op("^", left, right)
 
     // datetimeExpressions.scala
+
+    // NOTE: we explicitly ignore the timeZoneId field in all of the following expressions
+    // The user is required to setup Spark and/or MemSQL with the timezone they want or they
+    // will get inconsistent results with/without pushdown.
+
     case DateAdd(Expression(startDate), Expression(days)) => f("ADDDATE", startDate, days)
     case DateSub(Expression(startDate), Expression(days)) => f("SUBDATE", startDate, days)
     case DateFormatClass(Expression(left), Expression(right), timeZoneId) =>
       f("DATE_FORMAT", left, right)
+
+    // Special case since MemSQL doesn't support INTERVAL with both month and microsecond
+    case TimeAdd(Expression(start), Literal(v: CalendarInterval, CalendarIntervalType), timeZoneId)
+        if v.months > 0 && v.microseconds > 0 =>
+      f(
+        "DATE_ADD",
+        f("DATE_ADD", start, Raw("INTERVAL") + v.months.toString + "MONTH"),
+        Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND"
+      )
+
+    case TimeAdd(Expression(start), Expression(interval), timeZoneId) =>
+      f("DATE_ADD", start, interval)
+
+    // Special case since MemSQL doesn't support INTERVAL with both month and microsecond
+    case TimeSub(Expression(start), Literal(v: CalendarInterval, CalendarIntervalType), timeZoneId)
+        if v.months > 0 && v.microseconds > 0 =>
+      f("DATE_SUB",
+        f("DATE_SUB", start, Raw("INTERVAL") + v.months.toString + "MONTH"),
+        Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
+
+    case TimeSub(Expression(start), Expression(interval), timeZoneId) =>
+      f("DATE_SUB", start, interval)
 
     // TODO: Support more datetime expressions
     // case _: ToUnixTimestamp  => None
     // case _: UnixTimestamp    => None
     // case _: FromUnixTime     => None
     // case _: NextDay          => None
-    // case _: TimeAdd          => None
     // case _: FromUTCTimestamp => None
-    // case _: TimeSub          => None
     // case _: AddMonths        => None
     // case _: MonthsBetween    => None
     // case _: ToUTCTimestamp   => None
@@ -228,11 +270,11 @@ object ExpressionGen extends LazyLogging {
     case In(Expression(child), Expression(Some(elements))) =>
       op("IN", child, block(elements))
 
-    case InSet(Expression(child), elements) =>
+    case InSet(Expression(child), GenLiteral(elements)) =>
       op(
         "IN",
         child,
-        block(elements.map(convertLiteral).reduce(_ + "," + _))
+        block(elements)
       )
 
     // regexpExpressions.scala
