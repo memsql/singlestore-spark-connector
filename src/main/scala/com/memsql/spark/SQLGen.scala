@@ -276,6 +276,16 @@ object SQLGen extends LazyLogging {
   def select(c: Joinable): Statement         = Raw("SELECT") + c
   def select(c: Option[Joinable]): Statement = Raw("SELECT") + c.getOrElse(Raw("*"))
 
+  def sqlMapValueCaseInsensitive(value: Joinable, mappings: Map[String, String]): Joinable =
+    value match {
+      case StringVar(s) => mappings.get(s.toLowerCase).map(StringVar).getOrElse(value)
+      case _ =>
+        block(mappings.foldLeft(Raw("CASE") + func("LOWER", value))({
+          case (memo, (key, value)) =>
+            memo + "WHEN" + StringVar(key.toLowerCase) + "THEN" + StringVar(value.toLowerCase)
+        }) + "ELSE" + value + "END")
+    }
+
   val fromLogicalPlan: PartialFunction[LogicalPlan, Statement] = {
 
     case plan @ Project(Expression(expr), Relation(relation)) =>

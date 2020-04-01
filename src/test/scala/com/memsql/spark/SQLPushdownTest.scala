@@ -374,73 +374,43 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     // TruncTimestamp is called as date_trunc() in Spark
     it("truncTimestamp") {
-      val dateParts = List("year", "quarter", "month", "week", "day", "hour", "minute", "second")
+      val dateParts = List(
+        "year",
+        "yyyy",
+        "yy",
+        "mon",
+        "month",
+        "mm",
+        "day",
+        "dd",
+        "hour",
+        "minute",
+        "second",
+        "week",
+        "quarter"
+      )
       for (datePart <- dateParts ::: dateParts.map(_.toUpperCase)) {
         println(s"testing truncTimestamp with datepart $datePart")
         testQuery(s"select date_trunc('$datePart', created) from reviews")
       }
     }
 
-    it("truncTimestamp with partial pushdown") {
-      // those dateparts are not supported by MemSQL so partial pushdown is expected
-      val dateParts = List("yyyy", "yy", "mon", "mm", "YYYY", "YY", "MON", "MM", "dd", "DD")
-      for (datePart <- dateParts) {
-        println(s"testing truncTimestamp with expected partial pushdown with datepart $datePart")
-        testQuery(
-          s"select date_trunc('$datePart', created) from reviews",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    // TruncDate is called as trunc() in Spark
+    // TruncDate is called as trunc()
     it("truncDate") {
-      val dateParts = List("year", "month", "YEAR", "MONTH")
-      for (datePart <- dateParts) {
+      val dateParts = List("year", "yyyy", "yy", "mon", "month", "mm")
+      for (datePart <- dateParts ::: dateParts.map(_.toUpperCase)) {
         println(s"testing truncDate with datepart $datePart")
         testQuery(s"select trunc(created, '$datePart') from reviews")
       }
     }
 
-    it("truncDate with partial pushdown") {
-      // those dateparts are not supported by MemSQL so partial pushdown is expected
-      val dateParts = List("yyyy", "yy", "mon", "mm", "YYYY", "YY", "MON", "MM")
-      for (datePart <- dateParts) {
-        println(s"testing truncDate with expected partial pushdown with datepart $datePart")
-        testQuery(s"select trunc(created, '$datePart') from reviews", expectPartialPushdown = true)
-      }
-    }
-
-    it("monthsBetween, explicit roundOff = true") {
+    it("monthsBetween") {
       for (interval <- intervals) {
-        println(s"testing monthsBetween, roundOff = true with add interval $interval")
+        println(s"testing monthsBetween with interval $interval")
         testQuery(
-          s"select months_between(created, created + interval $interval, true) from reviews"
+          s"select months_between(created, created + interval $interval) from reviews"
         )
       }
-    }
-
-    it("monthsBetween, roundOff = false") {
-      for (interval <- intervals) {
-        println(s"testing monthsBetween, roundOff = false with add interval $interval")
-        testQuery(
-          s"select months_between(created, created + interval $interval, false) from reviews"
-        )
-      }
-    }
-
-    // Skipped roundOff param will be still matched as explicitly set to true
-    // Thus, running only a few tests here for the sanity check in order not to load the system in vain
-    it("monthsBetween, implicit roundOff = true") {
-      testQuery(
-        "select months_between(created, created + interval 1 month 1 week) from reviews"
-      )
-      testQuery(
-        "select months_between(created, created + interval 3 month 1 week 3 hour 5 minute 4 seconds) from reviews"
-      )
-      testQuery(
-        "select months_between(created, created + interval 4 month 3 week) from reviews"
-      )
     }
   }
 

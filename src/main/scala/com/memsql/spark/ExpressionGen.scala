@@ -247,15 +247,40 @@ object ExpressionGen extends LazyLogging {
     case ToUTCTimestamp(Expression(timestamp), Expression(timezone)) =>
       f("CONVERT_TZ", timestamp, timezone, StringVar("UTC"))
 
-    // MemSQL doesn't support dateparts ("yyyy", "yy", "mon", "mm", "YYYY", "YY", "MON", "MM", "dd", "DD")
-    case TruncTimestamp(Expression(StringVar(format)), Expression(timestamp), timeZoneId)
-        if List("year", "quarter", "month", "week", "day", "hour", "minute", "second") contains format.toLowerCase =>
-      f("DATE_TRUNC", StringVar(format.toLowerCase), timestamp)
+    case TruncTimestamp(Expression(format), Expression(timestamp), timeZoneId) => {
+      f(
+        "DATE_TRUNC",
+        sqlMapValueCaseInsensitive(
+          format,
+          Map(
+            // MemSQL doesn't support formats ("yyyy", "yy", "mon", "mm", "dd") so we map them here
+            "yyyy" -> "year",
+            "yy"   -> "year",
+            "mon"  -> "month",
+            "mm"   -> "month",
+            "dd"   -> "day"
+          )
+        ),
+        timestamp
+      )
+    }
 
-    // MemSQL doesn't support dateparts ("yyyy", "yy", "mon", "mm", "YYYY", "YY", "MON", "MM")
-    case TruncDate(Expression(date), Expression(StringVar(format)))
-        if List("year", "month") contains format.toLowerCase =>
-      f("DATE_TRUNC", StringVar(format.toLowerCase), date)
+    case TruncDate(Expression(date), Expression(format)) => {
+      f(
+        "DATE_TRUNC",
+        sqlMapValueCaseInsensitive(
+          format,
+          Map(
+            // MemSQL doesn't support formats ("yyyy", "yy", "mon", "mm") so we map them here
+            "yyyy" -> "year",
+            "yy"   -> "year",
+            "mon"  -> "month",
+            "mm"   -> "month"
+          )
+        ),
+        date
+      )
+    }
 
     case MonthsBetweenExpression((date1, date2)) =>
       f("MONTHS_BETWEEN", date1, date2)
