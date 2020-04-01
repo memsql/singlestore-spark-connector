@@ -1,3 +1,9 @@
+2020-04-01 Version 3.0.0-beta8
+        * Added support for more datetime expressions:
+            * addition/subtraction of datetime objects
+            * to_utc_timestamp, from_utc_timestamp
+            * date_trunc, trunc
+
 2020-03-25 Version 3.0.0-beta7
         * The connector now respects column selection when loading dataframes into MemSQL
 
