@@ -78,6 +78,18 @@ object ExpressionGen extends LazyLogging {
     }
   }
 
+  // we need to manually unwrap MonthsBetween since the roundOff argument
+  // does not exist in Spark 2.3
+  // The roundOff argument truncates the result to 8 digits of precision
+  // which we can safely ignore, the user can apply an explicit round if needed
+  object MonthsBetweenExpression {
+    def unapply(arg: MonthsBetween): Option[(Joinable, Joinable)] =
+      for {
+        date1 <- Expression.unapply(arg.date1)
+        date2 <- Expression.unapply(arg.date2)
+      } yield (date1, date2)
+  }
+
   def apply: PartialFunction[Expression, Joinable] = {
     // ----------------------------------
     // Attributes
@@ -245,8 +257,7 @@ object ExpressionGen extends LazyLogging {
         if List("year", "month") contains format.toLowerCase =>
       f("DATE_TRUNC", StringVar(format.toLowerCase), date)
 
-    // The roundOff argument truncates the result to 8 digits of precision, we explicitly ignore this and always return the full precision number
-    case MonthsBetween(Expression(date1), Expression(date2), roundOff, timeZoneId) =>
+    case MonthsBetweenExpression((date1, date2)) =>
       f("MONTHS_BETWEEN", date1, date2)
 
     // TODO: Support more datetime expressions
