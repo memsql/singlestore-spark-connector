@@ -229,17 +229,32 @@ object ExpressionGen extends LazyLogging {
     case TimeSub(Expression(start), Expression(interval), timeZoneId) =>
       f("DATE_SUB", start, interval)
 
+    case FromUTCTimestamp(Expression(timestamp), Expression(timezone)) =>
+      f("CONVERT_TZ", timestamp, StringVar("UTC"), timezone)
+
+    case ToUTCTimestamp(Expression(timestamp), Expression(timezone)) =>
+      f("CONVERT_TZ", timestamp, timezone, StringVar("UTC"))
+
+    // MemSQL doesn't support dateparts ("yyyy", "yy", "mon", "mm", "YYYY", "YY", "MON", "MM", "dd", "DD")
+    case TruncTimestamp(Expression(StringVar(format)), Expression(timestamp), timeZoneId)
+        if List("year", "quarter", "month", "week", "day", "hour", "minute", "second") contains format.toLowerCase =>
+      f("DATE_TRUNC", StringVar(format.toLowerCase), timestamp)
+
+    // MemSQL doesn't support dateparts ("yyyy", "yy", "mon", "mm", "YYYY", "YY", "MON", "MM")
+    case TruncDate(Expression(date), Expression(StringVar(format)))
+        if List("year", "month") contains format.toLowerCase =>
+      f("DATE_TRUNC", StringVar(format.toLowerCase), date)
+
+    // The roundOff argument truncates the result to 8 digits of precision, we explicitly ignore this and always return the full precision number
+    case MonthsBetween(Expression(date1), Expression(date2), roundOff, timeZoneId) =>
+      f("MONTHS_BETWEEN", date1, date2)
+
     // TODO: Support more datetime expressions
     // case _: ToUnixTimestamp  => None
     // case _: UnixTimestamp    => None
+    // case _: AddMonths        => None
     // case _: FromUnixTime     => None
     // case _: NextDay          => None
-    // case _: FromUTCTimestamp => None
-    // case _: AddMonths        => None
-    // case _: MonthsBetween    => None
-    // case _: ToUTCTimestamp   => None
-    // case _: TruncDate        => None
-    // case _: TruncTimestamp   => None
     // case _: DateDiff         => None
 
     // hash.scala

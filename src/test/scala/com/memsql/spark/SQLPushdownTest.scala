@@ -347,6 +347,101 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin)
       }
     }
+
+    // Spark doesn't support explicit time intervals like `+/-hh:mm`
+
+    val timeZones = List(
+      "US/Mountain",
+      "Asia/Seoul",
+      "UTC",
+      "EST",
+      "Etc/GMT-6"
+    )
+
+    it("fromUTCTimestamp") {
+      for (timeZone <- timeZones) {
+        println(s"testing fromUTCTimestamp with timezone $timeZone")
+        testQuery(s"select from_utc_timestamp(created, '$timeZone') from reviews")
+      }
+    }
+
+    it("toUTCTimestamp") {
+      for (timeZone <- timeZones) {
+        println(s"testing toUTCTimestamp with timezone $timeZone")
+        testQuery(s"select to_utc_timestamp(created, '$timeZone') from reviews")
+      }
+    }
+
+    // TruncTimestamp is called as date_trunc() in Spark
+    it("truncTimestamp") {
+      val dateParts = List("year", "quarter", "month", "week", "day", "hour", "minute", "second")
+      for (datePart <- dateParts ::: dateParts.map(_.toUpperCase)) {
+        println(s"testing truncTimestamp with datepart $datePart")
+        testQuery(s"select date_trunc('$datePart', created) from reviews")
+      }
+    }
+
+    it("truncTimestamp with partial pushdown") {
+      // those dateparts are not supported by MemSQL so partial pushdown is expected
+      val dateParts = List("yyyy", "yy", "mon", "mm", "YYYY", "YY", "MON", "MM", "dd", "DD")
+      for (datePart <- dateParts) {
+        println(s"testing truncTimestamp with expected partial pushdown with datepart $datePart")
+        testQuery(
+          s"select date_trunc('$datePart', created) from reviews",
+          expectPartialPushdown = true
+        )
+      }
+    }
+
+    // TruncDate is called as trunc() in Spark
+    it("truncDate") {
+      val dateParts = List("year", "month", "YEAR", "MONTH")
+      for (datePart <- dateParts) {
+        println(s"testing truncDate with datepart $datePart")
+        testQuery(s"select trunc(created, '$datePart') from reviews")
+      }
+    }
+
+    it("truncDate with partial pushdown") {
+      // those dateparts are not supported by MemSQL so partial pushdown is expected
+      val dateParts = List("yyyy", "yy", "mon", "mm", "YYYY", "YY", "MON", "MM")
+      for (datePart <- dateParts) {
+        println(s"testing truncDate with expected partial pushdown with datepart $datePart")
+        testQuery(s"select trunc(created, '$datePart') from reviews", expectPartialPushdown = true)
+      }
+    }
+
+    it("monthsBetween, explicit roundOff = true") {
+      for (interval <- intervals) {
+        println(s"testing monthsBetween, roundOff = true with add interval $interval")
+        testQuery(
+          s"select months_between(created, created + interval $interval, true) from reviews"
+        )
+      }
+    }
+
+    it("monthsBetween, roundOff = false") {
+      for (interval <- intervals) {
+        println(s"testing monthsBetween, roundOff = false with add interval $interval")
+        testQuery(
+          s"select months_between(created, created + interval $interval, false) from reviews"
+        )
+      }
+    }
+
+    // Skipped roundOff param will be still matched as explicitly set to true
+    // Thus, running only a few tests here for the sanity check in order not to load the system in vain
+    it("monthsBetween, implicit roundOff = true") {
+      testQuery(
+        "select months_between(created, created + interval 1 month 1 week) from reviews"
+      )
+      testQuery(
+        "select months_between(created, created + interval 3 month 1 week 3 hour 5 minute 4 seconds) from reviews"
+      )
+      testQuery(
+        "select months_between(created, created + interval 4 month 3 week) from reviews"
+      )
+    }
   }
 
   describe("partial pushdown") {
