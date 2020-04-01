@@ -30,7 +30,7 @@ lazy val root = project
       "org.scalatest"  %% "scalatest"       % "3.1.0"         % Test,
       "org.scalacheck" %% "scalacheck"      % "1.14.1"        % Test,
       "mrpowers"       % "spark-daria"      % "0.35.0-s_2.11" % Test,
-      "MrPowers"       % "spark-fast-tests" % "0.20.0-s_2.11" % Test
+      "MrPowers"       % "spark-fast-tests" % "0.21.0-s_2.11" % Test
     ),
     Test / testOptions += Tests.Argument("-oF"),
     Test / fork := true

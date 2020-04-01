@@ -89,21 +89,26 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     if (!continuousIntegration) { memsqlDF.show(4) }
 
     if (expectEmpty) {
-      assert(memsqlDF.count == 0)
+      assert(memsqlDF.count == 0, "result is expected to be empty")
     } else {
-      assert(memsqlDF.count > 0)
+      assert(memsqlDF.count > 0, "result is expected to not be empty")
     }
 
     if (expectSingleRead) {
-      assert(memsqlDF.rdd.getNumPartitions == 1)
+      assert(memsqlDF.rdd.getNumPartitions == 1,
+             "query is expected to read from a single partition")
     } else {
-      assert(memsqlDF.rdd.getNumPartitions > 1)
+      assert(memsqlDF.rdd.getNumPartitions > 1,
+             "query is expected to read from multiple partitions")
     }
 
-    assert((memsqlDF.queryExecution.optimizedPlan match {
-      case SQLGen.Relation(_) => false
-      case _                  => true
-    }) == expectPartialPushdown)
+    assert(
+      (memsqlDF.queryExecution.optimizedPlan match {
+        case SQLGen.Relation(_) => false
+        case _                  => true
+      }) == expectPartialPushdown,
+      s"the optimized plan does not match expectPartialPushdown=$expectPartialPushdown"
+    )
 
     try {
       assertApproximateDataFrameEquality(memsqlDF, jdbcDF, 0.1, orderedComparison = alreadyOrdered)
@@ -375,21 +380,21 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     // TruncTimestamp is called as date_trunc() in Spark
     it("truncTimestamp") {
       val dateParts = List(
-        "year",
-        "yyyy",
-        "yy",
-        "mon",
-        "month",
-        "mm",
-        "day",
-        "dd",
-        "hour",
-        "minute",
-        "second",
-        "week",
-        "quarter"
+        "YEAR",
+        "YYYY",
+        "YY",
+        "MON",
+        "MONTH",
+        "MM",
+        "DAY",
+        "DD",
+        "HOUR",
+        "MINUTE",
+        "SECOND",
+        "WEEK",
+        "QUARTER"
       )
-      for (datePart <- dateParts ::: dateParts.map(_.toUpperCase)) {
+      for (datePart <- dateParts) {
         println(s"testing truncTimestamp with datepart $datePart")
         testQuery(s"select date_trunc('$datePart', created) from reviews")
       }
@@ -397,8 +402,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     // TruncDate is called as trunc()
     it("truncDate") {
-      val dateParts = List("year", "yyyy", "yy", "mon", "month", "mm")
-      for (datePart <- dateParts ::: dateParts.map(_.toUpperCase)) {
+      val dateParts = List("YEAR", "YYYY", "YY", "MON", "MONTH", "MM")
+      for (datePart <- dateParts) {
         println(s"testing truncDate with datepart $datePart")
         testQuery(s"select trunc(created, '$datePart') from reviews")
       }
