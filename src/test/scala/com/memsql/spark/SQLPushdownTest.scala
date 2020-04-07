@@ -353,6 +353,18 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
+    it("addMonths") {
+      val numMonthsList = List(0, 1, 2, 12, 13, 200, -1, -2, -12, -13, -200)
+      for (numMonths <- numMonthsList) {
+        println(s"testing addMonths with $numMonths months")
+        testQuery(s"""
+                     | select created, add_months(created, $numMonths)
+                     | from reviews
+                     | where date(created) != last_day(created)
+                     |""".stripMargin)
+      }
+    }
+
     // Spark doesn't support explicit time intervals like `+/-hh:mm`
 
     val timeZones = List(

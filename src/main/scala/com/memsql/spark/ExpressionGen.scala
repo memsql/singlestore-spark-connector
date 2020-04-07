@@ -285,10 +285,12 @@ object ExpressionGen extends LazyLogging {
     case MonthsBetweenExpression((date1, date2)) =>
       f("MONTHS_BETWEEN", date1, date2)
 
+    case AddMonths(Expression(startDate), Expression(numMonths)) =>
+      f("DATE_ADD", startDate, Raw("INTERVAL") + numMonths + "MONTH")
+
     // TODO: Support more datetime expressions
     // case _: ToUnixTimestamp  => None
     // case _: UnixTimestamp    => None
-    // case _: AddMonths        => None
     // case _: FromUnixTime     => None
     // case _: NextDay          => None
     // case _: DateDiff         => None
