@@ -1,7 +1,7 @@
 # MemSQL Spark Connector
 ## Version: 3.0.0-beta8 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/3.0.0-beta.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
-> :warning: **This is a beta release suitable for development and testing purposes.** 
+> :warning: **This is a beta release suitable for development and testing purposes.**
 
 ## Major changes from the 2.0.0 connector
 
@@ -238,3 +238,20 @@ of the plan.  See the debugging SQL Pushdown section above for more information
 on how to do this.
 
 Happy querying!
+
+## Setting up development environment
+
+ * install Oracle JDK 8 from this url: https://www.oracle.com/java/technologies/javase/javase-jdk8-downloads.html
+ * install community version of Intellij IDEA from https://www.jetbrains.com/idea/
+ * clone the repository https://github.com/memsql/memsql-spark-connector.git
+ * checkout to the branch `3.0.0-beta`
+ * in Intellij IDEA choose `Configure->Plugins` and install Scala plugin
+ * in Intellij IDEA run `Import Project` and select path to memsql-spark-connector
+ * choose `import project from external model` and `sbt`
+ * in `Project JDK` select `New...->JDK` and choose path to the installed JDK
+ * `Finish`
+ * it will overwrite some files and create build files (which are in gitignore)
+ * in Intellij IDEA choose `File->Close Project`
+ * run `git checkout .` to revert all changes made by Intellij IDEA
+ * in Intellij IDEA choose `Open` and select path to memsql-spark-connector
+ * run `Test Spark 2.3` (it should succeed)
