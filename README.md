@@ -170,7 +170,7 @@ operators/functions can be found in the file
 
 The best place to look for examples of fully supported queries is in the tests.
 Check out this file as a starting point:
-[SQLPushdownTest.scala](src/main/scala/com/memsql/spark/SQLPushdownTest.scala).
+[SQLPushdownTest.scala](src/test/scala/com/memsql/spark/SQLPushdownTest.scala).
 
 ### Debugging SQL Pushdown
 
