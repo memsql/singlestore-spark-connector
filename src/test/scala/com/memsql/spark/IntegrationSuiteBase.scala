@@ -31,7 +31,6 @@ trait IntegrationSuiteBase
 
     // make memsql use less memory
     executeQuery("set global default_partitions_per_leaf = 2")
-    executeQuery("set global plan_expiration_minutes = 0")
 
     executeQuery("drop database if exists testdb")
     executeQuery("create database testdb")

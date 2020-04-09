@@ -427,8 +427,14 @@ object Expression {
   def unapply(arg: Expression): Option[Joinable] = {
     val out = ExpressionGen.apply.lift(arg)
 
-    if (out.isEmpty) {
-      log.debug(s"Warning: MemSQL SQL pushdown was unable to convert expression: ${arg.asCode}")
+    if (out.isEmpty && log.isTraceEnabled) {
+      val argStr: String = try {
+        arg.asCode
+      } catch {
+        case e: NullPointerException =>
+          s"${arg.prettyName} (failed to convert expression to string)"
+      }
+      log.trace(s"Warning: MemSQL SQL pushdown was unable to convert expression: $argStr")
     }
 
     out

@@ -72,4 +72,23 @@ class IssuesTest extends IntegrationSuiteBase {
     val count = data.head.getLong(0)
     assert(count == 3)
   }
+
+  it("handles exceptions raised by asCode") {
+    // in certain cases asCode will raise NullPointerException due to this bug
+    // https://issues.apache.org/jira/browse/SPARK-31403
+    writeTable("testdb.nulltest",
+               spark.createDF(
+                 List(1, null),
+                 List(("i", IntegerType, true))
+               ))
+    spark.sql(s"create table nulltest using memsql options ('dbtable'='testdb.nulltest')")
+
+    val df2 = spark.sql("select if(isnull(i), null, 2) as x from nulltest order by i")
+
+    assertSmallDataFrameEquality(df2,
+                                 spark.createDF(
+                                   List(null, 2),
+                                   List(("x", IntegerType, true))
+                                 ))
+  }
 }
