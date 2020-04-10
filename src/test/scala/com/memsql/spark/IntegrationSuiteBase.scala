@@ -43,21 +43,22 @@ trait IntegrationSuiteBase
     }
 
     @scala.annotation.tailrec
-    def runWithRetry(attempts: Int): Outcome = {
+    def runWithRetry(attempts: Int, lastError: Option[Throwable]): Outcome = {
       if (attempts == 0) {
-        return Canceled("too many SQLNonTransientConnectionExceptions occurred")
+        return Canceled(
+          s"too many SQLNonTransientConnectionExceptions occurred, last error was:\n${lastError.get}")
       }
 
       super.withFixture(test) match {
         case Failed(t: Throwable) if retryThrowable(t) || retryThrowable(t.getCause) => {
           Thread.sleep(3000)
-          runWithRetry(attempts - 1)
+          runWithRetry(attempts - 1, Some(t))
         }
         case other => other
       }
     }
 
-    runWithRetry(attempts = 5)
+    runWithRetry(attempts = 5, None)
   }
 
   override def beforeEach(): Unit = {
