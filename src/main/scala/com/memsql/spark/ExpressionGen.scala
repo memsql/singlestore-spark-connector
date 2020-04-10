@@ -360,8 +360,8 @@ object ExpressionGen extends LazyLogging {
                        StringVar(null)
                      ))
 
-    // TODO: Support more datetime expressions
-    // case _: DateDiff         => None
+    case DateDiff(Expression(endDate), Expression(startDate)) =>
+      f("DATEDIFF", endDate, startDate)
 
     // hash.scala
     case Sha2(Expression(left), Expression(right)) => f("SHA2", left, right)

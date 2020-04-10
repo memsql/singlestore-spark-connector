@@ -378,10 +378,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       for (numMonths <- numMonthsList) {
         println(s"testing addMonths with $numMonths months")
         testQuery(s"""
-                     | select created, add_months(created, $numMonths)
-                     | from reviews
-                     | where date(created) != last_day(created)
-                     |""".stripMargin)
+             | select created, add_months(created, $numMonths)
+             | from reviews
+             | where date(created) != last_day(created)
+             |""".stripMargin)
       }
     }
 
@@ -397,9 +397,24 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     it("nextDay with invalid day name") {
       testQuery(s"""
-             | select created, next_day(created, 'invalid_day')
-             | from reviews
-             |""".stripMargin)
+           | select created, next_day(created, 'invalid_day')
+           | from reviews
+           |""".stripMargin)
+    }
+
+    it("dateDiff") {
+      testSingleReadQuery(
+        """
+          | select birthday, created, DateDiff(birthday, created), DateDiff(created, birthday)
+          | from users inner join reviews on users.id = reviews.user_id
+          | """.stripMargin)
+    }
+
+    it("dateDiff for equal dates") {
+      testQuery("""
+          | select created, DateDiff(created, created)
+          | from reviews
+          | """.stripMargin)
     }
 
     // Spark doesn't support explicit time intervals like `+/-hh:mm`
