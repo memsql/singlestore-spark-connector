@@ -385,6 +385,23 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
+    it("nextDay") {
+      for ((dayOfWeek, i) <- com.memsql.spark.ExpressionGen.DAYS_OF_WEEK_OFFSET_MAP) {
+        println(s"testing nextDay with $dayOfWeek")
+        testQuery(s"""
+             | select created, next_day(created, '$dayOfWeek')
+             | from reviews
+             |""".stripMargin)
+      }
+    }
+
+    it("nextDay with invalid day name") {
+      testQuery(s"""
+             | select created, next_day(created, 'invalid_day')
+             | from reviews
+             |""".stripMargin)
+    }
+
     // Spark doesn't support explicit time intervals like `+/-hh:mm`
 
     val timeZones = List(

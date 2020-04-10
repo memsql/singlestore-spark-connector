@@ -13,6 +13,17 @@ object ExpressionGen extends LazyLogging {
   final val MEMSQL_DECIMAL_MAX_SCALE     = 30
   final val MEMSQL_DEFAULT_TIME_FORMAT   = UTF8String.fromString("yyyy-MM-dd HH:mm:ss")
 
+  // DAYS_OF_WEEK_OFFSET_MAP is a map from week day prefix to it's offset (sunday -> 1, saturday -> 7)
+  final val DAYS_OF_WEEK_OFFSET_MAP: Map[String, String] = {
+    val daysOfWeek =
+      List("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
+    val prefix2    = daysOfWeek.map(day => day.slice(0, 2))
+    val prefix3    = daysOfWeek.map(day => day.slice(0, 3))
+    val dayFormats = daysOfWeek ::: prefix3 ::: prefix2
+
+    dayFormats.zipWithIndex.map { case (day, ind) => (day, (ind % 7 + 1).toString) }.toMap
+  }
+
   // helpers to keep this code sane
   def f(n: String, c: Joinable*)              = func(n, c: _*)
   def op(o: String, l: Joinable, r: Joinable) = block(l + o + r)
@@ -22,6 +33,30 @@ object ExpressionGen extends LazyLogging {
     val s = Math.min(MEMSQL_DECIMAL_MAX_SCALE, scale)
     cast(child, s"DECIMAL($p, $s)")
   }
+
+  // computeNextDay returns a statement for computing the next date after startDate with specified offset (sunday -> 1, saturday -> 7)
+  // ADDDATE(startDate,(dayOfWeekOffset - DAYOFWEEK(startDate) + 6)%7 +1)
+  def computeNextDay(startDate: Joinable, offset: Joinable): Statement = f(
+    "ADDDATE",
+    startDate,
+    op(
+      "+",
+      op(
+        "%",
+        op(
+          "+",
+          op(
+            "-",
+            offset,
+            f("DAYOFWEEK", startDate)
+          ),
+          "6"
+        ),
+        "7"
+      ),
+      "1"
+    )
+  )
 
   object GenLiteral {
     def unapply(arg: Expression): Option[Joinable] = arg match {
@@ -260,7 +295,8 @@ object ExpressionGen extends LazyLogging {
             "mon"  -> "month",
             "mm"   -> "month",
             "dd"   -> "day"
-          )
+          ),
+          format
         ),
         timestamp
       )
@@ -277,7 +313,8 @@ object ExpressionGen extends LazyLogging {
             "yy"   -> "year",
             "mon"  -> "month",
             "mm"   -> "month"
-          )
+          ),
+          format
         ),
         date
       )
@@ -304,8 +341,26 @@ object ExpressionGen extends LazyLogging {
           format.eval().asInstanceOf[UTF8String] == MEMSQL_DEFAULT_TIME_FORMAT =>
       f("FROM_UNIXTIME", sec)
 
+    case NextDay(Expression(startDate), dayOfWeek)
+        if dayOfWeek.foldable && dayOfWeek.dataType == StringType =>
+      computeNextDay(
+        startDate,
+        sqlMapValueCaseInsensitive(
+          StringVar(dayOfWeek.eval().asInstanceOf[UTF8String].toString),
+          DAYS_OF_WEEK_OFFSET_MAP,
+          StringVar(null)
+        )
+      )
+
+    case NextDay(Expression(startDate), Expression(dayOfWeek)) =>
+      computeNextDay(startDate,
+                     sqlMapValueCaseInsensitive(
+                       dayOfWeek,
+                       DAYS_OF_WEEK_OFFSET_MAP,
+                       StringVar(null)
+                     ))
+
     // TODO: Support more datetime expressions
-    // case _: NextDay          => None
     // case _: DateDiff         => None
 
     // hash.scala
