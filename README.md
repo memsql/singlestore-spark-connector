@@ -255,3 +255,7 @@ Happy querying!
  * run `git checkout .` to revert all changes made by Intellij IDEA
  * in Intellij IDEA choose `Open` and select path to memsql-spark-connector
  * run `Test Spark 2.3` (it should succeed)
+ 
+## SQL Pushdown Incompatibilities
+ * `ToUnixTimestamp` and `UnixTimestamp` handle only time less then `2038-01-19 03:14:08`, if they get `DateType` or `TimestampType` as a first argument
+ * `FromUnixTime` with default format (`yyyy-MM-dd HH:mm:ss`) handle only time less then `2147483648` (`2^31`)

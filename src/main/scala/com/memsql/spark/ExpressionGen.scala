@@ -11,6 +11,7 @@ object ExpressionGen extends LazyLogging {
 
   final val MEMSQL_DECIMAL_MAX_PRECISION = 65
   final val MEMSQL_DECIMAL_MAX_SCALE     = 30
+  final val MEMSQL_DEFAULT_TIME_FORMAT   = UTF8String.fromString("yyyy-MM-dd HH:mm:ss")
 
   // helpers to keep this code sane
   def f(n: String, c: Joinable*)              = func(n, c: _*)
@@ -288,10 +289,22 @@ object ExpressionGen extends LazyLogging {
     case AddMonths(Expression(startDate), Expression(numMonths)) =>
       f("DATE_ADD", startDate, Raw("INTERVAL") + numMonths + "MONTH")
 
+    // MemSQL and spark support other date formats
+    // UnixTime doesn't use format if time is already a dataType or TimestampType
+    case ToUnixTimestamp(e @ Expression(timeExp), format, timeZoneId)
+        if e.dataType == DateType || e.dataType == TimestampType =>
+      f("UNIX_TIMESTAMP", timeExp)
+
+    case UnixTimestamp(e @ Expression(timeExp), format, timeZoneId)
+        if e.dataType == DateType || e.dataType == TimestampType =>
+      f("UNIX_TIMESTAMP", timeExp)
+
+    case FromUnixTime(Expression(sec), format, timeZoneId)
+        if format.foldable &&
+          format.eval().asInstanceOf[UTF8String] == MEMSQL_DEFAULT_TIME_FORMAT =>
+      f("FROM_UNIXTIME", sec)
+
     // TODO: Support more datetime expressions
-    // case _: ToUnixTimestamp  => None
-    // case _: UnixTimestamp    => None
-    // case _: FromUnixTime     => None
     // case _: NextDay          => None
     // case _: DateDiff         => None
 

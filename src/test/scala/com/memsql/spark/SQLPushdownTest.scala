@@ -328,6 +328,26 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       "3 month 1 week 3 hour 5 minute 4 seconds"
     )
 
+    it("toUnixTimestamp with TimestampType") {
+      testQuery("select created, to_unix_timestamp(created) from reviews")
+    }
+
+    it("toUnixTimestamp with DateType") {
+      testQuery("select birthday, to_unix_timestamp(birthday) from users")
+    }
+
+    it("unixTimestamp with TimestampType") {
+      testQuery("select created, unix_timestamp(created) from reviews")
+    }
+
+    it("unixTimestamp with DateType") {
+      testQuery("select birthday, unix_timestamp(birthday) from users")
+    }
+
+    it("fromUnixTime") {
+      testQuery("select id, from_unixtime(id) from movies")
+    }
+
     // MemSQL and Spark differ on how they do last day calculations, so we ignore
     // them in some of these tests
 
