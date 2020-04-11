@@ -337,7 +337,7 @@ object ExpressionGen extends LazyLogging {
       f("UNIX_TIMESTAMP", timeExp)
 
     case FromUnixTime(Expression(sec), format, timeZoneId)
-        if format.foldable &&
+        if format.foldable && format.dataType == StringType &&
           format.eval().asInstanceOf[UTF8String] == MEMSQL_DEFAULT_TIME_FORMAT =>
       f("FROM_UNIXTIME", sec)
 

@@ -345,7 +345,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     it("fromUnixTime") {
-      testQuery("select id, from_unixtime(id) from movies")
+      // cast is needed because in MemSQL 6.8 FROM_UNIXTIME query returns a result with microseconds
+      testQuery("select id, cast(from_unixtime(id) as timestamp) from movies")
     }
 
     // MemSQL and Spark differ on how they do last day calculations, so we ignore
