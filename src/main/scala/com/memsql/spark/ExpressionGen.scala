@@ -558,8 +558,9 @@ object ExpressionGen extends LazyLogging {
     case Cosh(Expression(child)) =>
       op("/", op("+", f("EXP", child), f("EXP", f("-", child))), "2")
 
+    case Rint(Expression(child)) => f("ROUND", child, "0")
+
     // TODO: case Factorial(Expression(child)) => ???
-    // TODO: case Rint(Expression(child))      => ???
     // TODO: case Cbrt(Expression(child))      => f("POW", child, op("/", "1", "3"))
     //  We need to wait for the engine to implement precise cbrt
 

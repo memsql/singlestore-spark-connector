@@ -143,6 +143,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("cosh") { testQuery("select cosh(rating) from reviews") }
     it("tanh") { testQuery("select tanh(rating) from reviews") }
     it("hypot") { testQuery("select hypot(rating, user_id) from reviews") }
+    it("rint") { testQuery("select rint(rating) from reviews") }
   }
 
   describe("datatypes") {
