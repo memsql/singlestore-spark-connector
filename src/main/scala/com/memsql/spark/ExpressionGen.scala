@@ -375,7 +375,9 @@ object ExpressionGen extends LazyLogging {
     case Logarithm(Expression(left), Expression(right))          => f("LOG", left, right)
     case Round(Expression(child), Expression(scale))             => f("ROUND", child, scale)
 
-    // TODO: case _: Hypot => None
+    case Hypot(Expression(left), Expression(right)) =>
+      f("SQRT", op("+", f("POW", left, "2"), f("POW", right, "2")))
+
     // TODO: case _: BRound => None
 
     // predicates.scala
