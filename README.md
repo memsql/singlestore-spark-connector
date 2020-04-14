@@ -224,6 +224,39 @@ In order to use parallel reads, the username and password provided to the
 In addition, the hostnames and ports listed by `SHOW LEAVES` must be directly
 connectible from Spark.
 
+## SSL Support
+
+The MemSQL Spark Connector uses the MariaDB JDBC Driver under the hood and thus
+supports SSL configuration out of the box. In order to configure SSL, first
+ensure that your MemSQL cluster has SSL configured. Documentation on how to set
+this up can be found here:
+https://docs.memsql.com/latest/guides/security/encryption/ssl/
+
+Once you have setup SSL on your server, you can enable SSL via setting the following options:
+
+```scala
+spark.conf.set("spark.datasource.memsql.useSSL", "true")
+spark.conf.set("spark.datasource.memsql.serverSslCert", "PATH/TO/CERT")
+```
+
+**Note:** the `serverSslCert` option may be server's certificate in DER form, or the server's
+CA certificate. Can be used in one of 3 forms:
+
+* `serverSslCert=/path/to/cert.pem` (full path to certificate)
+* `serverSslCert=classpath:relative/cert.pem` (relative to current classpath)
+* or as verbatim DER-encoded certificate string `------BEGIN CERTIFICATE-----...`
+
+You may also want to set these additional options depending on your SSL configuration:
+
+```scala
+spark.conf.set("spark.datasource.memsql.trustServerCertificate", "true")
+spark.conf.set("spark.datasource.memsql.disableSslHostnameVerification", "true")
+```
+
+More information on the above parameters can be found at MariaDB's documentation
+for their JDBC driver here:
+https://mariadb.com/kb/en/about-mariadb-connector-j/#tls-parameters
+
 ## Filing issues
 
 When filing issues please include as much information as possible as well as any

@@ -15,10 +15,8 @@ trait IntegrationSuiteBase
     with BeforeAndAfterAll
     with DataFrameComparer
     with LazyLogging {
-  final val masterHost: String     = sys.props.getOrElse("memsql.host", "localhost")
-  final val masterPort: String     = sys.props.getOrElse("memsql.port", "5506")
-  final val masterUser: String     = sys.props.getOrElse("memsql.user", "root")
-  final val masterPassword: String = sys.props.getOrElse("memsql.password", "")
+  final val masterHost: String = sys.props.getOrElse("memsql.host", "localhost")
+  final val masterPort: String = sys.props.getOrElse("memsql.port", "5506")
 
   final val continuousIntegration: Boolean = sys.env
     .getOrElse("CONTINUOUS_INTEGRATION", "false") == "true"
@@ -78,11 +76,15 @@ trait IntegrationSuiteBase
       .config("spark.executor.extraJavaOptions", "-Duser.timezone=GMT")
       .config("spark.sql.session.timeZone", "GMT")
       .config("spark.datasource.memsql.ddlEndpoint", s"${masterHost}:${masterPort}")
-      .config("spark.datasource.memsql.user", masterUser)
-      .config("spark.datasource.memsql.password", masterPassword)
+      .config("spark.datasource.memsql.user", "root-ssl")
+      .config("spark.datasource.memsql.password", "")
       .config("spark.datasource.memsql.enableAsserts", "true")
       .config("spark.datasource.memsql.enableParallelRead", "true")
       .config("spark.datasource.memsql.database", "testdb")
+      .config("spark.datasource.memsql.useSSL", "true")
+      .config("spark.datasource.memsql.serverSslCert",
+              s"${System.getProperty("user.dir")}/scripts/ssl/test-ca-cert.pem")
+      .config("spark.datasource.memsql.disableSslHostnameVerification", "true")
       .getOrCreate()
   }
 
@@ -93,10 +95,7 @@ trait IntegrationSuiteBase
 
   def jdbcConnection: Loan[Connection] = {
     val connProperties = new Properties()
-    connProperties.put("user", masterUser)
-    if (masterPassword != "") {
-      connProperties.put("password", masterPassword)
-    }
+    connProperties.put("user", "root")
 
     Loan(
       DriverManager.getConnection(
@@ -113,8 +112,8 @@ trait IntegrationSuiteBase
   def jdbcOptions(dbtable: String): Map[String, String] = Map(
     "url"      -> s"jdbc:mysql://$masterHost:$masterPort",
     "dbtable"  -> dbtable,
-    "user"     -> masterUser,
-    "password" -> masterPassword
+    "user"     -> "root",
+    "password" -> ""
   )
 
   def jdbcOptionsSQL(dbtable: String): String =
