@@ -38,10 +38,11 @@ class DefaultSource
     val options = MemsqlOptions(params)
     if (options.disablePushdown) {
       SQLPushdownRule.ensureRemoved(sqlContext.sparkSession)
+      MemsqlReaderNoPushdown(MemsqlOptions.getQuery(params), options, sqlContext)
     } else {
       SQLPushdownRule.ensureInjected(sqlContext.sparkSession)
+      MemsqlReader(MemsqlOptions.getQuery(params), Nil, options, sqlContext)
     }
-    MemsqlReader(MemsqlOptions.getQuery(params), Nil, options, sqlContext)
   }
 
   override def createRelation(sqlContext: SQLContext,

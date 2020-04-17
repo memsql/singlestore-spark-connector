@@ -10,6 +10,19 @@ import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
 import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
 
+case class MemsqlReaderNoPushdown(query: String,
+                                  options: MemsqlOptions,
+                                  @transient val sqlContext: SQLContext)
+    extends BaseRelation
+    with TableScan {
+
+  override lazy val schema = JdbcHelpers.loadSchema(options, query, Nil)
+
+  override def buildScan: RDD[Row] = {
+    MemsqlRDD(query, Nil, options, schema, Nil, sqlContext.sparkContext)
+  }
+}
+
 case class MemsqlReader(query: String,
                         variables: VariableList,
                         options: MemsqlOptions,
@@ -23,7 +36,7 @@ case class MemsqlReader(query: String,
 
   override lazy val schema = JdbcHelpers.loadSchema(options, query, variables)
 
-  override def buildScan(): RDD[Row] = {
+  override def buildScan: RDD[Row] = {
     MemsqlRDD(query, variables, options, schema, expectedOutput, sqlContext.sparkContext)
   }
 

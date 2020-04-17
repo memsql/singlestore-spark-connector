@@ -59,11 +59,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     super.beforeEach()
 
     spark.sql("create database testdb")
+    spark.sql("create database testdb_nopushdown")
     spark.sql("create database testdb_jdbc")
 
     def makeTables(sourceTable: String) = {
       spark.sql(
         s"create table testdb.${sourceTable} using memsql options ('dbtable'='testdb.${sourceTable}')")
+      spark.sql(
+        s"create table testdb_nopushdown.${sourceTable} using memsql options ('dbtable'='testdb.${sourceTable}','disablePushdown'='true')")
       spark.sql(s"create table testdb_jdbc.${sourceTable} using jdbc options (${jdbcOptionsSQL(
         s"testdb.${sourceTable}")})")
     }
@@ -78,13 +81,15 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                 alreadyOrdered: Boolean = false,
                 expectPartialPushdown: Boolean = false,
                 expectSingleRead: Boolean = false,
-                expectEmpty: Boolean = false): Unit = {
+                expectEmpty: Boolean = false,
+                pushdown: Boolean = true): Unit = {
     spark.sql("use testdb_jdbc")
     val jdbcDF = spark.sql(q)
     // verify that the jdbc DF works first
     jdbcDF.collect()
 
-    spark.sql("use testdb")
+    if (pushdown) { spark.sql("use testdb") } else { spark.sql("use testdb_nopushdown") }
+
     val memsqlDF = spark.sql(q)
     if (!continuousIntegration) { memsqlDF.show(4) }
 
@@ -120,15 +125,52 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  def testOrderedQuery(q: String, expectPartialPushdown: Boolean = false): Unit = {
+  def testOrderedQuery(q: String,
+                       expectPartialPushdown: Boolean = false,
+                       pushdown: Boolean = true): Unit = {
     // order by in MemSQL requires single read
-    testQuery(q, alreadyOrdered = true, expectPartialPushdown, expectSingleRead = true)
+    testQuery(q,
+              alreadyOrdered = true,
+              expectPartialPushdown = expectPartialPushdown,
+              expectSingleRead = true,
+              pushdown = pushdown)
   }
 
   def testSingleReadQuery(q: String,
                           alreadyOrdered: Boolean = false,
-                          expectPartialPushdown: Boolean = false): Unit = {
-    testQuery(q, alreadyOrdered, expectPartialPushdown, expectSingleRead = true)
+                          expectPartialPushdown: Boolean = false,
+                          pushdown: Boolean = true): Unit = {
+    testQuery(q,
+              alreadyOrdered = alreadyOrdered,
+              expectPartialPushdown = expectPartialPushdown,
+              expectSingleRead = true,
+              pushdown = pushdown)
+  }
+
+  describe("sanity test disablePushdown") {
+    def testNoPushdownQuery(q: String, expectSingleRead: Boolean = false): Unit =
+      testQuery(q,
+                expectPartialPushdown = true,
+                pushdown = false,
+                expectSingleRead = expectSingleRead)
+
+    it("select all users") { testNoPushdownQuery("select * from users") }
+    it("select all movies") { testNoPushdownQuery("select * from movies") }
+    it("select all reviews") { testNoPushdownQuery("select * from reviews") }
+    it("basic filter") { testNoPushdownQuery("select * from users where id = 1") }
+    it("basic agg") {
+      testNoPushdownQuery("select floor(avg(age)) from users", expectSingleRead = true)
+    }
+    it("numeric order") {
+      testNoPushdownQuery("select * from users order by id asc", expectSingleRead = true)
+    }
+    it("limit with sort") {
+      testNoPushdownQuery("select * from users order by id limit 10", expectSingleRead = true)
+    }
+    it("implicit inner join") {
+      testNoPushdownQuery("select * from users as a, reviews as b where a.id = b.user_id",
+                          expectSingleRead = true)
+    }
   }
 
   describe("sanity test the tables") {

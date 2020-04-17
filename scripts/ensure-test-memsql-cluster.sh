@@ -2,7 +2,7 @@
 set -eu
 
 # this script must be run from the top-level of the repo
-cd $(git rev-parse --show-toplevel)
+cd "$(git rev-parse --show-toplevel)"
 
 DEFAULT_IMAGE_NAME="memsql/cluster-in-a-box:centos-7.0.15-619d118712-1.9.5-1.5.0"
 IMAGE_NAME="${MEMSQL_IMAGE:-$DEFAULT_IMAGE_NAME}"
@@ -61,7 +61,7 @@ echo
 echo "Ensuring leaf node is connected using container IP"
 CONTAINER_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME})
 CURRENT_LEAF_IP=$(mysql -u root -h 127.0.0.1 -P 5506 --batch -N -e 'select host from information_schema.leaves')
-if [[ ${CONTAINER_IP} != ${CURRENT_LEAF_IP} ]]; then
+if [[ ${CONTAINER_IP} != "${CURRENT_LEAF_IP}" ]]; then
     # remove leaf with current ip
     mysql -u root -h 127.0.0.1 -P 5506 --batch -N -e "remove leaf '${CURRENT_LEAF_IP}':3307"
     # add leaf with correct ip
