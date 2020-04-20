@@ -74,41 +74,18 @@ workflows:
   test:
     jobs:
       - test:
-          name: spark 2.3.4 - memsql 7.0.15
-          spark_version: 2.3.4
-          memsql_image: memsql/cluster-in-a-box:centos-7.0.15-619d118712-1.9.5-1.5.0
           filters:
             tags:
               only: /^v.*/
-      - test:
-          name: spark 2.4.4 - memsql 7.0.15
-          spark_version: 2.4.4
-          memsql_image: memsql/cluster-in-a-box:centos-7.0.15-619d118712-1.9.5-1.5.0
-          filters:
-            tags:
-              only: /^v.*/
-      - test:
-          name: spark 2.3.4 - memsql 6.8.15
-          spark_version: 2.3.4
-          memsql_image: memsql/cluster-in-a-box:centos-6.8.15-029542cbf3-1.9.3-1.4.1
-          filters:
-            tags:
-              only: /^v.*/
-      - test:
-          name: spark 2.4.4 - memsql 6.8.15
-          spark_version: 2.4.4
-          memsql_image: memsql/cluster-in-a-box:centos-6.8.15-029542cbf3-1.9.3-1.4.1
-          filters:
-            tags:
-              only: /^v.*/
-      - test:
-          name: spark 2.4.4 - memsql 6.7.18
-          spark_version: 2.4.4
-          memsql_image: memsql/cluster-in-a-box:6.7.18-db1caffe94-1.6.1-1.1.1
-          filters:
-            tags:
-              only: /^v.*/
-
+          matrix:
+            parameters:
+              spark_version:
+                - 2.3.4
+                - 2.4.4
+              memsql_image:
+                - memsql/cluster-in-a-box:centos-7.0.15-619d118712-1.9.5-1.5.0
+                - memsql/cluster-in-a-box:centos-6.8.15-029542cbf3-1.9.3-1.4.1
+                - memsql/cluster-in-a-box:6.7.18-db1caffe94-1.6.1-1.1.1
   publish:
     jobs:
       - approve-publish:
