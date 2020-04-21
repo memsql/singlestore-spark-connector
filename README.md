@@ -55,7 +55,7 @@ global options have the prefix `spark.datasource.memsql.`.
 | `dbtable`                 | The table to query (mutually exclusive with query)
 | `database`                | If set, all connections will default to using this database (default: empty)
 | `disablePushdown`         | Disable SQL Pushdown when running queries (default: false)
-| `enableParallelRead`      | Enable loading data in parallel for some query shapes (default: false)
+| `enableParallelRead`      | Enable reading data in parallel for some query shapes (default: false)
 | `truncate`                | Truncate instead of drop an existing table during Overwrite (default: false)
 | `loadDataCompression`     | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
 | `tableKey`                | Specify additional keys to add to tables created by the connector (See below for more details)
