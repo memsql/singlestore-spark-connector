@@ -1,4 +1,4 @@
-##memsql-spark-connector demo
+## memsql-spark-connector demo
 
 This is Dockerfile which uses the upstream [Zeppelin Image](https://hub.docker.com/r/apache/zeppelin/) as it's base
 and has two notebooks with examples of memsql-spark-connector.
