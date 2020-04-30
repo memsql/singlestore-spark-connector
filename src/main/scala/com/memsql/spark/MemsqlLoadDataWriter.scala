@@ -17,10 +17,14 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
 
-case class PartitionWriteSuccess() extends WriterCommitMessage
+case class WriteSuccess() extends WriterCommitMessage
 
-class PartitionWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
-    extends Serializable
+abstract class WriterFactory extends Serializable {
+  def createDataWriter(schema: StructType, partitionId: Int, attemptNumber: Int): DataWriter[Row]
+}
+
+class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
+    extends WriterFactory
     with LazyLogging {
 
   final val BUFFER_SIZE = 524288
@@ -76,11 +80,11 @@ class PartitionWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
       }
     }
 
-    new PartitionWriter(outputstream, writer, conn)
+    new LoadDataWriter(outputstream, writer, conn)
   }
 }
 
-class PartitionWriter(outputstream: OutputStream, writeFuture: Future[Long], conn: Connection)
+class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn: Connection)
     extends DataWriter[Row] {
 
   override def write(row: Row): Unit = {
@@ -118,7 +122,7 @@ class PartitionWriter(outputstream: OutputStream, writeFuture: Future[Long], con
   override def commit(): WriterCommitMessage = {
     outputstream.close()
     Await.result(writeFuture, Duration.Inf)
-    new PartitionWriteSuccess
+    new WriteSuccess
   }
 
   override def abort(): Unit = {

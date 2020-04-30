@@ -18,7 +18,9 @@ case class MemsqlOptions(
     // write options
     truncate: Boolean,
     loadDataCompression: MemsqlOptions.CompressionType.Value,
-    tableKeys: List[TableKey]
+    tableKeys: List[TableKey],
+    onDuplicateKeySQL: Option[String],
+    insertBatchSize: Int
 ) extends LazyLogging {
 
   def assert(condition: Boolean, message: String) = {
@@ -84,6 +86,8 @@ object MemsqlOptions {
   final val TRUNCATE              = newOption("truncate")
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
   final val TABLE_KEYS            = newOption("tableKey")
+  final val ON_DUPLICATE_KEY_SQL  = newOption("onDuplicateKeySQL")
+  final val INSERT_BATCH_SIZE     = newOption("insertBatchSize")
 
   final val ENABLE_ASSERTS       = newOption("enableAsserts")
   final val DISABLE_PUSHDOWN     = newOption("disablePushdown")
@@ -169,7 +173,9 @@ object MemsqlOptions {
       enableParallelRead = options.get(ENABLE_PARALLEL_READ).getOrElse("false").toBoolean,
       truncate = options.get(TRUNCATE).getOrElse("false").toBoolean,
       loadDataCompression = loadDataCompression,
-      tableKeys = tableKeys
+      tableKeys = tableKeys,
+      onDuplicateKeySQL = options.get(ON_DUPLICATE_KEY_SQL),
+      insertBatchSize = options.get(INSERT_BATCH_SIZE).getOrElse("10000").toInt
     )
   }
 }

@@ -128,4 +128,15 @@ trait IntegrationSuiteBase
       .format("memsql")
       .mode(saveMode)
       .save(dbtable)
+
+  def insertValues(dbtable: String,
+                   df: DataFrame,
+                   onDuplicateKeySQL: String,
+                   insertBatchSize: Long): Unit =
+    df.write
+      .format("memsql")
+      .option("onDuplicateKeySQL", onDuplicateKeySQL)
+      .option("insertBatchSize", insertBatchSize)
+      .mode(SaveMode.Append)
+      .save(dbtable)
 }

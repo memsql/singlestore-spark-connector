@@ -61,9 +61,14 @@ class DefaultSource
       )
 
     JdbcHelpers.prepareTableForWrite(conf, table, mode, data.schema)
+    val partitionWriterFactory =
+      if (conf.onDuplicateKeySQL.isEmpty) {
+        new LoadDataWriterFactory(table, conf)
+      } else {
+        new BatchInsertWriterFactory(table, conf)
+      }
 
-    val partitionWriterFactory = new PartitionWriterFactory(table, conf)
-    val schema                 = data.schema
+    val schema = data.schema
     data.foreachPartition(partition => {
       val writer = partitionWriterFactory.createDataWriter(schema, TaskContext.getPartitionId(), 0)
       try {

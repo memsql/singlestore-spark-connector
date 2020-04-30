@@ -59,6 +59,8 @@ global options have the prefix `spark.datasource.memsql.`.
 | `truncate`                | Truncate instead of drop an existing table during Overwrite (default: false)
 | `loadDataCompression`     | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
 | `tableKey`                | Specify additional keys to add to tables created by the connector (See below for more details)
+| `onDuplicateKeySQL`       | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, MemSQL will instead perform an UPDATE of the old row. See examples below
+| `insertBatchSize`         | Size of the batch for row insertion (default: `10000`)
 
 Example of configuring the `memsql-spark-connector` globally:
 ```scala
@@ -140,6 +142,24 @@ You can also customize the shard key like so:
 df.write
     .option("tableKey.shard", "id, timestamp")
 ```
+
+## Inserting rows into the table with ON DUPLICATE KEY UPDATE
+
+When updating a rowstore table it is possible to insert rows with `ON DUPLICATE KEY UPDATE` option.
+See [sql reference](https://docs.memsql.com/latest/reference/sql-reference/data-manipulation-language-dml/insert/) for more details.
+
+```scala
+df.write
+    .option("onDuplicateKeySQL", "age = age + 1")
+    .option("insertBatchSize", 300)
+    .mode(SaveMode.Append)
+    .save("foo.bar")
+```
+
+As a result of the following query, all new rows will be appended without changes.
+If the row with the same `PRIMARY KEY` or `UNIQUE` index already exists then the corresponding `age` value will be increased.
+
+When you use ON DUPLICATE KEY UPDATE, all rows of the data frame are split into batches, and every insert query will contain no more than the specified `insertBatchSize` rows setting.
 
 ## SQL Pushdown
 
