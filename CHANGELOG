@@ -1,3 +1,7 @@
+2020-04-30 Version 3.0.0-beta11
+        * Added support for merging rows on ingest via `ON DUPLICATE KEY UPDATE`
+        * Added docker-based demo for running a Zeppelin notebook using the Spark connector
+
 2020-04-20 Version 3.0.0-beta10
         * Additional functions supported in SQL Pushdown: toUnixTimestamp, unixTimestamp, nextDay, dateDiff, monthsAdd, hypot, rint
         * Now tested against MemSQL 6.7, and all tests use SSL
