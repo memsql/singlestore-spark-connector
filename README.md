@@ -210,6 +210,25 @@ log4j.logger.com.memsql.spark=TRACE
 Make sure not to leave it in place since it generates a huge amount of tracing
 output.
 
+## SQL Permissions
+
+MemSQL has a [permission matrix](https://docs.memsql.com/latest/reference/sql-reference/security-management-commands/permissions-matrix/)
+which describes the permissions required to run each command.
+
+To make any SQL operations through Spark connector you should have different 
+permissions for different type of operation. The matrix below describes the 
+minimum permissions you should have to perform some operation. As alternative to
+minimum required permissions, `ALL PRIVILEGES` allow you to perform any operation.
+
+| Operation                       | Min. Permission          | Alternative Permission |
+| ------------------------------- |:------------------------:| ----------------------:|
+| `READ` from collection          | `SELECT`                 | `ALL PRIVILEGES`       |
+| `WRITE` to collection           | `SELECT, INSERT`         | `ALL PRIVILEGES`       |
+| `DROP` database or collection   | `SELECT, INSERT, DROP`   | `ALL PRIVILEGES`       |
+| `CREATE` database or collection | `SELECT, INSERT, CREATE` | `ALL PRIVILEGES`       |
+
+For more information on GRANTING privileges, see this [documentation](https://docs.memsql.com/latest/reference/sql-reference/security-management-commands/grant/)
+
 ## Parallel Read Support
 
 If you enable parallel reads via the `enableParallelRead` option, the
