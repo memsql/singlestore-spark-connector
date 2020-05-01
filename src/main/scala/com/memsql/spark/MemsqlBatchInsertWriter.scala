@@ -8,6 +8,7 @@ import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.sources.v2.writer.{DataWriter, WriterCommitMessage}
 import org.apache.spark.sql.types.StructType
 
+import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
 
 class BatchInsertWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
@@ -30,7 +31,7 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
     )()
     conn.setAutoCommit(false)
 
-    def writeBatch(buff: List[Row]): Long = {
+    def writeBatch(buff: ListBuffer[Row]): Long = {
       if (buff.isEmpty) {
         0
       } else {
@@ -41,12 +42,10 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
           queryPrefix + valueTemplate(rowsCount) + querySuffix
         }
 
-        val stmt =
-          conn.prepareStatement(query)
+        val stmt = conn.prepareStatement(query)
         try {
           for {
-            i <- 0 until rowsCount
-            row       = buff(i)
+            (row, i) <- buff.iterator.zipWithIndex
             rowLength = row.size
             j <- 0 until rowLength
           } stmt.setObject(i * rowLength + j + 1, row(j))
@@ -62,22 +61,22 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
   }
 }
 
-class BatchInsertWriter(batchSize: Int, writeBatch: List[Row] => Long, conn: Connection)
+class BatchInsertWriter(batchSize: Int, writeBatch: ListBuffer[Row] => Long, conn: Connection)
     extends DataWriter[Row] {
-  var buff: List[Row] = Nil
+  var buff: ListBuffer[Row] = ListBuffer.empty[Row]
 
   override def write(row: Row): Unit = {
-    buff = row :: buff
+    buff += row
     if (buff.size >= batchSize) {
       writeBatch(buff)
-      buff = Nil
+      buff = ListBuffer.empty[Row]
     }
   }
 
   override def commit(): WriterCommitMessage = {
     try {
       writeBatch(buff)
-      buff = Nil
+      buff = ListBuffer.empty[Row]
     } finally {
       conn.close()
     }
@@ -85,7 +84,7 @@ class BatchInsertWriter(batchSize: Int, writeBatch: List[Row] => Long, conn: Con
   }
 
   override def abort(): Unit = {
-    buff = Nil
+    buff = ListBuffer.empty[Row]
     conn.abort(ExecutionContext.global)
     conn.close()
   }

@@ -202,4 +202,20 @@ class BatchInsertTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       )
     )
   }
+
+  it("insert NULL") {
+    insertAndCheckContent(
+      2,
+      List(
+        (5, null, null)
+      ),
+      List(
+        (1, "Jack", 20),
+        (2, "Dan", 30),
+        (3, "Bob", 15),
+        (4, "Alice", 40),
+        (5, null, null)
+      )
+    )
+  }
 }

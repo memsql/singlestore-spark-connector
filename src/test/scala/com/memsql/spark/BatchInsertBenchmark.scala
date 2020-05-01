@@ -42,10 +42,15 @@ object BatchInsertBenchmark extends App {
   executeQuery("create database testdb")
 
   val df = spark.range(5000000)
+
+  val start = System.nanoTime()
   df.write
     .format("memsql")
     .option("tableKey.primary", "id")
     .option("onDuplicateKeySQL", "id = id + 1")
     .mode(SaveMode.Append)
     .save("testdb.batchinsert")
+
+  val diff = System.nanoTime() - start
+  println("Elapsed time: " + diff + "ns")
 }
