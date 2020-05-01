@@ -1,3 +1,6 @@
+2020-04-30 Version 3.0.0-beta12
+        * Improved performance of new batch insert functionality for `ON DUPLICATE KEY UPDATE` feature
+
 2020-04-30 Version 3.0.0-beta11
         * Added support for merging rows on ingest via `ON DUPLICATE KEY UPDATE`
         * Added docker-based demo for running a Zeppelin notebook using the Spark connector

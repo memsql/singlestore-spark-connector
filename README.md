@@ -1,5 +1,5 @@
 # MemSQL Spark Connector
-## Version: 3.0.0-beta11 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/3.0.0-beta.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## Version: 3.0.0-beta12 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/3.0.0-beta.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 > :warning: **This is a beta release suitable for development and testing purposes.**
 
@@ -24,7 +24,7 @@ spark-packages.org.  The group is `com.memsql` and the artifact is
 * [Maven Central](https://search.maven.org/artifact/com.memsql/memsql-spark-connector_2.11)
 
 We release two versions of the `memsql-spark-connector`, one per Spark version.
-An example version number is: `3.0.0-beta11-spark-2.3.4` which is the 3.0.0-beta11
+An example version number is: `3.0.0-beta12-spark-2.3.4` which is the 3.0.0-beta12
 version of the connector, compiled and tested against Spark 2.3.4. Make sure
 you are using the most recent version of the beta.
 
