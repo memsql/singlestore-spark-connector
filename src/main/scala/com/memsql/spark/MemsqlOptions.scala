@@ -16,7 +16,7 @@ case class MemsqlOptions(
     disablePushdown: Boolean,
     enableParallelRead: Boolean,
     // write options
-    truncate: Boolean,
+    overwriteBehavior: OverwriteBehavior,
     loadDataCompression: MemsqlOptions.CompressionType.Value,
     tableKeys: List[TableKey],
     onDuplicateKeySQL: Option[String],
@@ -34,7 +34,7 @@ case class MemsqlOptions(
   }
 }
 
-object MemsqlOptions {
+object MemsqlOptions extends LazyLogging {
   abstract class OptionEnum extends Enumeration {
     def fromString(s: String): Option[Value] =
       values.find(_.toString.toLowerCase() == s.toLowerCase())
@@ -84,6 +84,7 @@ object MemsqlOptions {
 
   // Write options
   final val TRUNCATE              = newOption("truncate")
+  final val OVERWRITE_BEHAVIOR    = newOption("overwriteBehavior")
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
   final val TABLE_KEYS            = newOption("tableKey")
   final val ON_DUPLICATE_KEY_SQL  = newOption("onDuplicateKeySQL")
@@ -171,7 +172,23 @@ object MemsqlOptions {
       enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean,
       disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean,
       enableParallelRead = options.get(ENABLE_PARALLEL_READ).getOrElse("false").toBoolean,
-      truncate = options.get(TRUNCATE).getOrElse("false").toBoolean,
+      overwriteBehavior = {
+        val truncateOption          = options.get(TRUNCATE)
+        val overwriteBehaviorOption = options.get(OVERWRITE_BEHAVIOR)
+        if (truncateOption.isDefined && overwriteBehaviorOption.isDefined) {
+          throw new IllegalArgumentException(
+            s"can't use both `$TRUNCATE` and `$OVERWRITE_BEHAVIOR` options, please use just `$OVERWRITE_BEHAVIOR` option instead.")
+        }
+        if (truncateOption.getOrElse("false").toBoolean) {
+          log.warn(
+            s"`$TRUNCATE` option is deprecated, please use the `$OVERWRITE_BEHAVIOR` option instead.")
+          Truncate
+        } else {
+          /* DropAndCreate is the default behaviour if another isn't defined */
+          overwriteBehaviorOption
+            .fold[OverwriteBehavior](DropAndCreate)(OverwriteBehavior(_))
+        }
+      },
       loadDataCompression = loadDataCompression,
       tableKeys = tableKeys,
       onDuplicateKeySQL = options.get(ON_DUPLICATE_KEY_SQL),

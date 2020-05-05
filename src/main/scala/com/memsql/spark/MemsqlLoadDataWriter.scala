@@ -59,8 +59,14 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
 
     val columnNames = schema.map(s => MemsqlDialect.quoteIdentifier(s.name))
 
-    val query =
-      s"LOAD DATA LOCAL INFILE '###.$ext' INTO TABLE ${table.quotedString} (${columnNames.mkString(", ")})"
+    val replaceOnMerge = conf.overwriteBehavior match {
+      case Merge => Some("REPLACE")
+      case _     => None
+    }
+    val queryPrefix = s"LOAD DATA LOCAL INFILE '###.$ext'"
+    val queryEnding = s"INTO TABLE ${table.quotedString} (${columnNames.mkString(", ")})"
+    val query = replaceOnMerge.fold(s"$queryPrefix $queryEnding")(onMerge =>
+      s"$queryPrefix $onMerge $queryEnding")
 
     val conn = JdbcUtils.createConnectionFactory(
       if (isReferenceTable) {

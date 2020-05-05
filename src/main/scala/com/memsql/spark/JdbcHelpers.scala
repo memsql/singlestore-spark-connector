@@ -311,11 +311,14 @@ object JdbcHelpers extends LazyLogging {
       if (JdbcHelpers.tableExists(conn, table)) {
         mode match {
           case SaveMode.Overwrite =>
-            if (conf.truncate) {
-              JdbcHelpers.truncateTable(conn, table)
-            } else {
-              JdbcHelpers.dropTable(conn, table)
-              JdbcHelpers.createTable(conn, table, schema, conf.tableKeys)
+            conf.overwriteBehavior match {
+              case Truncate =>
+                JdbcHelpers.truncateTable(conn, table)
+              case DropAndCreate =>
+                JdbcHelpers.dropTable(conn, table)
+                JdbcHelpers.createTable(conn, table, schema, conf.tableKeys)
+              case Merge =>
+              // nothing to do
             }
           case SaveMode.ErrorIfExists =>
             sys.error(
