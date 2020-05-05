@@ -1,7 +1,7 @@
 # MemSQL Spark Connector
-## Version: 3.0.0-beta12 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/3.0.0-beta.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## Version: 3.0.0-rc1 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/3.0.0-rc.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
-> :warning: **This is a beta release suitable for development and testing purposes.**
+> :warning: **This is the release candidate for the 3.0.0 version of the Spark Connector which will be released by the end of May 2020.  Usage in production is supported.**
 
 ## Major changes from the 2.0.0 connector
 
@@ -24,7 +24,7 @@ spark-packages.org.  The group is `com.memsql` and the artifact is
 * [Maven Central](https://search.maven.org/artifact/com.memsql/memsql-spark-connector_2.11)
 
 We release two versions of the `memsql-spark-connector`, one per Spark version.
-An example version number is: `3.0.0-beta12-spark-2.3.4` which is the 3.0.0-beta12
+An example version number is: `3.0.0-rc1-spark-2.3.4` which is the 3.0.0-rc1
 version of the connector, compiled and tested against Spark 2.3.4. Make sure
 you are using the most recent version of the beta.
 
@@ -316,7 +316,7 @@ Happy querying!
  * install Oracle JDK 8 from this url: https://www.oracle.com/java/technologies/javase/javase-jdk8-downloads.html
  * install community version of Intellij IDEA from https://www.jetbrains.com/idea/
  * clone the repository https://github.com/memsql/memsql-spark-connector.git
- * checkout to the branch `3.0.0-beta`
+ * checkout to the branch `3.0.0-rc`
  * in Intellij IDEA choose `Configure->Plugins` and install Scala plugin
  * in Intellij IDEA run `Import Project` and select path to memsql-spark-connector
  * choose `import project from external model` and `sbt`
