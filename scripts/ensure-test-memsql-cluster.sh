@@ -65,6 +65,7 @@ memsql-wait-start
 echo "Setting up root-ssl user"
 mysql -u root -h 127.0.0.1 -P 5506 -e 'grant all privileges on *.* to "root-ssl"@"%" require ssl with grant option'
 mysql -u root -h 127.0.0.1 -P 5507 -e 'grant all privileges on *.* to "root-ssl"@"%" require ssl with grant option'
+mysql -u root -h 127.0.0.1 -P 5508 -e 'grant all privileges on *.* to "root-ssl"@"%" require ssl with grant option'
 echo "Done!"
 
 echo

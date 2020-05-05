@@ -1,7 +1,5 @@
 package com.memsql.spark
 
-import java.sql.{SQLException}
-
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
 import org.apache.spark.sql.types.{IntegerType, StringType}
 import org.apache.spark.sql.{DataFrame, SaveMode}
@@ -19,12 +17,6 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
     )
 
     writeTable("testdb.loaddata", df)
-  }
-
-  def isSQLExceptionWithCode(e: Throwable, code: Integer): Boolean = e match {
-    case e: SQLException if e.getErrorCode == code => true
-    case e if e.getCause != null                   => isSQLExceptionWithCode(e.getCause, code)
-    case _                                         => false
   }
 
   it("appends row without `age` field") {
@@ -70,7 +62,7 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
       fail()
     } catch {
       // error code 1364 is `Field 'id' doesn't have a default value`
-      case e: Throwable if isSQLExceptionWithCode(e, 1364) =>
+      case e: Throwable if SQLHelper.isSQLExceptionWithCode(e, List(1364)) =>
     }
   }
 
@@ -151,7 +143,7 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
       fail()
     } catch {
       // error code 1054 is `Unknown column 'extra' in 'field list'`
-      case e: Throwable if isSQLExceptionWithCode(e, 1054) =>
+      case e: Throwable if SQLHelper.isSQLExceptionWithCode(e, List(1054)) =>
     }
   }
 
@@ -165,7 +157,7 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
       fail()
     } catch {
       // error code 1054 is `Unknown column 'wrongname' in 'field list'`
-      case e: Throwable if isSQLExceptionWithCode(e, 1054) =>
+      case e: Throwable if SQLHelper.isSQLExceptionWithCode(e, List(1054)) =>
     }
   }
 }

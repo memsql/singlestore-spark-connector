@@ -20,7 +20,10 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 case class WriteSuccess() extends WriterCommitMessage
 
 abstract class WriterFactory extends Serializable {
-  def createDataWriter(schema: StructType, partitionId: Int, attemptNumber: Int): DataWriter[Row]
+  def createDataWriter(schema: StructType,
+                       partitionId: Int,
+                       attemptNumber: Int,
+                       isReferenceTable: Boolean): DataWriter[Row]
 }
 
 class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
@@ -35,7 +38,8 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
 
   def createDataWriter(schema: StructType,
                        partitionId: Int,
-                       attemptNumber: Int): DataWriter[Row] = {
+                       attemptNumber: Int,
+                       isReferenceTable: Boolean): DataWriter[Row] = {
     val basestream  = new PipedOutputStream
     val inputstream = new PipedInputStream(basestream, BUFFER_SIZE)
 
@@ -59,7 +63,11 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
       s"LOAD DATA LOCAL INFILE '###.$ext' INTO TABLE ${table.quotedString} (${columnNames.mkString(", ")})"
 
     val conn = JdbcUtils.createConnectionFactory(
-      JdbcHelpers.getDMLJDBCOptions(conf)
+      if (isReferenceTable) {
+        JdbcHelpers.getDDLJDBCOptions(conf)
+      } else {
+        JdbcHelpers.getDMLJDBCOptions(conf)
+      }
     )()
 
     val writer = Future[Long] {

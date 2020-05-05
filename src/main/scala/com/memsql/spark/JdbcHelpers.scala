@@ -272,6 +272,35 @@ object JdbcHelpers extends LazyLogging {
     conn.withStatement(stmt => stmt.executeUpdate(sql))
   }
 
+  def isReferenceTable(conf: MemsqlOptions, table: TableIdentifier): Boolean = {
+    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
+    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    // Assume that either table.database is set or conf.database is set
+    val databaseName =
+      table.database
+        .orElse(conf.database)
+        .getOrElse(throw new IllegalArgumentException("Database name should be defined"))
+    val sql = s"using $databaseName show tables extended like '${table.table}'"
+    log.trace(s"Executing SQL:\n$sql")
+    val resultSet = conn.withStatement(stmt => {
+      Try {
+        try {
+          stmt.executeQuery(sql)
+        } finally {
+          stmt.close()
+          conn.close()
+        }
+      }
+    })
+    resultSet.toOption.fold(false)(resultSet => {
+      if (resultSet.next()) {
+        !resultSet.getBoolean("distributed")
+      } else {
+        throw new IllegalArgumentException(s"Table `$databaseName.${table.table}` doesn't exist")
+      }
+    })
+  }
+
   def prepareTableForWrite(conf: MemsqlOptions,
                            table: TableIdentifier,
                            mode: SaveMode,

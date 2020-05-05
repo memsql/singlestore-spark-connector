@@ -1,13 +1,11 @@
 package com.memsql.spark
 
-import java.sql.SQLException
 import java.util.UUID
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.types.IntegerType
 
-import scala.annotation.tailrec
 import scala.util.Try
 
 class SQLPermissionsTest extends IntegrationSuiteBase {
@@ -23,15 +21,6 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
       List(("id", IntegerType, true))
     )
     writeTable(s"${dbName}.${collectionName}", df)
-  }
-
-  @tailrec
-  private def isSQLExceptionWithCode(e: Throwable, codes: List[Integer]): Boolean = e match {
-    case e: SQLException if codes.contains(e.getErrorCode) => true
-    case e if e.getCause != null                           => isSQLExceptionWithCode(e.getCause, codes)
-    case e =>
-      e.printStackTrace()
-      false
   }
 
   private def setUpUserPermissions(privilege: String): Unit = {
@@ -58,11 +47,11 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
     it(s"fails with ${privilege} permission") {
       setUpUserPermissions(privilege)
       val result = Try(operation())
-      /* Error codes description
+      /* Error codes description:
         1142 = <command> denied to current user
         1050 = table already exists (error throws when we don't have SELECT permission to check if such table already exists)
        */
-      assert(isSQLExceptionWithCode(result.failed.get, List(1142, 1050)))
+      assert(SQLHelper.isSQLExceptionWithCode(result.failed.get, List(1142, 1050)))
     }
   }
 

@@ -17,7 +17,8 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
 
   def createDataWriter(schema: StructType,
                        partitionId: Int,
-                       attemptNumber: Int): DataWriter[Row] = {
+                       attemptNumber: Int,
+                       isReferenceTable: Boolean): DataWriter[Row] = {
     val queryPrefix = s"INSERT INTO ${table.quotedString} VALUES "
     val querySuffix = s" ON DUPLICATE KEY UPDATE ${conf.onDuplicateKeySQL.get}"
 
@@ -27,7 +28,11 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
     val fullBatchQuery = queryPrefix + valueTemplate(conf.insertBatchSize) + querySuffix
 
     val conn = JdbcUtils.createConnectionFactory(
-      JdbcHelpers.getDMLJDBCOptions(conf)
+      if (isReferenceTable) {
+        JdbcHelpers.getDDLJDBCOptions(conf)
+      } else {
+        JdbcHelpers.getDMLJDBCOptions(conf)
+      }
     )()
     conn.setAutoCommit(false)
 

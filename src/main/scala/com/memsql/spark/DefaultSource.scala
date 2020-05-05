@@ -59,8 +59,8 @@ class DefaultSource
           s"To write a dataframe to MemSQL you must specify a table name via the '${MemsqlOptions.TABLE_NAME}' parameter"
         )
       )
-
     JdbcHelpers.prepareTableForWrite(conf, table, mode, data.schema)
+    val isReferenceTable = JdbcHelpers.isReferenceTable(conf, table)
     val partitionWriterFactory =
       if (conf.onDuplicateKeySQL.isEmpty) {
         new LoadDataWriterFactory(table, conf)
@@ -70,7 +70,10 @@ class DefaultSource
 
     val schema = data.schema
     data.foreachPartition(partition => {
-      val writer = partitionWriterFactory.createDataWriter(schema, TaskContext.getPartitionId(), 0)
+      val writer = partitionWriterFactory.createDataWriter(schema,
+                                                           TaskContext.getPartitionId(),
+                                                           0,
+                                                           isReferenceTable)
       try {
         partition.foreach(writer.write)
         writer.commit()
