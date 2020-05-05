@@ -2,7 +2,7 @@ package com.memsql.spark
 
 import java.sql.Connection
 
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.sources.v2.writer.{DataWriter, WriterCommitMessage}
@@ -18,7 +18,8 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
   def createDataWriter(schema: StructType,
                        partitionId: Int,
                        attemptNumber: Int,
-                       isReferenceTable: Boolean): DataWriter[Row] = {
+                       isReferenceTable: Boolean,
+                       mode: SaveMode): DataWriter[Row] = {
     val queryPrefix = s"INSERT INTO ${table.quotedString} VALUES "
     val querySuffix = s" ON DUPLICATE KEY UPDATE ${conf.onDuplicateKeySQL.get}"
 

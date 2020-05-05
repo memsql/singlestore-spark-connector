@@ -7,7 +7,7 @@ import java.util.zip.GZIPOutputStream
 
 import com.memsql.spark.MemsqlOptions.CompressionType
 import net.jpountz.lz4.LZ4FrameOutputStream
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.sources.v2.writer.{DataWriter, WriterCommitMessage}
@@ -23,7 +23,8 @@ abstract class WriterFactory extends Serializable {
   def createDataWriter(schema: StructType,
                        partitionId: Int,
                        attemptNumber: Int,
-                       isReferenceTable: Boolean): DataWriter[Row]
+                       isReferenceTable: Boolean,
+                       mode: SaveMode): DataWriter[Row]
 }
 
 class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
@@ -39,7 +40,8 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
   def createDataWriter(schema: StructType,
                        partitionId: Int,
                        attemptNumber: Int,
-                       isReferenceTable: Boolean): DataWriter[Row] = {
+                       isReferenceTable: Boolean,
+                       mode: SaveMode): DataWriter[Row] = {
     val basestream  = new PipedOutputStream
     val inputstream = new PipedInputStream(basestream, BUFFER_SIZE)
 
@@ -59,14 +61,20 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
 
     val columnNames = schema.map(s => MemsqlDialect.quoteIdentifier(s.name))
 
-    val replaceOnMerge = conf.overwriteBehavior match {
-      case Merge => Some("REPLACE")
-      case _     => None
+    val querySuffix = mode match {
+      // If SaveMode is Ignore - skip all duplicate key errors
+      case SaveMode.Ignore => Some("SKIP DUPLICATE KEY ERRORS")
+      case _ =>
+        conf.overwriteBehavior match {
+          // If SaveMode is NOT Ignore and OverwriteBehavior is Merge - replace all duplicates
+          case Merge => Some("REPLACE")
+          case _     => None
+        }
     }
     val queryPrefix = s"LOAD DATA LOCAL INFILE '###.$ext'"
     val queryEnding = s"INTO TABLE ${table.quotedString} (${columnNames.mkString(", ")})"
-    val query = replaceOnMerge.fold(s"$queryPrefix $queryEnding")(onMerge =>
-      s"$queryPrefix $onMerge $queryEnding")
+    val query =
+      querySuffix.fold(s"$queryPrefix $queryEnding")(suffix => s"$queryPrefix $suffix $queryEnding")
 
     val conn = JdbcUtils.createConnectionFactory(
       if (isReferenceTable) {

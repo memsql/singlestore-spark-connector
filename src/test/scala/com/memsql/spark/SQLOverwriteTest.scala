@@ -107,6 +107,26 @@ class SQLOverwriteTest extends IntegrationSuiteBase {
         SaveMode.Append
       )
     }
+
+    it("skip merge due to ignore save mode") {
+      insertAndAssertEquality(
+        List((1, "Alice"), (2, "Bob")),
+        List((2, "Charlie"), (3, "John")),
+        List((1, "Alice"), (2, "Bob"), (3, "John")),
+        Map(MemsqlOptions.OVERWRITE_BEHAVIOR -> "merge"),
+        SaveMode.Ignore
+      )
+    }
+
+    it("still do merge if onDuplicateKeySQL option is defined") {
+      insertAndAssertEquality(
+        List((1, "Alice"), (2, "Bob")),
+        List((2, "Charlie"), (3, "John")),
+        List((1, "Alice"), (2, "Duplicate"), (3, "John")),
+        Map(MemsqlOptions.ON_DUPLICATE_KEY_SQL -> "name = 'Duplicate'"),
+        SaveMode.Ignore
+      )
+    }
   }
 
   describe("case sensitive success") {
@@ -203,6 +223,23 @@ class SQLOverwriteTest extends IntegrationSuiteBase {
           succeed
         case _ => fail()
       }
+    }
+
+    it("duplicate key error if save mode append") {
+      val result = Try {
+        insertAndAssertEquality(
+          List((1, "Alice"), (2, "Bob"), (3, "Eve")),
+          List((2, "Charlie"), (3, "John")),
+          List(),
+          Map(),
+          SaveMode.Append
+        )
+      }
+      assert(result.isFailure)
+      /* Error code description:
+        1062 = duplicate key error
+       * */
+      SQLHelper.isSQLExceptionWithCode(result.failed.get, List(1062))
     }
   }
 

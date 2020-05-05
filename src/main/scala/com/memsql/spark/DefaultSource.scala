@@ -73,7 +73,8 @@ class DefaultSource
       val writer = partitionWriterFactory.createDataWriter(schema,
                                                            TaskContext.getPartitionId(),
                                                            0,
-                                                           isReferenceTable)
+                                                           isReferenceTable,
+                                                           mode)
       try {
         partition.foreach(writer.write)
         writer.commit()
