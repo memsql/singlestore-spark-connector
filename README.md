@@ -56,7 +56,8 @@ global options have the prefix `spark.datasource.memsql.`.
 | `database`                | If set, all connections will default to using this database (default: empty)
 | `disablePushdown`         | Disable SQL Pushdown when running queries (default: false)
 | `enableParallelRead`      | Enable reading data in parallel for some query shapes (default: false)
-| `truncate`                | Truncate instead of drop an existing table during Overwrite (default: false)
+| `overwriteBehavior`       | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
+| `truncate`                | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
 | `loadDataCompression`     | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
 | `tableKey`                | Specify additional keys to add to tables created by the connector (See below for more details)
 | `onDuplicateKeySQL`       | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, MemSQL will instead perform an UPDATE of the old row. See examples below
@@ -92,7 +93,7 @@ The `memsql-spark-connector` supports saving dataframe's to MemSQL using the Spa
 df.write
     .format("memsql")
     .option("loadDataCompression", "LZ4")
-    .option("truncate", "false")
+    .option("overwriteBehavior", "dropAndCreate")
     .mode(SaveMode.Overwrite)
     .save("foo.bar") // in format: database.table
 ```
@@ -100,7 +101,7 @@ df.write
 If the target table ("foo" in the example above) does not exist in MemSQL the
 `memsql-spark-connector` will automatically attempt to create the table. If you
 specify SaveMode.Overwrite, if the target table already exists, it will be
-recreated or truncated before load. Specify `truncate = true` to truncate rather
+recreated or truncated before load. Specify `overwriteBehavior = truncate` to truncate rather
 than re-create.
 
 ### Specifying keys for tables created by the Spark Connector
@@ -160,6 +161,60 @@ As a result of the following query, all new rows will be appended without change
 If the row with the same `PRIMARY KEY` or `UNIQUE` index already exists then the corresponding `age` value will be increased.
 
 When you use ON DUPLICATE KEY UPDATE, all rows of the data frame are split into batches, and every insert query will contain no more than the specified `insertBatchSize` rows setting.
+
+## Merging on save
+
+When saving dataframes or datasets to MemSQL, you can manage how SaveMode.Overwrite is interpreted by the connector via the option overwriteBehavior. 
+This option can take one of the following values:
+
+1. `dropAndCreate`(default) - drop and create the table before writing new values.
+2. `truncate` - truncate the table before writing new values.
+3. `merge` - replace rows with new rows by matching on the primary key.
+(Use this option only if you need to fully rewrite existing rows with new ones.
+If you need to specify some rule for update, use `onDuplicateKeySQL` option instead.)
+
+All these options are case-insensitive.
+
+### Example of `merge` option
+
+Suppose you have the following table, and the `Id` column is the primary key.
+
+`SELECT * FROM <table>;`
+
+| Id    | Name          | Age |
+| ----- |:-------------:| ---:|
+| 1     | Alice         | 20  |
+| 2     | Bob           | 25  |
+| 3     | Charlie       | 30  |
+
+If you save the following dataframe with `overwriteBehavior = merge`:
+
+| Id    | Name          | Age |
+| ----- |:-------------:| ---:|
+| 2     | Daniel        | 22  |
+| 3     | Eve           | 27  |
+| 4     | Franklin      | 35  |
+
+```scala
+df.write
+    .format("memsql")
+    .option("overwriteBehavior", "merge")
+    .mode(SaveMode.Overwrite)
+    .save("<yourdb>.<table>")
+```
+
+After the save is complete, the table will look like this:
+> note: rows with Id=2 and Id=3 were overwritten with new rows <br />
+> note: the row with Id=1 was not touched and still exists in the result
+
+`SELECT * FROM <table>;`
+
+| Id    | Name          | Age |
+| ----- |:-------------:| ---:|
+| 1     | Alice         | 20  |
+| 2     | Daniel        | 22  |
+| 3     | Eve           | 27  |
+| 4     | Franklin      | 35  |
 
 ## SQL Pushdown
 
