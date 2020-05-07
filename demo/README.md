@@ -15,21 +15,40 @@ docker network create zeppelin-ciab-network
 docker pull memsql/cluster-in-a-box
 ```
 
-*  Run and start memsql-ciab docker container
+* Run and start the MemSQL Cluster in a Box docker container
 
 ```
 docker run -i --init \
---name memsql-ciab \
+--name memsql-ciab-for-zeppelin \
 -e LICENSE_KEY=[INPUT_YOUR_LICENSE_KEY] \
 -p 3306:3306 -p 8080:8080 \
 --net=zeppelin-ciab-network \
 memsql/cluster-in-a-box
 ```
 ```
-docker start memsql-ciab
+docker start memsql-ciab-for-zeppelin
 ```
+> :note: in this step you can hit a port collision error
+>
+> ```
+> docker: Error response from daemon: driver failed programming external connectivity on endpoint memsql-ciab-for-zeppelin
+> (38b0df3496f1ec83f120242a53a7023d8a0b74db67f5e487fb23641983c67a76):
+> Bind for 0.0.0.0:8080 failed: port is already allocated.
+> ERRO[0000] error waiting for container: context canceled
+> ```
+>
+> If it happened then remove the container
+>
+>`docker rm memsql-ciab-for-zeppelin`
+>
+> and run the first command with other ports `-p {new_port1}:3306 -p {new_port2}:8080`
 
 * Build zeppelin docker image in `memsql-spark-connector/demo` folder
+
+> :note: For this step you should be in `3.0.0-rc` branch.
+> If you already cloned memsql-spark-connector git repository you can execute `git checkout 3.0.0-rc`.
+> Otherwise you can clone this branch `git clone -b 3.0.0-rc https://github.com/memsql/memsql-spark-connector.git`
+
 ```
 docker build -t zeppelin .
 ```
@@ -43,6 +62,22 @@ docker run -i --init \
 -v $PWD/notebook:/zeppelin/notebook/memsql \
 zeppelin
 ```
+
+> :note: in this step you can hit a port collision error
+>
+> ```
+> docker: Error response from daemon: driver failed programming external connectivity on endpoint zeppelin
+> (38b0df3496f1ec83f120242a53a7023d8a0b74db67f5e487fb23641983c67a76):
+> Bind for 0.0.0.0:8082 failed: port is already allocated.
+> ERRO[0000] error waiting for container: context canceled
+> ```
+>
+> If it happened then remove the container
+>
+>`docker rm zeppelin`
+>
+> and run this command with other port `-p {new_port}:8082`
+
 
 * open [zeppelin](http://localhost:8082/next) in your browser and try
 [scala](http://localhost:8082/next/#/notebook/2F8XQUKFG),
