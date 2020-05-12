@@ -3,7 +3,7 @@
     {
       "text": "%md\n## This is a small demo that illustrates the usage of the MemSQL-Spark connector. \n#### It connects to the ciab docker container (https://hub.docker.com/r/memsql/cluster-in-a-box) and runs some basic queries on it.",
       "user": "anonymous",
-      "dateUpdated": "2020-04-23 16:42:50.810",
+      "dateUpdated": "2020-05-12 16:27:17.642",
       "config": {
         "colWidth": 12.0,
         "fontSize": 13.0,
@@ -36,15 +36,15 @@
       "jobName": "paragraph_1587645478876_994795668",
       "id": "paragraph_1587645478876_994795668",
       "dateCreated": "2020-04-23 12:37:58.876",
-      "dateStarted": "2020-04-23 16:42:50.821",
-      "dateFinished": "2020-04-23 16:42:50.856",
+      "dateStarted": "2020-05-12 16:27:17.655",
+      "dateFinished": "2020-05-12 16:27:17.667",
       "status": "FINISHED"
     },
     {
       "title": "Configure Spark",
-      "text": "%spark.conf\n\n// Comma-separated list of Maven coordinates of jars to include on the driver and executor classpaths\nspark.jars.packages com.memsql:memsql-spark-connector_2.11:3.0.0-rc1-spark-2.4.4\n\n// Hostname or IP address of the MemSQL Master Aggregator in the format host[:port] (port is optional). \n// memsql-ciab - hostname of the docker created by https://hub.docker.com/r/memsql/cluster-in-a-box\n// 3306 - port on which MemSQL Master Aggregator is started\nspark.datasource.memsql.ddlEndpoint memsql-ciab:3306\n\n// Hostname or IP address of MemSQL Aggregator nodes to run queries against in the format host[:port],host[:port],...\n// (port is optional, multiple hosts separated by comma) (default: ddlEndpoint)\n// Example\n// spark.datasource.memsql.dmlEndpoints child-agg:3308,child-agg2\nspark.datasource.memsql.dmlEndpoints memsql-ciab:3306\n\n// MemSQL username (default: root)\nspark.datasource.memsql.user root\n\n// MemSQL password (default: no password)\n// Example\n// spark.datasource.memsql.passowrd s3cur3-pa$$word\nspark.datasource.memsql.password\n\n// If set, all connections will default to using this database (default: empty)\n// Example\n// spark.datasource.memsql.database demoDB\nspark.datasource.memsql.database\n\n// Disable SQL Pushdown when running queries (default: false)\nspark.datasource.memsql.disablePushdown false\n\n// Enable reading data in parallel for some query shapes (default: false)\nspark.datasource.memsql.enableParallelRead false\n\n// Truncate instead of drop an existing table during Overwrite (default: false)\nspark.datasource.memsql.truncate false\n\n// Compress data on load; one of (GZip, LZ4, Skip) (default: GZip)\nspark.datasource.memsql.loadDataCompression GZip\n\n// Specify additional keys to add to tables created by the connector\n// Examples\n// * A primary key on the id column\n// spark.datasource.memsql.tableKey.primary id\n// * A regular key on the columns created, firstname with the key name created_firstname\n// spark.datasource.memsql.tableKey.key.created_firstname created, firstName\n// * A unique key on the username column\n// spark.datasource.memsql.tableKey.unique username\nspark.datasource.memsql.tableKey",
+      "text": "%spark.conf\n\n// Comma-separated list of Maven coordinates of jars to include on the driver and executor classpaths\nspark.jars.packages com.memsql:memsql-spark-connector_2.11:3.0.0-rc1-spark-2.4.4\n\n// Hostname or IP address of the MemSQL Master Aggregator in the format host[:port] (port is optional). \n// memsql-ciab-for-zeppelin - hostname of the docker created by https://hub.docker.com/r/memsql/cluster-in-a-box\n// 3306 - port on which MemSQL Master Aggregator is started\nspark.datasource.memsql.ddlEndpoint memsql-ciab-for-zeppelin:3306\n\n// Hostname or IP address of MemSQL Aggregator nodes to run queries against in the format host[:port],host[:port],...\n// (port is optional, multiple hosts separated by comma) (default: ddlEndpoint)\n// Example\n// spark.datasource.memsql.dmlEndpoints child-agg:3308,child-agg2\nspark.datasource.memsql.dmlEndpoints memsql-ciab-for-zeppelin:3306\n\n// MemSQL username (default: root)\nspark.datasource.memsql.user root\n\n// MemSQL password (default: no password)\n// Example\n// spark.datasource.memsql.passowrd s3cur3-pa$$word\nspark.datasource.memsql.password\n\n// If set, all connections will default to using this database (default: empty)\n// Example\n// spark.datasource.memsql.database demoDB\nspark.datasource.memsql.database\n\n// Disable SQL Pushdown when running queries (default: false)\nspark.datasource.memsql.disablePushdown false\n\n// Enable reading data in parallel for some query shapes (default: false)\nspark.datasource.memsql.enableParallelRead false\n\n// Truncate instead of drop an existing table during Overwrite (default: false)\nspark.datasource.memsql.truncate false\n\n// Compress data on load; one of (GZip, LZ4, Skip) (default: GZip)\nspark.datasource.memsql.loadDataCompression GZip\n\n// Specify additional keys to add to tables created by the connector\n// Examples\n// * A primary key on the id column\n// spark.datasource.memsql.tableKey.primary id\n// * A regular key on the columns created, firstname with the key name created_firstname\n// spark.datasource.memsql.tableKey.key.created_firstname created, firstName\n// * A unique key on the username column\n// spark.datasource.memsql.tableKey.unique username\nspark.datasource.memsql.tableKey",
       "user": "anonymous",
-      "dateUpdated": "2020-04-23 16:42:50.922",
+      "dateUpdated": "2020-05-12 16:27:17.751",
       "config": {
         "colWidth": 12.0,
         "fontSize": 13.0,
@@ -72,15 +72,15 @@
       "jobName": "paragraph_1587645537976_1278581633",
       "id": "paragraph_1587645537976_1278581633",
       "dateCreated": "2020-04-23 12:38:57.976",
-      "dateStarted": "2020-04-23 16:42:50.970",
-      "dateFinished": "2020-04-23 16:42:51.031",
+      "dateStarted": "2020-05-12 16:27:17.755",
+      "dateFinished": "2020-05-12 16:27:17.759",
       "status": "FINISHED"
     },
     {
       "title": "Create a database and table using JDBC",
-      "text": "import java.sql.{Connection, DriverManager}\nimport java.util.{Properties, TimeZone}\n\nval connProperties \u003d new Properties()\nconnProperties.put(\"user\", \"root\")\n\nval conn \u003d DriverManager.getConnection(\n        s\"jdbc:mysql://memsql-ciab\",\n        connProperties\n      )\n\nval statement \u003d conn.createStatement()\nstatement.execute(\"create database if not exists demoDB\")\nstatement.execute(\"create table if not exists demoDB.people (id int, name varchar(10), age int, country varchar(10))\")\nstatement.close()\nconn.close()",
+      "text": "import java.sql.{Connection, DriverManager}\nimport java.util.{Properties, TimeZone}\n\nval connProperties \u003d new Properties()\nconnProperties.put(\"user\", \"root\")\n\nval conn \u003d DriverManager.getConnection(\n        s\"jdbc:mysql://memsql-ciab-for-zeppelin\",\n        connProperties\n      )\n\nval statement \u003d conn.createStatement()\nstatement.execute(\"create database if not exists demoDB\")\nstatement.execute(\"create table if not exists demoDB.people (id int, name varchar(10), age int, country varchar(10))\")\nstatement.close()\nconn.close()",
       "user": "anonymous",
-      "dateUpdated": "2020-04-23 16:42:51.049",
+      "dateUpdated": "2020-05-12 16:27:17.855",
       "config": {
         "colWidth": 6.0,
         "fontSize": 13.0,
@@ -104,7 +104,7 @@
         "msg": [
           {
             "type": "TEXT",
-            "data": "import java.sql.{Connection, DriverManager}\nimport java.util.{Properties, TimeZone}\n\u001b[1m\u001b[34mconnProperties\u001b[0m: \u001b[1m\u001b[32mjava.util.Properties\u001b[0m \u003d {user\u003droot}\n\u001b[1m\u001b[34mconn\u001b[0m: \u001b[1m\u001b[32mjava.sql.Connection\u001b[0m \u003d org.mariadb.jdbc.MariaDbConnection@7af69df7\n\u001b[1m\u001b[34mstatement\u001b[0m: \u001b[1m\u001b[32mjava.sql.Statement\u001b[0m \u003d org.mariadb.jdbc.MariaDbStatement@52296a39\n"
+            "data": "import java.sql.{Connection, DriverManager}\nimport java.util.{Properties, TimeZone}\n\u001b[1m\u001b[34mconnProperties\u001b[0m: \u001b[1m\u001b[32mjava.util.Properties\u001b[0m \u003d {user\u003droot}\n\u001b[1m\u001b[34mconn\u001b[0m: \u001b[1m\u001b[32mjava.sql.Connection\u001b[0m \u003d org.mariadb.jdbc.MariaDbConnection@28a66e7d\n\u001b[1m\u001b[34mstatement\u001b[0m: \u001b[1m\u001b[32mjava.sql.Statement\u001b[0m \u003d org.mariadb.jdbc.MariaDbStatement@177c5a71\n"
           }
         ]
       },
@@ -113,15 +113,15 @@
       "jobName": "paragraph_1587645590204_-1422944272",
       "id": "paragraph_1587645590204_-1422944272",
       "dateCreated": "2020-04-23 12:39:50.204",
-      "dateStarted": "2020-04-23 16:42:51.094",
-      "dateFinished": "2020-04-23 16:43:13.447",
+      "dateStarted": "2020-05-12 16:27:17.858",
+      "dateFinished": "2020-05-12 16:27:31.480",
       "status": "FINISHED"
     },
     {
       "title": "Insert data to the table",
       "text": "import org.apache.spark.sql.{SaveMode}\n\nval people1 \u003d spark.createDataFrame(Seq(\n    (1, \"andy\", 5, \"USA\"), \n    (2, \"jeff\", 23, \"China\"), \n    (3, \"james\", 62, \"USA\"),\n    (4, \"clara\", 82, \"USA\"),\n    (5, \"emmy\", 9, \"Canada\")\n    )).toDF(\"id\", \"name\", \"age\", \"country\")\npeople1.show()\n\npeople1.write\n    .format(\"memsql\")\n    .mode(SaveMode.Overwrite) // recreate table if it exists\n    .save(\"demoDB.people\") // write to table `people` in database `demoDB`\n",
       "user": "anonymous",
-      "dateUpdated": "2020-04-23 16:43:13.514",
+      "dateUpdated": "2020-05-12 16:27:31.569",
       "config": {
         "colWidth": 6.0,
         "fontSize": 13.0,
@@ -154,15 +154,15 @@
       "jobName": "paragraph_1587646718045_-758896661",
       "id": "paragraph_1587646718045_-758896661",
       "dateCreated": "2020-04-23 12:58:38.045",
-      "dateStarted": "2020-04-23 16:43:13.520",
-      "dateFinished": "2020-04-23 16:43:20.646",
+      "dateStarted": "2020-05-12 16:27:31.572",
+      "dateFinished": "2020-05-12 16:27:36.366",
       "status": "FINISHED"
     },
     {
       "title": "Create a Spark SQL table backed by a MemSQL table",
       "text": "%sql\nCREATE DATABASE IF NOT EXISTS demoDB;\nCREATE TABLE IF NOT EXISTS demoDB.people USING memsql OPTIONS (\u0027dbtable\u0027\u003d\u0027demoDB.people\u0027);",
       "user": "anonymous",
-      "dateUpdated": "2020-04-23 16:43:20.726",
+      "dateUpdated": "2020-05-12 16:27:36.382",
       "config": {
         "colWidth": 6.0,
         "fontSize": 13.0,
@@ -190,15 +190,15 @@
       "jobName": "paragraph_1587645780167_-228404075",
       "id": "paragraph_1587645780167_-228404075",
       "dateCreated": "2020-04-23 12:43:00.167",
-      "dateStarted": "2020-04-23 16:43:20.733",
-      "dateFinished": "2020-04-23 16:43:21.077",
+      "dateStarted": "2020-05-12 16:27:36.389",
+      "dateFinished": "2020-05-12 16:27:36.715",
       "status": "FINISHED"
     },
     {
       "title": "Run a raw Spark SQL query over a Spark SQL table",
       "text": "%sql\nSELECT * FROM demoDB.people;\nSELECT * FROM demoDB.people WHERE people.age \u003c 10;\nSELECT country, MAX(age) FROM demoDB.people GROUP BY country;",
       "user": "anonymous",
-      "dateUpdated": "2020-04-23 16:43:21.134",
+      "dateUpdated": "2020-05-12 16:27:36.791",
       "config": {
         "colWidth": 6.0,
         "fontSize": 13.0,
@@ -311,11 +311,11 @@
         "msg": [
           {
             "type": "TABLE",
-            "data": "id\tname\tage\tcountry\n3\tjames\t62\tUSA\n4\tclara\t82\tUSA\n5\temmy\t9\tCanada\n2\tjeff\t23\tChina\n1\tandy\t5\tUSA\n"
+            "data": "id\tname\tage\tcountry\n1\tandy\t5\tUSA\n5\temmy\t9\tCanada\n4\tclara\t82\tUSA\n3\tjames\t62\tUSA\n2\tjeff\t23\tChina\n"
           },
           {
             "type": "TABLE",
-            "data": "id\tname\tage\tcountry\n5\temmy\t9\tCanada\n1\tandy\t5\tUSA\n"
+            "data": "id\tname\tage\tcountry\n1\tandy\t5\tUSA\n5\temmy\t9\tCanada\n"
           },
           {
             "type": "TABLE",
@@ -328,8 +328,8 @@
       "jobName": "paragraph_1587646114445_960936248",
       "id": "paragraph_1587646114445_960936248",
       "dateCreated": "2020-04-23 12:48:34.446",
-      "dateStarted": "2020-04-23 16:43:21.142",
-      "dateFinished": "2020-04-23 16:43:23.187",
+      "dateStarted": "2020-05-12 16:27:36.806",
+      "dateFinished": "2020-05-12 16:27:38.488",
       "status": "FINISHED"
     }
   ],
