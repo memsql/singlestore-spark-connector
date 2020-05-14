@@ -3,6 +3,7 @@ package com.memsql.spark
 import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 import java.nio.charset.StandardCharsets
 import java.sql.Connection
+import java.util.Base64
 import java.util.zip.GZIPOutputStream
 
 import com.memsql.spark.MemsqlOptions.CompressionType
@@ -11,7 +12,7 @@ import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.sources.v2.writer.{DataWriter, WriterCommitMessage}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{StructType, BinaryType}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -59,22 +60,42 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
         ("tsv", basestream)
     }
 
-    val columnNames = schema.map(s => MemsqlDialect.quoteIdentifier(s.name))
+    def tempColName(colName: String) = s"@${colName}_tmp"
 
-    val querySuffix = mode match {
+    val columnNames = schema.map(s =>
+      if (s.dataType == BinaryType) {
+        tempColName(s.name)
+      } else {
+        MemsqlDialect.quoteIdentifier(s.name)
+    })
+
+    val querySetPart = {
+      val binaryColumns = schema.filter(_.dataType == BinaryType)
+      if (binaryColumns.isEmpty) {
+        ""
+      } else {
+        val operations = binaryColumns
+          .map(s =>
+            s"${MemsqlDialect.quoteIdentifier(s.name)} = FROM_BASE64(${tempColName(s.name)})")
+        s"SET ${operations.mkString(" ")}"
+      }
+    }
+
+    val queryErrorHandlingPart = mode match {
       // If SaveMode is Ignore - skip all duplicate key errors
-      case SaveMode.Ignore => Some("SKIP DUPLICATE KEY ERRORS")
+      case SaveMode.Ignore => "SKIP DUPLICATE KEY ERRORS"
       case _ =>
         conf.overwriteBehavior match {
           // If SaveMode is NOT Ignore and OverwriteBehavior is Merge - replace all duplicates
-          case Merge => Some("REPLACE")
-          case _     => None
+          case Merge => "REPLACE"
+          case _     => ""
         }
     }
     val queryPrefix = s"LOAD DATA LOCAL INFILE '###.$ext'"
     val queryEnding = s"INTO TABLE ${table.quotedString} (${columnNames.mkString(", ")})"
-    val query =
-      querySuffix.fold(s"$queryPrefix $queryEnding")(suffix => s"$queryPrefix $suffix $queryEnding")
+    val query = List[String](queryPrefix, queryErrorHandlingPart, queryEnding, querySetPart)
+      .filter(s => !s.isEmpty)
+      .mkString(" ")
 
     val conn = JdbcUtils.createConnectionFactory(
       if (isReferenceTable) {
@@ -115,13 +136,15 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
       // We tried using off the shelf CSVWriter, but found it qualitatively slower.
       // The csv writer below has been benchmarked at 90 Mps going to a null output stream
       val value = row(i) match {
-        case null => "\\N"
+        case null => "\\N".getBytes(StandardCharsets.UTF_8)
         // NOTE: We special case booleans because MemSQL/MySQL's LOAD DATA
         // semantics only accept "1" as true in boolean/tinyint(1) columns
-        case true  => "1"
-        case false => "0"
+        case true               => "1".getBytes(StandardCharsets.UTF_8)
+        case false              => "0".getBytes(StandardCharsets.UTF_8)
+        case bytes: Array[Byte] => Base64.getEncoder.encode(bytes)
         case rawValue => {
           var valueString = rawValue.toString
+
           if (valueString.indexOf('\\') != -1) {
             valueString = valueString.replace("\\", "\\\\")
           }
@@ -132,11 +155,10 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
             valueString = valueString.replace("\t", "\\t")
           }
 
-          valueString
+          valueString.getBytes(StandardCharsets.UTF_8)
         }
       }
-
-      outputstream.write(value.getBytes(StandardCharsets.UTF_8))
+      outputstream.write(value)
       outputstream.write(if (i < rowLength - 1) '\t' else '\n')
     }
   }

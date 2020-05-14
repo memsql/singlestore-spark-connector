@@ -1,12 +1,13 @@
 package com.memsql.spark
 
 import java.sql.Connection
+import java.util.Base64
 
 import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.sources.v2.writer.{DataWriter, WriterCommitMessage}
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{BinaryType, StructType}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
@@ -23,7 +24,13 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
     val queryPrefix = s"INSERT INTO ${table.quotedString} VALUES "
     val querySuffix = s" ON DUPLICATE KEY UPDATE ${conf.onDuplicateKeySQL.get}"
 
-    val rowTemplate = "(" + ("?" * schema.length).mkString(",") + ")"
+    val rowTemplate = "(" + schema
+      .map(x =>
+        x.dataType match {
+          case BinaryType => "FROM_BASE64(?)"
+          case _          => "?"
+      })
+      .mkString(",") + ")"
     def valueTemplate(rows: Int): String =
       List.fill(rows)(rowTemplate).mkString(",")
     val fullBatchQuery = queryPrefix + valueTemplate(conf.insertBatchSize) + querySuffix
@@ -54,7 +61,12 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
             (row, i) <- buff.iterator.zipWithIndex
             rowLength = row.size
             j <- 0 until rowLength
-          } stmt.setObject(i * rowLength + j + 1, row(j))
+          } row(j) match {
+            case bytes: Array[Byte] =>
+              stmt.setObject(i * rowLength + j + 1, Base64.getEncoder.encode(bytes))
+            case obj =>
+              stmt.setObject(i * rowLength + j + 1, obj)
+          }
           stmt.executeUpdate()
         } finally {
           stmt.close()

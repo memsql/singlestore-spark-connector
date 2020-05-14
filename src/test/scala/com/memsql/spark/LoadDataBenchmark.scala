@@ -10,10 +10,10 @@ import org.apache.spark.sql.{SaveMode, SparkSession}
 
 import scala.util.Random
 
-// BatchInsertBenchmark is written to test batch insert with CPU profiler
+// LoadDataBenchmark is written to test load data with CPU profiler
 // this feature is accessible in Ultimate version of IntelliJ IDEA
 // see https://www.jetbrains.com/help/idea/async-profiler.html#profile for more details
-object BatchInsertBenchmark extends App {
+object LoadDataBenchmark extends App {
   final val masterHost: String = sys.props.getOrElse("memsql.host", "localhost")
   final val masterPort: String = sys.props.getOrElse("memsql.port", "5506")
 
@@ -62,8 +62,6 @@ object BatchInsertBenchmark extends App {
   val start = System.nanoTime()
   df.write
     .format("memsql")
-    .option("tableKey.primary", "IntType")
-    .option("onDuplicateKeySQL", "IntType = IntType")
     .mode(SaveMode.Append)
     .save("testdb.batchinsert")
 

@@ -1,19 +1,18 @@
 package com.memsql.spark
 
-import java.sql.{Connection, Date, DriverManager}
-import java.time.{Instant, LocalDate}
+import java.sql.{Connection, DriverManager}
 import java.util.Properties
 
-import org.apache.spark.sql.types._
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
+import org.apache.spark.sql.types.{BinaryType, IntegerType}
 import org.apache.spark.sql.{SaveMode, SparkSession}
 
 import scala.util.Random
 
-// BatchInsertBenchmark is written to test batch insert with CPU profiler
+// BinaryTypeBenchmark is written to writing of the BinaryType with CPU profiler
 // this feature is accessible in Ultimate version of IntelliJ IDEA
 // see https://www.jetbrains.com/help/idea/async-profiler.html#profile for more details
-object BatchInsertBenchmark extends App {
+object BinaryTypeBenchmark extends App {
   final val masterHost: String = sys.props.getOrElse("memsql.host", "localhost")
   final val masterPort: String = sys.props.getOrElse("memsql.port", "5506")
 
@@ -45,28 +44,30 @@ object BatchInsertBenchmark extends App {
   executeQuery("drop database if exists testdb")
   executeQuery("create database testdb")
 
-  def genDate() =
-    Date.valueOf(LocalDate.ofEpochDay(LocalDate.of(2001, 4, 11).toEpochDay + Random.nextInt(10000)))
-  def genRow(): (Long, Int, Double, String, Date) =
-    (Random.nextLong(), Random.nextInt(), Random.nextDouble(), Random.nextString(20), genDate())
-  val df =
-    spark.createDF(
-      List.fill(1000000)(genRow()),
-      List(("LongType", LongType, true),
-           ("IntType", IntegerType, true),
-           ("DoubleType", DoubleType, true),
-           ("StringType", StringType, true),
-           ("DateType", DateType, true))
-    )
+  def genRandomByte(): Byte = (Random.nextInt(256) - 128).toByte
+  def genRandomRow(): Array[Byte] =
+    Array.fill(1000)(genRandomByte())
 
-  val start = System.nanoTime()
+  val df = spark.createDF(
+    List.fill(100000)(genRandomRow()).zipWithIndex,
+    List(("data", BinaryType, true), ("id", IntegerType, true))
+  )
+
+  val start1 = System.nanoTime()
   df.write
     .format("memsql")
-    .option("tableKey.primary", "IntType")
-    .option("onDuplicateKeySQL", "IntType = IntType")
-    .mode(SaveMode.Append)
-    .save("testdb.batchinsert")
+    .mode(SaveMode.Overwrite)
+    .save("testdb.LoadData")
 
-  val diff = System.nanoTime() - start
-  println("Elapsed time: " + diff + "ns")
+  println("Elapsed time (LoadData): " + (System.nanoTime() - start1) + "ns")
+
+  val start2 = System.nanoTime()
+  df.write
+    .format("memsql")
+    .option("tableKey.primary", "id")
+    .option("onDuplicateKeySQL", "id = id")
+    .mode(SaveMode.Overwrite)
+    .save("testdb.BatchInsert")
+
+  println("Elapsed time (BatchInsert): " + (System.nanoTime() - start2) + "ns")
 }
