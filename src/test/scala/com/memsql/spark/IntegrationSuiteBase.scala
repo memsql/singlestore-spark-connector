@@ -9,6 +9,8 @@ import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.scalatest._
 import org.scalatest.funspec.AnyFunSpec
 
+import scala.util.Random
+
 trait IntegrationSuiteBase
     extends AnyFunSpec
     with BeforeAndAfterEach
@@ -61,6 +63,10 @@ trait IntegrationSuiteBase
 
   override def beforeEach(): Unit = {
     super.beforeEach()
+
+    val seed = Random.nextLong()
+    log.debug("Random seed: " + seed)
+    Random.setSeed(seed)
 
     if (!continuousIntegration) {
       LogManager.getLogger("com.memsql.spark").setLevel(Level.TRACE)

@@ -10,6 +10,10 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
 
   val dbName = "testdb"
 
+  it("fail") {
+    assert(false)
+  }
+
   it("JSON columns are treated as strings by Spark") {
     executeQuery(s"""
        |create table if not exists ${dbName}.basic (
