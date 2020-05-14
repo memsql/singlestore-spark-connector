@@ -10,7 +10,8 @@ import org.apache.spark.sql.types.{
   DataType,
   FloatType,
   LongType,
-  MetadataBuilder
+  MetadataBuilder,
+  ShortType
 }
 
 case object MemsqlDialect extends JdbcDialect {
@@ -20,6 +21,7 @@ case object MemsqlDialect extends JdbcDialect {
     case BooleanType => Option(JdbcType("BOOL", java.sql.Types.BOOLEAN))
     case ByteType    => Option(JdbcType("INTEGER", java.sql.Types.INTEGER))
     case FloatType   => Option(JdbcType("FLOAT", java.sql.Types.FLOAT))
+    case ShortType   => Option(JdbcType("SMALLINT", java.sql.Types.SMALLINT))
     case t           => JdbcUtils.getCommonJDBCType(t)
   }
 
@@ -34,6 +36,8 @@ case object MemsqlDialect extends JdbcDialect {
       Option(LongType)
     } else if (sqlType == Types.BIT && typeName.equals("TINYINT")) {
       Option(BooleanType)
+    } else if (sqlType == Types.SMALLINT && typeName.equals("SMALLINT")) {
+      Option(ShortType)
     } else None
   }
 

@@ -190,4 +190,35 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
       )
     }
   }
+
+  describe("ShortType") {
+    // ShortType is saved to MemSQL as SMALLINT
+    // SMALLINT is loaded from MemSQL as ShortType
+    def testShortType(options: Map[String, String], tableName: String): Unit = {
+      val df = spark.createDF(
+        List(-32768.toShort, 32767.toShort, 0.toShort, 5.toShort, -100.toShort),
+        List(("id", ShortType, true))
+      )
+
+      df.write
+        .format("memsql")
+        .options(options)
+        .save(s"testdb.$tableName")
+
+      val actualDf =
+        spark.read.format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT).load(s"testdb.$tableName")
+      assertApproximateDataFrameEquality(actualDf, df, precision = 0.001, orderedComparison = false)
+    }
+
+    it("LoadDataWriter") {
+      testShortType(Map.empty, "ShortTypeLoad")
+    }
+
+    it("BatchInsertWriter") {
+      testShortType(
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        "ShortTypeInsert"
+      )
+    }
+  }
 }
