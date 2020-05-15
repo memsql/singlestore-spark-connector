@@ -10,8 +10,9 @@ case object MemsqlDialect extends JdbcDialect {
   override def canHandle(url: String): Boolean = url.startsWith("jdbc:memsql")
 
   override def getJDBCType(dt: DataType): Option[JdbcType] = dt match {
-    case BooleanType => Option(JdbcType("BOOL", java.sql.Types.BOOLEAN))
-    case ByteType    => Option(JdbcType("INTEGER", java.sql.Types.INTEGER))
+    case BooleanType   => Option(JdbcType("BOOL", java.sql.Types.BOOLEAN))
+    case ByteType      => Option(JdbcType("INTEGER", java.sql.Types.INTEGER))
+    case TimestampType => Option(JdbcType("TIMESTAMP(6)", java.sql.Types.TIMESTAMP))
     case NullType =>
       throw new IllegalArgumentException(
         "No corresponding MemSQL type found for NullType. If you want to use NullType, please write to an already existing MemSQL table.")
