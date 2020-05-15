@@ -16,7 +16,6 @@ case object MemsqlDialect extends JdbcDialect {
     case NullType =>
       throw new IllegalArgumentException(
         "No corresponding MemSQL type found for NullType. If you want to use NullType, please write to an already existing MemSQL table.")
-    case t         => JdbcUtils.getCommonJDBCType(t)
     case FloatType => Option(JdbcType("FLOAT", java.sql.Types.FLOAT))
     case ShortType => Option(JdbcType("SMALLINT", java.sql.Types.SMALLINT))
     case t         => JdbcUtils.getCommonJDBCType(t)
