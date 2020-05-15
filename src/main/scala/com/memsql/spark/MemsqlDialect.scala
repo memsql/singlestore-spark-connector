@@ -4,15 +4,7 @@ import java.sql.Types
 
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.jdbc.{JdbcDialect, JdbcType}
-import org.apache.spark.sql.types.{
-  BooleanType,
-  ByteType,
-  DataType,
-  FloatType,
-  LongType,
-  MetadataBuilder,
-  ShortType
-}
+import org.apache.spark.sql.types._
 
 case object MemsqlDialect extends JdbcDialect {
   override def canHandle(url: String): Boolean = url.startsWith("jdbc:memsql")
@@ -20,9 +12,13 @@ case object MemsqlDialect extends JdbcDialect {
   override def getJDBCType(dt: DataType): Option[JdbcType] = dt match {
     case BooleanType => Option(JdbcType("BOOL", java.sql.Types.BOOLEAN))
     case ByteType    => Option(JdbcType("INTEGER", java.sql.Types.INTEGER))
-    case FloatType   => Option(JdbcType("FLOAT", java.sql.Types.FLOAT))
-    case ShortType   => Option(JdbcType("SMALLINT", java.sql.Types.SMALLINT))
-    case t           => JdbcUtils.getCommonJDBCType(t)
+    case NullType =>
+      throw new IllegalArgumentException(
+        "No corresponding MemSQL type found for NullType. If you want to use NullType, please write to an already existing MemSQL table.")
+    case t         => JdbcUtils.getCommonJDBCType(t)
+    case FloatType => Option(JdbcType("FLOAT", java.sql.Types.FLOAT))
+    case ShortType => Option(JdbcType("SMALLINT", java.sql.Types.SMALLINT))
+    case t         => JdbcUtils.getCommonJDBCType(t)
   }
 
   override def getCatalystType(sqlType: Int,

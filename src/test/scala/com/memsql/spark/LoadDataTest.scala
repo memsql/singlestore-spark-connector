@@ -1,9 +1,11 @@
 package com.memsql.spark
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import org.apache.spark.sql.types.{IntegerType, StringType}
+import org.apache.spark.sql.types.{IntegerType, NullType, StringType}
 import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+
+import scala.util.Try
 
 class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {
   var df: DataFrame = _
@@ -159,5 +161,29 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
       // error code 1054 is `Unknown column 'wrongname' in 'field list'`
       case e: Throwable if SQLHelper.isSQLExceptionWithCode(e, List(1054)) =>
     }
+  }
+
+  it("should fail creating table with NullType") {
+    val tableName = "null_type"
+
+    val dfNull = spark.createDF(List(null), List(("id", NullType, true)))
+    val writeResult = Try {
+      writeTable(s"testdb.$tableName", dfNull, SaveMode.Append)
+    }
+    assert(writeResult.isFailure)
+    assert(
+      writeResult.failed.get.getMessage
+        .equals(
+          "No corresponding MemSQL type found for NullType. If you want to use NullType, please write to an already existing MemSQL table."))
+  }
+
+  it("should succeed inserting NullType in existed table") {
+    val tableName = "null_type"
+
+    df = spark.createDF(List(1, 2, 3, 4, 5), List(("id", IntegerType, true)))
+    writeTable(s"testdb.$tableName", df, SaveMode.Append)
+
+    val dfNull = spark.createDF(List(null), List(("id", NullType, true)))
+    writeTable(s"testdb.$tableName", dfNull, SaveMode.Append)
   }
 }
