@@ -1,7 +1,7 @@
 package com.memsql.spark
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.apache.spark.sql.types._
 
 import scala.util.Random
@@ -9,10 +9,6 @@ import scala.util.Random
 class CustomDatatypesTest extends IntegrationSuiteBase {
 
   val dbName = "testdb"
-
-  it("fail") {
-    assert(false)
-  }
 
   it("JSON columns are treated as strings by Spark") {
     executeQuery(s"""
@@ -130,18 +126,68 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     it("a lot of special characters") {
       val specialBytes = Array[Byte](0, 127, -128, '\'', '"', '`', '\\', '/', '\t', '\n', 't', 'n',
         '\f', 'f', '[', ']', '(', ')', '@', '#', ',', '.')
-      val sbLen                        = specialBytes.length
+      val sbLen = specialBytes.length
+
       def genRandomSpecialByte(): Byte = specialBytes(Random.nextInt(sbLen))
+
       def genRandomRow(): Array[Byte] =
         Array.fill(100)(genRandomSpecialByte())
+
       testBinaryType(List.fill(100)(genRandomRow()))
     }
 
     it("big random table") {
       def genRandomByte(): Byte = (Random.nextInt(256) - 128).toByte
+
       def genRandomRow(): Array[Byte] =
         Array.fill(1000)(genRandomByte())
+
       testBinaryType(List.fill(1000)(genRandomRow()))
+    }
+  }
+
+  describe("FloatType") {
+    // FloatType is saved to MemSQL as FLOAT (it is made to save storage)
+    // FLOAT is loaded from MemSQL as DoubleType (it is made to simplify math operations)
+    def testFloatType(options: Map[String, String], tableName: String): Unit = {
+      val df = spark.createDF(
+        List(10.toFloat,
+             -100.4343.toFloat,
+             1e8.toFloat,
+             -120.toFloat,
+             0.toFloat,
+             5.1234.toFloat,
+             -23.132123.toFloat),
+        List(("id", FloatType, true))
+      )
+
+      df.write
+        .format("memsql")
+        .options(options)
+        .save(s"testdb.$tableName")
+
+      val actualDf =
+        spark.read.format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT).load(s"testdb.$tableName")
+      assertApproximateDataFrameEquality(
+        actualDf,
+        spark.createDF(
+          List(10.0, -100.4343, 1e8, -120.0, 0.0, 5.1234, -23.132123),
+          List(("id", DoubleType, true))
+        ),
+        precision = 0.001,
+        orderedComparison = false
+      )
+    }
+
+    it("LoadDataWriter") {
+      testFloatType(Map.empty, "FloatTypeLoad")
+    }
+
+    it("BatchInsertWriter") {
+      testFloatType(
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        "FloatTypeInsert"
+      )
     }
   }
 }
