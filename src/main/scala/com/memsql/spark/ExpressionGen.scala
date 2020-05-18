@@ -328,13 +328,17 @@ object ExpressionGen extends LazyLogging {
 
     // MemSQL and spark support other date formats
     // UnixTime doesn't use format if time is already a dataType or TimestampType
-    case ToUnixTimestamp(e @ Expression(timeExp), format, timeZoneId)
-        if e.dataType == DateType || e.dataType == TimestampType =>
+    case ToUnixTimestamp(e @ Expression(timeExp), _, _) if e.dataType == DateType =>
       f("UNIX_TIMESTAMP", timeExp)
 
-    case UnixTimestamp(e @ Expression(timeExp), format, timeZoneId)
-        if e.dataType == DateType || e.dataType == TimestampType =>
+    case ToUnixTimestamp(e @ Expression(timeExp), _, _) if e.dataType == TimestampType =>
+      f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0")
+
+    case UnixTimestamp(e @ Expression(timeExp), _, _) if e.dataType == DateType =>
       f("UNIX_TIMESTAMP", timeExp)
+
+    case UnixTimestamp(e @ Expression(timeExp), _, _) if e.dataType == TimestampType =>
+      f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0")
 
     case FromUnixTime(Expression(sec), format, timeZoneId)
         if format.foldable && format.dataType == StringType &&
