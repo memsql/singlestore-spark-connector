@@ -1,5 +1,6 @@
 package com.memsql.spark
 
+import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
@@ -87,7 +88,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     val jdbcDF = spark.sql(q)
     // verify that the jdbc DF works first
     jdbcDF.collect()
-
     if (pushdown) { spark.sql("use testdb") } else { spark.sql("use testdb_nopushdown") }
 
     val memsqlDF = spark.sql(q)
@@ -116,7 +116,20 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     )
 
     try {
-      assertApproximateDataFrameEquality(memsqlDF, jdbcDF, 0.1, orderedComparison = alreadyOrdered)
+      def changeTypes(df: DataFrame): DataFrame = {
+        var newDf = df
+        df.schema
+          .filter(_.dataType == ShortType)
+          .foreach(x => newDf = newDf.withColumn(x.name, newDf(x.name).cast(IntegerType)))
+        df.schema
+          .filter(_.dataType == FloatType)
+          .foreach(x => newDf = newDf.withColumn(x.name, newDf(x.name).cast(DoubleType)))
+        newDf
+      }
+      assertApproximateDataFrameEquality(changeTypes(memsqlDF),
+                                         jdbcDF,
+                                         0.1,
+                                         orderedComparison = alreadyOrdered)
     } catch {
       case e: Throwable => {
         if (continuousIntegration) { println(memsqlDF.explain(true)) }
@@ -181,11 +194,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("math expressions") {
-    it("sinh") { testQuery("select sinh(rating) from reviews") }
-    it("cosh") { testQuery("select cosh(rating) from reviews") }
-    it("tanh") { testQuery("select tanh(rating) from reviews") }
-    it("hypot") { testQuery("select hypot(rating, user_id) from reviews") }
-    it("rint") { testQuery("select rint(rating) from reviews") }
+    it("sinh") { testQuery("select sinh(rating) as sinh from reviews") }
+    it("cosh") { testQuery("select cosh(rating) as cosh from reviews") }
+    it("tanh") { testQuery("select tanh(rating) as tanh from reviews") }
+    it("hypot") { testQuery("select hypot(rating, user_id) as hypot from reviews") }
+    it("rint") { testQuery("select rint(rating) as rint from reviews") }
   }
 
   describe("datatypes") {
@@ -324,8 +337,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         "select users.id, rating from users natural join (select user_id as id, rating from reviews)")
     }
     it("complex join") {
-      testSingleReadQuery("""
-          |  select users.id, round(avg(rating), 2), count(*) as num_reviews
+      testSingleReadQuery(
+        """
+          |  select users.id, round(avg(rating), 2) as rating, count(*) as num_reviews
           |  from users inner join reviews on users.id = reviews.user_id
           | group by users.id
           |""".stripMargin)

@@ -1,9 +1,7 @@
 package com.memsql.spark
 
-import java.sql.Timestamp
-
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import org.apache.spark.sql.types.{IntegerType, NullType, StringType, TimestampType}
+import org.apache.spark.sql.types.{IntegerType, NullType, StringType}
 import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
@@ -163,53 +161,6 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
       // error code 1054 is `Unknown column 'wrongname' in 'field list'`
       case e: Throwable if SQLHelper.isSQLExceptionWithCode(e, List(1054)) =>
     }
-  }
-
-  val timestampValues = List(
-    //new Timestamp(999), // Doesn't support [1970-01-01 00:00:00.999]
-    //new Timestamp(-10000), // Doesn't support [1969-12-31 23:59:50.0]
-    (1, new Timestamp(1000)), // Min supported timestamp [1970-01-01 00:00:01.000]
-    (2, new Timestamp(12345)),
-    (3, new Timestamp(21474836L)),
-    (4, new Timestamp(2147483649L)),
-    (5, new Timestamp(214748364900L)),
-    (6, new Timestamp(2147483647999L)) // Max supported timestamp [2038-01-19 03:14:07.999]
-    //new Timestamp(2147483648000L) // Doesn't support [2038-01-19 03:14:08.000]
-  )
-
-  it("[LoadDataWriter] save TimestampType with microseconds") {
-    val df = spark.createDF(
-      timestampValues,
-      List(("id", IntegerType, true), ("time", TimestampType, true))
-    )
-
-    df.write
-      .format("memsql")
-      .mode(SaveMode.Overwrite)
-      .option("tableKey.primary", "id")
-      .save("testdb.types")
-
-    val actualDF =
-      spark.read.format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT).load("testdb.types")
-    assertLargeDataFrameEquality(actualDF, df, orderedComparison = false)
-  }
-
-  it("[BatchInsertWriter] save TimestampType with microseconds") {
-    val df = spark.createDF(
-      timestampValues,
-      List(("id", IntegerType, true), ("time", TimestampType, true))
-    )
-
-    df.write
-      .format("memsql")
-      .mode(SaveMode.Append)
-      .option("tableKey.primary", "id")
-      .option("onDuplicateKeySQL", "id = id")
-      .save("testdb.types")
-
-    val actualDF =
-      spark.read.format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT).load("testdb.types")
-    assertLargeDataFrameEquality(actualDF, df, orderedComparison = false)
   }
 
   it("should fail creating table with NullType") {

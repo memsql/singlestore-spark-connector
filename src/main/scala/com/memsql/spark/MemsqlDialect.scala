@@ -9,32 +9,46 @@ import org.apache.spark.sql.types._
 case object MemsqlDialect extends JdbcDialect {
   override def canHandle(url: String): Boolean = url.startsWith("jdbc:memsql")
 
+  val MEMSQL_DECIMAL_MAX_SCALE = 30
+
   override def getJDBCType(dt: DataType): Option[JdbcType] = dt match {
-    case BooleanType   => Option(JdbcType("BOOL", java.sql.Types.BOOLEAN))
-    case ByteType      => Option(JdbcType("INTEGER", java.sql.Types.INTEGER))
-    case TimestampType => Option(JdbcType("TIMESTAMP(6)", java.sql.Types.TIMESTAMP))
+    case BooleanType   => Option(JdbcType("BOOL", Types.BOOLEAN))
+    case ByteType      => Option(JdbcType("TINYINT", Types.TINYINT))
+    case ShortType     => Option(JdbcType("SMALLINT", Types.SMALLINT))
+    case FloatType     => Option(JdbcType("FLOAT", Types.FLOAT))
+    case TimestampType => Option(JdbcType("TIMESTAMP(6)", Types.TIMESTAMP))
+    case dt: DecimalType if (dt.scale <= MEMSQL_DECIMAL_MAX_SCALE) =>
+      Option(JdbcType(s"DECIMAL(${dt.precision}, ${dt.scale})", Types.DECIMAL))
+    case dt: DecimalType =>
+      throw new IllegalArgumentException(
+        s"Too big scale specified(${dt.scale}). MemSQL DECIMAL maximum scale is ${MEMSQL_DECIMAL_MAX_SCALE}")
     case NullType =>
       throw new IllegalArgumentException(
         "No corresponding MemSQL type found for NullType. If you want to use NullType, please write to an already existing MemSQL table.")
-    case FloatType => Option(JdbcType("FLOAT", java.sql.Types.FLOAT))
-    case ShortType => Option(JdbcType("SMALLINT", java.sql.Types.SMALLINT))
-    case t         => JdbcUtils.getCommonJDBCType(t)
+    case t => JdbcUtils.getCommonJDBCType(t)
   }
 
   override def getCatalystType(sqlType: Int,
                                typeName: String,
                                size: Int,
                                md: MetadataBuilder): Option[DataType] = {
-    if (sqlType == Types.VARBINARY && typeName.equals("BIT") && size != 1) {
-      // This could instead be a BinaryType if we'd rather return bit-vectors of up to 64 bits as
-      // byte arrays instead of longs.
-      md.putLong("binarylong", 1)
-      Option(LongType)
-    } else if (sqlType == Types.BIT && typeName.equals("TINYINT")) {
-      Option(BooleanType)
-    } else if (sqlType == Types.SMALLINT && typeName.equals("SMALLINT")) {
-      Option(ShortType)
-    } else None
+    (sqlType, typeName) match {
+      case (Types.REAL, "FLOAT")        => Option(FloatType)
+      case (Types.BIT, "BIT")           => Option(BinaryType)
+      case (Types.TINYINT, "TINYINT")   => Option(ShortType)
+      case (Types.SMALLINT, "SMALLINT") => Option(ShortType)
+      case (Types.DECIMAL, "DECIMAL") => {
+        if (size > DecimalType.MAX_PRECISION) {
+          throw new IllegalArgumentException(
+            s"DECIMAL precision ${size} exceeds max precision ${DecimalType.MAX_PRECISION}")
+        } else {
+          Option(
+            DecimalType(size, md.build().getLong("scale").toInt)
+          )
+        }
+      }
+      case _ => None
+    }
   }
 
   override def quoteIdentifier(colName: String): String = {

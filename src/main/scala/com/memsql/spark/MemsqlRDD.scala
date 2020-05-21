@@ -62,6 +62,7 @@ case class MemsqlRDD(query: String,
       if (schemaDatatypes != expectedDatatypes) {
         val columnEncoders = schemaDatatypes.zip(expectedDatatypes).zipWithIndex.map {
           case ((_: StringType, _: NullType), _)     => ((_: Row) => null)
+          case ((_: ShortType, _: BooleanType), i)   => ((r: Row) => r.getShort(i) != 0)
           case ((_: IntegerType, _: BooleanType), i) => ((r: Row) => r.getInt(i) != 0)
           case ((_: LongType, _: BooleanType), i)    => ((r: Row) => r.getLong(i) != 0)
 

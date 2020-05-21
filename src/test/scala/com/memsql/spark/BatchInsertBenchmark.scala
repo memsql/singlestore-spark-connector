@@ -1,7 +1,7 @@
 package com.memsql.spark
 
 import java.sql.{Connection, Date, DriverManager}
-import java.time.{Instant, LocalDate}
+import java.time.LocalDate
 import java.util.Properties
 
 import org.apache.spark.sql.types._

@@ -486,8 +486,8 @@ object ExpressionGen extends LazyLogging {
         case ShortType   => op("!:>", child, "SMALLINT")
         case IntegerType => op("!:>", child, "INT")
         case LongType    => op("!:>", child, "BIGINT")
-        case FloatType   => op("!:>", child, "DECIMAL(14, 7)")
-        case DoubleType  => op("!:>", child, "DECIMAL(30, 15)")
+        case FloatType   => op("!:>", child, "FLOAT")
+        case DoubleType  => op("!:>", child, "DOUBLE")
         case BooleanType => op("!:>", child, "BOOL")
 
         // MemSQL doesn't know how to handle this cast, pass it through AS is
