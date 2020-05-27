@@ -59,6 +59,7 @@ global options have the prefix `spark.datasource.memsql.`.
 | `overwriteBehavior`       | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
 | `truncate`                | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
 | `loadDataCompression`     | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
+| `loadDataFormat`          | Serialize data on load; one of (`Avro`, `CSV`) (default: CSV)
 | `tableKey`                | Specify additional keys to add to tables created by the connector (See below for more details)
 | `onDuplicateKeySQL`       | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, MemSQL will instead perform an UPDATE of the old row. See examples below
 | `insertBatchSize`         | Size of the batch for row insertion (default: `10000`)

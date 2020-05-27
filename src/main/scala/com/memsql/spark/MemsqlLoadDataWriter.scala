@@ -1,18 +1,23 @@
 package com.memsql.spark
 
 import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
+import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.sql.Connection
 import java.util.Base64
 import java.util.zip.GZIPOutputStream
 
 import com.memsql.spark.MemsqlOptions.CompressionType
+import com.memsql.spark.vendor.apache.SchemaConverters
 import net.jpountz.lz4.LZ4FrameOutputStream
-import org.apache.spark.sql.{Row, SaveMode}
+import org.apache.avro.Schema
+import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
+import org.apache.avro.io.EncoderFactory
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.sources.v2.writer.{DataWriter, WriterCommitMessage}
-import org.apache.spark.sql.types.{StructType, BinaryType}
+import org.apache.spark.sql.types.{BinaryType, StructType}
+import org.apache.spark.sql.{Row, SaveMode}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -69,17 +74,20 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
         MemsqlDialect.quoteIdentifier(s.name)
     })
 
-    val querySetPart = {
-      val binaryColumns = schema.filter(_.dataType == BinaryType)
-      if (binaryColumns.isEmpty) {
-        ""
-      } else {
-        val operations = binaryColumns
-          .map(s =>
-            s"${MemsqlDialect.quoteIdentifier(s.name)} = FROM_BASE64(${tempColName(s.name)})")
-        s"SET ${operations.mkString(" ")}"
+    val loadDataFormat = conf.loadDataFormat
+    val querySetPart =
+      if (loadDataFormat == MemsqlOptions.LoadDataFormat.Avro) ""
+      else {
+        val binaryColumns = schema.filter(_.dataType == BinaryType)
+        if (binaryColumns.isEmpty) {
+          ""
+        } else {
+          val operations = binaryColumns
+            .map(s =>
+              s"${MemsqlDialect.quoteIdentifier(s.name)} = FROM_BASE64(${tempColName(s.name)})")
+          s"SET ${operations.mkString(" ")}"
+        }
       }
-    }
 
     val queryErrorHandlingPart = mode match {
       // If SaveMode is Ignore - skip all duplicate key errors
@@ -91,8 +99,29 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
           case _     => ""
         }
     }
-    val queryPrefix = s"LOAD DATA LOCAL INFILE '###.$ext'"
-    val queryEnding = s"INTO TABLE ${table.quotedString} (${columnNames.mkString(", ")})"
+
+    var avroSchema: Schema = null
+    val queryPrefix        = s"LOAD DATA LOCAL INFILE '###.$ext'"
+    val queryEnding = if (loadDataFormat == MemsqlOptions.LoadDataFormat.Avro) {
+      avroSchema = SchemaConverters.toAvroType(schema)
+      val nullableSchemas = for ((field, index) <- schema.fields.zipWithIndex)
+        yield
+          AvroSchemaHelper.resolveNullableType(avroSchema.getFields.get(index).schema(),
+                                               field.nullable)
+      val avroSchemaParts = for ((field, index) <- schema.fields.zipWithIndex) yield {
+        val avroSchemaMapping =
+          s"${MemsqlDialect.quoteIdentifier(field.name)} <- %::${MemsqlDialect.quoteIdentifier(field.name)}"
+        if (field.nullable) {
+          s"$avroSchemaMapping::${nullableSchemas(index).getType.getName}"
+        } else {
+          avroSchemaMapping
+        }
+      }
+      val avroMapping = avroSchemaParts.mkString("( ", ", ", " )")
+      s"INTO TABLE ${table.quotedString} FORMAT AVRO $avroMapping SCHEMA '${avroSchema.toString}'"
+    } else {
+      s"INTO TABLE ${table.quotedString} (${columnNames.mkString(", ")})"
+    }
     val query = List[String](queryPrefix, queryErrorHandlingPart, queryEnding, querySetPart)
       .filter(s => !s.isEmpty)
       .mkString(" ")
@@ -122,8 +151,11 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
         conn.close()
       }
     }
-
-    new LoadDataWriter(outputstream, writer, conn)
+    if (loadDataFormat == MemsqlOptions.LoadDataFormat.Avro) {
+      new AvroDataWriter(avroSchema, outputstream, writer, conn)
+    } else {
+      new LoadDataWriter(outputstream, writer, conn)
+    }
   }
 }
 
@@ -164,6 +196,50 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
   }
 
   override def commit(): WriterCommitMessage = {
+    outputstream.close()
+    Await.result(writeFuture, Duration.Inf)
+    new WriteSuccess
+  }
+
+  override def abort(): Unit = {
+    conn.abort(ExecutionContext.global)
+    outputstream.close()
+    Await.ready(writeFuture, Duration.Inf)
+  }
+}
+
+class AvroDataWriter(avroSchema: Schema,
+                     outputstream: OutputStream,
+                     writeFuture: Future[Long],
+                     conn: Connection)
+    extends DataWriter[Row] {
+
+  val datumWriter = new GenericDatumWriter[GenericRecord](avroSchema)
+  val encoder     = EncoderFactory.get().binaryEncoder(outputstream, null)
+  val record      = new GenericData.Record(avroSchema)
+
+  val conversionFunctions: Any => Any = {
+    case d: java.math.BigDecimal =>
+      d.toString
+    case s: Short =>
+      s.toInt
+    case bytes: Array[Byte] =>
+      ByteBuffer.wrap(bytes)
+    case b: Byte =>
+      b.toInt
+    case num => num
+  }
+
+  override def write(row: Row): Unit = {
+    val rowLength = row.size
+    for (i <- 0 until rowLength) {
+      record.put(i, conversionFunctions(row(i)))
+    }
+    datumWriter.write(record, encoder)
+  }
+
+  override def commit(): WriterCommitMessage = {
+    encoder.flush()
     outputstream.close()
     Await.result(writeFuture, Duration.Inf)
     new WriteSuccess

@@ -4,6 +4,7 @@ import java.sql.{Connection, DriverManager}
 import java.util.Properties
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
+import com.memsql.spark.BatchInsertBenchmark.{df, executeQuery}
 import org.apache.spark.sql.types.{BinaryType, IntegerType}
 import org.apache.spark.sql.{SaveMode, SparkSession}
 
@@ -59,7 +60,7 @@ object BinaryTypeBenchmark extends App {
     .mode(SaveMode.Overwrite)
     .save("testdb.LoadData")
 
-  println("Elapsed time (LoadData): " + (System.nanoTime() - start1) + "ns")
+  println("Elapsed time: " + (System.nanoTime() - start1) + "ns [LoadData CSV]")
 
   val start2 = System.nanoTime()
   df.write
@@ -69,5 +70,13 @@ object BinaryTypeBenchmark extends App {
     .mode(SaveMode.Overwrite)
     .save("testdb.BatchInsert")
 
-  println("Elapsed time (BatchInsert): " + (System.nanoTime() - start2) + "ns")
+  println("Elapsed time: " + (System.nanoTime() - start2) + "ns [BatchInsert]")
+
+  val avroStart = System.nanoTime()
+  df.write
+    .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)
+    .mode(SaveMode.Overwrite)
+    .option(MemsqlOptions.LOAD_DATA_FORMAT, "Avro")
+    .save("testdb.AvroSerialization")
+  println("Elapsed time: " + (System.nanoTime() - avroStart) + "ns [LoadData Avro] ")
 }

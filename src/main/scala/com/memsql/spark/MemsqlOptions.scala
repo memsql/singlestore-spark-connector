@@ -18,6 +18,7 @@ case class MemsqlOptions(
     // write options
     overwriteBehavior: OverwriteBehavior,
     loadDataCompression: MemsqlOptions.CompressionType.Value,
+    loadDataFormat: MemsqlOptions.LoadDataFormat.Value,
     tableKeys: List[TableKey],
     onDuplicateKeySQL: Option[String],
     insertBatchSize: Int
@@ -50,6 +51,10 @@ object MemsqlOptions extends LazyLogging {
             s"Option '$optionName' must be one of the following values: ${valuesString}"
           )
         )
+  }
+
+  object LoadDataFormat extends OptionEnum {
+    val CSV, Avro = Value
   }
 
   object CompressionType extends OptionEnum {
@@ -87,6 +92,7 @@ object MemsqlOptions extends LazyLogging {
   final val OVERWRITE_BEHAVIOR    = newOption("overwriteBehavior")
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
   final val TABLE_KEYS            = newOption("tableKey")
+  final val LOAD_DATA_FORMAT      = newOption("loadDataFormat")
   final val ON_DUPLICATE_KEY_SQL  = newOption("onDuplicateKeySQL")
   final val INSERT_BATCH_SIZE     = newOption("insertBatchSize")
 
@@ -190,6 +196,9 @@ object MemsqlOptions extends LazyLogging {
         }
       },
       loadDataCompression = loadDataCompression,
+      loadDataFormat = LoadDataFormat.fromOption(LOAD_DATA_FORMAT,
+                                                 options.get(LOAD_DATA_FORMAT),
+                                                 LoadDataFormat.CSV),
       tableKeys = tableKeys,
       onDuplicateKeySQL = options.get(ON_DUPLICATE_KEY_SQL),
       insertBatchSize = options.get(INSERT_BATCH_SIZE).getOrElse("10000").toInt

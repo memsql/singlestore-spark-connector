@@ -45,18 +45,15 @@ object LoadDataBenchmark extends App {
   executeQuery("drop database if exists testdb")
   executeQuery("create database testdb")
 
-  def genDate() =
-    Date.valueOf(LocalDate.ofEpochDay(LocalDate.of(2001, 4, 11).toEpochDay + Random.nextInt(10000)))
-  def genRow(): (Long, Int, Double, String, Date) =
-    (Random.nextLong(), Random.nextInt(), Random.nextDouble(), Random.nextString(20), genDate())
+  def genRow(): (Long, Int, Double, String) =
+    (Random.nextLong(), Random.nextInt(), Random.nextDouble(), Random.nextString(20))
   val df =
     spark.createDF(
       List.fill(1000000)(genRow()),
       List(("LongType", LongType, true),
            ("IntType", IntegerType, true),
            ("DoubleType", DoubleType, true),
-           ("StringType", StringType, true),
-           ("DateType", DateType, true))
+           ("StringType", StringType, true))
     )
 
   val start = System.nanoTime()
@@ -66,5 +63,16 @@ object LoadDataBenchmark extends App {
     .save("testdb.batchinsert")
 
   val diff = System.nanoTime() - start
-  println("Elapsed time: " + diff + "ns")
+  println("Elapsed time: " + diff + "ns [CSV serialization] ")
+
+  executeQuery("truncate testdb.batchinsert")
+
+  val avroStart = System.nanoTime()
+  df.write
+    .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)
+    .mode(SaveMode.Append)
+    .option(MemsqlOptions.LOAD_DATA_FORMAT, "Avro")
+    .save("testdb.batchinsert")
+  val avroDiff = System.nanoTime() - avroStart
+  println("Elapsed time: " + avroDiff + "ns [Avro serialization] ")
 }

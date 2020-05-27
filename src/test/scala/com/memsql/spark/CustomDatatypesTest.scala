@@ -3,8 +3,8 @@ package com.memsql.spark
 import java.sql.{Date, Timestamp}
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.{DataFrame, SaveMode}
 
 import scala.util.{Random, Try}
 
@@ -269,6 +269,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
       )
 
       writeRead(df, df, Map.empty, "BinaryTypeLoad")
+      writeRead(df, df, Map(MemsqlOptions.LOAD_DATA_FORMAT -> "avro"), "BinaryTypeLoad")
       writeRead(df,
                 df,
                 Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
@@ -547,6 +548,192 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     )
   }
 
+  describe("Avro serialization") {
+
+    def insertAndAssertEquality(tableName: String,
+                                dataFrame: DataFrame,
+                                expectedDataFrame: DataFrame): Unit = {
+      dataFrame.write
+        .format("memsql")
+        .mode(SaveMode.Overwrite)
+        .option(MemsqlOptions.LOAD_DATA_FORMAT, "avro")
+        .save(s"testdb.$tableName")
+
+      val actualDF = spark.read.format("memsql").load(s"testdb.$tableName")
+      assertLargeDataFrameEquality(actualDF, expectedDataFrame)
+    }
+
+    it("should write StringType nullable") {
+      val df = spark.createDF(
+        List((1, "Alice"), (2, null)),
+        List(("id", IntegerType, true), ("name", StringType, true))
+      )
+      insertAndAssertEquality("stringAvro", df, df)
+    }
+
+    it("should write StringType") {
+      val df = spark.createDF(
+        List((1, "Alice"), (2, "Bob")),
+        List(("id", IntegerType, false), ("name", StringType, false))
+      )
+      val expectedDf = spark.createDF(
+        List((1, "Alice"), (2, "Bob")),
+        List(("id", IntegerType, true), ("name", StringType, true))
+      )
+      insertAndAssertEquality("stringAvro", df, expectedDf)
+    }
+
+    it("should write ShortType nullable") {
+      val df = spark.createDF(
+        List((1, 21.toShort), (2, null)),
+        List(("id", IntegerType, true), ("age", ShortType, true))
+      )
+      insertAndAssertEquality("shortAvro", df, df)
+    }
+
+    it("should write ShortType") {
+      val df = spark.createDF(
+        List((1, 21.toShort), (2, -12.toShort)),
+        List(("id", IntegerType, false), ("name", ShortType, false))
+      )
+      val expectedDf = spark.createDF(
+        List((1, 21.toShort), (2, -12.toShort)),
+        List(("id", IntegerType, true), ("name", ShortType, true))
+      )
+      insertAndAssertEquality("stringAvro", df, expectedDf)
+    }
+
+    it("should write LongType nullable") {
+      val df = spark.createDF(
+        List((1, 21L), (2, null)),
+        List(("id", IntegerType, true), ("age", LongType, true))
+      )
+      insertAndAssertEquality("longAvro", df, df)
+    }
+
+    it("should write LongType") {
+      val df = spark.createDF(
+        List((1, 21L), (2, 1000L)),
+        List(("id", IntegerType, false), ("age", LongType, false))
+      )
+      val expectedDf = spark.createDF(
+        List((1, 21L), (2, 1000L)),
+        List(("id", IntegerType, true), ("age", LongType, true))
+      )
+      insertAndAssertEquality("longAvro", df, expectedDf)
+    }
+
+    it("should write ByteType nullable") {
+      val df = spark.createDF(
+        List((1, 21.byteValue()), (2, null)),
+        List(("id", IntegerType, true), ("age", ByteType, true))
+      )
+      val expectedDf = spark.createDF(
+        List((1, 21.toShort), (2, null)),
+        List(("id", IntegerType, true), ("age", ShortType, true))
+      )
+      insertAndAssertEquality("byteAvro", df, expectedDf)
+    }
+
+    it("should write ByteType") {
+      val df = spark.createDF(
+        List((1, 21.byteValue()), (2, -12.byteValue())),
+        List(("id", IntegerType, false), ("age", ByteType, false))
+      )
+      val expectedDf = spark.createDF(
+        List((1, 21.toShort), (2, -12.toShort)),
+        List(("id", IntegerType, true), ("age", ShortType, true))
+      )
+      insertAndAssertEquality("byteAvro", df, expectedDf)
+    }
+
+    it("should write BooleanType nullable") {
+      val df = spark.createDF(
+        List((1, true), (2, null)),
+        List(("id", IntegerType, true), ("age", BooleanType, true))
+      )
+      val expectedDf = spark.createDF(
+        List((1, 1.toShort), (2, null)),
+        List(("id", IntegerType, true), ("age", ShortType, true))
+      )
+      insertAndAssertEquality("booleanAvro", df, expectedDf)
+    }
+
+    it("should write BooleanType") {
+      val df = spark.createDF(
+        List((1, true), (2, false)),
+        List(("id", IntegerType, false), ("age", BooleanType, false))
+      )
+      val expectedDf = spark.createDF(
+        List((1, 1.toShort), (2, 0.toShort)),
+        List(("id", IntegerType, true), ("age", ShortType, true))
+      )
+      insertAndAssertEquality("booleanAvro", df, expectedDf)
+    }
+
+    it("should write FloatType nullable") {
+      val df = spark.createDF(
+        List((1, 21.123f), (2, null)),
+        List(("id", IntegerType, true), ("age", FloatType, true))
+      )
+      insertAndAssertEquality("floatAvro", df, df)
+    }
+
+    it("should write FloatType") {
+      val df = spark.createDF(
+        List((1, 21.123f), (2, 555.555f)),
+        List(("id", IntegerType, false), ("age", FloatType, false))
+      )
+
+      val expectedDf = spark.createDF(
+        List((1, 21.123f), (2, 555.555f)),
+        List(("id", IntegerType, true), ("age", FloatType, true))
+      )
+      insertAndAssertEquality("floatAvro", df, expectedDf)
+    }
+
+    it("should write DoubleType nullable") {
+      val df = spark.createDF(
+        List((1, 21.123123d), (2, null)),
+        List(("id", IntegerType, true), ("age", DoubleType, true))
+      )
+      insertAndAssertEquality("doubleAvro", df, df)
+    }
+
+    it("should write DoubleType") {
+      val df = spark.createDF(
+        List((1, 21.123123d), (2, 9999.99999d)),
+        List(("id", IntegerType, false), ("age", DoubleType, false))
+      )
+      val expectedDf = spark.createDF(
+        List((1, 21.123123d), (2, 9999.99999d)),
+        List(("id", IntegerType, true), ("age", DoubleType, true))
+      )
+      insertAndAssertEquality("doubleAvro", df, expectedDf)
+    }
+
+    it("should write DecimalType nullable") {
+      val df = spark.createDF(
+        List((1, 215142: BigDecimal), (2, null)),
+        List(("id", IntegerType, true), ("age", DecimalType(10, 0), true))
+      )
+      insertAndAssertEquality("decimalAvro", df, df)
+    }
+
+    it("should write DecimalType") {
+      val df = spark.createDF(
+        List((1, 21235326: BigDecimal), (2, 9999999: BigDecimal)),
+        List(("id", IntegerType, false), ("age", DecimalType(10, 0), false))
+      )
+      val expectedDf = spark.createDF(
+        List((1, 21235326: BigDecimal), (2, 9999999: BigDecimal)),
+        List(("id", IntegerType, true), ("age", DecimalType(10, 0), true))
+      )
+      insertAndAssertEquality("decimalAvro", df, expectedDf)
+    }
+
+  }
+
   // Not supported types:
   // CalendarIntervalType
   // NullType
@@ -557,4 +744,5 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
   // BatchInsertWriter fails to write a StringType with null byte ('\0')
   // DECIMAL and DecimalType have different maximum scale and precision. The error will happen if you try to read/write a table/dataFrame with wrong precision/scale
   // TIMESTAMP in MemSQL support values from 1000 to 2147483647999. MemSQL treat null in TIMESTAMP column as current time
+  // Avro serialization doesn't support writing of TimestampType and DateType.
 }

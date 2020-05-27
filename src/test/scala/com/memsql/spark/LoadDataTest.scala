@@ -1,7 +1,7 @@
 package com.memsql.spark
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import org.apache.spark.sql.types.{IntegerType, NullType, StringType}
+import org.apache.spark.sql.types.{DecimalType, IntegerType, NullType, StringType}
 import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
@@ -185,5 +185,21 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
 
     val dfNull = spark.createDF(List(null), List(("id", NullType, true)))
     writeTable(s"testdb.$tableName", dfNull, SaveMode.Append)
+  }
+
+  it("should write BigDecimal with Avro serializing") {
+    val tableName = "bigDecimalAvro"
+    val df = spark.createDF(
+      List((1, "Alice", 213: BigDecimal)),
+      List(("id", IntegerType, true), ("name", StringType, true), ("age", DecimalType(10, 0), true))
+    )
+    df.write
+      .format("memsql")
+      .mode(SaveMode.Overwrite)
+      .option(MemsqlOptions.LOAD_DATA_FORMAT, "avro")
+      .save(s"testdb.$tableName")
+
+    val actualDF = spark.read.format("memsql").load(s"testdb.$tableName")
+    assertLargeDataFrameEquality(actualDF, df)
   }
 }

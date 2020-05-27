@@ -22,6 +22,7 @@ lazy val root = project
       // runtime dependencies
       "org.apache.spark"       %% "spark-core"             % sparkVersion % "provided, test",
       "org.apache.spark"       %% "spark-sql"              % sparkVersion % "provided, test",
+      "org.apache.avro"        % "avro"                    % "1.8.2",
       "org.apache.commons"     % "commons-dbcp2"           % "2.7.0",
       "org.scala-lang.modules" % "scala-java8-compat_2.11" % "0.9.0",
       "org.mariadb.jdbc"       % "mariadb-java-client"     % "2.+",
