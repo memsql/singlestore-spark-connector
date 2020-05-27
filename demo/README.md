@@ -45,10 +45,6 @@ docker start memsql-ciab-for-zeppelin
 
 * Build zeppelin docker image in `memsql-spark-connector/demo` folder
 
-> :note: For this step you should be in `3.0.0-rc` branch.
-> If you already cloned memsql-spark-connector git repository you can execute `git checkout 3.0.0-rc`.
-> Otherwise you can clone this branch `git clone -b 3.0.0-rc https://github.com/memsql/memsql-spark-connector.git`
-
 ```
 docker build -t zeppelin .
 ```
