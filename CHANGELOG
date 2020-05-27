@@ -1,3 +1,12 @@
+2020-05-27 Version 3.0.0
+	* Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
+	* Implemented as a native Spark SQL plugin
+	* Supports both the DataSource and DataSourceV2 API for maximum support of current and future functionality
+	* Contains deep integrations with the Catalyst query optimizer
+	* Is compatible with Spark 2.3 and 2.4
+	* Leverages MemSQL LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
+	* Takes advantage of all the latest and greatest features in MemSQL 7.x
+
 2020-05-06 Version 3.0.0-rc1
         * Support writing into MemSQL reference tables
         * Deprecated truncate option in favor of overwriteBehavior

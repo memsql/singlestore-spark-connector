@@ -1,19 +1,5 @@
 # MemSQL Spark Connector
-## Version: 3.0.0-rc1 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/3.0.0-rc.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
-
-> :warning: **This is the release candidate for the 3.0.0 version of the Spark Connector which will be released by the end of May 2020.  Usage in production is supported.**
-
-## Major changes from the 2.0.0 connector
-
-The MemSQL Spark Connector 3.0.0 has a number of key features and enhancements:
-
-* Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
-* Implemented as a native Spark SQL plugin
-* Supports both the DataSource and DataSourceV2 API for maximum support of current and future functionality
-* Contains deep integrations with the Catalyst query optimizer
-* Is compatible with Spark 2.3
-* Leverages MemSQL LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
-* Takes advantage of all the latest and greatest features in MemSQL 7.0
+## Version: 3.0.0 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 ## Getting Started
 
@@ -24,7 +10,7 @@ spark-packages.org.  The group is `com.memsql` and the artifact is
 * [Maven Central](https://search.maven.org/artifact/com.memsql/memsql-spark-connector_2.11)
 
 We release two versions of the `memsql-spark-connector`, one per Spark version.
-An example version number is: `3.0.0-rc1-spark-2.3.4` which is the 3.0.0-rc1
+An example version number is: `3.0.0-spark-2.3.4` which is the 3.0.0
 version of the connector, compiled and tested against Spark 2.3.4. Make sure
 you are using the most recent version of the beta.
 
@@ -165,7 +151,7 @@ When you use ON DUPLICATE KEY UPDATE, all rows of the data frame are split into 
 
 ## Merging on save
 
-When saving dataframes or datasets to MemSQL, you can manage how SaveMode.Overwrite is interpreted by the connector via the option overwriteBehavior. 
+When saving dataframes or datasets to MemSQL, you can manage how SaveMode.Overwrite is interpreted by the connector via the option overwriteBehavior.
 This option can take one of the following values:
 
 1. `dropAndCreate`(default) - drop and create the table before writing new values.
@@ -271,8 +257,8 @@ output.
 MemSQL has a [permission matrix](https://docs.memsql.com/latest/reference/sql-reference/security-management-commands/permissions-matrix/)
 which describes the permissions required to run each command.
 
-To make any SQL operations through Spark connector you should have different 
-permissions for different type of operation. The matrix below describes the 
+To make any SQL operations through Spark connector you should have different
+permissions for different type of operation. The matrix below describes the
 minimum permissions you should have to perform some operation. As alternative to
 minimum required permissions, `ALL PRIVILEGES` allow you to perform any operation.
 
@@ -372,7 +358,6 @@ Happy querying!
  * install Oracle JDK 8 from this url: https://www.oracle.com/java/technologies/javase/javase-jdk8-downloads.html
  * install community version of Intellij IDEA from https://www.jetbrains.com/idea/
  * clone the repository https://github.com/memsql/memsql-spark-connector.git
- * checkout to the branch `3.0.0-rc`
  * in Intellij IDEA choose `Configure->Plugins` and install Scala plugin
  * in Intellij IDEA run `Import Project` and select path to memsql-spark-connector
  * choose `import project from external model` and `sbt`
@@ -383,7 +368,19 @@ Happy querying!
  * run `git checkout .` to revert all changes made by Intellij IDEA
  * in Intellij IDEA choose `Open` and select path to memsql-spark-connector
  * run `Test Spark 2.3` (it should succeed)
- 
+
 ## SQL Pushdown Incompatibilities
  * `ToUnixTimestamp` and `UnixTimestamp` handle only time less then `2038-01-19 03:14:08`, if they get `DateType` or `TimestampType` as a first argument
  * `FromUnixTime` with default format (`yyyy-MM-dd HH:mm:ss`) handle only time less then `2147483648` (`2^31`)
+
+## Major changes from the 2.0.0 connector
+
+The MemSQL Spark Connector 3.0.0 has a number of key features and enhancements:
+
+* Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
+* Implemented as a native Spark SQL plugin
+* Supports both the DataSource and DataSourceV2 API for maximum support of current and future functionality
+* Contains deep integrations with the Catalyst query optimizer
+* Is compatible with Spark 2.3 and 2.4
+* Leverages MemSQL LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
+* Takes advantage of all the latest and greatest features in MemSQL 7.x
