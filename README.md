@@ -8,11 +8,17 @@ spark-packages.org.  The group is `com.memsql` and the artifact is
 `memsql-spark-connector_2.11`.
 
 * [Maven Central](https://search.maven.org/artifact/com.memsql/memsql-spark-connector_2.11)
+* [spark-packages.org](https://spark-packages.org/package/memsql/memsql-spark-connector)
+
+You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
+```
+$SPARK_HOME/bin/spark-shell --packages com.memsql:memsql-spark-connector_2.11:3.0.0-spark-2.4.4
+```
 
 We release two versions of the `memsql-spark-connector`, one per Spark version.
 An example version number is: `3.0.0-spark-2.3.4` which is the 3.0.0
 version of the connector, compiled and tested against Spark 2.3.4. Make sure
-you are using the most recent version of the beta.
+you are using the most recent version of the connector.
 
 In addition to adding the `memsql-spark-connector`, you will also need to have the
 MariaDB JDBC driver installed.  This library is tested against the following
