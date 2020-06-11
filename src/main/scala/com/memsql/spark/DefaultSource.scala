@@ -2,6 +2,7 @@ package com.memsql.spark
 
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
+import org.apache.spark.metrics.source.MetricsHandler
 import org.apache.spark.sql.sources.{
   BaseRelation,
   CreatableRelationProvider,
@@ -68,7 +69,8 @@ class DefaultSource
         new BatchInsertWriterFactory(table, conf)
       }
 
-    val schema = data.schema
+    val schema        = data.schema
+    var totalRowCount = 0L
     data.foreachPartition(partition => {
       val writer = partitionWriterFactory.createDataWriter(schema,
                                                            TaskContext.getPartitionId(),
@@ -76,8 +78,12 @@ class DefaultSource
                                                            isReferenceTable,
                                                            mode)
       try {
-        partition.foreach(writer.write)
+        partition.foreach(record => {
+          writer.write(record)
+          totalRowCount += 1
+        })
         writer.commit()
+        MetricsHandler.setRecordsWritten(totalRowCount)
       } catch {
         case e: Exception => {
           writer.abort()
