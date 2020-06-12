@@ -1,5 +1,5 @@
 # MemSQL Spark Connector
-## Version: 3.0.0 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## Version: 3.0.1 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 ## Getting Started
 
@@ -12,11 +12,11 @@ spark-packages.org.  The group is `com.memsql` and the artifact is
 
 You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
 ```
-$SPARK_HOME/bin/spark-shell --packages com.memsql:memsql-spark-connector_2.11:3.0.0-spark-2.4.4
+$SPARK_HOME/bin/spark-shell --packages com.memsql:memsql-spark-connector_2.11:3.0.1-spark-2.4.4
 ```
 
 We release two versions of the `memsql-spark-connector`, one per Spark version.
-An example version number is: `3.0.0-spark-2.3.4` which is the 3.0.0
+An example version number is: `3.0.1-spark-2.3.4` which is the 3.0.1
 version of the connector, compiled and tested against Spark 2.3.4. Make sure
 you are using the most recent version of the connector.
 
@@ -96,6 +96,21 @@ If the target table ("foo" in the example above) does not exist in MemSQL the
 specify SaveMode.Overwrite, if the target table already exists, it will be
 recreated or truncated before load. Specify `overwriteBehavior = truncate` to truncate rather
 than re-create.
+
+### Retrieving the number of written rows from taskMetrics
+
+It is possible to add the listener and get the number of written rows.
+
+```scala
+spark.sparkContext.addSparkListener(new SparkListener() {
+  override def onTaskEnd(taskEnd: SparkListenerTaskEnd) {
+    println("Task id: " + taskEnd.taskInfo.id.toString)
+    println("Records written: " + taskEnd.taskMetrics.outputMetrics.recordsWritten.toString)
+  }
+})
+
+df.write.format("memsql").save("example")
+```
 
 ### Specifying keys for tables created by the Spark Connector
 When creating a table, the `memsql-spark-connector` will read options prefixed
@@ -381,7 +396,7 @@ Happy querying!
 
 ## Major changes from the 2.0.0 connector
 
-The MemSQL Spark Connector 3.0.0 has a number of key features and enhancements:
+The MemSQL Spark Connector 3.0.1 has a number of key features and enhancements:
 
 * Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
 * Implemented as a native Spark SQL plugin

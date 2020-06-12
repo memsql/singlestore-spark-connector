@@ -1,3 +1,6 @@
+2020-06-12 Version 3.0.1
+	* The connector now updates task metrics with the number of records written during write operations
+
 2020-05-27 Version 3.0.0
 	* Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
 	* Implemented as a native Spark SQL plugin
