@@ -1,102 +1,50 @@
-lazy val sparkVersion = "2.0.2"
-lazy val mysqlConnectorVersion = "5.1.34"
-lazy val sprayVersion = "1.3.2"
-lazy val scalatestVersion = "2.2.5"
-lazy val commonsDBCPVersion = "2.1.1"
-lazy val guavaVersion = "19.0"
+import xerial.sbt.Sonatype._
 
-lazy val assemblyScalastyle = taskKey[Unit]("assemblyScalastyle")
-lazy val testScalastyle = taskKey[Unit]("testScalastyle")
+/*
+  To run tests or publish with a specific spark version use this java option:
+    -Dspark.version=2.3.4
+ */
+val sparkVersion = sys.props.get("spark.version").getOrElse("2.4.4")
 
-lazy val commonSettings = Seq(
-  organization := "com.memsql",
-  version := "2.0.7",
-  scalaVersion := "2.11.8",
-  assemblyScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Compile).toTask("").value,
-  assembly <<= assembly dependsOn assemblyScalastyle,
-  testScalastyle := org.scalastyle.sbt.ScalastylePlugin.scalastyle.in(Test).toTask("").value,
-  (test in Test) <<= (test in Test) dependsOn testScalastyle,
-  parallelExecution in Test := false,
-  publishTo := {
-    val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value) {
-      Some("snapshots" at nexus + "content/repositories/snapshots")
-    } else {
-      Some("releases" at nexus + "service/local/staging/deploy/maven2")
-    }
-  },
-  pomExtra := {
-    <url>http://memsql.github.io/memsql-spark-connector</url>
-    <licenses>
-      <license>
-        <name>Apache 2</name>
-        <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-      </license>
-    </licenses>
-    <scm>
-      <connection>scm:git:github.com/memsql/memsql-spark-connector.git</connection>
-      <developerConnection>scm:git:git@github.com:memsql/memsql-spark-connector.git</developerConnection>
-      <url>github.com/memsql/memsql-spark-connector</url>
-    </scm>
-    <developers>
-      <developer>
-        <name>MemSQL</name>
-        <email>ops@memsql.com</email>
-        <url>http://www.memsql.com</url>
-        <organization>MemSQL</organization>
-        <organizationUrl>http://www.memsql.com</organizationUrl>
-      </developer>
-    </developers>
-  },
-  publishMavenStyle := true,
-  publishArtifact in Test := false,
-  pomIncludeRepository := { _ => false },
-  excludeFilter in unmanagedSources := HiddenFileFilter || "prelude.scala"
+lazy val root = project
+  .withId("memsql-spark-connector")
+  .in(file("."))
+  .settings(
+    name := "memsql-spark-connector",
+    organization := "com.memsql",
+    scalaVersion := "2.11.11",
+    version := s"3.0.1-spark-${sparkVersion}",
+    licenses += "Apache-2.0" -> url(
+      "http://opensource.org/licenses/Apache-2.0"
+    ),
+    resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven",
+    libraryDependencies ++= Seq(
+      // runtime dependencies
+      "org.apache.spark"       %% "spark-core"             % sparkVersion % "provided, test",
+      "org.apache.spark"       %% "spark-sql"              % sparkVersion % "provided, test",
+      "org.apache.avro"        % "avro"                    % "1.8.2",
+      "org.apache.commons"     % "commons-dbcp2"           % "2.7.0",
+      "org.scala-lang.modules" % "scala-java8-compat_2.11" % "0.9.0",
+      "org.mariadb.jdbc"       % "mariadb-java-client"     % "2.+",
+      "io.spray"               %% "spray-json"             % "1.3.5",
+      // test dependencies
+      "org.scalatest"  %% "scalatest"       % "3.1.0"         % Test,
+      "org.scalacheck" %% "scalacheck"      % "1.14.1"        % Test,
+      "mrpowers"       % "spark-daria"      % "0.35.0-s_2.11" % Test,
+      "MrPowers"       % "spark-fast-tests" % "0.21.0-s_2.11" % Test
+    ),
+    Test / testOptions += Tests.Argument("-oF"),
+    Test / fork := true
+  )
+
+credentials += Credentials(
+  "GnuPG Key ID",
+  "gpg",
+  "CDD996495CF08BB2041D86D8D1EB3D14F1CD334F",
+  "ignored" // this field is ignored; passwords are supplied by pinentry
 )
 
-lazy val examples = (project in file("examples")).
-  dependsOn(root % "compile->test; test->test").
-  settings(commonSettings: _*).
-  settings(
-    name := "examples",
-    libraryDependencies ++= {
-      Seq(
-        "mysql" % "mysql-connector-java" % mysqlConnectorVersion,
-        "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
-        "org.apache.spark" %% "spark-sql" % sparkVersion  % Provided
-      )
-    }
-  )
-
-lazy val root = (project in file(".")).
-  settings(commonSettings: _*).
-  settings(site.settings ++ ghpages.settings: _*).
-  settings(
-    name := "MemSQL-Connector",
-    description := "Spark MemSQL Connector",
-    libraryDependencies  ++= Seq(
-      "org.apache.spark" %% "spark-core" % sparkVersion % Provided,
-      "org.apache.spark" %% "spark-sql" % sparkVersion % Provided,
-      "mysql" % "mysql-connector-java" % mysqlConnectorVersion,
-      "org.apache.commons" % "commons-dbcp2" % commonsDBCPVersion,
-      "org.scalatest" %% "scalatest" % scalatestVersion % Test,
-      "com.google.guava" % "guava" % guavaVersion,
-      "io.spray" %% "spray-json" % sprayVersion
-    ),
-    autoAPIMappings := true,
-    apiMappings ++= {
-      def findManagedDependency(organization: String, name: String): Option[File] = {
-        (for {
-          entry <- (fullClasspath in Runtime).value ++ (fullClasspath in Test).value
-          module <- entry.get(moduleID.key) if module.organization == organization && module.name.startsWith(name)
-        } yield entry.data).headOption
-      }
-      val links = Seq(
-        findManagedDependency("org.apache.spark", "spark-core").map(d => d -> url(s"https://spark.apache.org/docs/$sparkVersion/api/scala/")),
-        findManagedDependency("org.apache.spark", "spark-sql").map(d => d -> url(s"https://spark.apache.org/docs/$sparkVersion/api/scala/"))
-      )
-      links.collect { case Some(d) => d }.toMap
-    },
-    site.includeScaladoc(),
-    git.remoteRepo := s"git@github.com:memsql/memsql-spark-connector.git"
-  )
+publishTo := sonatypePublishToBundle.value
+publishMavenStyle := true
+sonatypeSessionName := s"[sbt-sonatype] ${name.value} ${version.value}"
+sonatypeProjectHosting := Some(GitHubHosting("memsql", "memsql-spark-connector", "carl@memsql.com"))

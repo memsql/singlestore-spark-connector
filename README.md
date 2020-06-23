@@ -1,263 +1,407 @@
-MemSQL Spark Connector 2.0
-====================
-The MemSQL Spark connector 2.0 enables users to load data from MemSQL tables into Spark Dataframes, and write Spark Dataframes to MemSQL tables.
+# MemSQL Spark Connector
+## Version: 3.0.1 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
-> :eyes:  [**Check out the beta of the MemSQL Spark Connector 3.0.0**](https://github.com/memsql/memsql-spark-connector/tree/3.0.0-beta) 
-> 
-> If you are new to the MemSQL Spark Connector, we encourage you to test and develop with the Beta Version above.
+## Getting Started
 
+You can find the latest version of the connector on Maven Central and
+spark-packages.org.  The group is `com.memsql` and the artifact is
+`memsql-spark-connector_2.11`.
 
+* [Maven Central](https://search.maven.org/artifact/com.memsql/memsql-spark-connector_2.11)
+* [spark-packages.org](https://spark-packages.org/package/memsql/memsql-spark-connector)
 
-Requirements
-------------
-
-This library requires Spark 2.0+ and has been primarily tested against Spark version 2.0.2. For support with Spark 1.x, please check the [1.x branch](https://github.com/memsql/memsql-spark-connector/tree/1.3.3).
-
-
-
-Installation
-------------
-
-Inside a project definition you can depend on the MemSQL Connector using sbt:
-
+You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
 ```
-libraryDependencies  += "com.memsql" %% "memsql-connector" % "2.0.7"
+$SPARK_HOME/bin/spark-shell --packages com.memsql:memsql-spark-connector_2.11:3.0.1-spark-2.4.4
 ```
 
-or Maven:
+We release two versions of the `memsql-spark-connector`, one per Spark version.
+An example version number is: `3.0.1-spark-2.3.4` which is the 3.0.1
+version of the connector, compiled and tested against Spark 2.3.4. Make sure
+you are using the most recent version of the connector.
 
-```xml
-<dependency>
-    <groupId>com.memsql</groupId>
-    <artifactId>memsql-connector_2.11</artifactId>
-    <version>2.0.7</version>
-</dependency>
+In addition to adding the `memsql-spark-connector`, you will also need to have the
+MariaDB JDBC driver installed.  This library is tested against the following
+MariaDB driver version:
+
+```
+"org.mariadb.jdbc" % "mariadb-java-client"  % "2.+"
 ```
 
+Once you have everything installed, you're almost ready to run your first
+queries against MemSQL!
 
-Usage
------
+## Configuration
 
-MemSQL Spark Connector leverages Spark SQL's Data Sources API. The connection to MemSQL relies on the following Spark configuration settings.
+The `memsql-spark-connector` is configurable globally via Spark options and
+locally when constructing a DataFrame.  The options are named the same, however
+global options have the prefix `spark.datasource.memsql.`.
 
-| Setting name                             | Default value if not specified  |
-| --------------------                     | ------------------------------  |
-| spark.memsql.host                        | localhost                       |
-| spark.memsql.port                        | 3306                            |
-| spark.memsql.user                        | root                            |
-| spark.memsql.password                    | None                            |
-| spark.memsql.defaultDatabase             | None                            |
-| spark.memsql.defaultSaveMode             | "error" (see description below) |
-| spark.memsql.disablePartitionPushdown    | false                           |
-| spark.memsql.defaultCreateMode           | DatabaseAndTable                |
+| Option                    | Description
+| -                         | -
+| `ddlEndpoint`  (required) | Hostname or IP address of the MemSQL Master Aggregator in the format `host[:port]` (port is optional). Ex. `master-agg.foo.internal:3308` or `master-agg.foo.internal`
+| `dmlEndpoints`            | Hostname or IP address of MemSQL Aggregator nodes to run queries against in the format `host[:port],host[:port],...` (port is optional, multiple hosts separated by comma). Ex. `child-agg:3308,child-agg2` (default: `ddlEndpoint`)
+| `user`                    | MemSQL username (default: `root`)
+| `password`                | MemSQL password (default: no password)
+| `query`                   | The query to run (mutually exclusive with dbtable)
+| `dbtable`                 | The table to query (mutually exclusive with query)
+| `database`                | If set, all connections will default to using this database (default: empty)
+| `disablePushdown`         | Disable SQL Pushdown when running queries (default: false)
+| `enableParallelRead`      | Enable reading data in parallel for some query shapes (default: false)
+| `overwriteBehavior`       | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
+| `truncate`                | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
+| `loadDataCompression`     | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
+| `loadDataFormat`          | Serialize data on load; one of (`Avro`, `CSV`) (default: CSV)
+| `tableKey`                | Specify additional keys to add to tables created by the connector (See below for more details)
+| `onDuplicateKeySQL`       | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, MemSQL will instead perform an UPDATE of the old row. See examples below
+| `insertBatchSize`         | Size of the batch for row insertion (default: `10000`)
 
-`defaultCreateMode` specifies whether the connector will create the database and/or table if it doesn't already exist, when saving data to MemSQL. The possible values are `DatabaseAndTable`, `Table`, and `Skip`. The user will need the corresponding create permissions if the value is not `Skip`.
+Example of configuring the `memsql-spark-connector` globally:
+```scala
+spark.conf.set("spark.datasource.memsql.ddlEndpoint", "memsql-master.cluster.internal")
+spark.conf.set("spark.datasource.memsql.dmlEndpoints", "memsql-master.cluster.internal,memsql-child-1.cluster.internal:3307")
+spark.conf.set("spark.datasource.memsql.user", "admin")
+spark.conf.set("spark.datasource.memsql.password", "s3cur3-pa$$word")
+```
 
-Note that all MemSQL credentials have to be the same on all nodes to take advantage of partition pushdown, which queries leaves directly.
+Example of configuring the `memsql-spark-connector` using the read API:
+```scala
+val df = spark.read
+    .format("memsql")
+    .option("ddlEndpoint", "memsql-master.cluster.internal")
+    .option("user", "admin")
+    .load("foo")
+```
 
-### Loading data from MemSQL
+Example of configuring the `memsql-spark-connector` using an external table in Spark SQL:
+```sql
+CREATE TABLE bar USING memsql OPTIONS ('ddlEndpoint'='memsql-master.cluster.internal','dbtable'='foo.bar')
+```
 
-The following example creates a Dataframe from the table "illinois" in the database "customers". To use the library, pass in "com.memsql.spark.connector" as the `format` parameter so Spark will call the MemSQL Spark Connector code. The option `path` is the full path of the table using the syntax `$database_name`.`$table_name`. If there is only a table name, the connector will look for the table in the default database set in the configuration.
+## Writing to MemSQL
+
+The `memsql-spark-connector` supports saving dataframe's to MemSQL using the Spark write API. Here is a basic example of using this API:
 
 ```scala
-import org.apache.spark.SparkConf
-import org.apache.spark.sql.SparkSession
-
-val conf = new SparkConf()
-	.setAppName("MemSQL Spark Connector Example")
-	.set("spark.memsql.host", "10.0.0.190")
-	.set("spark.memsql.password", "foobar")
-	.set("spark.memsql.defaultDatabase", "customers")
-val spark = SparkSession.builder().config(conf).getOrCreate()
-
-val customersFromIllinois = spark
-	.read
-	.format("com.memsql.spark.connector")
-	.options(Map("path" -> ("customers.illinois")))
-	.load()
-// customersFromIllinois is now a Spark DataFrame which represents the specified MemSQL table
-// and can be queried using Spark DataFrame query functions
-
-// count the number of rows
-println(s"The number of customers from Illinois is ${customersFromIllinois.count()}")
-
-// print out the DataFrame
-customersFromIllinois.show()
+df.write
+    .format("memsql")
+    .option("loadDataCompression", "LZ4")
+    .option("overwriteBehavior", "dropAndCreate")
+    .mode(SaveMode.Overwrite)
+    .save("foo.bar") // in format: database.table
 ```
 
-Instead of specifying a MemSQL table as the `path` in the options, the user can opt to create a DataFrame from a SQL query with the option `query`. This can minimize the amount of data transferred from MemSQL to Spark, and push down distributed computations to MemSQL instead of Spark. For best performance, either specify the database name using the option `database`, OR make sure a default database is set in the Spark configuration. Either setting enables the connector to query the MemSQL leaf nodes directly, instead of going through the master aggregator.
+If the target table ("foo" in the example above) does not exist in MemSQL the
+`memsql-spark-connector` will automatically attempt to create the table. If you
+specify SaveMode.Overwrite, if the target table already exists, it will be
+recreated or truncated before load. Specify `overwriteBehavior = truncate` to truncate rather
+than re-create.
+
+### Retrieving the number of written rows from taskMetrics
+
+It is possible to add the listener and get the number of written rows.
 
 ```scala
-import org.apache.spark.SparkConf
-import org.apache.spark.sql.SparkSession
+spark.sparkContext.addSparkListener(new SparkListener() {
+  override def onTaskEnd(taskEnd: SparkListenerTaskEnd) {
+    println("Task id: " + taskEnd.taskInfo.id.toString)
+    println("Records written: " + taskEnd.taskMetrics.outputMetrics.recordsWritten.toString)
+  }
+})
 
-val conf = new SparkConf()
-	.setAppName("MemSQL Spark Connector Example")
-	.set("spark.memsql.host", "10.0.0.190")
-	.set("spark.memsql.password", "foobar")
-val spark = SparkSession.builder().config(conf).getOrCreate()
-
-val customersFromIllinois = spark
-	.read
-	.format("com.memsql.spark.connector")
-	.options(Map("query" -> ("select age_group, count(*) from customers.illinois where number_of_orders > 3 GROUP BY age_group"),
-				 "database" -> "customers"))
-	.load()
-
-customersFromIllinois.show()
-// +-----------+---------+
-// | age_group | count(*)|
-// +-----------+---------+
-// |  13-18    |   128   |
-// |  19-25    |   150   |
-// |  26+      |   140   |
-// +-----------+---------+
+df.write.format("memsql").save("example")
 ```
 
-### Saving data to MemSQL
+### Specifying keys for tables created by the Spark Connector
+When creating a table, the `memsql-spark-connector` will read options prefixed
+with `tableKey`. These options must be formatted in a specific way in order to
+correctly specify the keys.
 
-Similarly, use Spark SQL's Data Sources API to save a DataFrame to MemSQL. To save a DataFrame in the MemSQL table "students":
+> :warning: The default table type is MemSQL Columnstore. If you want a RowStore table,
+> you will need to specify a Primary Key using the tableKey option.
+
+To explain we will refer to the following example:
 
 ```scala
-...
-
-val rdd = sc.parallelize(Array(Row("John Smith", 12), Row("Jane Doe", 13)))
-val schema = StructType(Seq(StructField("Name", StringType, false),
-                            StructField("Age", IntegerType, false)))
-val df = sqlContext.createDataFrame(rdd, schema)
-df
-	.write
-	.format("com.memsql.spark.connector")
-	.mode("error")
-	.save("people.students")
+df.write
+    .format("memsql")
+    .option("tableKey.primary", "id")
+    .option("tableKey.key.created_firstname", "created, firstName")
+    .option("tableKey.unique", "username")
+    .mode(SaveMode.Overwrite)
+    .save("foo.bar") // in format: database.table
 ```
 
-The `mode` specifies how to handle duplicate keys when the MemSQL table has a primary key. The default, if unspecified, is "error", which means that if a row with the same primary key already exists in MemSQL's people.students table, an error is to be thrown. Other save modes:
+In this example, we are creating three keys:
+1. A primary key on the `id` column
+2. A regular key on the columns `created, firstname` with the key name `created_firstname`
+3. A unique key on the `username` column
 
-| Save mode string | Description                                                                                                            |
-| -----------------| -----------                                                                                                            |
-| "error"          | MemSQL will error when encountering a record with duplicate keys                                                       |
-| "ignore"         | MemSQL will ignore records with duplicate keys and, without rolling back, continue inserting records with unique keys. |
-| "overwrite"      | MemSQL will replace the existing record with the new record                                                            |
+Note on (2): Any key can optionally specify a name, just put it after the key type.
+Key names must be unique.
 
-Other MemSQL write settings can be specified using `.option(...)` or `.options(...)`.  To perform a dry run of the previous example:
+To change the default ColumnStore sort key you can specify it explicitly:
+```scala
+df.write
+    .option("tableKey.columnstore", "id")
+```
+
+You can also customize the shard key like so:
+```scala
+df.write
+    .option("tableKey.shard", "id, timestamp")
+```
+
+## Inserting rows into the table with ON DUPLICATE KEY UPDATE
+
+When updating a rowstore table it is possible to insert rows with `ON DUPLICATE KEY UPDATE` option.
+See [sql reference](https://docs.memsql.com/latest/reference/sql-reference/data-manipulation-language-dml/insert/) for more details.
 
 ```scala
-df
-	.write
-	.format("com.memsql.spark.connector")
-	.mode("error")
-	.option("dryRun", "true")
-	.save("people.students")
+df.write
+    .option("onDuplicateKeySQL", "age = age + 1")
+    .option("insertBatchSize", 300)
+    .mode(SaveMode.Append)
+    .save("foo.bar")
 ```
 
-| Option name         | Description                                                                                          |
-| ------------------- | ---------------------------------------------------------------------------------------------------- |
-| writeToMaster       | Force this write to be sent to the master aggregator                                                 |
-| dryRun              | Don't actually perform the write (this will still create the database and table if they don't exist) |
-| saveMode            | See Spark configuration settings                                                                     |
-| createMode          | See Spark configuration settings                                                                     |
-| insertBatchSize     | See Spark configuration settings                                                                     |
-| loadDataCompression | See Spark configuration settings                                                                     |
+As a result of the following query, all new rows will be appended without changes.
+If the row with the same `PRIMARY KEY` or `UNIQUE` index already exists then the corresponding `age` value will be increased.
 
+When you use ON DUPLICATE KEY UPDATE, all rows of the data frame are split into batches, and every insert query will contain no more than the specified `insertBatchSize` rows setting.
 
-The second interface to save data to MemSQL is via the `saveToMemSQL` implicit function on a DataFrame you wish to save:
-```scala
-...
+## Merging on save
 
-val rdd = sc.parallelize(Array(Row("John Smith", 12), Row("Jane Doe", 13)))
-val schema = StructType(Seq(StructField("Name", StringType, false),
-                            StructField("Age", IntegerType, false)))
-val df = sqlContext.createDataFrame(rdd, schema)
-df.saveToMemSQL("people.students")
-      // The database name can be omitted if "spark.memsql.defaultDatabase" is set
-      // in the Spark configuration df.sqlContext.sparkContext.getConf.getAll
-```
+When saving dataframes or datasets to MemSQL, you can manage how SaveMode.Overwrite is interpreted by the connector via the option overwriteBehavior.
+This option can take one of the following values:
 
-A call to `saveToMemSQL` can take three forms:
-```scala
-# Table only
-df.saveToMemSQL("tbl")
+1. `dropAndCreate`(default) - drop and create the table before writing new values.
+2. `truncate` - truncate the table before writing new values.
+3. `merge` - replace rows with new rows by matching on the primary key.
+(Use this option only if you need to fully rewrite existing rows with new ones.
+If you need to specify some rule for update, use `onDuplicateKeySQL` option instead.)
 
-# Database and table
-df.saveToMemSQL("db", "tbl")
+All these options are case-insensitive.
 
-# Database, table, and options
-val saveConf = SaveToMemSQLConf(ss.memSQLConf, params=Map("dryRun" -> "true"))
-df.saveToMemSQL(TableIdentifier("db", "tbl"), saveConf)
-```
+### Example of `merge` option
 
-Any options not specified in `saveConf` will default to those in the `MemSQLConf`.
+Suppose you have the following table, and the `Id` column is the primary key.
 
+`SELECT * FROM <table>;`
 
-Types
------
+| Id    | Name          | Age |
+| ----- |:-------------:| ---:|
+| 1     | Alice         | 20  |
+| 2     | Bob           | 25  |
+| 3     | Charlie       | 30  |
 
-When saving a Dataframe from Spark to MemSQL, the SparkType of each Dataframe column will be converted to the following MemSQL type:
+If you save the following dataframe with `overwriteBehavior = merge`:
 
-| SparkType     | MemSQL Type |
-| ---------     | ----------- |
-| ShortType     | SMALLINT    |
-| FloatType     | FLOAT       |
-| DoubleType    | DOUBLE      |
-| LongType      | BIGINT      |
-| IntegerType   | INT         |
-| BooleanType   | BOOLEAN     |
-| StringType    | TEXT        |
-| BinaryType    | BLOB        |
-| DecimalType   | DECIMAL     |
-| TimeStampType | TIMESTAMP   |
-| DateType      | DATE        |
-
-When reading a MemSQL table as a Spark Dataframe, the MemSQL column type will be converted to the following SparkType:
-
-| MemSQL Type       | SparkType     |
-| -----------       | ----------    |
-| TINYINT, SMALLINT | ShortType     |
-| INTEGER           | IntegerType   |
-| BIGINT (signed)   | LongType      |
-| DOUBLE, NUMERIC   | DoubleType    |
-| REAL              | FloatType     |
-| DECIMAL           | DecimalType   |
-| TIMESTAMP         | TimestampType |
-| DATE              | DateType      |
-| TIME              | StringType    |
-| CHAR, VARCHAR     | StringType    |
-| BIT, BLOG, BINARY | BinaryType    |
-
-MemSQL Spark 2.0 Connector does not support GeoSpatial or JSON MemSQL types since Spark 2.0 has currently disabled user defined types (see [JIRA issue](https://issues.apache.org/jira/browse/SPARK-14155)). These types, when read, will become BinaryType.
-
-Changes from MemSQL Spark 1.X Connector
----------------------------------------
-
-While the MemSQL Spark 1.X Connector relied on Spark SQL experimental developer APIs, the MemSQL Spark 2.0 Connector uses only the official and stable APIs for loading data from an external data source documented [here](http://spark.apache.org/docs/latest/api/scala/index.html#org.apache.spark.sql.sources.package). In certain cases, we can "push down" distributed computations to MemSQL. This means that instead of having Spark perform a a transformation (eg. filter, join, etc) on the data it retrieved from MemSQL, you can let MemSQL do the operation on the data and pass the result to Spark. The MemSQL Spark 2.0 Connector supports column and filter pushdown; if you would like to push down joins or aggregates, consider explicitly including it in the user-specified `query` option. E.g. instead of
+| Id    | Name          | Age |
+| ----- |:-------------:| ---:|
+| 2     | Daniel        | 22  |
+| 3     | Eve           | 27  |
+| 4     | Franklin      | 35  |
 
 ```scala
-val people = spark.read.format("com.memsql.spark.connector").options(Map("path" -> ("db.people"))).load()
-val department = spark.read.format("com.memsql.spark.connector").options(Map("path" -> ("db.department"))).load()
-val result = people.join(department, people("deptId") === department("id"))
+df.write
+    .format("memsql")
+    .option("overwriteBehavior", "merge")
+    .mode(SaveMode.Overwrite)
+    .save("<yourdb>.<table>")
 ```
-Do:
+
+After the save is complete, the table will look like this:
+> note: rows with Id=2 and Id=3 were overwritten with new rows <br />
+> note: the row with Id=1 was not touched and still exists in the result
+
+`SELECT * FROM <table>;`
+
+| Id    | Name          | Age |
+| ----- |:-------------:| ---:|
+| 1     | Alice         | 20  |
+| 2     | Daniel        | 22  |
+| 3     | Eve           | 27  |
+| 4     | Franklin      | 35  |
+
+## SQL Pushdown
+
+The `memsql-spark-connector` has extensive support for rewriting Spark SQL query
+plans into standalone MemSQL queries. This allows most of the computation to be
+pushed into the MemSQL distributed system without any manual intervention. The
+SQL rewrites are enabled automatically, but can be disabled either globally or
+per-query using the `disablePushdown` option.
+
+> :warning: SQL Pushdown is either enabled or disabled on the *entire* Spark
+> Session.  If you want to run multiple queries in parallel with different
+> values of `disablePushdown`, make sure to run them on separate Spark Sessions.
+
+We currently support most of the primary Logical Plan nodes in Spark SQL
+including:
+
+ * Project
+ * Filter
+ * Aggregate
+ * Window
+ * Join
+ * Limit
+ * Sort
+
+We also support most Spark SQL expressions.  A full list of supported
+operators/functions can be found in the file
+[ExpressionGen.scala](src/main/scala/com/memsql/spark/ExpressionGen.scala).
+
+The best place to look for examples of fully supported queries is in the tests.
+Check out this file as a starting point:
+[SQLPushdownTest.scala](src/test/scala/com/memsql/spark/SQLPushdownTest.scala).
+
+### Debugging SQL Pushdown
+
+If you encounter an issue with SQL Pushdown the first step is to look at the
+explain.  You can do this easily from any dataframe using the function
+`df.explain()`.  If you pass the argument `true` you will get a lot more output
+that includes pre and post optimization passes.
+
+In addition, the `memsql-spark-connector` outputs a lot of helpful information
+when the TRACE log level is enabled for the `com.memsql.spark` package.  You can
+do this in your log4j configuration by adding the following line:
+
+```
+log4j.logger.com.memsql.spark=TRACE
+```
+
+Make sure not to leave it in place since it generates a huge amount of tracing
+output.
+
+## SQL Permissions
+
+MemSQL has a [permission matrix](https://docs.memsql.com/latest/reference/sql-reference/security-management-commands/permissions-matrix/)
+which describes the permissions required to run each command.
+
+To make any SQL operations through Spark connector you should have different
+permissions for different type of operation. The matrix below describes the
+minimum permissions you should have to perform some operation. As alternative to
+minimum required permissions, `ALL PRIVILEGES` allow you to perform any operation.
+
+| Operation                       | Min. Permission          | Alternative Permission |
+| ------------------------------- |:------------------------:| ----------------------:|
+| `READ` from collection          | `SELECT`                 | `ALL PRIVILEGES`       |
+| `WRITE` to collection           | `SELECT, INSERT`         | `ALL PRIVILEGES`       |
+| `DROP` database or collection   | `SELECT, INSERT, DROP`   | `ALL PRIVILEGES`       |
+| `CREATE` database or collection | `SELECT, INSERT, CREATE` | `ALL PRIVILEGES`       |
+
+For more information on GRANTING privileges, see this [documentation](https://docs.memsql.com/latest/reference/sql-reference/security-management-commands/grant/)
+
+## Parallel Read Support
+
+If you enable parallel reads via the `enableParallelRead` option, the
+`memsql-spark-connector` will attempt to read results directly from MemSQL leaf
+nodes.  This can drastically improve performance in some cases.
+
+**:warning: Parallel reads are not consistent**
+
+Parallel reads read directly from partitions on the leaf nodes which skips our
+entire transaction layer. This means that the individual reads will see an
+independent version of the databases distributed state. Make sure to take this
+into account when enabling parallel read.
+
+**:warning: Parallel reads transparently fallback to single stream reads**
+
+Parallel reads currently only work for query-shapes which do no work on the
+Aggregator and thus can be pushed entirely down to the leaf nodes. To determine
+if a particular query is being pushed down you can ask the dataframe how many
+partitions it has like so:
 
 ```scala
-val result = spark
-	.read
-	.format("com.memsql.spark.connector")
-	.options(Map("query" -> ("select * from people join department on people.deptId = department.id")))
-	.load()
+df.rdd.getNumPartitions
 ```
 
-Building and Testing
---------------------
+If this value is > 1 then we are reading in parallel from leaf nodes.
 
-You can use SBT to compile the library
+**:warning: Parallel reads require consistent authentication and connectible leaf nodes**
 
-```
-sbt compile
+In order to use parallel reads, the username and password provided to the
+`memsql-spark-connector` must be the same across all nodes in the cluster.
+
+In addition, the hostnames and ports listed by `SHOW LEAVES` must be directly
+connectible from Spark.
+
+## SSL Support
+
+The MemSQL Spark Connector uses the MariaDB JDBC Driver under the hood and thus
+supports SSL configuration out of the box. In order to configure SSL, first
+ensure that your MemSQL cluster has SSL configured. Documentation on how to set
+this up can be found here:
+https://docs.memsql.com/latest/guides/security/encryption/ssl/
+
+Once you have setup SSL on your server, you can enable SSL via setting the following options:
+
+```scala
+spark.conf.set("spark.datasource.memsql.useSSL", "true")
+spark.conf.set("spark.datasource.memsql.serverSslCert", "PATH/TO/CERT")
 ```
 
-All unit tests can be run via sbt.  They will also run at build time automatically.
+**Note:** the `serverSslCert` option may be server's certificate in DER form, or the server's
+CA certificate. Can be used in one of 3 forms:
 
+* `serverSslCert=/path/to/cert.pem` (full path to certificate)
+* `serverSslCert=classpath:relative/cert.pem` (relative to current classpath)
+* or as verbatim DER-encoded certificate string `------BEGIN CERTIFICATE-----...`
+
+You may also want to set these additional options depending on your SSL configuration:
+
+```scala
+spark.conf.set("spark.datasource.memsql.trustServerCertificate", "true")
+spark.conf.set("spark.datasource.memsql.disableSslHostnameVerification", "true")
 ```
-sbt test
-```
+
+More information on the above parameters can be found at MariaDB's documentation
+for their JDBC driver here:
+https://mariadb.com/kb/en/about-mariadb-connector-j/#tls-parameters
+
+## Filing issues
+
+When filing issues please include as much information as possible as well as any
+reproduction steps. It's hard for us to reproduce issues if the problem depends
+on specific data in your MemSQL table for example.  Whenever possible please try
+to construct a minimal reproduction of the problem and include the table
+definition and table contents in the issue.
+
+If the issue is related to SQL Pushdown (or you aren't sure) make sure to
+include the TRACE output (from the com.memsql.spark package) or the full explain
+of the plan.  See the debugging SQL Pushdown section above for more information
+on how to do this.
+
+Happy querying!
+
+## Setting up development environment
+
+ * install Oracle JDK 8 from this url: https://www.oracle.com/java/technologies/javase/javase-jdk8-downloads.html
+ * install community version of Intellij IDEA from https://www.jetbrains.com/idea/
+ * clone the repository https://github.com/memsql/memsql-spark-connector.git
+ * in Intellij IDEA choose `Configure->Plugins` and install Scala plugin
+ * in Intellij IDEA run `Import Project` and select path to memsql-spark-connector
+ * choose `import project from external model` and `sbt`
+ * in `Project JDK` select `New...->JDK` and choose path to the installed JDK
+ * `Finish`
+ * it will overwrite some files and create build files (which are in gitignore)
+ * in Intellij IDEA choose `File->Close Project`
+ * run `git checkout .` to revert all changes made by Intellij IDEA
+ * in Intellij IDEA choose `Open` and select path to memsql-spark-connector
+ * run `Test Spark 2.3` (it should succeed)
+
+## SQL Pushdown Incompatibilities
+ * `ToUnixTimestamp` and `UnixTimestamp` handle only time less then `2038-01-19 03:14:08`, if they get `DateType` or `TimestampType` as a first argument
+ * `FromUnixTime` with default format (`yyyy-MM-dd HH:mm:ss`) handle only time less then `2147483648` (`2^31`)
+
+## Major changes from the 2.0.0 connector
+
+The MemSQL Spark Connector 3.0.1 has a number of key features and enhancements:
+
+* Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
+* Implemented as a native Spark SQL plugin
+* Supports both the DataSource and DataSourceV2 API for maximum support of current and future functionality
+* Contains deep integrations with the Catalyst query optimizer
+* Is compatible with Spark 2.3 and 2.4
+* Leverages MemSQL LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
+* Takes advantage of all the latest and greatest features in MemSQL 7.x

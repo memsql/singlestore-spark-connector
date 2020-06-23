@@ -1,3 +1,70 @@
+2020-06-12 Version 3.0.1
+	* The connector now updates task metrics with the number of records written during write operations
+
+2020-05-27 Version 3.0.0
+	* Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
+	* Implemented as a native Spark SQL plugin
+	* Supports both the DataSource and DataSourceV2 API for maximum support of current and future functionality
+	* Contains deep integrations with the Catalyst query optimizer
+	* Is compatible with Spark 2.3 and 2.4
+	* Leverages MemSQL LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
+	* Takes advantage of all the latest and greatest features in MemSQL 7.x
+
+2020-05-06 Version 3.0.0-rc1
+        * Support writing into MemSQL reference tables
+        * Deprecated truncate option in favor of overwriteBehavior
+        * New option overwriteBehavior allows you to specify how to overwrite or merge rows during ingest
+        * The Ignore SaveMode now correctly skips all duplicate key errors during ingest
+
+2020-04-30 Version 3.0.0-beta12
+        * Improved performance of new batch insert functionality for `ON DUPLICATE KEY UPDATE` feature
+
+2020-04-30 Version 3.0.0-beta11
+        * Added support for merging rows on ingest via `ON DUPLICATE KEY UPDATE`
+        * Added docker-based demo for running a Zeppelin notebook using the Spark connector
+
+2020-04-20 Version 3.0.0-beta10
+        * Additional functions supported in SQL Pushdown: toUnixTimestamp, unixTimestamp, nextDay, dateDiff, monthsAdd, hypot, rint
+        * Now tested against MemSQL 6.7, and all tests use SSL
+        * Fixed bug with disablePushdown
+
+2020-04-09 Version 3.0.0-beta9
+        * Add null handling to address Spark bug which causes incorrect handling of null literals (https://issues.apache.org/jira/browse/SPARK-31403)
+
+2020-04-01 Version 3.0.0-beta8
+        * Added support for more datetime expressions:
+            * addition/subtraction of datetime objects
+            * to_utc_timestamp, from_utc_timestamp
+            * date_trunc, trunc
+
+2020-03-25 Version 3.0.0-beta7
+        * The connector now respects column selection when loading dataframes into MemSQL
+
+2020-03-24 Version 3.0.0-beta6
+        * Fix bug when you use an expression in an explicit query
+
+2020-03-23 Version 3.0.0-beta5
+        * Increase connection timeout to increase connector reliability
+
+2020-03-20 Version 3.0.0-beta4
+        * Set JDBC driver to MariaDB explicitely to avoid issues with the mysql driver
+
+2020-03-19 Version 3.0.0-beta3
+        * Created tables default to Columnstore
+        * User can override keys attached to new tables
+        * New parallelRead option which enables reading directly from MemSQL leaf nodes
+        * Created tables now set case-sensitive collation on all columns
+          to match Spark semantics
+        * More SQL expressions supported in pushdown (tanh, sinh, cosh)
+
+2020-02-08 Version 3.0.0-beta2
+        * Removed options: masterHost and masterPort
+        * Added ddlEndpoint and ddlEndpoints options
+        * Added path option to support specifying the dbtable via `.load("mytable")` when creating a dataframe
+
+2020-01-30 Version 3.0.0-beta
+        * Full re-write of the Spark Connector
+
 2019-02-27 Version 2.0.7
         * Add support for EXPLAIN JSON in MemSQL versions 6.7 and later to fix partition pushdown.
 

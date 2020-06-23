@@ -1,0 +1,222 @@
+{
+  "paragraphs": [
+    {
+      "text": "%md\n## This is a small demo that illustrates the usage of the MemSQL-Spark connector. \n#### It connects to the ciab docker container (https://hub.docker.com/r/memsql/cluster-in-a-box) and runs some basic queries on it.",
+      "user": "anonymous",
+      "dateUpdated": "2020-05-27 21:10:26.525",
+      "config": {
+        "editorSetting": {
+          "language": "text",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12.0,
+        "editorMode": "ace/mode/text",
+        "fontSize": 15.0,
+        "results": {},
+        "enabled": true,
+        "editorHide": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "HTML",
+            "data": "\u003cdiv class\u003d\"markdown-body\"\u003e\n\u003ch2\u003eThis is a small demo that illustrates the usage of the MemSQL-Spark connector.\u003c/h2\u003e\n\u003ch4\u003eIt connects to the ciab docker container (\u003ca href\u003d\"https://hub.docker.com/r/memsql/cluster-in-a-box\"\u003ehttps://hub.docker.com/r/memsql/cluster-in-a-box\u003c/a\u003e) and runs some basic queries on it.\u003c/h4\u003e\n\n\u003c/div\u003e"
+          }
+        ]
+      },
+      "apps": [],
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1587553015155_-1751456317",
+      "id": "paragraph_1587550420891_1388924274",
+      "dateCreated": "2020-04-22 10:56:55.155",
+      "dateStarted": "2020-05-27 21:10:26.538",
+      "dateFinished": "2020-05-27 21:10:26.562",
+      "status": "FINISHED"
+    },
+    {
+      "title": "Configure Spark",
+      "text": "%spark.conf\n\n// Comma-separated list of Maven coordinates of jars to include on the driver and executor classpaths\nspark.jars.packages com.memsql:memsql-spark-connector_2.11:3.0.1-spark-2.4.4\n\n// Hostname or IP address of the MemSQL Master Aggregator in the format host[:port] (port is optional). \n// memsql-ciab-for-zeppelin - hostname of the docker created by https://hub.docker.com/r/memsql/cluster-in-a-box\n// 3306 - port on which MemSQL Master Aggregator is started\nspark.datasource.memsql.ddlEndpoint memsql-ciab-for-zeppelin:3306\n\n// Hostname or IP address of MemSQL Aggregator nodes to run queries against in the format host[:port],host[:port],...\n// (port is optional, multiple hosts separated by comma) (default: ddlEndpoint)\n// Example\n// spark.datasource.memsql.dmlEndpoints child-agg:3308,child-agg2\nspark.datasource.memsql.dmlEndpoints memsql-ciab-for-zeppelin:3306\n\n// MemSQL username (default: root)\nspark.datasource.memsql.user root\n\n// MemSQL password (default: no password)\n// Example\n// spark.datasource.memsql.passowrd s3cur3-pa$$word\nspark.datasource.memsql.password\n\n// If set, all connections will default to using this database (default: empty)\n// Example\n// spark.datasource.memsql.database demoDB\nspark.datasource.memsql.database\n\n// Disable SQL Pushdown when running queries (default: false)\nspark.datasource.memsql.disablePushdown false\n\n// Enable reading data in parallel for some query shapes (default: false)\nspark.datasource.memsql.enableParallelRead false\n\n// Truncate instead of drop an existing table during Overwrite (default: false)\nspark.datasource.memsql.truncate false\n\n// Compress data on load; one of (GZip, LZ4, Skip) (default: GZip)\nspark.datasource.memsql.loadDataCompression GZip\n\n// Specify additional keys to add to tables created by the connector\n// Examples\n// * A primary key on the id column\n// spark.datasource.memsql.tableKey.primary id\n// * A regular key on the columns created, firstname with the key name created_firstname\n// spark.datasource.memsql.tableKey.key.created_firstname created, firstName\n// * A unique key on the username column\n// spark.datasource.memsql.tableKey.unique username\nspark.datasource.memsql.tableKey",
+      "user": "anonymous",
+      "dateUpdated": "2020-05-27 21:10:26.632",
+      "config": {
+        "lineNumbers": false,
+        "tableHide": false,
+        "editorSetting": {
+          "language": "text",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 12.0,
+        "editorMode": "ace/mode/text",
+        "fontSize": 13.0,
+        "title": true,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": []
+      },
+      "apps": [],
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1587553015155_499760817",
+      "id": "paragraph_1587546884632_-2089202077",
+      "dateCreated": "2020-04-22 10:56:55.155",
+      "dateStarted": "2020-05-27 21:10:26.648",
+      "dateFinished": "2020-05-27 21:10:26.667",
+      "status": "FINISHED"
+    },
+    {
+      "title": "Create a database using JDBC",
+      "text": "import java.sql.{Connection, DriverManager}\nimport java.util.{Properties, TimeZone}\n\nval connProperties \u003d new Properties()\nconnProperties.put(\"user\", \"root\")\n\nval conn \u003d DriverManager.getConnection(\n        s\"jdbc:mysql://memsql-ciab-for-zeppelin\",\n        connProperties\n      )\n\nval statement \u003d conn.createStatement()\nstatement.execute(\"create database if not exists demoDB\")\nstatement.close()\nconn.close()",
+      "user": "anonymous",
+      "dateUpdated": "2020-05-27 21:10:26.746",
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 13.0,
+        "enabled": true,
+        "results": {},
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "editorMode": "ace/mode/scala",
+        "title": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "import java.sql.{Connection, DriverManager}\nimport java.util.{Properties, TimeZone}\n\u001b[1m\u001b[34mconnProperties\u001b[0m: \u001b[1m\u001b[32mjava.util.Properties\u001b[0m \u003d {user\u003droot}\n\u001b[1m\u001b[34mconn\u001b[0m: \u001b[1m\u001b[32mjava.sql.Connection\u001b[0m \u003d org.mariadb.jdbc.MariaDbConnection@6ef78191\n\u001b[1m\u001b[34mstatement\u001b[0m: \u001b[1m\u001b[32mjava.sql.Statement\u001b[0m \u003d org.mariadb.jdbc.MariaDbStatement@3cae0862\n"
+          }
+        ]
+      },
+      "apps": [],
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1587581984336_-994182625",
+      "id": "paragraph_1587581984336_-994182625",
+      "dateCreated": "2020-04-22 18:59:44.336",
+      "dateStarted": "2020-05-27 21:10:26.754",
+      "dateFinished": "2020-05-27 21:10:50.594",
+      "status": "FINISHED"
+    },
+    {
+      "title": "Writing to MemSQL",
+      "text": "import org.apache.spark.sql.{SaveMode}\n\nval people1 \u003d spark.createDataFrame(Seq(\n    (1, \"andy\", 5, \"USA\"), \n    (2, \"jeff\", 23, \"China\"), \n    (3, \"james\", 62, \"USA\")\n    )).toDF(\"id\", \"name\", \"age\", \"country\")\npeople1.show()\n\npeople1.write\n    .format(\"memsql\")\n    .mode(SaveMode.Overwrite) // recreate table if it exists\n    .save(\"demoDB.people\") // write to table `people` in database `demoDB`\n    \nval people2 \u003d people1.withColumn(\"age2\", $\"age\" + 1)\npeople2.show()\n\npeople2.write\n    .format(\"memsql\")\n    .option(\"loadDataCompression\", \"LZ4\") // compress data on load with LZ4\n    .mode(SaveMode.Overwrite) // recreate table if it exists\n    .save(\"demoDB.people\") // write to table `people` in database `demoDB` ",
+      "user": "anonymous",
+      "dateUpdated": "2020-05-27 21:10:50.675",
+      "config": {
+        "lineNumbers": true,
+        "tableHide": false,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 6.0,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 13.0,
+        "editorHide": false,
+        "title": true,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "+---+-----+---+-------+\n| id| name|age|country|\n+---+-----+---+-------+\n|  1| andy|  5|    USA|\n|  2| jeff| 23|  China|\n|  3|james| 62|    USA|\n+---+-----+---+-------+\n\n+---+-----+---+-------+----+\n| id| name|age|country|age2|\n+---+-----+---+-------+----+\n|  1| andy|  5|    USA|   6|\n|  2| jeff| 23|  China|  24|\n|  3|james| 62|    USA|  63|\n+---+-----+---+-------+----+\n\nimport org.apache.spark.sql.SaveMode\n\u001b[1m\u001b[34mpeople1\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m \u003d [id: int, name: string ... 2 more fields]\n\u001b[1m\u001b[34mpeople2\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m \u003d [id: int, name: string ... 3 more fields]\n"
+          }
+        ]
+      },
+      "apps": [],
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1587553015156_498470796",
+      "id": "paragraph_1587547555609_-348809680",
+      "dateCreated": "2020-04-22 10:56:55.156",
+      "dateStarted": "2020-05-27 21:10:50.678",
+      "dateFinished": "2020-05-27 21:10:57.759",
+      "status": "FINISHED"
+    },
+    {
+      "title": "Reading from Memsql",
+      "text": "val people \u003d spark.read\n    .format(\"memsql\")\n    .load(\"demoDB.people\")\npeople.show()\n\nval children \u003d spark.read\n    .format(\"memsql\")\n    .load(\"demoDB.people\")\n    .filter($\"age\" \u003c 10)\nchildren.show()",
+      "user": "anonymous",
+      "dateUpdated": "2020-05-27 21:10:57.805",
+      "config": {
+        "tableHide": false,
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "colWidth": 6.0,
+        "editorMode": "ace/mode/scala",
+        "fontSize": 13.0,
+        "title": true,
+        "results": {},
+        "enabled": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "+---+-----+---+-------+----+\n| id| name|age|country|age2|\n+---+-----+---+-------+----+\n|  2| jeff| 23|  China|  24|\n|  1| andy|  5|    USA|   6|\n|  3|james| 62|    USA|  63|\n+---+-----+---+-------+----+\n\n+---+----+---+-------+----+\n| id|name|age|country|age2|\n+---+----+---+-------+----+\n|  1|andy|  5|    USA|   6|\n+---+----+---+-------+----+\n\n\u001b[1m\u001b[34mpeople\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m \u003d [id: int, name: string ... 3 more fields]\n\u001b[1m\u001b[34mchildren\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.Dataset[org.apache.spark.sql.Row]\u001b[0m \u003d [id: int, name: string ... 3 more fields]\n"
+          }
+        ]
+      },
+      "apps": [],
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1587553015156_-836094162",
+      "id": "paragraph_1587548897148_-478225566",
+      "dateCreated": "2020-04-22 10:56:55.156",
+      "dateStarted": "2020-05-27 21:10:57.816",
+      "dateFinished": "2020-05-27 21:11:00.065",
+      "status": "FINISHED"
+    }
+  ],
+  "name": "scala-memsql-demo",
+  "id": "2F6Y3APTX",
+  "defaultInterpreterGroup": "spark",
+  "version": "0.9.0-preview1",
+  "noteParams": {},
+  "noteForms": {},
+  "angularObjects": {},
+  "config": {
+    "isZeppelinNotebookCronEnable": false
+  },
+  "info": {
+    "isRunning": true
+  }
+}

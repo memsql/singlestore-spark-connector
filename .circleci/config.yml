@@ -1,0 +1,105 @@
+version: 2.1
+commands:
+  setup_environment:
+    description: "Setup the machine environment"
+    parameters:
+      sbt_version:
+        type: string
+        default: 1.3.5
+    steps:
+      - run:
+          name: Setup Machine
+          command: |
+            sudo apt update
+            sudo apt install -y curl
+            curl -L -o /tmp/sbt-<< parameters.sbt_version >>.deb https://dl.bintray.com/sbt/debian/sbt-<< parameters.sbt_version >>.deb
+            sudo dpkg -i /tmp/sbt-<< parameters.sbt_version >>.deb
+            sudo rm /tmp/sbt-<< parameters.sbt_version >>.deb
+            sudo apt-get update
+            sudo apt-get install -y sbt python-pip git mysql-client-core-5.5
+            sudo apt-get clean
+            sudo apt-get autoclean
+
+jobs:
+  test:
+    parameters:
+      spark_version:
+        type: string
+      memsql_image:
+        type: string
+    machine: true
+    environment:
+      MEMSQL_IMAGE: << parameters.memsql_image >>
+      MEMSQL_PORT: 5506
+      MEMSQL_USER: root
+      MEMSQL_DB: test
+      JAVA_HOME: /usr/lib/jvm/jdk1.8.0
+      CONTINUOUS_INTEGRATION: true
+      SBT_OPTS: "-Xmx256M"
+    steps:
+      - setup_environment
+      - checkout
+      - run:
+          name: Setup test cluster
+          command: ./scripts/ensure-test-memsql-cluster.sh
+      - run:
+          name: Run tests
+          command: |
+            export MEMSQL_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' memsql-integration)
+            sbt ++2.11.11 test -Dspark.version=<< parameters.spark_version >>
+
+  publish:
+    machine: true
+    environment:
+      JAVA_HOME: /usr/lib/jvm/jdk1.8.0
+      SONATYPE_USERNAME: memsql
+    steps:
+      - setup_environment
+      - checkout
+      - run:
+          name: Import GPG key
+          command: |
+            openssl enc -d -aes-256-cbc -K ${ENCRYPTION_KEY} -iv ${ENCRYPTION_IV} -in ci/secring.asc.enc -out ci/secring.asc
+            gpg --import ci/secring.asc
+      - run:
+          name: Publish Spark 2.4.4
+          command: |
+            sbt ++2.11.11 -Dspark.version=2.4.4 publish sonatypePrepare sonatypeBundleUpload sonatypeRelease
+      - run:
+          name: Publish Spark 2.3.4
+          command: |
+            sbt ++2.11.11 -Dspark.version=2.3.4 publish sonatypePrepare sonatypeBundleUpload sonatypeRelease
+
+workflows:
+  test:
+    jobs:
+      - test:
+          filters:
+            tags:
+              only: /^v.*/
+          matrix:
+            parameters:
+              spark_version:
+                - 2.3.4
+                - 2.4.4
+              memsql_image:
+                - memsql/cluster-in-a-box:centos-7.0.15-619d118712-1.9.5-1.5.0
+                - memsql/cluster-in-a-box:centos-6.8.15-029542cbf3-1.9.3-1.4.1
+                - memsql/cluster-in-a-box:6.7.18-db1caffe94-1.6.1-1.1.1
+  publish:
+    jobs:
+      - approve-publish:
+          type: approval
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - publish:
+          requires:
+            - approve-publish
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
