@@ -45,7 +45,7 @@ jobs:
       - run:
           name: Run tests
           command: |
-            export MEMSQL_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' memsql-spark-utils-test)
+            export MEMSQL_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' memsql-integration)
             sbt ++2.11.11 test -Dspark.version=<< parameters.spark_version >>
 
   publish:

@@ -6,7 +6,7 @@ cd "$(git rev-parse --show-toplevel)"
 
 DEFAULT_IMAGE_NAME="memsql/cluster-in-a-box:centos-7.0.15-619d118712-1.9.5-1.5.0"
 IMAGE_NAME="${MEMSQL_IMAGE:-$DEFAULT_IMAGE_NAME}"
-CONTAINER_NAME="memsql-spark-utils-test"
+CONTAINER_NAME="memsql-integration"
 
 EXISTS=$(docker inspect ${CONTAINER_NAME} >/dev/null 2>&1 && echo 1 || echo 0)
 
