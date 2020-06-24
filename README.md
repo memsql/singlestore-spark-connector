@@ -56,6 +56,8 @@ global options have the prefix `spark.datasource.memsql.`.
 | `onDuplicateKeySQL`       | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, MemSQL will instead perform an UPDATE of the old row. See examples below
 | `insertBatchSize`         | Size of the batch for row insertion (default: `10000`)
 
+## Examples
+
 Example of configuring the `memsql-spark-connector` globally:
 ```scala
 spark.conf.set("spark.datasource.memsql.ddlEndpoint", "memsql-master.cluster.internal")
@@ -77,6 +79,8 @@ Example of configuring the `memsql-spark-connector` using an external table in S
 ```sql
 CREATE TABLE bar USING memsql OPTIONS ('ddlEndpoint'='memsql-master.cluster.internal','dbtable'='foo.bar')
 ```
+
+For Java/Python versions of some of these examples, visit the section ["Java & Python Example"](#java-python-example)
 
 ## Writing to MemSQL
 
@@ -405,3 +409,72 @@ The MemSQL Spark Connector 3.0.1 has a number of key features and enhancements:
 * Is compatible with Spark 2.3 and 2.4
 * Leverages MemSQL LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
 * Takes advantage of all the latest and greatest features in MemSQL 7.x
+ 
+<h2 id="java-python-example">Java & Python Examples</h2>
+
+### Java
+
+#### Configuration
+
+```
+SparkConf conf = new SparkConf();
+conf.set("spark.datasource.memsql.ddlEndpoint", "memsql-master.cluster.internal")
+conf.set("spark.datasource.memsql.dmlEndpoints", "memsql-master.cluster.internal,memsql-child-1.cluster.internal:3307")
+conf.set("spark.datasource.memsql.user", "admin")
+conf.set("spark.datasource.memsql.password", "s3cur3-pa$$word")
+```
+
+#### Read Data
+
+```
+DataFrame df = spark
+  .read()
+  .format("memsql")
+  .option("ddlEndpoint", "memsql-master.cluster.internal")
+  .option("user", "admin")
+  .load("foo");
+```
+
+#### Write Data
+
+```
+df.write()
+    .format("memsql")
+    .option("loadDataCompression", "LZ4")
+    .option("overwriteBehavior", "dropAndCreate")
+    .mode(SaveMode.Overwrite)
+    .save("foo.bar")
+```
+
+### Python
+
+#### Configuration
+
+```
+spark.conf.set("spark.datasource.memsql.ddlEndpoint", "memsql-master.cluster.internal")
+spark.conf.set("spark.datasource.memsql.dmlEndpoints", "memsql-master.cluster.internal,memsql-child-1.cluster.internal:3307")
+spark.conf.set("spark.datasource.memsql.user", "admin")
+spark.conf.set("spark.datasource.memsql.password", "s3cur3-pa$$word")
+```
+
+#### Read Data
+
+```
+df = spark \
+  .read \
+  .format("memsql") \
+  .option("ddlEndpoint", "memsql-master.cluster.internal") \
+  .option("user", "admin") \
+  .load("foo")
+```
+
+#### Write Data
+
+```
+df.write \
+    .format("memsql") \
+    .option("loadDataCompression", "LZ4") \
+    .option("overwriteBehavior", "dropAndCreate") \
+    .mode("overwrite") \
+    .save("foo.bar")
+```
