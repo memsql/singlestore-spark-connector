@@ -228,6 +228,26 @@ After the save is complete, the table will look like this:
 | 3     | Eve           | 27  |
 | 4     | Franklin      | 35  |
 
+## Connecting with a Kerberos-authenticated User
+
+You can use the MemSQL Spark Connector with a Kerberized user without any additional configuration. 
+To use a Kerberized user, you need to configure the connector with the given MemSQL database user that is authenticated with Kerberos 
+(via the `user` option). Please visit our documentation [here](https://docs.memsql.com/latest/guides/security/authentication/kerberos-authentication) 
+to learn about how to configure MemSQL users with Kerberos.
+
+Here is an example of configuring the Spark connector globally with a Kerberized MemSQL user called `krb_user`.
+
+```scala
+spark = SparkSession.builder()
+    .config(“spark.datasource.memsql.user”, “krb_user”)
+    .getOrCreate()
+```
+
+You do not need to provide a password when configuring a Spark Connector user that is Kerberized. 
+The connector driver (MariaDB) will be able to authenticate the Kerberos user from the cache by the provided username. 
+Other than omitting a password with this configuration, using a Kerberized user with the Connector is no different than using a standard user. 
+Note that if you do provide a password, it will be ignored.
+
 ## SQL Pushdown
 
 The `memsql-spark-connector` has extensive support for rewriting Spark SQL query
