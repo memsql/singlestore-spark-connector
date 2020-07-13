@@ -228,26 +228,6 @@ After the save is complete, the table will look like this:
 | 3     | Eve           | 27  |
 | 4     | Franklin      | 35  |
 
-## Connecting with a Kerberos-authenticated User
-
-You can use the MemSQL Spark Connector with a Kerberized user without any additional configuration. 
-To use a Kerberized user, you need to configure the connector with the given MemSQL database user that is authenticated with Kerberos 
-(via the `user` option). Please visit our documentation [here](https://docs.memsql.com/latest/guides/security/authentication/kerberos-authentication) 
-to learn about how to configure MemSQL users with Kerberos.
-
-Here is an example of configuring the Spark connector globally with a Kerberized MemSQL user called `krb_user`.
-
-```scala
-spark = SparkSession.builder()
-    .config(“spark.datasource.memsql.user”, “krb_user”)
-    .getOrCreate()
-```
-
-You do not need to provide a password when configuring a Spark Connector user that is Kerberized. 
-The connector driver (MariaDB) will be able to authenticate the Kerberos user from the cache by the provided username. 
-Other than omitting a password with this configuration, using a Kerberized user with the Connector is no different than using a standard user. 
-Note that if you do provide a password, it will be ignored.
-
 ## SQL Pushdown
 
 The `memsql-spark-connector` has extensive support for rewriting Spark SQL query
@@ -297,25 +277,6 @@ log4j.logger.com.memsql.spark=TRACE
 Make sure not to leave it in place since it generates a huge amount of tracing
 output.
 
-## SQL Permissions
-
-MemSQL has a [permission matrix](https://docs.memsql.com/latest/reference/sql-reference/security-management-commands/permissions-matrix/)
-which describes the permissions required to run each command.
-
-To make any SQL operations through Spark connector you should have different
-permissions for different type of operation. The matrix below describes the
-minimum permissions you should have to perform some operation. As alternative to
-minimum required permissions, `ALL PRIVILEGES` allow you to perform any operation.
-
-| Operation                       | Min. Permission          | Alternative Permission |
-| ------------------------------- |:------------------------:| ----------------------:|
-| `READ` from collection          | `SELECT`                 | `ALL PRIVILEGES`       |
-| `WRITE` to collection           | `SELECT, INSERT`         | `ALL PRIVILEGES`       |
-| `DROP` database or collection   | `SELECT, INSERT, DROP`   | `ALL PRIVILEGES`       |
-| `CREATE` database or collection | `SELECT, INSERT, CREATE` | `ALL PRIVILEGES`       |
-
-For more information on GRANTING privileges, see this [documentation](https://docs.memsql.com/latest/reference/sql-reference/security-management-commands/grant/)
-
 ## Parallel Read Support
 
 If you enable parallel reads via the `enableParallelRead` option, the
@@ -350,7 +311,48 @@ In order to use parallel reads, the username and password provided to the
 In addition, the hostnames and ports listed by `SHOW LEAVES` must be directly
 connectible from Spark.
 
-## SSL Support
+## Security
+
+### Connecting with a Kerberos-authenticated User
+
+You can use the MemSQL Spark Connector with a Kerberized user without any additional configuration. 
+To use a Kerberized user, you need to configure the connector with the given MemSQL database user that is authenticated with Kerberos 
+(via the `user` option). Please visit our documentation [here](https://docs.memsql.com/latest/guides/security/authentication/kerberos-authentication) 
+to learn about how to configure MemSQL users with Kerberos.
+
+Here is an example of configuring the Spark connector globally with a Kerberized MemSQL user called `krb_user`.
+
+```scala
+spark = SparkSession.builder()
+    .config(“spark.datasource.memsql.user”, “krb_user”)
+    .getOrCreate()
+```
+
+You do not need to provide a password when configuring a Spark Connector user that is Kerberized. 
+The connector driver (MariaDB) will be able to authenticate the Kerberos user from the cache by the provided username. 
+Other than omitting a password with this configuration, using a Kerberized user with the Connector is no different than using a standard user. 
+Note that if you do provide a password, it will be ignored.
+
+### SQL Permissions
+
+MemSQL has a [permission matrix](https://docs.memsql.com/latest/reference/sql-reference/security-management-commands/permissions-matrix/)
+which describes the permissions required to run each command.
+
+To make any SQL operations through Spark connector you should have different
+permissions for different type of operation. The matrix below describes the
+minimum permissions you should have to perform some operation. As alternative to
+minimum required permissions, `ALL PRIVILEGES` allow you to perform any operation.
+
+| Operation                       | Min. Permission          | Alternative Permission |
+| ------------------------------- |:------------------------:| ----------------------:|
+| `READ` from collection          | `SELECT`                 | `ALL PRIVILEGES`       |
+| `WRITE` to collection           | `SELECT, INSERT`         | `ALL PRIVILEGES`       |
+| `DROP` database or collection   | `SELECT, INSERT, DROP`   | `ALL PRIVILEGES`       |
+| `CREATE` database or collection | `SELECT, INSERT, CREATE` | `ALL PRIVILEGES`       |
+
+For more information on GRANTING privileges, see this [documentation](https://docs.memsql.com/latest/reference/sql-reference/security-management-commands/grant/)
+
+### SSL Support
 
 The MemSQL Spark Connector uses the MariaDB JDBC Driver under the hood and thus
 supports SSL configuration out of the box. In order to configure SSL, first
