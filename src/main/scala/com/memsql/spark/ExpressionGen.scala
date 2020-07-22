@@ -172,24 +172,22 @@ object ExpressionGen extends LazyLogging {
     // Covariance.scala
     // TODO: case CovPopulation(Expression(left), Expression(right)) => ???
     // TODO: case CovSample(Expression(left), Expression(right))     => ???
-    /*
+
     // First.scala
-    case AggregateExpression(First(Expression(child), Literal(false, BooleanType)), _, _, _) =>
-      f("ANY_VALUE", child)
+    // TODO: case AggregateExpression(First(Expression(child), Literal(false, BooleanType)), _, _, _) => f("ANY_VALUE", child)
 
     // Last.scala
-    case AggregateExpression(Last(Expression(child), Literal(false, BooleanType)), _, _, _) =>
-      f("ANY_VALUE", child)
+    // TODO: case AggregateExpression(Last(Expression(child), Literal(false, BooleanType)), _, _, _) => f("ANY_VALUE", child)
 
     // Max.scala
-    case AggregateExpression(Max(Expression(child)), _, _, _) => f("MAX", child)
+    // TODO: case AggregateExpression(Max(Expression(child)), _, _, _) => f("MAX", child)
 
     // Min.scala
-    case AggregateExpression(Min(Expression(child)), _, _, _) => f("MIN", child)
+    // TODO: case AggregateExpression(Min(Expression(child)), _, _, _) => f("MIN", child)
 
     // Sum.scala
-    case AggregateExpression(Sum(Expression(child)), _, _, _) => f("SUM", child)
-     */
+    // TODO: case AggregateExpression(Sum(Expression(child)), _, _, _) => f("SUM", child)
+
     // windowExpressions.scala
     case WindowExpression(Expression(child),
                           WindowSpecDefinition(Expression(partitionSpec),
