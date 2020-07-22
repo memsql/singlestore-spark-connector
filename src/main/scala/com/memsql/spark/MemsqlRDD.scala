@@ -44,7 +44,7 @@ case class MemsqlRDD(query: String,
       closed = true
     }
 
-    context.addTaskCompletionListener { context =>
+    context.addTaskCompletionListener[Unit] { context: TaskContext =>
       close()
     }
 

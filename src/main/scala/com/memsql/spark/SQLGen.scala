@@ -72,8 +72,10 @@ object SQLGen extends LazyLogging {
       case c: Chunk                => copy(c :: list)
     }
 
+    // TODO: think about doing this value configurable
+    val MAX_PLAN_FIELDS = 1000
     def withLogicalPlanComment(plan: LogicalPlan): Statement =
-      this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${plan.simpleString}"
+      this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${plan.simpleString(MAX_PLAN_FIELDS)}"
 
     def selectAll(): Statement                 = this + "\nSELECT *"
     def select(c: Joinable): Statement         = this + "\nSELECT" + c
@@ -322,7 +324,8 @@ object SQLGen extends LazyLogging {
     case plan @ Join(Relation(left),
                      Relation(right),
                      joinType @ (Inner | Cross),
-                     Expression(condition)) =>
+                     Expression(condition),
+                     _) =>
       newStatement(plan)
         .selectAll()
         .from(left)
@@ -335,7 +338,8 @@ object SQLGen extends LazyLogging {
     case plan @ Join(Relation(left),
                      Relation(right),
                      joinType @ (LeftOuter | RightOuter | FullOuter),
-                     Expression(Some(condition))) =>
+                     Expression(Some(condition)),
+                     _) =>
       newStatement(plan)
         .selectAll()
         .from(left)
@@ -344,7 +348,7 @@ object SQLGen extends LazyLogging {
         .output(plan.output)
 
     // condition is not allowed for natural joins
-    case plan @ Join(Relation(left), Relation(right), NaturalJoin(joinType), None) =>
+    case plan @ Join(Relation(left), Relation(right), NaturalJoin(joinType), None, _) =>
       newStatement(plan)
         .selectAll()
         .from(left)
@@ -467,5 +471,4 @@ object Expression {
         .map(j => Some(j))
     }
   }
-
 }

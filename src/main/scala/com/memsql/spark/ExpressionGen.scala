@@ -153,30 +153,26 @@ object ExpressionGen extends LazyLogging {
     // ----------------------------------
 
     // Average.scala
-    case AggregateExpression(Average(Expression(child)), _, _, _) => f("AVG", child)
+    // TODO: case AggregateExpression(Average(Expression(child)), _, _, _) => f("AVG", child)
 
     // CentralMomentAgg.scala
-    case AggregateExpression(StddevPop(Expression(child)), _, _, _)    => f("STDDEV_POP", child)
-    case AggregateExpression(StddevSamp(Expression(child)), _, _, _)   => f("STDDEV_SAMP", child)
-    case AggregateExpression(VariancePop(Expression(child)), _, _, _)  => f("VAR_POP", child)
-    case AggregateExpression(VarianceSamp(Expression(child)), _, _, _) => f("VAR_SAMP", child)
+    // TODO: case AggregateExpression(StddevPop(Expression(child)), _, _, _)    => f("STDDEV_POP", child)
+    // TODO: case AggregateExpression(StddevSamp(Expression(child)), _, _, _)   => f("STDDEV_SAMP", child)
+    // TODO: case AggregateExpression(VariancePop(Expression(child)), _, _, _)  => f("VAR_POP", child)
+    // TODO: case AggregateExpression(VarianceSamp(Expression(child)), _, _, _) => f("VAR_SAMP", child)
 
     // TODO: case Skewness(Expression(child))     => ???
     // TODO: case Kurtosis(Expression(child))     => ???
 
     // Count.scala
-    case AggregateExpression(Count(Expression(None)), _, false, _) => Raw("COUNT(*)")
-    case AggregateExpression(Count(Expression(Some(children))), _, isDistinct, _) =>
-      if (isDistinct) {
-        Raw("COUNT") + block(Raw("DISTINCT") + children)
-      } else {
-        f("COUNT", children)
-      }
+    // TODO: case AggregateExpression(Count(Expression(None)), _, false, _) => Raw("COUNT(*)")
+
+    // TODO: case AggregateExpression(Count(Expression(Some(children))), _, isDistinct, _) =>
 
     // Covariance.scala
     // TODO: case CovPopulation(Expression(left), Expression(right)) => ???
     // TODO: case CovSample(Expression(left), Expression(right))     => ???
-
+    /*
     // First.scala
     case AggregateExpression(First(Expression(child), Literal(false, BooleanType)), _, _, _) =>
       f("ANY_VALUE", child)
@@ -193,7 +189,7 @@ object ExpressionGen extends LazyLogging {
 
     // Sum.scala
     case AggregateExpression(Sum(Expression(child)), _, _, _) => f("SUM", child)
-
+     */
     // windowExpressions.scala
     case WindowExpression(Expression(child),
                           WindowSpecDefinition(Expression(partitionSpec),
@@ -255,27 +251,8 @@ object ExpressionGen extends LazyLogging {
     case DateFormatClass(Expression(left), Expression(right), timeZoneId) =>
       f("DATE_FORMAT", left, right)
 
-    // Special case since MemSQL doesn't support INTERVAL with both month and microsecond
-    case TimeAdd(Expression(start), Literal(v: CalendarInterval, CalendarIntervalType), timeZoneId)
-        if v.months > 0 && v.microseconds > 0 =>
-      f(
-        "DATE_ADD",
-        f("DATE_ADD", start, Raw("INTERVAL") + v.months.toString + "MONTH"),
-        Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND"
-      )
-
-    case TimeAdd(Expression(start), Expression(interval), timeZoneId) =>
-      f("DATE_ADD", start, interval)
-
-    // Special case since MemSQL doesn't support INTERVAL with both month and microsecond
-    case TimeSub(Expression(start), Literal(v: CalendarInterval, CalendarIntervalType), timeZoneId)
-        if v.months > 0 && v.microseconds > 0 =>
-      f("DATE_SUB",
-        f("DATE_SUB", start, Raw("INTERVAL") + v.months.toString + "MONTH"),
-        Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
-
-    case TimeSub(Expression(start), Expression(interval), timeZoneId) =>
-      f("DATE_SUB", start, interval)
+    // TODO: TimeAdd() => ???
+    // TODO: TimeSub() => ???
 
     case FromUTCTimestamp(Expression(timestamp), Expression(timezone)) =>
       f("CONVERT_TZ", timestamp, StringVar("UTC"), timezone)
@@ -320,8 +297,7 @@ object ExpressionGen extends LazyLogging {
       )
     }
 
-    case MonthsBetweenExpression((date1, date2)) =>
-      f("MONTHS_BETWEEN", date1, date2)
+    // TODO: MonthsBetweenExpression() => ???
 
     case AddMonths(Expression(startDate), Expression(numMonths)) =>
       f("DATE_ADD", startDate, Raw("INTERVAL") + numMonths + "MONTH")
@@ -405,7 +381,7 @@ object ExpressionGen extends LazyLogging {
       )
 
     // regexpExpressions.scala
-    case Like(Expression(left), Expression(right))  => op("LIKE", left, right)
+    // TODO: case Like(Expression(left), Expression(right))  => op("LIKE", left, right)
     case RLike(Expression(left), Expression(right)) => op("RLIKE", left, right)
 
     // stringExpressions.scala
@@ -517,7 +493,7 @@ object ExpressionGen extends LazyLogging {
       f("TO_TIMESTAMP", left, format)
 
     // decimalExpressions.scala
-    case MakeDecimal(Expression(child), p: Int, s: Int) => makeDecimal(child, p, s)
+    // TODO: case MakeDecimal(Expression(child), p: Int, s: Int) => makeDecimal(child, p, s)
 
     // hash.scala
     case Md5(Expression(child))   => f("MD5", child)

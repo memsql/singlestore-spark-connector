@@ -9,7 +9,7 @@ import org.apache.spark.sql.sources.{
   DataSourceRegister,
   RelationProvider
 }
-import org.apache.spark.sql.{DataFrame, SQLContext, SaveMode}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 
 object DefaultSource {
   val MEMSQL_SOURCE_NAME          = "com.memsql.spark"
@@ -71,7 +71,7 @@ class DefaultSource
 
     val schema        = data.schema
     var totalRowCount = 0L
-    data.foreachPartition(partition => {
+    data.foreachPartition((partition: Iterator[Row]) => {
       val writer = partitionWriterFactory.createDataWriter(schema,
                                                            TaskContext.getPartitionId(),
                                                            0,

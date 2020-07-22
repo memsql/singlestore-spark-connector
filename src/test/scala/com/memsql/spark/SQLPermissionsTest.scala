@@ -32,7 +32,7 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
     spark.conf.set("spark.datasource.memsql.user", s"${testUserName}")
   }
 
-  private def doSuccessOperation(privilege: String)(implicit operation: () => Unit): Unit = {
+  private def doSuccessOperation(operation: () => Unit)(privilege: String): Unit = {
     it(s"success with ${privilege} permission") {
       setUpUserPermissions(privilege)
       val result = Try(operation())
@@ -43,7 +43,7 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
     }
   }
 
-  private def doFailOperation(privilege: String)(implicit operation: () => Unit): Unit = {
+  private def doFailOperation(operation: () => Unit)(privilege: String): Unit = {
     it(s"fails with ${privilege} permission") {
       setUpUserPermissions(privilege)
       val result = Try(operation())
@@ -61,11 +61,11 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
     /* List of unsupported privileges for read operation */
     val unsupportedPrivileges = List("CREATE", "DROP", "DELETE", "INSERT", "UPDATE")
 
-    implicit def operation(): Unit =
+    def operation(): Unit =
       spark.read.format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT).load(s"${dbName}.${collectionName}")
 
-    unsupportedPrivileges.foreach(doFailOperation)
-    supportedPrivileges.foreach(doSuccessOperation)
+    unsupportedPrivileges.foreach(doFailOperation(operation))
+    supportedPrivileges.foreach(doSuccessOperation(operation))
   }
 
   describe("write permissions") {
@@ -74,7 +74,7 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
     /* List of unsupported privileges for write operation */
     val unsupportedPrivileges = List("CREATE", "DROP", "DELETE", "SELECT", "UPDATE")
 
-    implicit def operation(): Unit = {
+    def operation(): Unit = {
       val df = spark.createDF(
         List(4, 5, 6),
         List(("id", IntegerType, true))
@@ -85,8 +85,8 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
         .save(s"${dbName}.${collectionName}")
     }
 
-    unsupportedPrivileges.foreach(doFailOperation)
-    supportedPrivileges.foreach(doSuccessOperation)
+    unsupportedPrivileges.foreach(doFailOperation(operation))
+    supportedPrivileges.foreach(doSuccessOperation(operation))
   }
 
   describe("drop permissions") {
@@ -108,8 +108,8 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
         .save(s"${dbName}.${collectionName}")
     }
 
-    unsupportedPrivileges.foreach(doFailOperation)
-    supportedPrivileges.foreach(doSuccessOperation)
+    unsupportedPrivileges.foreach(doFailOperation(operation))
+    supportedPrivileges.foreach(doSuccessOperation(operation))
   }
 
   describe("create permissions") {
@@ -130,7 +130,7 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
         .save(s"${dbName}.${collectionName}_${UUID.randomUUID().toString.split("-")(0)}")
     }
 
-    unsupportedPrivileges.foreach(doFailOperation)
-    supportedPrivileges.foreach(doSuccessOperation)
+    unsupportedPrivileges.foreach(doFailOperation(operation))
+    supportedPrivileges.foreach(doSuccessOperation(operation))
   }
 }

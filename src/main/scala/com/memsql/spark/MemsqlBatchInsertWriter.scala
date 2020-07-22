@@ -5,13 +5,14 @@ import java.util.Base64
 
 import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.catalyst.TableIdentifier
+import org.apache.spark.sql.connector.write.{DataWriter, WriterCommitMessage}
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
-import org.apache.spark.sql.sources.v2.writer.{DataWriter, WriterCommitMessage}
 import org.apache.spark.sql.types.{BinaryType, StructType}
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
 
+// TODO: extend it from DataWriterFactory
 class BatchInsertWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
     extends WriterFactory
     with LazyLogging {
@@ -106,4 +107,6 @@ class BatchInsertWriter(batchSize: Int, writeBatch: ListBuffer[Row] => Long, con
     conn.abort(ExecutionContext.global)
     conn.close()
   }
+
+  override def close(): Unit = {}
 }

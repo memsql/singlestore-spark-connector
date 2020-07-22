@@ -14,8 +14,8 @@ import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.avro.io.EncoderFactory
 import org.apache.spark.sql.catalyst.TableIdentifier
+import org.apache.spark.sql.connector.write.{DataWriter, WriterCommitMessage}
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
-import org.apache.spark.sql.sources.v2.writer.{DataWriter, WriterCommitMessage}
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.{Row, SaveMode}
 
@@ -33,6 +33,7 @@ abstract class WriterFactory extends Serializable {
                        mode: SaveMode): DataWriter[Row]
 }
 
+// TODO: extend it from DataWriterFactory
 class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
     extends WriterFactory
     with LazyLogging {
@@ -206,6 +207,8 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
     outputstream.close()
     Await.ready(writeFuture, Duration.Inf)
   }
+
+  override def close(): Unit = {}
 }
 
 class AvroDataWriter(avroSchema: Schema,
@@ -250,4 +253,6 @@ class AvroDataWriter(avroSchema: Schema,
     outputstream.close()
     Await.ready(writeFuture, Duration.Inf)
   }
+
+  override def close(): Unit = {}
 }

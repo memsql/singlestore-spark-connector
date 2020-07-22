@@ -1,35 +1,5 @@
 # MemSQL Spark Connector
-## Version: 3.0.1 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
-
-## Getting Started
-
-You can find the latest version of the connector on Maven Central and
-spark-packages.org.  The group is `com.memsql` and the artifact is
-`memsql-spark-connector_2.11`.
-
-* [Maven Central](https://search.maven.org/artifact/com.memsql/memsql-spark-connector_2.11)
-* [spark-packages.org](https://spark-packages.org/package/memsql/memsql-spark-connector)
-
-You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
-```
-$SPARK_HOME/bin/spark-shell --packages com.memsql:memsql-spark-connector_2.11:3.0.1-spark-2.4.4
-```
-
-We release two versions of the `memsql-spark-connector`, one per Spark version.
-An example version number is: `3.0.1-spark-2.3.4` which is the 3.0.1
-version of the connector, compiled and tested against Spark 2.3.4. Make sure
-you are using the most recent version of the connector.
-
-In addition to adding the `memsql-spark-connector`, you will also need to have the
-MariaDB JDBC driver installed.  This library is tested against the following
-MariaDB driver version:
-
-```
-"org.mariadb.jdbc" % "mariadb-java-client"  % "2.+"
-```
-
-Once you have everything installed, you're almost ready to run your first
-queries against MemSQL!
+## Version: 4.0.0-beta [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 ## Configuration
 
@@ -388,20 +358,8 @@ Happy querying!
  * in Intellij IDEA choose `File->Close Project`
  * run `git checkout .` to revert all changes made by Intellij IDEA
  * in Intellij IDEA choose `Open` and select path to memsql-spark-connector
- * run `Test Spark 2.3` (it should succeed)
+ * run `Test Spark 3.0` (it should succeed)
 
 ## SQL Pushdown Incompatibilities
  * `ToUnixTimestamp` and `UnixTimestamp` handle only time less then `2038-01-19 03:14:08`, if they get `DateType` or `TimestampType` as a first argument
  * `FromUnixTime` with default format (`yyyy-MM-dd HH:mm:ss`) handle only time less then `2147483648` (`2^31`)
-
-## Major changes from the 2.0.0 connector
-
-The MemSQL Spark Connector 3.0.1 has a number of key features and enhancements:
-
-* Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
-* Implemented as a native Spark SQL plugin
-* Supports both the DataSource and DataSourceV2 API for maximum support of current and future functionality
-* Contains deep integrations with the Catalyst query optimizer
-* Is compatible with Spark 2.3 and 2.4
-* Leverages MemSQL LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
-* Takes advantage of all the latest and greatest features in MemSQL 7.x

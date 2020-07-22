@@ -232,27 +232,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("string equality") { testQuery("select * from users where first_name = 'Evan'") }
   }
 
-  describe("aggregations") {
-    it("count") { testSingleReadQuery("select count(*) from users") }
-    it("count distinct") { testSingleReadQuery("select count(distinct first_name) from users") }
-    it("first") { testSingleReadQuery("select first(first_name) from users group by id") }
-    it("last") { testSingleReadQuery("select last(first_name) from users group by id") }
-    it("floor(avg(age))") { testSingleReadQuery("select floor(avg(age)) from users") }
-    it("top 3 email domains") {
-      testOrderedQuery(
-        """
-        |   select domain, count(*) from (
-        |     select substring(email, locate('@', email) + 1) as domain
-        |     from users
-        |   )
-        |   group by 1
-        |   order by 2 desc, 1 asc
-        |   limit 3
-        |""".stripMargin
-      )
-    }
-  }
-
   describe("window functions") {
     it("rank order by") {
       testSingleReadQuery(
@@ -336,14 +315,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       testSingleReadQuery(
         "select users.id, rating from users natural join (select user_id as id, rating from reviews)")
     }
-    it("complex join") {
-      testSingleReadQuery(
-        """
-          |  select users.id, round(avg(rating), 2) as rating, count(*) as num_reviews
-          |  from users inner join reviews on users.id = reviews.user_id
-          | group by users.id
-          |""".stripMargin)
-    }
   }
 
   describe("same-name column selection") {
@@ -409,28 +380,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     // MemSQL and Spark differ on how they do last day calculations, so we ignore
     // them in some of these tests
-
-    it("timeAdd") {
-      for (interval <- intervals) {
-        println(s"testing timeAdd with interval $interval")
-        testQuery(s"""
-            | select created, created + interval $interval
-            | from reviews
-            | where date(created) != last_day(created)
-            |""".stripMargin)
-      }
-    }
-
-    it("timeSub") {
-      for (interval <- intervals) {
-        println(s"testing timeSub with interval $interval")
-        testQuery(s"""
-            | select created, created - interval $interval
-            | from reviews
-            | where date(created) != last_day(created)
-            |""".stripMargin)
-      }
-    }
 
     it("addMonths") {
       val numMonthsList = List(0, 1, 2, 12, 13, 200, -1, -2, -12, -13, -200)
@@ -529,15 +478,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       for (datePart <- dateParts) {
         println(s"testing truncDate with datepart $datePart")
         testQuery(s"select trunc(created, '$datePart') from reviews")
-      }
-    }
-
-    it("monthsBetween") {
-      for (interval <- intervals) {
-        println(s"testing monthsBetween with interval $interval")
-        testQuery(
-          s"select months_between(created, created + interval $interval) from reviews"
-        )
       }
     }
   }
