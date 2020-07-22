@@ -99,7 +99,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
           case _     => ""
         }
     }
-
+    val maxErrorsPart      = s"MAX_ERRORS ${conf.maxErrors}"
     var avroSchema: Schema = null
     val queryPrefix        = s"LOAD DATA LOCAL INFILE '###.$ext'"
     val queryEnding = if (loadDataFormat == MemsqlOptions.LoadDataFormat.Avro) {
@@ -122,9 +122,10 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
     } else {
       s"INTO TABLE ${table.quotedString} (${columnNames.mkString(", ")})"
     }
-    val query = List[String](queryPrefix, queryErrorHandlingPart, queryEnding, querySetPart)
-      .filter(s => !s.isEmpty)
-      .mkString(" ")
+    val query =
+      List[String](queryPrefix, queryErrorHandlingPart, queryEnding, querySetPart, maxErrorsPart)
+        .filter(s => !s.isEmpty)
+        .mkString(" ")
 
     val conn = JdbcUtils.createConnectionFactory(
       if (isReferenceTable) {

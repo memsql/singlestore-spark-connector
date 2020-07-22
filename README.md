@@ -55,6 +55,7 @@ global options have the prefix `spark.datasource.memsql.`.
 | `tableKey`                | Specify additional keys to add to tables created by the connector (See below for more details)
 | `onDuplicateKeySQL`       | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, MemSQL will instead perform an UPDATE of the old row. See examples below
 | `insertBatchSize`         | Size of the batch for row insertion (default: `10000`)
+| `maxErrors`               | The maximum number of errors in a single `LOAD DATA` request. When this limit is reached, the load fails. If this property equals to `0`, no error limit exists (Default: `0`)
 
 ## Examples
 

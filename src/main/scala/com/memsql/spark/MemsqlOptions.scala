@@ -21,6 +21,7 @@ case class MemsqlOptions(
     loadDataFormat: MemsqlOptions.LoadDataFormat.Value,
     tableKeys: List[TableKey],
     onDuplicateKeySQL: Option[String],
+    maxErrors: Int,
     insertBatchSize: Int
 ) extends LazyLogging {
 
@@ -95,6 +96,7 @@ object MemsqlOptions extends LazyLogging {
   final val LOAD_DATA_FORMAT      = newOption("loadDataFormat")
   final val ON_DUPLICATE_KEY_SQL  = newOption("onDuplicateKeySQL")
   final val INSERT_BATCH_SIZE     = newOption("insertBatchSize")
+  final val MAX_ERRORS            = newOption("maxErrors")
 
   final val ENABLE_ASSERTS       = newOption("enableAsserts")
   final val DISABLE_PUSHDOWN     = newOption("disablePushdown")
@@ -201,7 +203,17 @@ object MemsqlOptions extends LazyLogging {
                                                  LoadDataFormat.CSV),
       tableKeys = tableKeys,
       onDuplicateKeySQL = options.get(ON_DUPLICATE_KEY_SQL),
-      insertBatchSize = options.get(INSERT_BATCH_SIZE).getOrElse("10000").toInt
+      insertBatchSize = options.get(INSERT_BATCH_SIZE).getOrElse("10000").toInt,
+      maxErrors = {
+        val onDuplicateKeySqlOption = options.get(ON_DUPLICATE_KEY_SQL)
+        val maxErrorsOption         = options.get(MAX_ERRORS)
+        if (maxErrorsOption.isDefined && onDuplicateKeySqlOption.isDefined) {
+          throw new IllegalArgumentException(
+            s"can't use both `$ON_DUPLICATE_KEY_SQL` and `$MAX_ERRORS` options")
+        } else {
+          maxErrorsOption.getOrElse("0").toInt
+        }
+      }
     )
   }
 }
