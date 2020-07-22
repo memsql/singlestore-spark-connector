@@ -232,7 +232,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("string equality") { testQuery("select * from users where first_name = 'Evan'") }
   }
 
-  /* TODO: add this tests when aggregations pushdown will be fixed
+  /* TODO: add these tests when aggregations pushdown will be fixed
   describe("aggregations") {
     it("count") { testSingleReadQuery("select count(*) from users") }
     it("count distinct") { testSingleReadQuery("select count(distinct first_name) from users") }
@@ -414,7 +414,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     // MemSQL and Spark differ on how they do last day calculations, so we ignore
     // them in some of these tests
 
-    /* TODO: add this tests when their pushdowns will be fixed
+    /* TODO: add these tests when their pushdowns will be fixed
     it("timeAdd") {
       for (interval <- intervals) {
         println(s"testing timeAdd with interval $interval")
@@ -536,6 +536,17 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery(s"select trunc(created, '$datePart') from reviews")
       }
     }
+
+    /* TODO: add this test when it pushdown will be fixed
+    it("monthsBetween") {
+      for (interval <- intervals) {
+        println(s"testing monthsBetween with interval $interval")
+        testQuery(
+          s"select months_between(created, created + interval $interval) from reviews"
+        )
+      }
+    }
+   */
   }
 
   describe("partial pushdown") {
