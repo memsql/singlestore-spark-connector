@@ -152,41 +152,54 @@ object ExpressionGen extends LazyLogging {
     // Aggregate Expressions
     // ----------------------------------
 
+    // TODO: AggregateExpression when filter is not None
     // Average.scala
-    // TODO: case AggregateExpression(Average(Expression(child)), _, _, _) => f("AVG", child)
+    case AggregateExpression(Average(Expression(child)), _, _, None, _) => f("AVG", child)
 
     // CentralMomentAgg.scala
-    // TODO: case AggregateExpression(StddevPop(Expression(child)), _, _, _)    => f("STDDEV_POP", child)
-    // TODO: case AggregateExpression(StddevSamp(Expression(child)), _, _, _)   => f("STDDEV_SAMP", child)
-    // TODO: case AggregateExpression(VariancePop(Expression(child)), _, _, _)  => f("VAR_POP", child)
-    // TODO: case AggregateExpression(VarianceSamp(Expression(child)), _, _, _) => f("VAR_SAMP", child)
+    case AggregateExpression(StddevPop(Expression(child)), _, _, None, _) => f("STDDEV_POP", child)
+    case AggregateExpression(StddevSamp(Expression(child)), _, _, None, _) =>
+      f("STDDEV_SAMP", child)
+    case AggregateExpression(VariancePop(Expression(child)), _, _, None, _)  => f("VAR_POP", child)
+    case AggregateExpression(VarianceSamp(Expression(child)), _, _, None, _) => f("VAR_SAMP", child)
 
     // TODO: case Skewness(Expression(child))     => ???
     // TODO: case Kurtosis(Expression(child))     => ???
 
     // Count.scala
-    // TODO: case AggregateExpression(Count(Expression(None)), _, false, _) => Raw("COUNT(*)")
+    case AggregateExpression(Count(Expression(None)), _, false, None, _) => Raw("COUNT(*)")
 
-    // TODO: case AggregateExpression(Count(Expression(Some(children))), _, isDistinct, _) =>
+    case AggregateExpression(Count(Expression(Some(children))), _, isDistinct, None, _) =>
+      if (isDistinct) {
+        Raw("COUNT") + block(Raw("DISTINCT") + children)
+      } else {
+        f("COUNT", children)
+      }
 
     // Covariance.scala
     // TODO: case CovPopulation(Expression(left), Expression(right)) => ???
     // TODO: case CovSample(Expression(left), Expression(right))     => ???
 
     // First.scala
-    // TODO: case AggregateExpression(First(Expression(child), Literal(false, BooleanType)), _, _, _) => f("ANY_VALUE", child)
+    case AggregateExpression(First(Expression(child), Literal(false, BooleanType)),
+                             _,
+                             _,
+                             None,
+                             _) =>
+      f("ANY_VALUE", child)
 
     // Last.scala
-    // TODO: case AggregateExpression(Last(Expression(child), Literal(false, BooleanType)), _, _, _) => f("ANY_VALUE", child)
+    case AggregateExpression(Last(Expression(child), Literal(false, BooleanType)), _, _, None, _) =>
+      f("ANY_VALUE", child)
 
     // Max.scala
-    // TODO: case AggregateExpression(Max(Expression(child)), _, _, _) => f("MAX", child)
+    case AggregateExpression(Max(Expression(child)), _, _, None, _) => f("MAX", child)
 
     // Min.scala
-    // TODO: case AggregateExpression(Min(Expression(child)), _, _, _) => f("MIN", child)
+    case AggregateExpression(Min(Expression(child)), _, _, None, _) => f("MIN", child)
 
     // Sum.scala
-    // TODO: case AggregateExpression(Sum(Expression(child)), _, _, _) => f("SUM", child)
+    case AggregateExpression(Sum(Expression(child)), _, _, None, _) => f("SUM", child)
 
     // windowExpressions.scala
     case WindowExpression(Expression(child),

@@ -232,7 +232,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("string equality") { testQuery("select * from users where first_name = 'Evan'") }
   }
 
-  /* TODO: add these tests when aggregations pushdown will be fixed
   describe("aggregations") {
     it("count") { testSingleReadQuery("select count(*) from users") }
     it("count distinct") { testSingleReadQuery("select count(distinct first_name) from users") }
@@ -253,7 +252,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       )
     }
   }
-   */
 
   describe("window functions") {
     it("rank order by") {
@@ -338,7 +336,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       testSingleReadQuery(
         "select users.id, rating from users natural join (select user_id as id, rating from reviews)")
     }
-    /* TODO: add this test when aggregations pushdown will be fixed
     it("complex join") {
       testSingleReadQuery(
         """
@@ -347,7 +344,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           | group by users.id
           |""".stripMargin)
     }
-   */
   }
 
   describe("same-name column selection") {
