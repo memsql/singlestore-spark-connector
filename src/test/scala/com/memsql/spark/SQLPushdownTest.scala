@@ -410,7 +410,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     // MemSQL and Spark differ on how they do last day calculations, so we ignore
     // them in some of these tests
 
-    /* TODO: add these tests when their pushdowns will be fixed
     it("timeAdd") {
       for (interval <- intervals) {
         println(s"testing timeAdd with interval $interval")
@@ -432,7 +431,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin)
       }
     }
-     */
+
     it("addMonths") {
       val numMonthsList = List(0, 1, 2, 12, 13, 200, -1, -2, -12, -13, -200)
       for (numMonths <- numMonthsList) {
@@ -533,7 +532,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    /* TODO: add this test when it pushdown will be fixed
     it("monthsBetween") {
       for (interval <- intervals) {
         println(s"testing monthsBetween with interval $interval")
@@ -542,7 +540,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         )
       }
     }
-   */
   }
 
   describe("partial pushdown") {

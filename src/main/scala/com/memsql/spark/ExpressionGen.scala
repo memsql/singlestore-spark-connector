@@ -262,8 +262,53 @@ object ExpressionGen extends LazyLogging {
     case DateFormatClass(Expression(left), Expression(right), timeZoneId) =>
       f("DATE_FORMAT", left, right)
 
-    // TODO: TimeAdd() => ???
-    // TODO: TimeSub() => ???
+    case TimeAdd(Expression(start),
+                 Literal(v: CalendarInterval, CalendarIntervalType),
+                 timeZoneId) => {
+      def addMicroseconds(start: Joinable) =
+        if (v.microseconds == 0) {
+          start
+        } else {
+          f("DATE_ADD", start, Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
+        }
+      def addDays(start: Joinable) =
+        if (v.days == 0) {
+          start
+        } else {
+          f("DATE_ADD", start, Raw("INTERVAL") + v.days.toString + "DAY")
+        }
+      def addMonths(start: Joinable) =
+        if (v.months == 0) {
+          start
+        } else {
+          f("DATE_ADD", start, Raw("INTERVAL") + v.months.toString + "MONTH")
+        }
+      addMicroseconds(addDays(addMonths(start)))
+    }
+
+    case TimeSub(Expression(start),
+                 Literal(v: CalendarInterval, CalendarIntervalType),
+                 timeZoneId) => {
+      def subMicroseconds(start: Joinable) =
+        if (v.microseconds == 0) {
+          start
+        } else {
+          f("DATE_SUB", start, Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
+        }
+      def subDays(start: Joinable) =
+        if (v.days == 0) {
+          start
+        } else {
+          f("DATE_SUB", start, Raw("INTERVAL") + v.days.toString + "DAY")
+        }
+      def subMonths(start: Joinable) =
+        if (v.months == 0) {
+          start
+        } else {
+          f("DATE_SUB", start, Raw("INTERVAL") + v.months.toString + "MONTH")
+        }
+      subMicroseconds(subDays(subMonths(start)))
+    }
 
     case FromUTCTimestamp(Expression(timestamp), Expression(timezone)) =>
       f("CONVERT_TZ", timestamp, StringVar("UTC"), timezone)
@@ -308,7 +353,8 @@ object ExpressionGen extends LazyLogging {
       )
     }
 
-    // TODO: MonthsBetweenExpression() => ???
+    case MonthsBetweenExpression((date1, date2)) =>
+      f("MONTHS_BETWEEN", date1, date2)
 
     case AddMonths(Expression(startDate), Expression(numMonths)) =>
       f("DATE_ADD", startDate, Raw("INTERVAL") + numMonths + "MONTH")
