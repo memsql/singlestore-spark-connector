@@ -108,5 +108,6 @@ class BatchInsertWriter(batchSize: Int, writeBatch: ListBuffer[Row] => Long, con
     conn.close()
   }
 
+  // TODO: close all resources in this method
   override def close(): Unit = {}
 }

@@ -254,5 +254,6 @@ class AvroDataWriter(avroSchema: Schema,
     Await.ready(writeFuture, Duration.Inf)
   }
 
+  // TODO: close all resources in this method
   override def close(): Unit = {}
 }
