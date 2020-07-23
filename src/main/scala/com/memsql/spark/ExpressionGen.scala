@@ -438,7 +438,12 @@ object ExpressionGen extends LazyLogging {
       )
 
     // regexpExpressions.scala
-    // TODO: case Like(Expression(left), Expression(right))  => op("LIKE", left, right)
+    case Like(Expression(left), Expression(right), escapeChar: Char) =>
+      if (escapeChar == '\\') {
+        op("LIKE", left, right)
+      } else {
+        op("LIKE", left, f("REPLACE", right, escapeChar.toString(), "\\"))
+      }
     case RLike(Expression(left), Expression(right)) => op("RLIKE", left, right)
 
     // stringExpressions.scala
@@ -550,7 +555,7 @@ object ExpressionGen extends LazyLogging {
       f("TO_TIMESTAMP", left, format)
 
     // decimalExpressions.scala
-    // TODO: case MakeDecimal(Expression(child), p: Int, s: Int) => makeDecimal(child, p, s)
+    case MakeDecimal(Expression(child), p: Int, s: Int, false) => makeDecimal(child, p, s)
 
     // hash.scala
     case Md5(Expression(child))   => f("MD5", child)
