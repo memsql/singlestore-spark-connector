@@ -438,12 +438,14 @@ object ExpressionGen extends LazyLogging {
       )
 
     // regexpExpressions.scala
+    /* TODO: case Like() => ??? we need to test this solution
     case Like(Expression(left), Expression(right), escapeChar: Char) =>
       if (escapeChar == '\\') {
         op("LIKE", left, right)
       } else {
         op("LIKE", left, f("REPLACE", right, escapeChar.toString(), "\\"))
       }
+     */
     case RLike(Expression(left), Expression(right)) => op("RLIKE", left, right)
 
     // stringExpressions.scala

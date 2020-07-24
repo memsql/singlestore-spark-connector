@@ -321,6 +321,8 @@ object SQLGen extends LazyLogging {
         .output(plan.output)
     }
 
+    // the last parameter is a spark hint for join
+    // MemSQL does its own optimizations under the hood, so we can safely ignore this parameter
     case plan @ Join(Relation(left),
                      Relation(right),
                      joinType @ (Inner | Cross),
@@ -334,6 +336,8 @@ object SQLGen extends LazyLogging {
         .output(plan.output)
 
     // condition is required for {Left, Right, Full} outer joins
+    // the last parameter is a spark hint for join
+    // MemSQL does its own optimizations under the hood, so we can safely ignore this parameter
     // TODO: need to verify that both relations are part of the same cluster
     case plan @ Join(Relation(left),
                      Relation(right),
@@ -348,6 +352,8 @@ object SQLGen extends LazyLogging {
         .output(plan.output)
 
     // condition is not allowed for natural joins
+    // the last parameter is a spark hint for join
+    // MemSQL does its own optimizations under the hood, so we can safely ignore this parameter
     case plan @ Join(Relation(left), Relation(right), NaturalJoin(joinType), None, _) =>
       newStatement(plan)
         .selectAll()
