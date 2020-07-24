@@ -557,7 +557,7 @@ object ExpressionGen extends LazyLogging {
       f("TO_TIMESTAMP", left, format)
 
     // decimalExpressions.scala
-    case MakeDecimal(Expression(child), p: Int, s: Int, false) => makeDecimal(child, p, s)
+    // TODO: case MakeDecimal(Expression(child), p: Int, s: Int, false) => makeDecimal(child, p, s)
 
     // hash.scala
     case Md5(Expression(child))   => f("MD5", child)
