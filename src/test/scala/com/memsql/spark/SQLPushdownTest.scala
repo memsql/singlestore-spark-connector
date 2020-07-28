@@ -562,4 +562,19 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
+  describe("like") {
+    it("no escape char") {
+      testQuery("select first_name like last_name, last_name like first_name escape from users")
+    }
+
+    it("with escape char") {
+      testQuery(
+        "select first_name like last_name escape '^', last_name like first_name escape '^' from users")
+    }
+
+    it("with escape char equal to '/'") {
+      testQuery(
+        "select first_name like last_name escape '/', last_name like first_name escape '/' from users")
+    }
+  }
 }
