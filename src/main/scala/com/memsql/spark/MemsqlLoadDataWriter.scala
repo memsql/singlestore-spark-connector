@@ -208,7 +208,10 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
     Await.ready(writeFuture, Duration.Inf)
   }
 
-  override def close(): Unit = {}
+  override def close(): Unit = {
+    outputstream.close()
+    conn.close()
+  }
 }
 
 class AvroDataWriter(avroSchema: Schema,
@@ -254,6 +257,8 @@ class AvroDataWriter(avroSchema: Schema,
     Await.ready(writeFuture, Duration.Inf)
   }
 
-  // TODO: close all resources in this method
-  override def close(): Unit = {}
+  override def close(): Unit = {
+    outputstream.close()
+    conn.close()
+  }
 }
