@@ -103,14 +103,14 @@ object ExpressionGen extends LazyLogging {
     }
   }
 
-  object WindowBoundaryExpression {
+  case class WindowBoundaryExpressionExtractor(expressionExtractor: ExpressionExtractor) {
     def unapply(arg: Expression): Option[Joinable] = arg match {
-      case e: SpecialFrameBoundary       => Some(e.sql)
-      case UnaryMinus(Expression(child)) => Some(child + "PRECEDING")
+      case e: SpecialFrameBoundary                => Some(e.sql)
+      case UnaryMinus(expressionExtractor(child)) => Some(child + "PRECEDING")
       case Literal(n: Integer, IntegerType) =>
         Some(Raw(Math.abs(n).toString) + (if (n < 0) "PRECEDING" else "FOLLOWING"))
-      case Expression(child) => Some(child + "FOLLOWING")
-      case _                 => None
+      case expressionExtractor(child) => Some(child + "FOLLOWING")
+      case _                          => None
     }
   }
 
@@ -118,497 +118,554 @@ object ExpressionGen extends LazyLogging {
   // does not exist in Spark 2.3
   // The roundOff argument truncates the result to 8 digits of precision
   // which we can safely ignore, the user can apply an explicit round if needed
-  object MonthsBetweenExpression {
+  case class MonthsBetweenExpressionExtractor(expressionExtractor: ExpressionExtractor) {
     def unapply(arg: MonthsBetween): Option[(Joinable, Joinable)] =
       for {
-        date1 <- Expression.unapply(arg.date1)
-        date2 <- Expression.unapply(arg.date2)
+        date1 <- expressionExtractor.unapply(arg.date1)
+        date2 <- expressionExtractor.unapply(arg.date2)
       } yield (date1, date2)
   }
 
-  def apply: PartialFunction[Expression, Joinable] = {
-    // ----------------------------------
-    // Attributes
-    // ----------------------------------
-    case a: Attribute                       => Attr(a)
-    case a @ Alias(Expression(child), name) => alias(child, name, a.exprId)
+  def apply(expressionExtractor: ExpressionExtractor): PartialFunction[Expression, Joinable] = {
+    val windowBoundaryExpressionExtractor = WindowBoundaryExpressionExtractor(expressionExtractor)
+    val monthsBetweenExpressionExtractor  = MonthsBetweenExpressionExtractor(expressionExtractor)
+    return {
+      // ----------------------------------
+      // Attributes
+      // ----------------------------------
+      case a: Attribute => Attr(a, expressionExtractor.context)
+      case a @ Alias(expressionExtractor(child), name) =>
+        alias(child, name, a.exprId, expressionExtractor.context)
 
-    // ----------------------------------
-    // Literals
-    // ----------------------------------
-    case GenLiteral(v) => v
+      // ----------------------------------
+      // Literals
+      // ----------------------------------
+      case GenLiteral(v) => v
 
-    // ----------------------------------
-    // Variable Expressions
-    // ----------------------------------
+      // ----------------------------------
+      // Variable expressionExtractors
+      // ----------------------------------
 
-    case Coalesce(Expression(Some(child))) => f("COALESCE", child)
-    case Least(Expression(Some(child)))    => f("LEAST", child)
-    case Greatest(Expression(Some(child))) => f("GREATEST", child)
-    case Concat(Expression(Some(child)))   => f("CONCAT", child)
-    case Elt(Expression(Some(child)))      => f("ELT", child)
+      case Coalesce(expressionExtractor(Some(child))) => f("COALESCE", child)
+      case Least(expressionExtractor(Some(child)))    => f("LEAST", child)
+      case Greatest(expressionExtractor(Some(child))) => f("GREATEST", child)
+      case Concat(expressionExtractor(Some(child)))   => f("CONCAT", child)
+      case Elt(expressionExtractor(Some(child)))      => f("ELT", child)
 
-    // ----------------------------------
-    // Aggregate Expressions
-    // ----------------------------------
+      // ----------------------------------
+      // Aggregate expressionExtractors
+      // ----------------------------------
 
-    // Average.scala
-    case AggregateExpression(Average(Expression(child)), _, _, _) => f("AVG", child)
+      // Average.scala
+      case AggregateExpression(Average(expressionExtractor(child)), _, _, _) =>
+        f("AVG", child)
 
-    // CentralMomentAgg.scala
-    case AggregateExpression(StddevPop(Expression(child)), _, _, _)    => f("STDDEV_POP", child)
-    case AggregateExpression(StddevSamp(Expression(child)), _, _, _)   => f("STDDEV_SAMP", child)
-    case AggregateExpression(VariancePop(Expression(child)), _, _, _)  => f("VAR_POP", child)
-    case AggregateExpression(VarianceSamp(Expression(child)), _, _, _) => f("VAR_SAMP", child)
+      // CentralMomentAgg.scala
+      case AggregateExpression(StddevPop(expressionExtractor(child)), _, _, _) =>
+        f("STDDEV_POP", child)
+      case AggregateExpression(StddevSamp(expressionExtractor(child)), _, _, _) =>
+        f("STDDEV_SAMP", child)
+      case AggregateExpression(VariancePop(expressionExtractor(child)), _, _, _) =>
+        f("VAR_POP", child)
+      case AggregateExpression(VarianceSamp(expressionExtractor(child)), _, _, _) =>
+        f("VAR_SAMP", child)
 
-    // TODO: case Skewness(Expression(child))     => ???
-    // TODO: case Kurtosis(Expression(child))     => ???
+      // TODO: case Skewness(expressionExtractor(child))     => ???
+      // TODO: case Kurtosis(expressionExtractor(child))     => ???
 
-    // Count.scala
-    case AggregateExpression(Count(Expression(None)), _, false, _) => Raw("COUNT(*)")
-    case AggregateExpression(Count(Expression(Some(children))), _, isDistinct, _) =>
-      if (isDistinct) {
-        Raw("COUNT") + block(Raw("DISTINCT") + children)
-      } else {
-        f("COUNT", children)
-      }
+      // Count.scala
+      case AggregateExpression(Count(expressionExtractor(None)), _, false, _) =>
+        Raw("COUNT(*)")
+      case AggregateExpression(Count(expressionExtractor(Some(children))), _, isDistinct, _) =>
+        if (isDistinct) {
+          Raw("COUNT") + block(Raw("DISTINCT") + children)
+        } else {
+          f("COUNT", children)
+        }
 
-    // Covariance.scala
-    // TODO: case CovPopulation(Expression(left), Expression(right)) => ???
-    // TODO: case CovSample(Expression(left), Expression(right))     => ???
+      // Covariance.scala
+      // TODO: case CovPopulation(expressionExtractor(left), expressionExtractor(right)) => ???
+      // TODO: case CovSample(expressionExtractor(left), expressionExtractor(right))     => ???
 
-    // First.scala
-    case AggregateExpression(First(Expression(child), Literal(false, BooleanType)), _, _, _) =>
-      f("ANY_VALUE", child)
+      // First.scala
+      case AggregateExpression(First(expressionExtractor(child), Literal(false, BooleanType)),
+                               _,
+                               _,
+                               _) =>
+        f("ANY_VALUE", child)
 
-    // Last.scala
-    case AggregateExpression(Last(Expression(child), Literal(false, BooleanType)), _, _, _) =>
-      f("ANY_VALUE", child)
+      // Last.scala
+      case AggregateExpression(Last(expressionExtractor(child), Literal(false, BooleanType)),
+                               _,
+                               _,
+                               _) =>
+        f("ANY_VALUE", child)
 
-    // Max.scala
-    case AggregateExpression(Max(Expression(child)), _, _, _) => f("MAX", child)
+      // Max.scala
+      case AggregateExpression(Max(expressionExtractor(child)), _, _, _) => f("MAX", child)
 
-    // Min.scala
-    case AggregateExpression(Min(Expression(child)), _, _, _) => f("MIN", child)
+      // Min.scala
+      case AggregateExpression(Min(expressionExtractor(child)), _, _, _) => f("MIN", child)
 
-    // Sum.scala
-    case AggregateExpression(Sum(Expression(child)), _, _, _) => f("SUM", child)
+      // Sum.scala
+      case AggregateExpression(Sum(expressionExtractor(child)), _, _, _) => f("SUM", child)
 
-    // windowExpressions.scala
-    case WindowExpression(Expression(child),
-                          WindowSpecDefinition(Expression(partitionSpec),
-                                               Expression(orderSpec),
-                                               Expression(frameSpec))) =>
-      child + "OVER" + block(
-        partitionSpec.map(Raw("PARTITION BY") + _).getOrElse(empty) +
-          orderSpec.map(Raw("ORDER BY") + _).getOrElse(empty) +
-          frameSpec
-      )
-
-    case UnspecifiedFrame => ""
-
-    case SpecifiedWindowFrame(frameType,
-                              WindowBoundaryExpression(lower),
-                              WindowBoundaryExpression(upper)) =>
-      Raw(frameType.sql) + "BETWEEN" + lower + "AND" + upper
-
-    case Lead(Expression(input), Expression(offset), Literal(null, NullType)) =>
-      f("LEAD", input, offset)
-    case Lag(Expression(input), Expression(offset), Literal(null, NullType)) =>
-      f("LAG", input, offset)
-    case RowNumber()              => "ROW_NUMBER()"
-    case NTile(Expression(child)) => f("NTILE", child)
-    case Rank(_)                  => "RANK()"
-    case DenseRank(_)             => "DENSE_RANK()"
-    case PercentRank(_)           => "PERCENT_RANK()"
-
-    // TODO: case CumeDist()               => ???
-
-    // ----------------------------------
-    // Binary Expressions
-    // ----------------------------------
-
-    // arithmetic.scala
-
-    case Add(Expression(left), Expression(right))       => op("+", left, right)
-    case Subtract(Expression(left), Expression(right))  => op("-", left, right)
-    case Multiply(Expression(left), Expression(right))  => op("*", left, right)
-    case Divide(Expression(left), Expression(right))    => op("/", left, right)
-    case Remainder(Expression(left), Expression(right)) => op("%", left, right)
-
-    case Pmod(Expression(left), Expression(right)) =>
-      block(block(block(left + "%" + right) + "+" + right) + "%" + right)
-
-    // bitwiseExpressions.scala
-    case BitwiseAnd(Expression(left), Expression(right)) => op("&", left, right)
-    case BitwiseOr(Expression(left), Expression(right))  => op("|", left, right)
-    case BitwiseXor(Expression(left), Expression(right)) => op("^", left, right)
-
-    // datetimeExpressions.scala
-
-    // NOTE: we explicitly ignore the timeZoneId field in all of the following expressions
-    // The user is required to setup Spark and/or MemSQL with the timezone they want or they
-    // will get inconsistent results with/without pushdown.
-
-    case DateAdd(Expression(startDate), Expression(days)) => f("ADDDATE", startDate, days)
-    case DateSub(Expression(startDate), Expression(days)) => f("SUBDATE", startDate, days)
-    case DateFormatClass(Expression(left), Expression(right), timeZoneId) =>
-      f("DATE_FORMAT", left, right)
-
-    // Special case since MemSQL doesn't support INTERVAL with both month and microsecond
-    case TimeAdd(Expression(start), Literal(v: CalendarInterval, CalendarIntervalType), timeZoneId)
-        if v.months > 0 && v.microseconds > 0 =>
-      f(
-        "DATE_ADD",
-        f("DATE_ADD", start, Raw("INTERVAL") + v.months.toString + "MONTH"),
-        Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND"
-      )
-
-    case TimeAdd(Expression(start), Expression(interval), timeZoneId) =>
-      f("DATE_ADD", start, interval)
-
-    // Special case since MemSQL doesn't support INTERVAL with both month and microsecond
-    case TimeSub(Expression(start), Literal(v: CalendarInterval, CalendarIntervalType), timeZoneId)
-        if v.months > 0 && v.microseconds > 0 =>
-      f("DATE_SUB",
-        f("DATE_SUB", start, Raw("INTERVAL") + v.months.toString + "MONTH"),
-        Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
-
-    case TimeSub(Expression(start), Expression(interval), timeZoneId) =>
-      f("DATE_SUB", start, interval)
-
-    case FromUTCTimestamp(Expression(timestamp), Expression(timezone)) =>
-      f("CONVERT_TZ", timestamp, StringVar("UTC"), timezone)
-
-    case ToUTCTimestamp(Expression(timestamp), Expression(timezone)) =>
-      f("CONVERT_TZ", timestamp, timezone, StringVar("UTC"))
-
-    case TruncTimestamp(Expression(format), Expression(timestamp), timeZoneId) => {
-      f(
-        "DATE_TRUNC",
-        sqlMapValueCaseInsensitive(
-          format,
-          Map(
-            // MemSQL doesn't support formats ("yyyy", "yy", "mon", "mm", "dd") so we map them here
-            "yyyy" -> "year",
-            "yy"   -> "year",
-            "mon"  -> "month",
-            "mm"   -> "month",
-            "dd"   -> "day"
-          ),
-          format
-        ),
-        timestamp
-      )
-    }
-
-    case TruncDate(Expression(date), Expression(format)) => {
-      f(
-        "DATE_TRUNC",
-        sqlMapValueCaseInsensitive(
-          format,
-          Map(
-            // MemSQL doesn't support formats ("yyyy", "yy", "mon", "mm") so we map them here
-            "yyyy" -> "year",
-            "yy"   -> "year",
-            "mon"  -> "month",
-            "mm"   -> "month"
-          ),
-          format
-        ),
-        date
-      )
-    }
-
-    case MonthsBetweenExpression((date1, date2)) =>
-      f("MONTHS_BETWEEN", date1, date2)
-
-    case AddMonths(Expression(startDate), Expression(numMonths)) =>
-      f("DATE_ADD", startDate, Raw("INTERVAL") + numMonths + "MONTH")
-
-    // MemSQL and spark support other date formats
-    // UnixTime doesn't use format if time is already a dataType or TimestampType
-    case ToUnixTimestamp(e @ Expression(timeExp), _, _) if e.dataType == DateType =>
-      f("UNIX_TIMESTAMP", timeExp)
-
-    case ToUnixTimestamp(e @ Expression(timeExp), _, _) if e.dataType == TimestampType =>
-      f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0")
-
-    case UnixTimestamp(e @ Expression(timeExp), _, _) if e.dataType == DateType =>
-      f("UNIX_TIMESTAMP", timeExp)
-
-    case UnixTimestamp(e @ Expression(timeExp), _, _) if e.dataType == TimestampType =>
-      f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0")
-
-    case FromUnixTime(Expression(sec), format, timeZoneId)
-        if format.foldable && format.dataType == StringType &&
-          format.eval().asInstanceOf[UTF8String] == MEMSQL_DEFAULT_TIME_FORMAT =>
-      f("FROM_UNIXTIME", sec)
-
-    case NextDay(Expression(startDate), dayOfWeek)
-        if dayOfWeek.foldable && dayOfWeek.dataType == StringType =>
-      computeNextDay(
-        startDate,
-        sqlMapValueCaseInsensitive(
-          StringVar(dayOfWeek.eval().asInstanceOf[UTF8String].toString),
-          DAYS_OF_WEEK_OFFSET_MAP,
-          StringVar(null)
+      // windowexpressionExtractors.scala
+      case WindowExpression(expressionExtractor(child),
+                            WindowSpecDefinition(expressionExtractor(partitionSpec),
+                                                 expressionExtractor(orderSpec),
+                                                 expressionExtractor(frameSpec))) =>
+        child + "OVER" + block(
+          partitionSpec.map(Raw("PARTITION BY") + _).getOrElse(empty) +
+            orderSpec.map(Raw("ORDER BY") + _).getOrElse(empty) +
+            frameSpec
         )
-      )
 
-    case NextDay(Expression(startDate), Expression(dayOfWeek)) =>
-      computeNextDay(startDate,
-                     sqlMapValueCaseInsensitive(
-                       dayOfWeek,
-                       DAYS_OF_WEEK_OFFSET_MAP,
-                       StringVar(null)
-                     ))
+      case UnspecifiedFrame => ""
 
-    case DateDiff(Expression(endDate), Expression(startDate)) =>
-      f("DATEDIFF", endDate, startDate)
+      case SpecifiedWindowFrame(frameType,
+                                windowBoundaryExpressionExtractor(lower),
+                                windowBoundaryExpressionExtractor(upper)) =>
+        Raw(frameType.sql) + "BETWEEN" + lower + "AND" + upper
 
-    // hash.scala
-    case Sha2(Expression(left), Expression(right)) => f("SHA2", left, right)
+      case Lead(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
+        f("LEAD", input, offset)
+      case Lag(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
+        f("LAG", input, offset)
+      case RowNumber()                       => "ROW_NUMBER()"
+      case NTile(expressionExtractor(child)) => f("NTILE", child)
+      case Rank(_)                           => "RANK()"
+      case DenseRank(_)                      => "DENSE_RANK()"
+      case PercentRank(_)                    => "PERCENT_RANK()"
 
-    // mathExpressions.scala
-    case Atan2(Expression(left), Expression(right))              => f("ATAN2", left, right)
-    case Pow(Expression(left), Expression(right))                => f("POWER", left, right)
-    case ShiftLeft(Expression(left), Expression(right))          => op("<<", left, right)
-    case ShiftRight(Expression(left), Expression(right))         => op(">>", left, right)
-    case ShiftRightUnsigned(Expression(left), Expression(right)) => op(">>", left, right)
-    case Logarithm(Expression(left), Expression(right))          => f("LOG", left, right)
-    case Round(Expression(child), Expression(scale))             => f("ROUND", child, scale)
+      // TODO: case CumeDist()               => ???
 
-    case Hypot(Expression(left), Expression(right)) =>
-      f("SQRT", op("+", f("POW", left, "2"), f("POW", right, "2")))
+      // ----------------------------------
+      // Binary expressionExtractors
+      // ----------------------------------
 
-    // TODO: case _: BRound => None
+      // arithmetic.scala
 
-    // predicates.scala
-    case And(Expression(left), Expression(right))                => op("AND", left, right)
-    case Or(Expression(left), Expression(right))                 => op("OR", left, right)
-    case EqualTo(Expression(left), Expression(right))            => op("=", left, right)
-    case EqualNullSafe(Expression(left), Expression(right))      => op("<=>", left, right)
-    case LessThan(Expression(left), Expression(right))           => op("<", left, right)
-    case LessThanOrEqual(Expression(left), Expression(right))    => op("<=", left, right)
-    case GreaterThan(Expression(left), Expression(right))        => op(">", left, right)
-    case GreaterThanOrEqual(Expression(left), Expression(right)) => op(">=", left, right)
+      case Add(expressionExtractor(left), expressionExtractor(right))       => op("+", left, right)
+      case Subtract(expressionExtractor(left), expressionExtractor(right))  => op("-", left, right)
+      case Multiply(expressionExtractor(left), expressionExtractor(right))  => op("*", left, right)
+      case Divide(expressionExtractor(left), expressionExtractor(right))    => op("/", left, right)
+      case Remainder(expressionExtractor(left), expressionExtractor(right)) => op("%", left, right)
 
-    case In(Expression(child), Expression(Some(elements))) =>
-      op("IN", child, block(elements))
+      case Pmod(expressionExtractor(left), expressionExtractor(right)) =>
+        block(block(block(left + "%" + right) + "+" + right) + "%" + right)
 
-    case InSet(Expression(child), GenLiteral(elements)) =>
-      op(
-        "IN",
-        child,
-        block(elements)
-      )
+      // bitwiseexpressionExtractors.scala
+      case BitwiseAnd(expressionExtractor(left), expressionExtractor(right)) => op("&", left, right)
+      case BitwiseOr(expressionExtractor(left), expressionExtractor(right))  => op("|", left, right)
+      case BitwiseXor(expressionExtractor(left), expressionExtractor(right)) => op("^", left, right)
 
-    // regexpExpressions.scala
-    case Like(Expression(left), Expression(right))  => op("LIKE", left, right)
-    case RLike(Expression(left), Expression(right)) => op("RLIKE", left, right)
+      // datetimeexpressionExtractors.scala
 
-    // stringExpressions.scala
-    case Contains(Expression(left), Expression(right)) =>
-      op(">", f("INSTR", left, right), "0")
-    case StartsWith(Expression(left), Expression(right)) =>
-      op("LIKE", left, f("CONCAT", right, StringVar("%")))
-    case EndsWith(Expression(left), Expression(right)) =>
-      op("LIKE", left, f("CONCAT", StringVar("%"), right))
-    case StringInstr(Expression(str), Expression(substr)) => f("INSTR", str, substr)
-    case FormatNumber(Expression(x), Expression(d))       => f("FORMAT", x, d)
-    case StringRepeat(Expression(child), Expression(times)) =>
-      f("LPAD", StringVar(""), times + "*" + f("CHAR_LENGTH", child), child)
+      // NOTE: we explicitly ignore the timeZoneId field in all of the following expressionExtractors
+      // The user is required to setup Spark and/or MemSQL with the timezone they want or they
+      // will get inconsistent results with/without pushdown.
 
-    // TODO: case _: Levenshtein => None
+      case DateAdd(expressionExtractor(startDate), expressionExtractor(days)) =>
+        f("ADDDATE", startDate, days)
+      case DateSub(expressionExtractor(startDate), expressionExtractor(days)) =>
+        f("SUBDATE", startDate, days)
+      case DateFormatClass(expressionExtractor(left), expressionExtractor(right), timeZoneId) =>
+        f("DATE_FORMAT", left, right)
 
-    // ----------------------------------
-    // Leaf Expressions
-    // ----------------------------------
+      // Special case since MemSQL doesn't support INTERVAL with both month and microsecond
+      case TimeAdd(expressionExtractor(start),
+                   Literal(v: CalendarInterval, CalendarIntervalType),
+                   timeZoneId) if v.months > 0 && v.microseconds > 0 =>
+        f(
+          "DATE_ADD",
+          f("DATE_ADD", start, Raw("INTERVAL") + v.months.toString + "MONTH"),
+          Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND"
+        )
 
-    // datetimeExpressions.scala
-    case CurrentDate(_)     => "CURRENT_DATE()"
-    case CurrentTimestamp() => "NOW(6)"
+      case TimeAdd(expressionExtractor(start), expressionExtractor(interval), timeZoneId) =>
+        f("DATE_ADD", start, interval)
 
-    // mathExpressions.scala
-    case EulerNumber() => math.E.toString
-    case Pi()          => "PI()"
+      // Special case since MemSQL doesn't support INTERVAL with both month and microsecond
+      case TimeSub(expressionExtractor(start),
+                   Literal(v: CalendarInterval, CalendarIntervalType),
+                   timeZoneId) if v.months > 0 && v.microseconds > 0 =>
+        f("DATE_SUB",
+          f("DATE_SUB", start, Raw("INTERVAL") + v.months.toString + "MONTH"),
+          Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
 
-    // ----------------------------------
-    // Ternary Expressions
-    // ----------------------------------
+      case TimeSub(expressionExtractor(start), expressionExtractor(interval), timeZoneId) =>
+        f("DATE_SUB", start, interval)
 
-    // mathExpressions.scala
-    case Conv(Expression(numExpr), Expression(fromBaseExpr), Expression(toBaseExpr)) =>
-      f("CONV", numExpr, fromBaseExpr, toBaseExpr)
+      case FromUTCTimestamp(expressionExtractor(timestamp), expressionExtractor(timezone)) =>
+        f("CONVERT_TZ", timestamp, StringVar("UTC"), timezone)
 
-    // regexpExpressions.scala
-    case RegExpReplace(Expression(subject), Expression(regexp), Expression(rep)) =>
-      f("REGEXP_REPLACE", subject, regexp, rep)
+      case ToUTCTimestamp(expressionExtractor(timestamp), expressionExtractor(timezone)) =>
+        f("CONVERT_TZ", timestamp, timezone, StringVar("UTC"))
 
-    // TODO: case RegExpExtract(Expression(subject), Expression(regexp), Expression(idx)) => ???
-
-    // stringExpressions.scala
-    case StringReplace(Expression(srcExpr), Expression(searchExpr), Expression(replaceExpr)) =>
-      f("REPLACE", srcExpr, searchExpr, replaceExpr)
-    case SubstringIndex(Expression(strExpr), Expression(delimExpr), Expression(countExpr)) =>
-      f("SUBSTRING_INDEX", strExpr, delimExpr, countExpr)
-    case StringLocate(Expression(substr), Expression(str), Expression(start)) =>
-      f("LOCATE", substr, str, start)
-    case StringLPad(Expression(str), Expression(len), Expression(pad)) => f("LPAD", str, len, pad)
-    case StringRPad(Expression(str), Expression(len), Expression(pad)) => f("RPAD", str, len, pad)
-    case Substring(Expression(str), Expression(pos), Expression(len))  => f("SUBSTR", str, pos, len)
-
-    // TODO: case StringTranslate(Expression(srcExpr), Expression(matchingExpr), Expression(replaceExpr)) => ???
-
-    // ----------------------------------
-    // Unary Expressions
-    // ----------------------------------
-
-    // arithmetic.scala
-    case UnaryMinus(Expression(child))    => f("-", child)
-    case UnaryPositive(Expression(child)) => f("+", child)
-    case Abs(Expression(child))           => f("ABS", child)
-
-    // bitwiseExpressions.scala
-    case BitwiseNot(Expression(expr)) => f("~", expr)
-
-    // Cast.scala
-    case Cast(Expression(child), dataType, _) =>
-      dataType match {
-        case TimestampType => cast(child, "DATETIME(6)")
-        case DateType      => cast(child, "DATE")
-
-        case dt: DecimalType => makeDecimal(child, dt.precision, dt.scale)
-
-        case StringType  => cast(child, "CHAR")
-        case BinaryType  => cast(child, "BINARY")
-        case ShortType   => op("!:>", child, "SMALLINT")
-        case IntegerType => op("!:>", child, "INT")
-        case LongType    => op("!:>", child, "BIGINT")
-        case FloatType   => op("!:>", child, "FLOAT")
-        case DoubleType  => op("!:>", child, "DOUBLE")
-        case BooleanType => op("!:>", child, "BOOL")
-
-        // MemSQL doesn't know how to handle this cast, pass it through AS is
-        case _ => child
+      case TruncTimestamp(expressionExtractor(format),
+                          expressionExtractor(timestamp),
+                          timeZoneId) => {
+        f(
+          "DATE_TRUNC",
+          sqlMapValueCaseInsensitive(
+            format,
+            Map(
+              // MemSQL doesn't support formats ("yyyy", "yy", "mon", "mm", "dd") so we map them here
+              "yyyy" -> "year",
+              "yy"   -> "year",
+              "mon"  -> "month",
+              "mm"   -> "month",
+              "dd"   -> "day"
+            ),
+            format
+          ),
+          timestamp
+        )
       }
 
-    // TODO: case UpCast(Expression(child), dataType, walkedTypePath) => ???
+      case TruncDate(expressionExtractor(date), expressionExtractor(format)) => {
+        f(
+          "DATE_TRUNC",
+          sqlMapValueCaseInsensitive(
+            format,
+            Map(
+              // MemSQL doesn't support formats ("yyyy", "yy", "mon", "mm") so we map them here
+              "yyyy" -> "year",
+              "yy"   -> "year",
+              "mon"  -> "month",
+              "mm"   -> "month"
+            ),
+            format
+          ),
+          date
+        )
+      }
 
-    // datetimeExpressions.scala
-    case Hour(Expression(child), _)     => f("HOUR", child)
-    case Minute(Expression(child), _)   => f("MINUTE", child)
-    case Second(Expression(child), _)   => f("SECOND", child)
-    case DayOfYear(Expression(child))   => f("DAYOFYEAR", child)
-    case Year(Expression(child))        => f("YEAR", child)
-    case Quarter(Expression(child))     => f("QUARTER", child)
-    case Month(Expression(child))       => f("MONTH", child)
-    case DayOfMonth(Expression(child))  => f("DAY", child)
-    case DayOfWeek(Expression(child))   => f("DAYOFWEEK", child)
-    case WeekOfYear(Expression(child))  => f("WEEK", child, "3")
-    case LastDay(Expression(startDate)) => f("LAST_DAY", startDate)
+      case monthsBetweenExpressionExtractor((date1, date2)) =>
+        f("MONTHS_BETWEEN", date1, date2)
 
-    case ParseToDate(Expression(left), None, _)                     => f("DATE", left)
-    case ParseToDate(Expression(left), Some(Expression(format)), _) => f("TO_DATE", left, format)
+      case AddMonths(expressionExtractor(startDate), expressionExtractor(numMonths)) =>
+        f("DATE_ADD", startDate, Raw("INTERVAL") + numMonths + "MONTH")
 
-    case ParseToTimestamp(Expression(left), None, _) => f("TIMESTAMP", left)
-    case ParseToTimestamp(Expression(left), Some(Expression(format)), _) =>
-      f("TO_TIMESTAMP", left, format)
+      // MemSQL and spark support other date formats
+      // UnixTime doesn't use format if time is already a dataType or TimestampType
+      case ToUnixTimestamp(e @ expressionExtractor(timeExp), _, _) if e.dataType == DateType =>
+        f("UNIX_TIMESTAMP", timeExp)
 
-    // decimalExpressions.scala
-    case MakeDecimal(Expression(child), p: Int, s: Int) => makeDecimal(child, p, s)
+      case ToUnixTimestamp(e @ expressionExtractor(timeExp), _, _) if e.dataType == TimestampType =>
+        f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0")
 
-    // hash.scala
-    case Md5(Expression(child))   => f("MD5", child)
-    case Sha1(Expression(child))  => f("SHA1", child)
-    case Crc32(Expression(child)) => f("CRC32", child)
+      case UnixTimestamp(e @ expressionExtractor(timeExp), _, _) if e.dataType == DateType =>
+        f("UNIX_TIMESTAMP", timeExp)
 
-    // mathExpressions.scala
-    case Acos(Expression(child))      => f("ACOS", child)
-    case Asin(Expression(child))      => f("ASIN", child)
-    case Atan(Expression(child))      => f("ATAN", child)
-    case Ceil(Expression(child))      => f("CEIL", child)
-    case Cos(Expression(child))       => f("COS", child)
-    case Exp(Expression(child))       => f("EXP", child)
-    case Expm1(Expression(child))     => block(func("EXP", child) + "- 1")
-    case Floor(Expression(child))     => f("FLOOR", child)
-    case Log(Expression(child))       => f("LOG", child)
-    case Log2(Expression(child))      => f("LOG2", child)
-    case Log10(Expression(child))     => f("LOG10", child)
-    case Log1p(Expression(child))     => f("LOG", child + "+ 1")
-    case Signum(Expression(child))    => f("SIGN", child)
-    case Sin(Expression(child))       => f("SIN", child)
-    case Sqrt(Expression(child))      => f("SQRT", child)
-    case Tan(Expression(child))       => f("TAN", child)
-    case Cot(Expression(child))       => f("COT", child)
-    case ToDegrees(Expression(child)) => f("DEGREES", child)
-    case ToRadians(Expression(child)) => f("RADIANS", child)
-    case Bin(Expression(child))       => f("BIN", child)
-    case Hex(Expression(child))       => f("HEX", child)
-    case Unhex(Expression(child))     => f("UNHEX", child)
+      case UnixTimestamp(e @ expressionExtractor(timeExp), _, _) if e.dataType == TimestampType =>
+        f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0")
 
-    // tanh(x) = (exp(x) - exp(-x)) / (exp(x) + exp(-x))
-    case Tanh(Expression(child)) =>
-      op("/",
-         op("-", f("EXP", child), f("EXP", f("-", child))),
-         op("+", f("EXP", child), f("EXP", f("-", child))))
+      case FromUnixTime(expressionExtractor(sec), format, timeZoneId)
+          if format.foldable && format.dataType == StringType &&
+            format.eval().asInstanceOf[UTF8String] == MEMSQL_DEFAULT_TIME_FORMAT =>
+        f("FROM_UNIXTIME", sec)
 
-    // sinh(x) = (exp(x) - exp(-x)) / 2
-    case Sinh(Expression(child)) =>
-      op("/", op("-", f("EXP", child), f("EXP", f("-", child))), "2")
+      case NextDay(expressionExtractor(startDate), dayOfWeek)
+          if dayOfWeek.foldable && dayOfWeek.dataType == StringType =>
+        computeNextDay(
+          startDate,
+          sqlMapValueCaseInsensitive(
+            StringVar(dayOfWeek.eval().asInstanceOf[UTF8String].toString),
+            DAYS_OF_WEEK_OFFSET_MAP,
+            StringVar(null)
+          )
+        )
 
-    // cosh(x) = (exp(x) + exp(-x)) / 2
-    case Cosh(Expression(child)) =>
-      op("/", op("+", f("EXP", child), f("EXP", f("-", child))), "2")
+      case NextDay(expressionExtractor(startDate), expressionExtractor(dayOfWeek)) =>
+        computeNextDay(startDate,
+                       sqlMapValueCaseInsensitive(
+                         dayOfWeek,
+                         DAYS_OF_WEEK_OFFSET_MAP,
+                         StringVar(null)
+                       ))
 
-    case Rint(Expression(child)) => f("ROUND", child, "0")
+      case DateDiff(expressionExtractor(endDate), expressionExtractor(startDate)) =>
+        f("DATEDIFF", endDate, startDate)
 
-    // TODO: case Factorial(Expression(child)) => ???
-    // TODO: case Cbrt(Expression(child))      => f("POW", child, op("/", "1", "3"))
-    //  We need to wait for the engine to implement precise cbrt
+      // hash.scala
+      case Sha2(expressionExtractor(left), expressionExtractor(right)) => f("SHA2", left, right)
 
-    // nullExpressions.scala
-    case IfNull(Expression(left), Expression(right), _) => f("COALESCE", left, right)
-    case NullIf(Expression(left), Expression(right), _) => f("NULLIF", left, right)
-    case Nvl(Expression(left), Expression(right), _)    => f("COALESCE", left, right)
-    case IsNull(Expression(child))                      => block(child) + "IS NULL"
-    case IsNotNull(Expression(child))                   => block(child) + "IS NOT NULL"
+      // mathexpressionExtractors.scala
+      case Atan2(expressionExtractor(left), expressionExtractor(right))     => f("ATAN2", left, right)
+      case Pow(expressionExtractor(left), expressionExtractor(right))       => f("POWER", left, right)
+      case ShiftLeft(expressionExtractor(left), expressionExtractor(right)) => op("<<", left, right)
+      case ShiftRight(expressionExtractor(left), expressionExtractor(right)) =>
+        op(">>", left, right)
+      case ShiftRightUnsigned(expressionExtractor(left), expressionExtractor(right)) =>
+        op(">>", left, right)
+      case Logarithm(expressionExtractor(left), expressionExtractor(right)) => f("LOG", left, right)
+      case Round(expressionExtractor(child), expressionExtractor(scale))    => f("ROUND", child, scale)
 
-    case Nvl2(Expression(expr1), Expression(expr2), Expression(expr3), _) =>
-      f("IF", expr1 + "IS NOT NULL", expr2, expr3)
+      case Hypot(expressionExtractor(left), expressionExtractor(right)) =>
+        f("SQRT", op("+", f("POW", left, "2"), f("POW", right, "2")))
 
-    // predicates.scala
-    case Not(Expression(child)) => block(Raw("NOT") + child)
+      // TODO: case _: BRound => None
 
-    // randomExpressions.scala
-    case Rand(Expression(child)) => f("RAND", child)
-    // TODO: case Randn(Expression(child)) => ???
+      // predicates.scala
+      case And(expressionExtractor(left), expressionExtractor(right)) => op("AND", left, right)
+      case Or(expressionExtractor(left), expressionExtractor(right))  => op("OR", left, right)
 
-    // SortOrder.scala
-    // in MemSQL, nulls always come first when direction = ascending
-    case SortOrder(Expression(child), Ascending, NullsFirst, _) => block(child) + "ASC"
-    // in MemSQL, nulls always come last when direction = descending
-    case SortOrder(Expression(child), Descending, NullsLast, _) => block(child) + "DESC"
+      case EqualTo(expressionExtractor(left), expressionExtractor(right)) => op("=", left, right)
+      case EqualNullSafe(expressionExtractor(left), expressionExtractor(right)) =>
+        op("<=>", left, right)
+      case LessThan(expressionExtractor(left), expressionExtractor(right)) => op("<", left, right)
+      case LessThanOrEqual(expressionExtractor(left), expressionExtractor(right)) =>
+        op("<=", left, right)
+      case GreaterThan(expressionExtractor(left), expressionExtractor(right)) =>
+        op(">", left, right)
+      case GreaterThanOrEqual(expressionExtractor(left), expressionExtractor(right)) =>
+        op(">=", left, right)
 
-    // stringExpressions.scala
-    case Upper(Expression(child)) => f("UPPER", child)
-    case Lower(Expression(child)) => f("LOWER", child)
+      case In(expressionExtractor(child), expressionExtractor(Some(elements))) =>
+        op("IN", child, block(elements))
 
-    case StringSpace(Expression(child)) => f("LPAD", "", child, StringVar(" "))
+      case InSet(expressionExtractor(child), GenLiteral(elements)) =>
+        op(
+          "IN",
+          child,
+          block(elements)
+        )
 
-    case Right(Expression(str), Expression(len), _) => f("RIGHT", str, len)
-    case Left(Expression(str), Expression(len), _)  => f("LEFT", str, len)
-    case Length(Expression(child))                  => f("CHAR_LENGTH", child)
-    case BitLength(Expression(child))               => block(func("LENGTH", child) + "* 8")
-    case OctetLength(Expression(child))             => f("LENGTH", child)
-    case Ascii(Expression(child))                   => f("ASCII", child)
-    case Chr(Expression(child))                     => f("CHAR", child)
-    case Base64(Expression(child))                  => f("TO_BASE64", child)
-    case UnBase64(Expression(child))                => f("FROM_BASE64", child)
+      // regexpexpressionExtractors.scala
+      case Like(expressionExtractor(left), expressionExtractor(right))  => op("LIKE", left, right)
+      case RLike(expressionExtractor(left), expressionExtractor(right)) => op("RLIKE", left, right)
 
-    // TODO: case InitCap(Expression(child)) => ???
-    // TODO: case StringReverse(Expression(child)) => ???
-    // TODO: case SoundEx(Expression(child)) => ???
+      // stringexpressionExtractors.scala
+      case Contains(expressionExtractor(left), expressionExtractor(right)) =>
+        op(">", f("INSTR", left, right), "0")
+      case StartsWith(expressionExtractor(left), expressionExtractor(right)) =>
+        op("LIKE", left, f("CONCAT", right, StringVar("%")))
+      case EndsWith(expressionExtractor(left), expressionExtractor(right)) =>
+        op("LIKE", left, f("CONCAT", StringVar("%"), right))
+      case StringInstr(expressionExtractor(str), expressionExtractor(substr)) =>
+        f("INSTR", str, substr)
+      case FormatNumber(expressionExtractor(x), expressionExtractor(d)) => f("FORMAT", x, d)
+      case StringRepeat(expressionExtractor(child), expressionExtractor(times)) =>
+        f("LPAD", StringVar(""), times + "*" + f("CHAR_LENGTH", child), child)
+
+      // TODO: case _: Levenshtein => None
+
+      // ----------------------------------
+      // Leaf expressionExtractors
+      // ----------------------------------
+
+      // datetimeexpressionExtractors.scala
+      case CurrentDate(_)     => "CURRENT_DATE()"
+      case CurrentTimestamp() => "NOW(6)"
+
+      // mathexpressionExtractors.scala
+      case EulerNumber() => math.E.toString
+      case Pi()          => "PI()"
+
+      // ----------------------------------
+      // Ternary expressionExtractors
+      // ----------------------------------
+
+      // mathexpressionExtractors.scala
+      case Conv(expressionExtractor(numExpr),
+                expressionExtractor(fromBaseExpr),
+                expressionExtractor(toBaseExpr)) =>
+        f("CONV", numExpr, fromBaseExpr, toBaseExpr)
+
+      // regexpexpressionExtractors.scala
+      case RegExpReplace(expressionExtractor(subject),
+                         expressionExtractor(regexp),
+                         expressionExtractor(rep)) =>
+        f("REGEXP_REPLACE", subject, regexp, rep)
+
+      // TODO: case RegExpExtract(expressionExtractor(subject), expressionExtractor(regexp), expressionExtractor(idx)) => ???
+
+      // stringexpressionExtractors.scala
+      case StringReplace(expressionExtractor(srcExpr),
+                         expressionExtractor(searchExpr),
+                         expressionExtractor(replaceExpr)) =>
+        f("REPLACE", srcExpr, searchExpr, replaceExpr)
+      case SubstringIndex(expressionExtractor(strExpr),
+                          expressionExtractor(delimExpr),
+                          expressionExtractor(countExpr)) =>
+        f("SUBSTRING_INDEX", strExpr, delimExpr, countExpr)
+      case StringLocate(expressionExtractor(substr),
+                        expressionExtractor(str),
+                        expressionExtractor(start)) =>
+        f("LOCATE", substr, str, start)
+      case StringLPad(expressionExtractor(str),
+                      expressionExtractor(len),
+                      expressionExtractor(pad)) =>
+        f("LPAD", str, len, pad)
+      case StringRPad(expressionExtractor(str),
+                      expressionExtractor(len),
+                      expressionExtractor(pad)) =>
+        f("RPAD", str, len, pad)
+      case Substring(expressionExtractor(str),
+                     expressionExtractor(pos),
+                     expressionExtractor(len)) =>
+        f("SUBSTR", str, pos, len)
+
+      // TODO: case StringTranslate(expressionExtractor(srcExpr), expressionExtractor(matchingExpr), expressionExtractor(replaceExpr)) => ???
+
+      // ----------------------------------
+      // Unary expressionExtractors
+      // ----------------------------------
+
+      // arithmetic.scala
+      case UnaryMinus(expressionExtractor(child))    => f("-", child)
+      case UnaryPositive(expressionExtractor(child)) => f("+", child)
+      case Abs(expressionExtractor(child))           => f("ABS", child)
+
+      // bitwiseexpressionExtractors.scala
+      case BitwiseNot(expressionExtractor(expr)) => f("~", expr)
+
+      // Cast.scala
+      case Cast(expressionExtractor(child), dataType, _) =>
+        dataType match {
+          case TimestampType => cast(child, "DATETIME(6)")
+          case DateType      => cast(child, "DATE")
+
+          case dt: DecimalType => makeDecimal(child, dt.precision, dt.scale)
+
+          case StringType  => cast(child, "CHAR")
+          case BinaryType  => cast(child, "BINARY")
+          case ShortType   => op("!:>", child, "SMALLINT")
+          case IntegerType => op("!:>", child, "INT")
+          case LongType    => op("!:>", child, "BIGINT")
+          case FloatType   => op("!:>", child, "FLOAT")
+          case DoubleType  => op("!:>", child, "DOUBLE")
+          case BooleanType => op("!:>", child, "BOOL")
+
+          // MemSQL doesn't know how to handle this cast, pass it through AS is
+          case _ => child
+        }
+
+      // TODO: case UpCast(expressionExtractor(child), dataType, walkedTypePath) => ???
+
+      // datetimeexpressionExtractors.scala
+      case Hour(expressionExtractor(child), _)     => f("HOUR", child)
+      case Minute(expressionExtractor(child), _)   => f("MINUTE", child)
+      case Second(expressionExtractor(child), _)   => f("SECOND", child)
+      case DayOfYear(expressionExtractor(child))   => f("DAYOFYEAR", child)
+      case Year(expressionExtractor(child))        => f("YEAR", child)
+      case Quarter(expressionExtractor(child))     => f("QUARTER", child)
+      case Month(expressionExtractor(child))       => f("MONTH", child)
+      case DayOfMonth(expressionExtractor(child))  => f("DAY", child)
+      case DayOfWeek(expressionExtractor(child))   => f("DAYOFWEEK", child)
+      case WeekOfYear(expressionExtractor(child))  => f("WEEK", child, "3")
+      case LastDay(expressionExtractor(startDate)) => f("LAST_DAY", startDate)
+
+      case ParseToDate(expressionExtractor(left), None, _) => f("DATE", left)
+      case ParseToDate(expressionExtractor(left), Some(expressionExtractor(format)), _) =>
+        f("TO_DATE", left, format)
+
+      case ParseToTimestamp(expressionExtractor(left), None, _) => f("TIMESTAMP", left)
+      case ParseToTimestamp(expressionExtractor(left), Some(expressionExtractor(format)), _) =>
+        f("TO_TIMESTAMP", left, format)
+
+      // decimalexpressionExtractors.scala
+      case MakeDecimal(expressionExtractor(child), p: Int, s: Int) => makeDecimal(child, p, s)
+
+      // hash.scala
+      case Md5(expressionExtractor(child))   => f("MD5", child)
+      case Sha1(expressionExtractor(child))  => f("SHA1", child)
+      case Crc32(expressionExtractor(child)) => f("CRC32", child)
+
+      // mathexpressionExtractors.scala
+      case Acos(expressionExtractor(child))      => f("ACOS", child)
+      case Asin(expressionExtractor(child))      => f("ASIN", child)
+      case Atan(expressionExtractor(child))      => f("ATAN", child)
+      case Ceil(expressionExtractor(child))      => f("CEIL", child)
+      case Cos(expressionExtractor(child))       => f("COS", child)
+      case Exp(expressionExtractor(child))       => f("EXP", child)
+      case Expm1(expressionExtractor(child))     => block(func("EXP", child) + "- 1")
+      case Floor(expressionExtractor(child))     => f("FLOOR", child)
+      case Log(expressionExtractor(child))       => f("LOG", child)
+      case Log2(expressionExtractor(child))      => f("LOG2", child)
+      case Log10(expressionExtractor(child))     => f("LOG10", child)
+      case Log1p(expressionExtractor(child))     => f("LOG", child + "+ 1")
+      case Signum(expressionExtractor(child))    => f("SIGN", child)
+      case Sin(expressionExtractor(child))       => f("SIN", child)
+      case Sqrt(expressionExtractor(child))      => f("SQRT", child)
+      case Tan(expressionExtractor(child))       => f("TAN", child)
+      case Cot(expressionExtractor(child))       => f("COT", child)
+      case ToDegrees(expressionExtractor(child)) => f("DEGREES", child)
+      case ToRadians(expressionExtractor(child)) => f("RADIANS", child)
+      case Bin(expressionExtractor(child))       => f("BIN", child)
+      case Hex(expressionExtractor(child))       => f("HEX", child)
+      case Unhex(expressionExtractor(child))     => f("UNHEX", child)
+
+      // tanh(x) = (exp(x) - exp(-x)) / (exp(x) + exp(-x))
+      case Tanh(expressionExtractor(child)) =>
+        op("/",
+           op("-", f("EXP", child), f("EXP", f("-", child))),
+           op("+", f("EXP", child), f("EXP", f("-", child))))
+
+      // sinh(x) = (exp(x) - exp(-x)) / 2
+      case Sinh(expressionExtractor(child)) =>
+        op("/", op("-", f("EXP", child), f("EXP", f("-", child))), "2")
+
+      // cosh(x) = (exp(x) + exp(-x)) / 2
+      case Cosh(expressionExtractor(child)) =>
+        op("/", op("+", f("EXP", child), f("EXP", f("-", child))), "2")
+
+      case Rint(expressionExtractor(child)) => f("ROUND", child, "0")
+
+      // TODO: case Factorial(expressionExtractor(child)) => ???
+      // TODO: case Cbrt(expressionExtractor(child))      => f("POW", child, op("/", "1", "3"))
+      //  We need to wait for the engine to implement precise cbrt
+
+      // nullexpressionExtractors.scala
+      case IfNull(expressionExtractor(left), expressionExtractor(right), _) =>
+        f("COALESCE", left, right)
+      case NullIf(expressionExtractor(left), expressionExtractor(right), _) =>
+        f("NULLIF", left, right)
+      case Nvl(expressionExtractor(left), expressionExtractor(right), _) =>
+        f("COALESCE", left, right)
+      case IsNull(expressionExtractor(child))    => block(child) + "IS NULL"
+      case IsNotNull(expressionExtractor(child)) => block(child) + "IS NOT NULL"
+
+      case Nvl2(expressionExtractor(expr1),
+                expressionExtractor(expr2),
+                expressionExtractor(expr3),
+                _) =>
+        f("IF", expr1 + "IS NOT NULL", expr2, expr3)
+
+      // predicates.scala
+      case Not(expressionExtractor(child)) => block(Raw("NOT") + child)
+
+      // randomexpressionExtractors.scala
+      case Rand(expressionExtractor(child)) => f("RAND", child)
+      // TODO: case Randn(expressionExtractor(child)) => ???
+
+      // SortOrder.scala
+      // in MemSQL, nulls always come first when direction = ascending
+      case SortOrder(expressionExtractor(child), Ascending, NullsFirst, _) => block(child) + "ASC"
+      // in MemSQL, nulls always come last when direction = descending
+      case SortOrder(expressionExtractor(child), Descending, NullsLast, _) => block(child) + "DESC"
+
+      // stringexpressionExtractors.scala
+      case Upper(expressionExtractor(child)) => f("UPPER", child)
+      case Lower(expressionExtractor(child)) => f("LOWER", child)
+
+      case StringSpace(expressionExtractor(child)) => f("LPAD", "", child, StringVar(" "))
+
+      case Right(expressionExtractor(str), expressionExtractor(len), _) => f("RIGHT", str, len)
+      case Left(expressionExtractor(str), expressionExtractor(len), _)  => f("LEFT", str, len)
+      case Length(expressionExtractor(child))                           => f("CHAR_LENGTH", child)
+      case BitLength(expressionExtractor(child))                        => block(func("LENGTH", child) + "* 8")
+      case OctetLength(expressionExtractor(child))                      => f("LENGTH", child)
+      case Ascii(expressionExtractor(child))                            => f("ASCII", child)
+      case Chr(expressionExtractor(child))                              => f("CHAR", child)
+      case Base64(expressionExtractor(child))                           => f("TO_BASE64", child)
+      case UnBase64(expressionExtractor(child))                         => f("FROM_BASE64", child)
+
+      // TODO: case InitCap(expressionExtractor(child)) => ???
+      // TODO: case StringReverse(expressionExtractor(child)) => ???
+      // TODO: case SoundEx(expressionExtractor(child)) => ???
+    }
   }
 }

@@ -1,23 +1,19 @@
 package com.memsql.spark
 
-import java.sql.{Date, SQLSyntaxErrorException, Timestamp}
+import java.sql.{Date, Timestamp}
 
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.logical._
-import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.execution.datasources.LogicalRelation
-import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.types._
-import org.apache.spark.unsafe.types.UTF8String
 import org.slf4j.{Logger, LoggerFactory}
 
+import scala.collection.immutable.HashMap
 import scala.collection.{breakOut, mutable}
 
 object SQLGen extends LazyLogging {
   type VariableList = List[Var[_]]
-
-  val aliasGen = Iterator.from(1).map(i => s"a$i")
 
   trait Joinable {
     def +(j: Joinable): Statement
@@ -56,7 +52,7 @@ object SQLGen extends LazyLogging {
     lazy val sql: String = reverseList.map(_.toSQL(fieldMap)).mkString(" ")
 
     def asLogicalPlan(isFinal: Boolean = false): LogicalPlan =
-      relations.head.toLogicalPlan(output, sql, variables, isFinal)
+      relations.head.toLogicalPlan(output, sql, variables, isFinal, relations.head.reader.context)
 
     private def newlineIfEmpty: String = list match {
       case Nil => ""
@@ -73,7 +69,11 @@ object SQLGen extends LazyLogging {
     }
 
     def withLogicalPlanComment(plan: LogicalPlan): Statement =
-      this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${plan.simpleString}"
+      if (log.isTraceEnabled()) {
+        this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${plan.simpleString}"
+      } else {
+        this
+      }
 
     def selectAll(): Statement                 = this + "\nSELECT *"
     def select(c: Joinable): Statement         = this + "\nSELECT" + c
@@ -148,7 +148,11 @@ object SQLGen extends LazyLogging {
       rawOutput: Seq[Attribute],
       reader: MemsqlReader,
       name: String,
-      toLogicalPlan: (Seq[AttributeReference], String, VariableList, Boolean) => LogicalPlan
+      toLogicalPlan: (Seq[AttributeReference],
+                      String,
+                      VariableList,
+                      Boolean,
+                      SQLGenContext) => LogicalPlan
   ) extends SQLChunk {
 
     val isFinal = reader.isFinal
@@ -166,7 +170,7 @@ object SQLGen extends LazyLogging {
     def renameOutput: LogicalPlan =
       select(
         output
-          .map(a => alias(MemsqlDialect.quoteIdentifier(a.name), a.name, a.exprId))
+          .map(a => alias(MemsqlDialect.quoteIdentifier(a.name), a.name, a.exprId, reader.context))
           .reduce(_ + "," + _))
         .from(this)
         .output(output)
@@ -190,10 +194,11 @@ object SQLGen extends LazyLogging {
 
           case (a, _) => a
         })
+      val expressionExtractor = ExpressionExtractor(reader.context)
 
       select(castedOutputExpr match {
-        case Expression(expr) => expr
-        case _                => None
+        case expressionExtractor(expr) => expr
+        case _                         => None
       }).from(this)
         .output(output)
         .asLogicalPlan(true)
@@ -207,28 +212,30 @@ object SQLGen extends LazyLogging {
           def convertBack(output: Seq[AttributeReference],
                           sql: String,
                           variables: VariableList,
-                          isFinal: Boolean): LogicalPlan = {
+                          isFinal: Boolean,
+                          context: SQLGenContext): LogicalPlan = {
             new LogicalRelation(
               reader.copy(query = sql,
                           variables = variables,
                           isFinal = isFinal,
-                          expectedOutput = output),
+                          expectedOutput = output,
+                          context = context),
               output,
               catalogTable,
               isStreaming
             )
           }
 
-          Some(Relation(output, reader, aliasGen.next, convertBack))
+          Some(Relation(output, reader, reader.context.nextAlias(), convertBack))
         }
         case _ => None
       }
   }
 
-  case class Attr(a: Attribute) extends Chunk {
+  case class Attr(a: Attribute, context: SQLGenContext) extends Chunk {
     override def toSQL(fieldMap: Map[ExprId, Attribute]): String = {
       val target = fieldMap.getOrElse(a.exprId, a)
-      Ident(s"${target.name}#${target.exprId.id}").sql
+      context.ident(target.name, target.exprId)
     }
   }
 
@@ -262,8 +269,8 @@ object SQLGen extends LazyLogging {
 
   def block(j: Joinable): Statement = Raw("(") + j + ")"
 
-  def alias(j: Joinable, n: String, e: ExprId): Statement =
-    block(j) + "AS" + Ident(s"${n}#${e.id}")
+  def alias(j: Joinable, n: String, e: ExprId, context: SQLGenContext): Statement =
+    block(j) + "AS" + context.ident(n, e)
 
   def func(n: String, j: Joinable): Statement  = Raw(n) + block(j)
   def func(n: String, j: Joinable*): Statement = Raw(n) + block(j.reduce(_ + "," + _))
@@ -288,81 +295,116 @@ object SQLGen extends LazyLogging {
         }) + "ELSE" + default + "END")
     }
 
-  val fromLogicalPlan: PartialFunction[LogicalPlan, Statement] = {
-
-    case plan @ Project(Expression(expr), Relation(relation)) =>
-      newStatement(plan)
-        .select(expr)
-        .from(relation)
-        .output(plan.output)
-
-    case plan @ Filter(Expression(expr), Relation(relation)) =>
-      newStatement(plan)
-        .selectAll()
-        .from(relation)
-        .where(expr)
-        .output(plan.output)
-
-    case plan @ Aggregate(Expression(groupingExpr),
-                          Expression(aggregateExpr),
-                          Relation(relation)) =>
-      newStatement(plan)
-        .select(aggregateExpr)
-        .from(relation)
-        .groupby(groupingExpr)
-        .output(plan.output)
-
-    case plan @ Window(Expression(windowExpressions), _, _, Relation(relation)) => {
-      newStatement(plan)
-        .select(windowExpressions.map(exp => Raw("*,") + exp))
-        .from(relation)
-        .output(plan.output)
+  case class SortPredicates(expressionExtractor: ExpressionExtractor) {
+    def joinPredicates(predicates: Seq[Option[Joinable]], operation: String): Option[Joinable] = {
+      predicates
+        .sortWith((p1, p2) => p1.toString < p2.toString)
+        .reduce[Option[Joinable]] {
+          case (Some(left), Some(right)) => Some(ExpressionGen.op(operation, left, right))
+          case _                         => None
+        }
     }
 
-    case plan @ Join(Relation(left),
-                     Relation(right),
-                     joinType @ (Inner | Cross),
-                     Expression(condition)) =>
-      newStatement(plan)
-        .selectAll()
-        .from(left)
-        .join(right, joinType)
-        .on(condition)
-        .output(plan.output)
+    def extractOr(expr: Expression): Seq[Option[Joinable]] = expr match {
+      case Or(left, right)           => extractOr(left) ++ extractOr(right)
+      case And(left, right)          => Seq(joinPredicates(extractAnd(left) ++ extractAnd(right), "AND"))
+      case expressionExtractor(expr) => Seq(Some(expr))
+      case _                         => Seq(None)
+    }
 
-    // condition is required for {Left, Right, Full} outer joins
-    // TODO: need to verify that both relations are part of the same cluster
-    case plan @ Join(Relation(left),
-                     Relation(right),
-                     joinType @ (LeftOuter | RightOuter | FullOuter),
-                     Expression(Some(condition))) =>
-      newStatement(plan)
-        .selectAll()
-        .from(left)
-        .join(right, joinType)
-        .on(condition)
-        .output(plan.output)
+    def extractAnd(expr: Expression): Seq[Option[Joinable]] = expr match {
+      case And(left, right)          => extractAnd(left) ++ extractAnd(right)
+      case Or(left, right)           => Seq(joinPredicates(extractOr(left) ++ extractOr(right), "OR"))
+      case expressionExtractor(expr) => Seq(Some(expr))
+      case _                         => Seq(None)
+    }
 
-    // condition is not allowed for natural joins
-    case plan @ Join(Relation(left), Relation(right), NaturalJoin(joinType), None) =>
-      newStatement(plan)
-        .selectAll()
-        .from(left)
-        .join(right, joinType)
-        .output(plan.output)
+    def unapply(expr: Expression): Option[Joinable] = {
+      joinPredicates(extractAnd(expr), "AND")
+    }
 
+    def unapply(expr: Option[Expression]): Option[Option[Joinable]] = expr.map(unapply)
   }
 
-  val fromSingleLimitSort: PartialFunction[LogicalPlan, Statement] = {
+  def fromLogicalPlan(
+      expressionExtractor: ExpressionExtractor): PartialFunction[LogicalPlan, Statement] = {
+    val sortPredicates = SortPredicates(expressionExtractor)
+    return {
+      case plan @ Project(expressionExtractor(expr), Relation(relation)) =>
+        newStatement(plan)
+          .select(expr)
+          .from(relation)
+          .output(plan.output)
 
-    case plan @ Limit(Expression(expr), Relation(relation)) =>
+      case plan @ Filter(sortPredicates(filter), Relation(relation)) => {
+        newStatement(plan)
+          .selectAll()
+          .from(relation)
+          .where(filter)
+          .output(plan.output)
+      }
+
+      case plan @ Aggregate(expressionExtractor(groupingExpr),
+                            expressionExtractor(aggregateExpr),
+                            Relation(relation)) =>
+        newStatement(plan)
+          .select(aggregateExpr)
+          .from(relation)
+          .groupby(groupingExpr)
+          .output(plan.output)
+
+      case plan @ Window(expressionExtractor(windowExpressions), _, _, Relation(relation)) => {
+        newStatement(plan)
+          .select(windowExpressions.map(exp => Raw("*,") + exp))
+          .from(relation)
+          .output(plan.output)
+      }
+
+      case plan @ Join(Relation(left),
+                       Relation(right),
+                       joinType @ (Inner | Cross),
+                       sortPredicates(condition)) =>
+        newStatement(plan)
+          .selectAll()
+          .from(left)
+          .join(right, joinType)
+          .on(condition)
+          .output(plan.output)
+
+      // condition is required for {Left, Right, Full} outer joins
+      // TODO: need to verify that both relations are part of the same cluster
+      case plan @ Join(Relation(left),
+                       Relation(right),
+                       joinType @ (LeftOuter | RightOuter | FullOuter),
+                       sortPredicates(condition)) =>
+        newStatement(plan)
+          .selectAll()
+          .from(left)
+          .join(right, joinType)
+          .on(condition)
+          .output(plan.output)
+
+      // condition is not allowed for natural joins
+      case plan @ Join(Relation(left), Relation(right), NaturalJoin(joinType), None) =>
+        newStatement(plan)
+          .selectAll()
+          .from(left)
+          .join(right, joinType)
+          .output(plan.output)
+    }
+  }
+
+  def fromSingleLimitSort(
+      expressionExtractor: ExpressionExtractor): PartialFunction[LogicalPlan, Statement] = {
+
+    case plan @ Limit(expressionExtractor(expr), Relation(relation)) =>
       newStatement(plan)
         .selectAll()
         .from(relation)
         .limit(expr)
         .output(plan.output)
 
-    case plan @ Sort(Expression(expr), true, Relation(relation)) =>
+    case plan @ Sort(expressionExtractor(expr), true, Relation(relation)) =>
       newStatement(plan)
         .selectAll()
         .from(relation)
@@ -374,10 +416,11 @@ object SQLGen extends LazyLogging {
 
   }
 
-  val fromNestedLogicalPlan: PartialFunction[LogicalPlan, Statement] = {
+  def fromNestedLogicalPlan(
+      expressionExtractor: ExpressionExtractor): PartialFunction[LogicalPlan, Statement] = {
 
-    case plan @ Limit(Expression(limitExpr),
-                      innerPlan @ Project(Expression(projectExpr), Relation(relation))) =>
+    case plan @ Limit(expressionExtractor(limitExpr),
+                      innerPlan @ Project(expressionExtractor(projectExpr), Relation(relation))) =>
       newStatement(plan)
         .withLogicalPlanComment(innerPlan)
         .select(projectExpr)
@@ -385,10 +428,11 @@ object SQLGen extends LazyLogging {
         .limit(limitExpr)
         .output(plan.output)
 
-    case plan @ Limit(Expression(limitExpr),
-                      innerPlan1 @ Project(
-                        Expression(projectExpr),
-                        innerPlan2 @ Sort(Expression(sortExpr), true, Relation(relation)))) =>
+    case plan @ Limit(
+          expressionExtractor(limitExpr),
+          innerPlan1 @ Project(
+            expressionExtractor(projectExpr),
+            innerPlan2 @ Sort(expressionExtractor(sortExpr), true, Relation(relation)))) =>
       newStatement(plan)
         .withLogicalPlanComment(innerPlan1)
         .withLogicalPlanComment(innerPlan2)
@@ -398,8 +442,8 @@ object SQLGen extends LazyLogging {
         .limit(limitExpr)
         .output(plan.output)
 
-    case plan @ Limit(Expression(limitExpr),
-                      innerPlan @ Sort(Expression(sortExpr), true, Relation(relation))) =>
+    case plan @ Limit(expressionExtractor(limitExpr),
+                      innerPlan @ Sort(expressionExtractor(sortExpr), true, Relation(relation))) =>
       newStatement(plan)
         .withLogicalPlanComment(innerPlan)
         .selectAll()
@@ -408,9 +452,9 @@ object SQLGen extends LazyLogging {
         .limit(limitExpr)
         .output(plan.output)
 
-    case plan @ Sort(Expression(sortExpr),
+    case plan @ Sort(expressionExtractor(sortExpr),
                      true,
-                     innerPlan @ Limit(Expression(limitExpr), Relation(relation))) =>
+                     innerPlan @ Limit(expressionExtractor(limitExpr), Relation(relation))) =>
       newStatement(plan)
         .withLogicalPlanComment(innerPlan)
         .selectAll()
@@ -420,52 +464,83 @@ object SQLGen extends LazyLogging {
         .output(plan.output)
 
   }
-}
 
-object Expression {
-  import SQLGen._
-  protected lazy val log: Logger = LoggerFactory.getLogger(getClass.getName)
+  // SQLGenContext is used to generate aliases during the codegen
+  // normalizedExprIdMap is a map from ExprId to its normalized index
+  // It is needed to make generated SQL queries deterministic
+  case class SQLGenContext(normalizedExprIdMap: HashMap[ExprId, Int]) {
+    val aliasGen: Iterator[String] = Iterator.from(1).map(i => s"a$i")
+    def nextAlias(): String        = aliasGen.next()
 
-  def unapply(arg: Expression): Option[Joinable] = {
-    val out = ExpressionGen.apply.lift(arg)
-
-    if (out.isEmpty && log.isTraceEnabled) {
-      val argStr: String = try {
-        arg.asCode
-      } catch {
-        case e: NullPointerException =>
-          s"${arg.prettyName} (failed to convert expression to string)"
+    def ident(name: String, exprId: ExprId): String =
+      if (normalizedExprIdMap.contains(exprId)) {
+        Ident(s"${name}#${normalizedExprIdMap(exprId)}").sql
+      } else {
+        Ident(s"${name}#${exprId.id}").sql
       }
-      log.trace(s"Warning: MemSQL SQL pushdown was unable to convert expression: $argStr")
-    }
-
-    out
   }
 
-  def unapply(arg: Option[Expression]): Option[Option[Joinable]] =
-    arg.map(ExpressionGen.apply.lift)
+  object SQLGenContext {
+    def apply(root: LogicalPlan): SQLGenContext = {
+      var normalizedExprIdMap = scala.collection.immutable.HashMap[ExprId, Int]()
+      val nextId              = Iterator.from(1)
+      root.foreach(plan =>
+        plan.output.foreach(f => {
+          if (!normalizedExprIdMap.contains(f.exprId)) {
+            normalizedExprIdMap = normalizedExprIdMap + (f.exprId -> nextId.next())
+          }
+        }))
 
-  def unapply(args: Seq[Expression]): Option[Option[Joinable]] = {
-    if (args.isEmpty) {
-      Some(None)
-    } else {
-      if (args.lengthCompare(1) > 0) {
-        val expressionNames = new mutable.HashSet[String]()
-        val hasDuplicates = args.exists({
-          case a @ NamedExpression(name, _) => !expressionNames.add(s"${name}#${a.exprId.id}")
-          case _                            => false
-        })
-        if (hasDuplicates) return None
-      }
+      new SQLGenContext(normalizedExprIdMap)
+    }
 
-      args
-        .map(ExpressionGen.apply.lift)
-        .reduce[Option[Joinable]] {
-          case (Some(left), Some(right)) => Some(left + "," + right)
-          case _                         => None
+    def apply(): SQLGenContext = new SQLGenContext(HashMap.empty)
+  }
+
+  case class ExpressionExtractor(context: SQLGenContext) {
+
+    protected lazy val log: Logger = LoggerFactory.getLogger(getClass.getName)
+
+    def unapply(arg: Expression): Option[Joinable] = {
+      val out = ExpressionGen.apply(this).lift(arg)
+
+      if (out.isEmpty && log.isTraceEnabled) {
+        val argStr: String = try {
+          arg.asCode
+        } catch {
+          case e: NullPointerException =>
+            s"${arg.prettyName} (failed to convert expression to string)"
         }
-        .map(j => Some(j))
+        log.trace(s"Warning: MemSQL SQL pushdown was unable to convert expression: $argStr")
+      }
+
+      out
+    }
+
+    def unapply(arg: Option[Expression]): Option[Option[Joinable]] =
+      arg.map(ExpressionGen.apply(this).lift)
+
+    def unapply(args: Seq[Expression]): Option[Option[Joinable]] = {
+      if (args.isEmpty) {
+        Some(None)
+      } else {
+        if (args.lengthCompare(1) > 0) {
+          val expressionNames = new mutable.HashSet[String]()
+          val hasDuplicates = args.exists({
+            case a @ NamedExpression(name, _) => !expressionNames.add(s"${name}#${a.exprId.id}")
+            case _                            => false
+          })
+          if (hasDuplicates) return None
+        }
+
+        args
+          .map(ExpressionGen.apply(this).lift)
+          .reduce[Option[Joinable]] {
+            case (Some(left), Some(right)) => Some(left + "," + right)
+            case _                         => None
+          }
+          .map(j => Some(j))
+      }
     }
   }
-
 }

@@ -1,8 +1,14 @@
 package com.memsql.spark
 
+import com.memsql.spark.SQLGen.Relation
+import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+
+import scala.collection.immutable.HashMap
+import scala.collection.mutable
 
 class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {
 
@@ -78,19 +84,52 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     makeTables("reviews")
   }
 
+  def extractQueriesFromPlan(root: LogicalPlan): Seq[String] = {
+    root
+      .map({
+        case Relation(relation) => relation.sql
+        case _                  => ""
+      })
+      .sorted
+  }
+
+  def testCodegenDeterminism(q: String): Unit = {
+    val logManager    = LogManager.getLogger("com.memsql.spark")
+    var setLogToTrace = false
+
+    if (logManager.isTraceEnabled) {
+      logManager.setLevel(Level.DEBUG)
+      setLogToTrace = true
+    }
+
+    assert(
+      extractQueriesFromPlan(spark.sql(q).queryExecution.optimizedPlan) ==
+        extractQueriesFromPlan(spark.sql(q).queryExecution.optimizedPlan),
+      "All generated MemSQL queries should be the same"
+    )
+
+    if (setLogToTrace) {
+      logManager.setLevel(Level.TRACE)
+    }
+  }
+
   def testQuery(q: String,
                 alreadyOrdered: Boolean = false,
                 expectPartialPushdown: Boolean = false,
                 expectSingleRead: Boolean = false,
                 expectEmpty: Boolean = false,
                 pushdown: Boolean = true): Unit = {
+
     spark.sql("use testdb_jdbc")
     val jdbcDF = spark.sql(q)
     // verify that the jdbc DF works first
     jdbcDF.collect()
     if (pushdown) { spark.sql("use testdb") } else { spark.sql("use testdb_nopushdown") }
 
+    testCodegenDeterminism(q)
+
     val memsqlDF = spark.sql(q)
+
     if (!continuousIntegration) { memsqlDF.show(4) }
 
     if (expectEmpty) {
@@ -561,5 +600,4 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       )
     }
   }
-
 }
