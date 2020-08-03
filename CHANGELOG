@@ -1,3 +1,8 @@
+2020-08-03 Version 3.0.2
+	* added maxErrors option
+	* changed aliases in SQL queries to be more deterministic
+	* disabled comments inside of the SQL queries when logging level is not TRACE
+
 2020-06-12 Version 3.0.1
 	* The connector now updates task metrics with the number of records written during write operations
 

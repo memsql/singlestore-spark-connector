@@ -1,5 +1,5 @@
 # MemSQL Spark Connector
-## Version: 3.0.1 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## Version: 3.0.2 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 ## Getting Started
 
@@ -12,11 +12,11 @@ spark-packages.org.  The group is `com.memsql` and the artifact is
 
 You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
 ```
-$SPARK_HOME/bin/spark-shell --packages com.memsql:memsql-spark-connector_2.11:3.0.1-spark-2.4.4
+$SPARK_HOME/bin/spark-shell --packages com.memsql:memsql-spark-connector_2.11:3.0.2-spark-2.4.4
 ```
 
 We release two versions of the `memsql-spark-connector`, one per Spark version.
-An example version number is: `3.0.1-spark-2.3.4` which is the 3.0.1
+An example version number is: `3.0.2-spark-2.3.4` which is the 3.0.2
 version of the connector, compiled and tested against Spark 2.3.4. Make sure
 you are using the most recent version of the connector.
 
@@ -177,16 +177,16 @@ When you use ON DUPLICATE KEY UPDATE, all rows of the data frame are split into 
 
 ## Save Modes
 
-Save operations can optionally take a SaveMode, that specifies how to handle existing data if present. 
-It is important to realize that these save modes do not utilize any locking and are not atomic. 
+Save operations can optionally take a SaveMode, that specifies how to handle existing data if present.
+It is important to realize that these save modes do not utilize any locking and are not atomic.
 Additionally, when performing an Overwrite, the data will be deleted before writing out the new data.
 
 1. `SaveMode.Append` means that when saving a DataFrame to a data source, if data/table already exists,
 contents of the DataFrame are expected to be appended to existing data.
 2. `SaveMode.Overwrite` means that when saving a DataFrame to a data source,
-if data/table already exists, existing data is expected to be overwritten by the contents of the DataFrame.    
+if data/table already exists, existing data is expected to be overwritten by the contents of the DataFrame.
 > `Overwrite` mode depends on `overwriteBehavior` option, for better understanding look at the section ["Merging on save"](#merging-on-save)
-3. `SaveMode.ErrorIfExists` means that when saving a DataFrame to a data source, 
+3. `SaveMode.ErrorIfExists` means that when saving a DataFrame to a data source,
 if data already exists, an exception is expected to be thrown.
 4. `SaveMode.Ignore` means that when saving a DataFrame to a data source, if data already exists,
 the save operation is expected to not save the contents of the DataFrame and to not change the existing data.
@@ -340,9 +340,9 @@ connectible from Spark.
 
 ### Connecting with a Kerberos-authenticated User
 
-You can use the MemSQL Spark Connector with a Kerberized user without any additional configuration. 
-To use a Kerberized user, you need to configure the connector with the given MemSQL database user that is authenticated with Kerberos 
-(via the `user` option). Please visit our documentation [here](https://docs.memsql.com/latest/guides/security/authentication/kerberos-authentication) 
+You can use the MemSQL Spark Connector with a Kerberized user without any additional configuration.
+To use a Kerberized user, you need to configure the connector with the given MemSQL database user that is authenticated with Kerberos
+(via the `user` option). Please visit our documentation [here](https://docs.memsql.com/latest/guides/security/authentication/kerberos-authentication)
 to learn about how to configure MemSQL users with Kerberos.
 
 Here is an example of configuring the Spark connector globally with a Kerberized MemSQL user called `krb_user`.
@@ -353,9 +353,9 @@ spark = SparkSession.builder()
     .getOrCreate()
 ```
 
-You do not need to provide a password when configuring a Spark Connector user that is Kerberized. 
-The connector driver (MariaDB) will be able to authenticate the Kerberos user from the cache by the provided username. 
-Other than omitting a password with this configuration, using a Kerberized user with the Connector is no different than using a standard user. 
+You do not need to provide a password when configuring a Spark Connector user that is Kerberized.
+The connector driver (MariaDB) will be able to authenticate the Kerberos user from the cache by the provided username.
+Other than omitting a password with this configuration, using a Kerberized user with the Connector is no different than using a standard user.
 Note that if you do provide a password, it will be ignored.
 
 ### SQL Permissions
@@ -447,7 +447,7 @@ Happy querying!
 
 ## Major changes from the 2.0.0 connector
 
-The MemSQL Spark Connector 3.0.1 has a number of key features and enhancements:
+The MemSQL Spark Connector 3.0.2 has a number of key features and enhancements:
 
 * Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
 * Implemented as a native Spark SQL plugin
@@ -456,7 +456,7 @@ The MemSQL Spark Connector 3.0.1 has a number of key features and enhancements:
 * Is compatible with Spark 2.3 and 2.4
 * Leverages MemSQL LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
 * Takes advantage of all the latest and greatest features in MemSQL 7.x
- 
+
 <h2 id="java-python-example">Java & Python Examples</h2>
 
 ### Java
