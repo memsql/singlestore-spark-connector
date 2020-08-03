@@ -96,8 +96,8 @@ object ExpressionGen extends LazyLogging {
       case v: Int                                    => Raw(v.toString)
       case v: Integer                                => Raw(v.toString)
       case v: Long                                   => Raw(v.toString)
-      case v: Decimal                                => Raw(v.toString)
-      case v: BigDecimal                             => Raw(v.toString)
+      case v: Decimal                                => makeDecimal(Raw(v.toString), v.precision, v.scale)
+      case v: BigDecimal                             => makeDecimal(Raw(v.toString), v.precision, v.scale)
       case v: Float if java.lang.Float.isFinite(v)   => Raw(v.toString)
       case v: Double if java.lang.Double.isFinite(v) => Raw(v.toString)
     }

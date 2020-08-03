@@ -244,14 +244,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("null literal") { testSingleReadQuery("select null from users") }
     it("int literal") { testQuery("select 1 from users") }
     it("bool literal") { testQuery("select true from users") }
-    it("float, bool literal") { testSingleReadQuery("select 1.2 as x, true from users") }
+    it("float, bool literal") { testQuery("select 1.2 as x, true from users") }
 
     // due to a bug in our dataframe comparison library we need to alias the column 4.9 to x...
     // this is because when the library asks spark for a column called "4.9", spark thinks the
     // library wants the table 4 and column 9.
-    it("float literal") { testSingleReadQuery("select 4.9 as x from movies") }
+    it("float literal") { testQuery("select 4.9 as x from movies") }
 
-    it("negative float literal") { testSingleReadQuery("select -24.345 as x from movies") }
+    it("negative float literal") { testQuery("select -24.345 as x from movies") }
     it("negative int literal") { testQuery("select -1 from users") }
 
     it("int") { testQuery("select id from users") }
