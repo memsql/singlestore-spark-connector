@@ -143,7 +143,7 @@ object ExpressionGen extends LazyLogging {
       case GenLiteral(v) => v
 
       // ----------------------------------
-      // Variable expressionExtractors
+      // Variable Expressions
       // ----------------------------------
 
       case Coalesce(expressionExtractor(Some(child))) => f("COALESCE", child)
@@ -153,7 +153,7 @@ object ExpressionGen extends LazyLogging {
       case Elt(expressionExtractor(Some(child)))      => f("ELT", child)
 
       // ----------------------------------
-      // Aggregate expressionExtractors
+      // Aggregate Expressions
       // ----------------------------------
 
       // Average.scala
@@ -210,7 +210,7 @@ object ExpressionGen extends LazyLogging {
       // Sum.scala
       case AggregateExpression(Sum(expressionExtractor(child)), _, _, _) => f("SUM", child)
 
-      // windowexpressionExtractors.scala
+      // windowExpressions.scala
       case WindowExpression(expressionExtractor(child),
                             WindowSpecDefinition(expressionExtractor(partitionSpec),
                                                  expressionExtractor(orderSpec),
@@ -241,7 +241,7 @@ object ExpressionGen extends LazyLogging {
       // TODO: case CumeDist()               => ???
 
       // ----------------------------------
-      // Binary expressionExtractors
+      // Binary Expressions
       // ----------------------------------
 
       // arithmetic.scala
@@ -255,12 +255,12 @@ object ExpressionGen extends LazyLogging {
       case Pmod(expressionExtractor(left), expressionExtractor(right)) =>
         block(block(block(left + "%" + right) + "+" + right) + "%" + right)
 
-      // bitwiseexpressionExtractors.scala
+      // bitwiseExpressions.scala
       case BitwiseAnd(expressionExtractor(left), expressionExtractor(right)) => op("&", left, right)
       case BitwiseOr(expressionExtractor(left), expressionExtractor(right))  => op("|", left, right)
       case BitwiseXor(expressionExtractor(left), expressionExtractor(right)) => op("^", left, right)
 
-      // datetimeexpressionExtractors.scala
+      // datetimeExpressions.scala
 
       // NOTE: we explicitly ignore the timeZoneId field in all of the following expressionExtractors
       // The user is required to setup Spark and/or MemSQL with the timezone they want or they
@@ -392,7 +392,7 @@ object ExpressionGen extends LazyLogging {
       // hash.scala
       case Sha2(expressionExtractor(left), expressionExtractor(right)) => f("SHA2", left, right)
 
-      // mathexpressionExtractors.scala
+      // mathExpressions.scala
       case Atan2(expressionExtractor(left), expressionExtractor(right))     => f("ATAN2", left, right)
       case Pow(expressionExtractor(left), expressionExtractor(right))       => f("POWER", left, right)
       case ShiftLeft(expressionExtractor(left), expressionExtractor(right)) => op("<<", left, right)
@@ -433,11 +433,11 @@ object ExpressionGen extends LazyLogging {
           block(elements)
         )
 
-      // regexpexpressionExtractors.scala
+      // regexpExpressions.scala
       case Like(expressionExtractor(left), expressionExtractor(right))  => op("LIKE", left, right)
       case RLike(expressionExtractor(left), expressionExtractor(right)) => op("RLIKE", left, right)
 
-      // stringexpressionExtractors.scala
+      // stringExpressions.scala
       case Contains(expressionExtractor(left), expressionExtractor(right)) =>
         op(">", f("INSTR", left, right), "0")
       case StartsWith(expressionExtractor(left), expressionExtractor(right)) =>
@@ -453,28 +453,28 @@ object ExpressionGen extends LazyLogging {
       // TODO: case _: Levenshtein => None
 
       // ----------------------------------
-      // Leaf expressionExtractors
+      // Leaf Expressions
       // ----------------------------------
 
-      // datetimeexpressionExtractors.scala
+      // datetimeExpressions.scala
       case CurrentDate(_)     => "CURRENT_DATE()"
       case CurrentTimestamp() => "NOW(6)"
 
-      // mathexpressionExtractors.scala
+      // mathExpressions.scala
       case EulerNumber() => math.E.toString
       case Pi()          => "PI()"
 
       // ----------------------------------
-      // Ternary expressionExtractors
+      // Ternary Expressions
       // ----------------------------------
 
-      // mathexpressionExtractors.scala
+      // mathExpressions.scala
       case Conv(expressionExtractor(numExpr),
                 expressionExtractor(fromBaseExpr),
                 expressionExtractor(toBaseExpr)) =>
         f("CONV", numExpr, fromBaseExpr, toBaseExpr)
 
-      // regexpexpressionExtractors.scala
+      // regexpExpressions.scala
       case RegExpReplace(expressionExtractor(subject),
                          expressionExtractor(regexp),
                          expressionExtractor(rep)) =>
@@ -482,7 +482,7 @@ object ExpressionGen extends LazyLogging {
 
       // TODO: case RegExpExtract(expressionExtractor(subject), expressionExtractor(regexp), expressionExtractor(idx)) => ???
 
-      // stringexpressionExtractors.scala
+      // stringExpressions.scala
       case StringReplace(expressionExtractor(srcExpr),
                          expressionExtractor(searchExpr),
                          expressionExtractor(replaceExpr)) =>
@@ -511,7 +511,7 @@ object ExpressionGen extends LazyLogging {
       // TODO: case StringTranslate(expressionExtractor(srcExpr), expressionExtractor(matchingExpr), expressionExtractor(replaceExpr)) => ???
 
       // ----------------------------------
-      // Unary expressionExtractors
+      // Unary Expressions
       // ----------------------------------
 
       // arithmetic.scala
@@ -519,7 +519,7 @@ object ExpressionGen extends LazyLogging {
       case UnaryPositive(expressionExtractor(child)) => f("+", child)
       case Abs(expressionExtractor(child))           => f("ABS", child)
 
-      // bitwiseexpressionExtractors.scala
+      // bitwiseExpressions.scala
       case BitwiseNot(expressionExtractor(expr)) => f("~", expr)
 
       // Cast.scala
@@ -545,7 +545,7 @@ object ExpressionGen extends LazyLogging {
 
       // TODO: case UpCast(expressionExtractor(child), dataType, walkedTypePath) => ???
 
-      // datetimeexpressionExtractors.scala
+      // datetimeExpressions.scala
       case Hour(expressionExtractor(child), _)     => f("HOUR", child)
       case Minute(expressionExtractor(child), _)   => f("MINUTE", child)
       case Second(expressionExtractor(child), _)   => f("SECOND", child)
@@ -566,7 +566,7 @@ object ExpressionGen extends LazyLogging {
       case ParseToTimestamp(expressionExtractor(left), Some(expressionExtractor(format)), _) =>
         f("TO_TIMESTAMP", left, format)
 
-      // decimalexpressionExtractors.scala
+      // decimalExpressions.scala
       case MakeDecimal(expressionExtractor(child), p: Int, s: Int) => makeDecimal(child, p, s)
 
       // hash.scala
@@ -574,7 +574,7 @@ object ExpressionGen extends LazyLogging {
       case Sha1(expressionExtractor(child))  => f("SHA1", child)
       case Crc32(expressionExtractor(child)) => f("CRC32", child)
 
-      // mathexpressionExtractors.scala
+      // mathExpressions.scala
       case Acos(expressionExtractor(child))      => f("ACOS", child)
       case Asin(expressionExtractor(child))      => f("ASIN", child)
       case Atan(expressionExtractor(child))      => f("ATAN", child)
@@ -618,7 +618,7 @@ object ExpressionGen extends LazyLogging {
       // TODO: case Cbrt(expressionExtractor(child))      => f("POW", child, op("/", "1", "3"))
       //  We need to wait for the engine to implement precise cbrt
 
-      // nullexpressionExtractors.scala
+      // nullExpressions.scala
       case IfNull(expressionExtractor(left), expressionExtractor(right), _) =>
         f("COALESCE", left, right)
       case NullIf(expressionExtractor(left), expressionExtractor(right), _) =>
@@ -637,7 +637,7 @@ object ExpressionGen extends LazyLogging {
       // predicates.scala
       case Not(expressionExtractor(child)) => block(Raw("NOT") + child)
 
-      // randomexpressionExtractors.scala
+      // randomExpressions.scala
       case Rand(expressionExtractor(child)) => f("RAND", child)
       // TODO: case Randn(expressionExtractor(child)) => ???
 
@@ -647,7 +647,7 @@ object ExpressionGen extends LazyLogging {
       // in MemSQL, nulls always come last when direction = descending
       case SortOrder(expressionExtractor(child), Descending, NullsLast, _) => block(child) + "DESC"
 
-      // stringexpressionExtractors.scala
+      // stringExpressions.scala
       case Upper(expressionExtractor(child)) => f("UPPER", child)
       case Lower(expressionExtractor(child)) => f("LOWER", child)
 
