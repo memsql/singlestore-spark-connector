@@ -1,6 +1,8 @@
 package com.memsql.spark
 
+import com.memsql.spark.SQLGen.{ExpressionExtractor, SQLGenContext}
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.expressions.{AttributeReference, ExprId, NamedExpression}
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.rules.Rule
 
@@ -21,20 +23,36 @@ class SQLPushdownRule extends Rule[LogicalPlan] {
       log.trace(s"Optimizing plan:\n${root.treeString(true)}")
     }
 
-    // We first need to rename the outputs of each MemSQL relation in the tree.  This transform is
+    val context = SQLGenContext(root)
+
+    // We first need to set a SQLGenContext in every reader.
+    // This transform is done to ensure that we will generate the same aliases in the same queries.
+    val normalized = root.transform({
+      case SQLGen.Relation(relation) =>
+        relation.toLogicalPlan(
+          relation.output,
+          relation.reader.query,
+          relation.reader.variables,
+          relation.reader.isFinal,
+          context
+        )
+    })
+
+    // Second, we need to rename the outputs of each MemSQL relation in the tree.  This transform is
     // done to ensure that we can handle projections which involve ambiguous column name references.
-    var ptr, nextPtr = root.transform({
+    var ptr, nextPtr = normalized.transform({
       case SQLGen.Relation(relation) => relation.renameOutput
     })
 
+    val expressionExtractor = ExpressionExtractor(context)
     val transforms =
       List(
         // do single node rewrites, e.g. Project([a,b,c], Relation(select * from foo))
-        SQLGen.fromLogicalPlan.andThen(_.asLogicalPlan()),
+        SQLGen.fromLogicalPlan(expressionExtractor).andThen(_.asLogicalPlan()),
         // do multi node rewrites, e.g. Sort(a, Limit(10, Relation(select * from foo)))
-        SQLGen.fromNestedLogicalPlan.andThen(_.asLogicalPlan()),
+        SQLGen.fromNestedLogicalPlan(expressionExtractor).andThen(_.asLogicalPlan()),
         // do single node rewrites of sort & limit (so the multi-node rewrite can match first)
-        SQLGen.fromSingleLimitSort.andThen(_.asLogicalPlan())
+        SQLGen.fromSingleLimitSort(expressionExtractor).andThen(_.asLogicalPlan())
       )
 
     // Run our transforms in a loop until the tree converges

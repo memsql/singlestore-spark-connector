@@ -1,8 +1,14 @@
 package com.memsql.spark
 
+import com.memsql.spark.SQLGen.Relation
+import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+
+import scala.collection.immutable.HashMap
+import scala.collection.mutable
 
 class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {
 
@@ -78,19 +84,52 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     makeTables("reviews")
   }
 
+  def extractQueriesFromPlan(root: LogicalPlan): Seq[String] = {
+    root
+      .map({
+        case Relation(relation) => relation.sql
+        case _                  => ""
+      })
+      .sorted
+  }
+
+  def testCodegenDeterminism(q: String): Unit = {
+    val logManager    = LogManager.getLogger("com.memsql.spark")
+    var setLogToTrace = false
+
+    if (logManager.isTraceEnabled) {
+      logManager.setLevel(Level.DEBUG)
+      setLogToTrace = true
+    }
+
+    assert(
+      extractQueriesFromPlan(spark.sql(q).queryExecution.optimizedPlan) ==
+        extractQueriesFromPlan(spark.sql(q).queryExecution.optimizedPlan),
+      "All generated MemSQL queries should be the same"
+    )
+
+    if (setLogToTrace) {
+      logManager.setLevel(Level.TRACE)
+    }
+  }
+
   def testQuery(q: String,
                 alreadyOrdered: Boolean = false,
                 expectPartialPushdown: Boolean = false,
                 expectSingleRead: Boolean = false,
                 expectEmpty: Boolean = false,
                 pushdown: Boolean = true): Unit = {
+
     spark.sql("use testdb_jdbc")
     val jdbcDF = spark.sql(q)
     // verify that the jdbc DF works first
     jdbcDF.collect()
     if (pushdown) { spark.sql("use testdb") } else { spark.sql("use testdb_nopushdown") }
 
+    testCodegenDeterminism(q)
+
     val memsqlDF = spark.sql(q)
+
     if (!continuousIntegration) { memsqlDF.show(4) }
 
     if (expectEmpty) {
@@ -205,14 +244,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("null literal") { testSingleReadQuery("select null from users") }
     it("int literal") { testQuery("select 1 from users") }
     it("bool literal") { testQuery("select true from users") }
-    it("float, bool literal") { testSingleReadQuery("select 1.2 as x, true from users") }
+    it("float, bool literal") { testQuery("select 1.2 as x, true from users") }
 
     // due to a bug in our dataframe comparison library we need to alias the column 4.9 to x...
     // this is because when the library asks spark for a column called "4.9", spark thinks the
     // library wants the table 4 and column 9.
-    it("float literal") { testSingleReadQuery("select 4.9 as x from movies") }
+    it("float literal") { testQuery("select 4.9 as x from movies") }
 
-    it("negative float literal") { testSingleReadQuery("select -24.345 as x from movies") }
+    it("negative float literal") { testQuery("select -24.345 as x from movies") }
     it("negative int literal") { testQuery("select -1 from users") }
 
     it("int") { testQuery("select id from users") }

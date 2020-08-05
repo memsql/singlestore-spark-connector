@@ -2,13 +2,15 @@ package com.memsql.spark
 
 import java.sql.SQLSyntaxErrorException
 
-import com.memsql.spark.SQLGen.VariableList
+import com.memsql.spark.SQLGen.{ExpressionExtractor, SQLGenContext, VariableList}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression => CatalystExpression}
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
 import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
+
+import scala.collection.immutable.HashMap
 
 case class MemsqlReaderNoPushdown(query: String,
                                   options: MemsqlOptions,
@@ -28,7 +30,8 @@ case class MemsqlReader(query: String,
                         options: MemsqlOptions,
                         @transient val sqlContext: SQLContext,
                         isFinal: Boolean = false,
-                        expectedOutput: Seq[Attribute] = Nil)
+                        expectedOutput: Seq[Attribute] = Nil,
+                        context: SQLGenContext = SQLGenContext())
     extends BaseRelation
     with LazyLogging
     with TableScan
@@ -44,24 +47,30 @@ case class MemsqlReader(query: String,
                          rawFilters: Seq[CatalystExpression]): RDD[Row] = {
     // we don't have to push down *everything* using this interface since Spark will
     // run the projection and filter again upon receiving the results from MemSQL
-    val projection = rawColumns.flatMap(ExpressionGen.apply.lift(_)).reduceOption(_ + "," + _)
-    val filters    = rawFilters.flatMap(ExpressionGen.apply.lift(_)).reduceOption(_ + "AND" + _)
+    val projection =
+      rawColumns
+        .flatMap(ExpressionGen.apply(ExpressionExtractor(context)).lift(_))
+        .reduceOption(_ + "," + _)
+    val filters =
+      rawFilters
+        .flatMap(ExpressionGen.apply(ExpressionExtractor(context)).lift(_))
+        .reduceOption(_ + "AND" + _)
 
     val stmt = (projection, filters) match {
       case (Some(p), Some(f)) =>
         SQLGen
           .select(p)
-          .from(SQLGen.Relation(Nil, this, SQLGen.aliasGen.next, null))
+          .from(SQLGen.Relation(Nil, this, context.nextAlias(), null))
           .where(f)
           .output(rawColumns)
       case (Some(p), None) =>
         SQLGen
           .select(p)
-          .from(SQLGen.Relation(Nil, this, SQLGen.aliasGen.next, null))
+          .from(SQLGen.Relation(Nil, this, context.nextAlias(), null))
           .output(rawColumns)
       case (None, Some(f)) =>
         SQLGen.selectAll
-          .from(SQLGen.Relation(Nil, this, SQLGen.aliasGen.next, null))
+          .from(SQLGen.Relation(Nil, this, context.nextAlias(), null))
           .where(f)
           .output(expectedOutput)
       case _ =>
