@@ -25,6 +25,7 @@ global options have the prefix `spark.datasource.memsql.`.
 | `tableKey`                | Specify additional keys to add to tables created by the connector (See below for more details)
 | `onDuplicateKeySQL`       | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, MemSQL will instead perform an UPDATE of the old row. See examples below
 | `insertBatchSize`         | Size of the batch for row insertion (default: `10000`)
+| `maxErrors`               | The maximum number of errors in a single `LOAD DATA` request. When this limit is reached, the load fails. If this property equals to `0`, no error limit exists (Default: `0`)
 
 Example of configuring the `memsql-spark-connector` globally:
 ```scala
@@ -140,7 +141,31 @@ If the row with the same `PRIMARY KEY` or `UNIQUE` index already exists then the
 
 When you use ON DUPLICATE KEY UPDATE, all rows of the data frame are split into batches, and every insert query will contain no more than the specified `insertBatchSize` rows setting.
 
-## Merging on save
+## Save Modes
+
+Save operations can optionally take a SaveMode, that specifies how to handle existing data if present. 
+It is important to realize that these save modes do not utilize any locking and are not atomic. 
+Additionally, when performing an Overwrite, the data will be deleted before writing out the new data.
+
+1. `SaveMode.Append` means that when saving a DataFrame to a data source, if data/table already exists,
+contents of the DataFrame are expected to be appended to existing data.
+2. `SaveMode.Overwrite` means that when saving a DataFrame to a data source,
+if data/table already exists, existing data is expected to be overwritten by the contents of the DataFrame.    
+> `Overwrite` mode depends on `overwriteBehavior` option, for better understanding look at the section ["Merging on save"](#merging-on-save)
+3. `SaveMode.ErrorIfExists` means that when saving a DataFrame to a data source, 
+if data already exists, an exception is expected to be thrown.
+4. `SaveMode.Ignore` means that when saving a DataFrame to a data source, if data already exists,
+the save operation is expected to not save the contents of the DataFrame and to not change the existing data.
+
+### Example of `SaveMode` option
+
+```scala
+df.write
+    .mode(SaveMode.Append)
+    .save("foo.bar")
+```
+
+<h2 id="merging-on-save">Merging on save</h2>
 
 When saving dataframes or datasets to MemSQL, you can manage how SaveMode.Overwrite is interpreted by the connector via the option overwriteBehavior.
 This option can take one of the following values:
