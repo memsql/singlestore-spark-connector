@@ -68,8 +68,7 @@ object SQLGen extends LazyLogging {
       case c: Chunk                => copy(c :: list)
     }
 
-    // TODO: think about doing this value configurable
-    val MAX_PLAN_FIELDS = 1000
+    val MAX_PLAN_FIELDS = Int.MaxValue
     def withLogicalPlanComment(plan: LogicalPlan): Statement =
       if (log.isTraceEnabled()) {
         this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${plan.simpleString(MAX_PLAN_FIELDS)}"
