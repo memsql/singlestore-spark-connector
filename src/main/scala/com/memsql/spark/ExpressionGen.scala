@@ -129,13 +129,14 @@ object ExpressionGen extends LazyLogging {
   def apply(expressionExtractor: ExpressionExtractor): PartialFunction[Expression, Joinable] = {
     val windowBoundaryExpressionExtractor = WindowBoundaryExpressionExtractor(expressionExtractor)
     val monthsBetweenExpressionExtractor  = MonthsBetweenExpressionExtractor(expressionExtractor)
+    val context                           = expressionExtractor.context
     return {
       // ----------------------------------
       // Attributes
       // ----------------------------------
-      case a: Attribute => Attr(a, expressionExtractor.context)
+      case a: Attribute => Attr(a, context)
       case a @ Alias(expressionExtractor(child), name) =>
-        alias(child, name, a.exprId, expressionExtractor.context)
+        alias(child, name, a.exprId, context)
 
       // ----------------------------------
       // Literals
@@ -187,6 +188,7 @@ object ExpressionGen extends LazyLogging {
         } else {
           f("COUNT", children)
         }
+      // case CountIf(expressionExtractor(predicate)) => // Converts to Count(If(...))
 
       // Covariance.scala
       // TODO: case CovPopulation(expressionExtractor(left), expressionExtractor(right)) => ???
@@ -216,6 +218,22 @@ object ExpressionGen extends LazyLogging {
 
       // Sum.scala
       case AggregateExpression(Sum(expressionExtractor(child)), _, _, None, _) => f("SUM", child)
+
+      // BitAnd.scala
+      case AggregateExpression(BitAndAgg(expressionExtractor(child)), _, _, None, _)
+          if context.memsqlVersionAtLeast("7.0.1") =>
+        f("BIT_AND", child)
+      // BitOr.scala
+      case AggregateExpression(BitOrAgg(expressionExtractor(child)), _, _, None, _)
+          if context.memsqlVersionAtLeast("7.0.1") =>
+        f("BIT_OR", child)
+      // BitXor.scala
+      case AggregateExpression(BitXorAgg(expressionExtractor(child)), _, _, None, _)
+          if context.memsqlVersionAtLeast("7.0.1") =>
+        f("BIT_XOR", child)
+
+      //    case AggregateExpression(MaxBy(expressionExtractor(valueExpr), expressionExtractor(orderingExpr)), _, _, None, _) =>
+      //    case AggregateExpression(MinBy(expressionExtractor(valueExpr), expressionExtractor(orderingExpr)), _, _, None, _) =>
 
       // windowExpressions.scala
       case WindowExpression(expressionExtractor(child),
@@ -433,6 +451,8 @@ object ExpressionGen extends LazyLogging {
         op(">>", left, right)
       case Logarithm(expressionExtractor(left), expressionExtractor(right)) => f("LOG", left, right)
       case Round(expressionExtractor(child), expressionExtractor(scale))    => f("ROUND", child, scale)
+      case IntegralDivide(expressionExtractor(left), expressionExtractor(right)) =>
+        f("FLOOR", op("/", left, right))
 
       case Hypot(expressionExtractor(left), expressionExtractor(right)) =>
         f("SQRT", op("+", f("POW", left, "2"), f("POW", right, "2")))
@@ -453,6 +473,11 @@ object ExpressionGen extends LazyLogging {
         op(">", left, right)
       case GreaterThanOrEqual(expressionExtractor(left), expressionExtractor(right)) =>
         op(">=", left, right)
+
+      case If(expressionExtractor(predicate),
+              expressionExtractor(trueValue),
+              expressionExtractor(falseValue)) =>
+        f("IF", predicate, trueValue, falseValue)
 
       case In(expressionExtractor(child), expressionExtractor(Some(elements))) =>
         op("IN", child, block(elements))
@@ -559,6 +584,9 @@ object ExpressionGen extends LazyLogging {
       // bitwiseExpression.scala
       case BitwiseNot(expressionExtractor(expr)) => f("~", expr)
 
+      case BitwiseCount(expressionExtractor(child)) =>
+        f("BIT_COUNT", child)
+
       // Cast.scala
       case Cast(expressionExtractor(child), dataType, _) =>
         dataType match {
@@ -592,6 +620,7 @@ object ExpressionGen extends LazyLogging {
       case Month(expressionExtractor(child))       => f("MONTH", child)
       case DayOfMonth(expressionExtractor(child))  => f("DAY", child)
       case DayOfWeek(expressionExtractor(child))   => f("DAYOFWEEK", child)
+      case WeekDay(expressionExtractor(child))     => f("WEEKDAY", child)
       case WeekOfYear(expressionExtractor(child))  => f("WEEK", child, "3")
       case LastDay(expressionExtractor(startDate)) => f("LAST_DAY", startDate)
 
@@ -602,6 +631,24 @@ object ExpressionGen extends LazyLogging {
       case ParseToTimestamp(expressionExtractor(left), None, _) => f("TIMESTAMP", left)
       case ParseToTimestamp(expressionExtractor(left), Some(expressionExtractor(format)), _) =>
         f("TO_TIMESTAMP", left, format)
+
+      //    case DatePart(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child)) => // Converts to CAST(field)
+      //    case Extract(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child))  => // Converts to CAST(field)
+      case MakeDate(expressionExtractor(year),
+                    expressionExtractor(month),
+                    expressionExtractor(day)) =>
+        f("DATE", f("CONCAT", year, "'-'", month, "'-'", day))
+      //    case MakeInterval(_, _, _, _, _, _, _) => ???
+      case MakeTimestamp(expressionExtractor(year),
+                         expressionExtractor(month),
+                         expressionExtractor(day),
+                         expressionExtractor(hour),
+                         expressionExtractor(min),
+                         expressionExtractor(sec),
+                         _,
+                         _) =>
+        f("TIMESTAMP",
+          f("CONCAT", year, "'-'", month, "'-'", day, "' '", hour, "':'", min, "':'", sec))
 
       // decimalExpressions.scala
       // TODO: case MakeDecimal(Expression(child), p: Int, s: Int, false) => makeDecimal(child, p, s)
@@ -635,6 +682,20 @@ object ExpressionGen extends LazyLogging {
       case Hex(expressionExtractor(child))       => f("HEX", child)
       case Unhex(expressionExtractor(child))     => f("UNHEX", child)
 
+      //    case BoolAnd(expressionExtractor(arg)) => // Spark can't apply bool_and to smallint (Input to function 'bool_and' should have been boolean, but it's [smallint])
+      //    case BoolOr(expressionExtractor(arg))  => // Spark can't apply bool_or to smallint (Input to function 'bool_or' should have been boolean, but it's [smallint])
+      //    case ArrayForAll(expressionExtractor(arg), expressionExtractor(function))                    => ???
+      //    case SchemaOfCsv(expressionExtractor(child), options)                               => ???
+      //    case MapEntries(expressionExtractor(child))                                         => ???
+      //    case MapFilter(expressionExtractor(arg), expressionExtractor(function))                      => ???
+      //    case MapZipWith(expressionExtractor(left), expressionExtractor(right), expressionExtractor(function)) => ???
+      //    case CsvToStructs(schema, options, expressionExtractor(child), timeZoneId)          => ???
+      //    case StructsToCsv(options, expressionExtractor(child), timeZoneId)                  => ???
+      //    case SparkVersion()                                                        => ???
+      //    case TransformKeys(expressionExtractor(argument), expressionExtractor(function))             => ???
+      //    case TransformValues(expressionExtractor(argument), expressionExtractor(function))           => ???
+      //    case XxHash64(children, seed) => // we have 32-bit hash, but don't have 64-bit
+
       // tanh(x) = (exp(x) - exp(-x)) / (exp(x) + exp(-x))
       case Tanh(expressionExtractor(child)) =>
         op("/",
@@ -648,6 +709,18 @@ object ExpressionGen extends LazyLogging {
       // cosh(x) = (exp(x) + exp(-x)) / 2
       case Cosh(expressionExtractor(child)) =>
         op("/", op("+", f("EXP", child), f("EXP", f("-", child))), "2")
+
+      // asinh(x) = ln(x + sqrt(x^2 + 1))
+      case Asinh(expressionExtractor(child)) =>
+        f("LN", op("+", child, f("SQRT", op("+", f("POW", child, "2"), "1"))))
+
+      // acosh(x) = ln(x + sqrt(x^2 - 1))
+      case Acosh(expressionExtractor(child)) =>
+        f("LN", op("+", child, f("SQRT", op("-", f("POW", child, "2"), "1"))))
+
+      // atanh(x) = 1/2 * ln((1 + x)/(1 - x))
+      case Atanh(expressionExtractor(child)) =>
+        op("/", f("LN", op("/", op("+", "1", child), op("-", "1", child))), "2")
 
       case Rint(expressionExtractor(child)) => f("ROUND", child, "0")
 

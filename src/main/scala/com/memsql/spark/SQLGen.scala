@@ -477,9 +477,13 @@ object SQLGen extends LazyLogging {
   // SQLGenContext is used to generate aliases during the codegen
   // normalizedExprIdMap is a map from ExprId to its normalized index
   // It is needed to make generated SQL queries deterministic
-  case class SQLGenContext(normalizedExprIdMap: HashMap[ExprId, Int]) {
+  case class SQLGenContext(normalizedExprIdMap: HashMap[ExprId, Int],
+                           memsqlVersion: MemsqlVersion) {
     val aliasGen: Iterator[String] = Iterator.from(1).map(i => s"a$i")
     def nextAlias(): String        = aliasGen.next()
+
+    def memsqlVersionAtLeast(version: String): Boolean =
+      memsqlVersion.atLeast(version)
 
     def ident(name: String, exprId: ExprId): String =
       if (normalizedExprIdMap.contains(exprId)) {
@@ -490,7 +494,16 @@ object SQLGen extends LazyLogging {
   }
 
   object SQLGenContext {
-    def apply(root: LogicalPlan): SQLGenContext = {
+
+    var memsqlVersion: Option[String] = None
+    private def getMemsqlVersion(options: MemsqlOptions): MemsqlVersion = memsqlVersion match {
+      case Some(version) => MemsqlVersion(version)
+      case None =>
+        memsqlVersion = Some(JdbcHelpers.getMemsqlVersion(options))
+        MemsqlVersion(memsqlVersion.get)
+    }
+
+    def apply(root: LogicalPlan, options: MemsqlOptions): SQLGenContext = {
       var normalizedExprIdMap = scala.collection.immutable.HashMap[ExprId, Int]()
       val nextId              = Iterator.from(1)
       root.foreach(plan =>
@@ -500,10 +513,38 @@ object SQLGen extends LazyLogging {
           }
         }))
 
-      new SQLGenContext(normalizedExprIdMap)
+      new SQLGenContext(normalizedExprIdMap, getMemsqlVersion(options))
     }
 
-    def apply(): SQLGenContext = new SQLGenContext(HashMap.empty)
+    def apply(options: MemsqlOptions): SQLGenContext =
+      new SQLGenContext(HashMap.empty, getMemsqlVersion(options))
+  }
+
+  case class MemsqlVersion(major: Int, minor: Int, patch: Int) {
+
+    implicit val ordering: Ordering[MemsqlVersion] = Ordering.by(v => (v.major, v.minor, v.patch))
+
+    import Ordering.Implicits.infixOrderingOps
+
+    def atLeast(version: MemsqlVersion): Boolean = {
+      this >= version
+    }
+
+    def atLeast(version: String): Boolean = {
+      atLeast(MemsqlVersion(version))
+    }
+  }
+  object MemsqlVersion {
+
+    def apply(version: String): MemsqlVersion = {
+      val versionParts = version.split("\\.")
+      if (versionParts.size != 3)
+        throw new IllegalArgumentException(
+          "Memsql version should contain three parts (major, minor, patch)")
+      new MemsqlVersion(Integer.parseInt(versionParts(0)),
+                        Integer.parseInt(versionParts(1)),
+                        Integer.parseInt(versionParts(2)))
+    }
   }
 
   case class ExpressionExtractor(context: SQLGenContext) {

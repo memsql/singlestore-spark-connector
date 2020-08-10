@@ -7,9 +7,6 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
-import scala.collection.immutable.HashMap
-import scala.collection.mutable
-
 class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {
 
   override def beforeAll() = {
@@ -238,6 +235,29 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("tanh") { testQuery("select tanh(rating) as tanh from reviews") }
     it("hypot") { testQuery("select hypot(rating, user_id) as hypot from reviews") }
     it("rint") { testQuery("select rint(rating) as rint from reviews") }
+    it("asinh") { testQuery("select asinh(rating) as asinh from reviews") }
+    it("acosh") { testQuery("select acosh(rating) as acosh from reviews") }
+    it("atanh") {
+      testQuery(
+        "select atanh(critic_rating) as atanh from movies where critic_rating > -1 AND critic_rating < 1")
+    }
+    it("integralDivide") { testQuery("SELECT user_id div movie_id FROM reviews") }
+  }
+
+  describe("bit operations") {
+    it("bit_count") { testQuery("SELECT bit_count(user_id) AS bit_count FROM reviews") }
+    def bitOperationTest(sql: String): Unit = {
+      val bitOperationsMinVersion = "7.0.1"
+      val resultSet = jdbcConnection.to(conn =>
+        Loan(conn.createStatement()).to(_.executeQuery("select @@memsql_version")))
+      resultSet.next()
+      val version = resultSet.getString("@@memsql_version")
+      if (version.compareTo(bitOperationsMinVersion) > 0)
+        testSingleReadQuery(sql)
+    }
+    it("bit_and") { bitOperationTest("SELECT bit_and(user_id) AS bit_and FROM reviews") }
+    it("bit_or") { bitOperationTest("SELECT bit_or(age) AS bit_or FROM users") }
+    it("bit_xor") { bitOperationTest("SELECT bit_xor(user_id) AS bit_xor FROM reviews") }
   }
 
   describe("datatypes") {
@@ -261,6 +281,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("bool") { testQuery("select owns_house from users") }
     it("float") { testQuery("select critic_rating from movies") }
     it("text") { testQuery("select first_name from users") }
+
+    it("typeof") {
+      testSingleReadQuery("SELECT typeof(user_id), typeof(created), typeof(review) FROM reviews")
+    }
   }
 
   describe("filter") {
@@ -273,6 +297,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("aggregations") {
     it("count") { testSingleReadQuery("select count(*) from users") }
+    it("count_if") { testSingleReadQuery("SELECT count_if(age % 2 = 0) as count FROM users") }
     it("count distinct") { testSingleReadQuery("select count(distinct first_name) from users") }
     it("first") { testSingleReadQuery("select first(first_name) from users group by id") }
     it("last") { testSingleReadQuery("select last(first_name) from users group by id") }
@@ -578,6 +603,46 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           s"select months_between(created, created + interval $interval) from reviews"
         )
       }
+    }
+
+    val periodsList: List[List[String]] = List(
+      List("YEAR", "Y", "YEARS", "YR", "YRS"),
+      List("QUARTER", "QTR"),
+      List("MONTH", "MON", "MONS", "MONTHS"),
+      List("WEEK", "W", "WEEKS"),
+      List("DAY", "D", "DAYS"),
+      List("DAYOFWEEK", "DOW"),
+      List("DAYOFWEEK_ISO", "DOW_ISO"),
+      List("DOY"),
+      List("HOUR", "H", "HOURS", "HR", "HRS"),
+      List("MINUTE", "MIN", "M", "MINS", "MINUTES")
+    )
+
+    it(s"extract") {
+      for (periods <- periodsList) {
+        for (period <- periods) {
+          testQuery(s"SELECT extract($period FROM birthday) as extract_period from users")
+          testQuery(s"SELECT extract($period FROM created) as extract_period from reviews")
+        }
+      }
+    }
+
+    it(s"datePart") {
+      for (periods <- periodsList) {
+        for (period <- periods) {
+          testQuery(s"SELECT date_part('$period', birthday) as date_part from users")
+          testQuery(s"SELECT date_part('$period', created) as date_part from reviews")
+        }
+      }
+    }
+
+    it("makeDate") {
+      testQuery("SELECT make_date(1000, user_id, user_id) FROM reviews")
+    }
+
+    it("makeTimestamp") {
+      testQuery(
+        "SELECT make_timestamp(1000, user_id, user_id, user_id, user_id, user_id) FROM reviews")
     }
   }
 

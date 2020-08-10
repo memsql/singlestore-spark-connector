@@ -5,12 +5,8 @@ import java.sql.SQLSyntaxErrorException
 import com.memsql.spark.SQLGen.{ExpressionExtractor, SQLGenContext, VariableList}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression => CatalystExpression}
-import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
-import org.apache.spark.sql.types.{StructField, StructType}
 import org.apache.spark.sql.{Row, SQLContext}
-
-import scala.collection.immutable.HashMap
 
 case class MemsqlReaderNoPushdown(query: String,
                                   options: MemsqlOptions,
@@ -31,7 +27,7 @@ case class MemsqlReader(query: String,
                         @transient val sqlContext: SQLContext,
                         isFinal: Boolean = false,
                         expectedOutput: Seq[Attribute] = Nil,
-                        context: SQLGenContext = SQLGenContext())
+                        context: SQLGenContext)
     extends BaseRelation
     with LazyLogging
     with TableScan

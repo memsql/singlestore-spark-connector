@@ -1,5 +1,6 @@
 package com.memsql.spark
 
+import com.memsql.spark.SQLGen.SQLGenContext
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.metrics.source.MetricsHandler
@@ -42,7 +43,11 @@ class DefaultSource
       MemsqlReaderNoPushdown(MemsqlOptions.getQuery(params), options, sqlContext)
     } else {
       SQLPushdownRule.ensureInjected(sqlContext.sparkSession)
-      MemsqlReader(MemsqlOptions.getQuery(params), Nil, options, sqlContext)
+      MemsqlReader(MemsqlOptions.getQuery(params),
+                   Nil,
+                   options,
+                   sqlContext,
+                   context = SQLGenContext(options))
     }
   }
 

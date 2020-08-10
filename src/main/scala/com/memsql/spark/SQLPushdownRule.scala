@@ -2,16 +2,18 @@ package com.memsql.spark
 
 import com.memsql.spark.SQLGen.{ExpressionExtractor, SQLGenContext}
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.catalyst.expressions.{AttributeReference, ExprId, NamedExpression}
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.rules.Rule
 
 class SQLPushdownRule extends Rule[LogicalPlan] {
   override def apply(root: LogicalPlan): LogicalPlan = {
+    var context: SQLGenContext = null
     val needsPushdown = root
       .find({
-        case SQLGen.Relation(r: SQLGen.Relation) if !r.reader.isFinal => true
-        case _                                                        => false
+        case SQLGen.Relation(r: SQLGen.Relation) if !r.reader.isFinal =>
+          context = SQLGenContext(root, r.reader.options)
+          true
+        case _ => false
       })
       .isDefined
 
@@ -22,8 +24,6 @@ class SQLPushdownRule extends Rule[LogicalPlan] {
     if (log.isTraceEnabled) {
       log.trace(s"Optimizing plan:\n${root.treeString(true)}")
     }
-
-    val context = SQLGenContext(root)
 
     // We first need to set a SQLGenContext in every reader.
     // This transform is done to ensure that we will generate the same aliases in the same queries.

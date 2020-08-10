@@ -1,6 +1,6 @@
 package com.memsql.spark
 
-import java.sql.{Connection, PreparedStatement, Statement}
+import java.sql.{Connection, PreparedStatement, SQLException, Statement}
 
 import com.memsql.spark.MemsqlOptions.{TableKey, TableKeyType}
 import com.memsql.spark.SQLGen.{StringVar, VariableList}
@@ -249,6 +249,26 @@ object JdbcHelpers extends LazyLogging {
           }
         }.isSuccess
     )
+  }
+
+  def getMemsqlVersion(conf: MemsqlOptions): String = {
+    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
+    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    val sql      = "select @@memsql_version"
+    log.trace(s"Executing SQL:\n$sql")
+    val resultSet = conn.withStatement(stmt => {
+      try {
+        stmt.executeQuery(sql)
+      } catch {
+        case _: SQLException => throw new IllegalArgumentException("Can't get MemSQL version")
+      } finally {
+        stmt.close()
+        conn.close()
+      }
+    })
+    if (resultSet.next()) {
+      resultSet.getString("@@memsql_version")
+    } else throw new IllegalArgumentException("Can't get MemSQL version")
   }
 
   def createTable(conn: Connection,
