@@ -1,6 +1,6 @@
 MemSQL Spark Connector 2.0
 ====================
-### :warning: **MemSQL Spark Connector Version 2.0 has a formal deprecation date of October 1st, 2020. Please upgrade to the latest production version [MemSQL Spark Connector 3.0.](https://github.com/memsql/memsql-spark-connector)**
+## :warning: **MemSQL Spark Connector Version 2.0 has a formal deprecation date of October 1st, 2020. Please upgrade to the latest production version [MemSQL Spark Connector 3.0.](https://github.com/memsql/memsql-spark-connector)**
 
 The MemSQL Spark connector 2.0 enables users to load data from MemSQL tables into Spark Dataframes, and write Spark Dataframes to MemSQL tables.
 
