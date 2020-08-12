@@ -131,7 +131,8 @@ trait IntegrationSuiteBase
 
   def writeTable(dbtable: String, df: DataFrame, saveMode: SaveMode = SaveMode.Overwrite): Unit =
     df.write
-      .format("memsql")
+//      .format("memsql")
+      .format("com.memsql.spark.v2")
       .mode(saveMode)
       .save(dbtable)
 
