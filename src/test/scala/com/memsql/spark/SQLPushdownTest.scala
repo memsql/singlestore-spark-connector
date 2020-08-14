@@ -82,6 +82,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     makeTables("users_sample")
     makeTables("movies")
     makeTables("reviews")
+
+    spark.udf.register("stringIdentity", (s: String) => s)
   }
 
   def extractQueriesFromPlan(root: LogicalPlan): Seq[String] = {
@@ -382,6 +384,34 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           |  from users inner join reviews on users.id = reviews.user_id
           | group by users.id
           |""".stripMargin)
+    }
+  }
+
+  describe("joins with partial pushdown in the condition") {
+    it("explicit inner join") {
+      testSingleReadQuery(
+        "select * from users inner join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
+        expectPartialPushdown = true)
+    }
+    it("cross join") {
+      testSingleReadQuery(
+        "select * from users cross join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
+        expectPartialPushdown = true)
+    }
+    it("left outer join") {
+      testSingleReadQuery(
+        "select * from users left outer join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
+        expectPartialPushdown = true)
+    }
+    it("right outer join") {
+      testSingleReadQuery(
+        "select * from users right outer join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
+        expectPartialPushdown = true)
+    }
+    it("full outer join") {
+      testSingleReadQuery(
+        "select * from users full outer join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
+        expectPartialPushdown = true)
     }
   }
 

@@ -323,7 +323,13 @@ object SQLGen extends LazyLogging {
       joinPredicates(extractAnd(expr), "AND")
     }
 
-    def unapply(expr: Option[Expression]): Option[Option[Joinable]] = expr.map(unapply)
+    // None -> Some(None) nothing to compile results in no SQL
+    // Some(good expr) -> Some(Some(sql)) we can compile, results in SQL
+    // Some(bad expr) -> None failed to compile, unapply does not match
+    def unapply(expr: Option[Expression]): Option[Option[Joinable]] = expr match {
+      case None             => Some(None)
+      case Some(expression) => joinPredicates(extractAnd(expression), "AND").map(j => Some(j))
+    }
   }
 
   def fromLogicalPlan(
@@ -376,7 +382,7 @@ object SQLGen extends LazyLogging {
       case plan @ Join(Relation(left),
                        Relation(right),
                        joinType @ (LeftOuter | RightOuter | FullOuter),
-                       sortPredicates(condition)) =>
+                       Some(sortPredicates(condition))) =>
         newStatement(plan)
           .selectAll()
           .from(left)
@@ -517,9 +523,17 @@ object SQLGen extends LazyLogging {
       out
     }
 
-    def unapply(arg: Option[Expression]): Option[Option[Joinable]] =
-      arg.map(ExpressionGen.apply(this).lift)
+    // None -> Some(None) nothing to compile results in no SQL
+    // Some(good expr) -> Some(Some(sql)) we can compile, results in SQL
+    // Some(bad expr) -> None failed to compile, unapply does not match
+    def unapply(arg: Option[Expression]): Option[Option[Joinable]] = arg match {
+      case None             => Some(None)
+      case Some(expression) => ExpressionGen.apply(this).lift(expression).map(j => Some(j))
+    }
 
+    // Seq() -> Some(None) nothing to compile results in no SQL
+    // Seq(good expressions) -> Some(Some(sql)) we can compile, results in SQL
+    // Seq(at least one bad expression) -> None failed to compile, unapply does not match
     def unapply(args: Seq[Expression]): Option[Option[Joinable]] = {
       if (args.isEmpty) {
         Some(None)
