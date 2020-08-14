@@ -8,6 +8,7 @@ import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.types._
 import org.slf4j.{Logger, LoggerFactory}
+import com.memsql.spark.JdbcHelpers.getDMLJDBCOptions
 
 import scala.collection.immutable.HashMap
 import scala.collection.{breakOut, mutable}
@@ -324,7 +325,13 @@ object SQLGen extends LazyLogging {
       joinPredicates(extractAnd(expr), "AND")
     }
 
-    def unapply(expr: Option[Expression]): Option[Joinable] = expr.flatMap(unapply)
+    // None -> Some(None) nothing to compile results in no SQL
+    // Some(good expr) -> Some(Some(sql)) we can compile, results in SQL
+    // Some(bad expr) -> None failed to compile, unapply does not match
+    def unapply(expr: Option[Expression]): Option[Option[Joinable]] = expr match {
+      case None             => Some(None)
+      case Some(expression) => joinPredicates(extractAnd(expression), "AND").map(j => Some(j))
+    }
   }
 
   def fromLogicalPlan(
@@ -367,7 +374,9 @@ object SQLGen extends LazyLogging {
                        Relation(right),
                        joinType @ (Inner | Cross),
                        sortPredicates(condition),
-                       _) =>
+                       _)
+          if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
+            right.reader.options).asProperties =>
         newStatement(plan)
           .selectAll()
           .from(left)
@@ -378,12 +387,13 @@ object SQLGen extends LazyLogging {
       // condition is required for {Left, Right, Full} outer joins
       // the last parameter is a spark hint for join
       // MemSQL does its own optimizations under the hood, so we can safely ignore this parameter
-      // TODO: need to verify that both relations are part of the same cluster
       case plan @ Join(Relation(left),
                        Relation(right),
                        joinType @ (LeftOuter | RightOuter | FullOuter),
-                       sortPredicates(condition),
-                       _) =>
+                       Some(sortPredicates(condition)),
+                       _)
+          if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
+            right.reader.options).asProperties =>
         newStatement(plan)
           .selectAll()
           .from(left)
@@ -394,7 +404,9 @@ object SQLGen extends LazyLogging {
       // condition is not allowed for natural joins
       // the last parameter is a spark hint for join
       // MemSQL does its own optimizations under the hood, so we can safely ignore this parameter
-      case plan @ Join(Relation(left), Relation(right), NaturalJoin(joinType), None, _) =>
+      case plan @ Join(Relation(left), Relation(right), NaturalJoin(joinType), None, _)
+          if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
+            right.reader.options).asProperties =>
         newStatement(plan)
           .selectAll()
           .from(left)
@@ -567,9 +579,17 @@ object SQLGen extends LazyLogging {
       out
     }
 
-    def unapply(arg: Option[Expression]): Option[Joinable] =
-      arg.flatMap(ExpressionGen.apply(this).lift)
+    // None -> Some(None) nothing to compile results in no SQL
+    // Some(good expr) -> Some(Some(sql)) we can compile, results in SQL
+    // Some(bad expr) -> None failed to compile, unapply does not match
+    def unapply(arg: Option[Expression]): Option[Option[Joinable]] = arg match {
+      case None             => Some(None)
+      case Some(expression) => ExpressionGen.apply(this).lift(expression).map(j => Some(j))
+    }
 
+    // Seq() -> Some(None) nothing to compile results in no SQL
+    // Seq(good expressions) -> Some(Some(sql)) we can compile, results in SQL
+    // Seq(at least one bad expression) -> None failed to compile, unapply does not match
     def unapply(args: Seq[Expression]): Option[Option[Joinable]] = {
       if (args.isEmpty) {
         Some(None)
