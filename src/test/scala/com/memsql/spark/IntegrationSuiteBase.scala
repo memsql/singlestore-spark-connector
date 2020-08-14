@@ -87,6 +87,7 @@ trait IntegrationSuiteBase
       .config("spark.datasource.memsql.enableAsserts", "true")
       .config("spark.datasource.memsql.enableParallelRead", "true")
       .config("spark.datasource.memsql.database", "testdb")
+      .config("spark.sql.catalog.spark_catalog", "com.memsql.spark.v2.MemsqlTableCatalog")
       .config("spark.datasource.memsql.useSSL", "true")
       .config("spark.datasource.memsql.serverSslCert",
               s"${System.getProperty("user.dir")}/scripts/ssl/test-ca-cert.pem")
@@ -129,7 +130,9 @@ trait IntegrationSuiteBase
       })
       .mkString(", ")
 
-  def writeTable(dbtable: String, df: DataFrame, saveMode: SaveMode = SaveMode.Overwrite): Unit =
+  def writeTable(dbtable: String,
+                 df: DataFrame,
+                 saveMode: SaveMode = SaveMode.ErrorIfExists): Unit =
     df.write
 //      .format("memsql")
       .format("com.memsql.spark.v2")

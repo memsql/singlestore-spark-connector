@@ -7,15 +7,25 @@ import com.memsql.spark.{DefaultSource, JdbcHelpers, MemsqlOptions}
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
-import org.apache.spark.sql.connector.catalog.{Table, TableProvider}
+import org.apache.spark.sql.connector.catalog.{
+  Identifier,
+  SupportsCatalogOptions,
+  Table,
+  TableProvider
+}
 import org.apache.spark.sql.connector.expressions.Transform
+import org.apache.spark.sql.internal.{SQLConf, StaticSQLConf}
 import org.apache.spark.sql.sources.DataSourceRegister
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 import scala.collection.JavaConverters._
 
-class DefaultSource extends TableProvider with DataSourceRegister {
+class DefaultSource extends TableProvider with DataSourceRegister with SupportsCatalogOptions {
+
+  override def extractIdentifier(options: CaseInsensitiveStringMap): Identifier = {
+    new MemsqlIdentifier()
+  }
 
   override def shortName(): String = "memsql"
 
@@ -43,6 +53,8 @@ class DefaultSource extends TableProvider with DataSourceRegister {
     val opts = CaseInsensitiveMap(
       includeGlobalParams(sparkSession.sparkContext, options.asCaseSensitiveMap().asScala.toMap))
     val conf = MemsqlOptions(opts)
+    val query =
+      MemsqlOptions.getQuery(CaseInsensitiveMap[String](options.asCaseSensitiveMap().asScala.toMap))
     val table = MemsqlOptions
       .getTable(opts)
       .getOrElse(
@@ -50,6 +62,11 @@ class DefaultSource extends TableProvider with DataSourceRegister {
           s"To write a dataframe to MemSQL you must specify a table name via the '${MemsqlOptions.TABLE_NAME}' parameter"
         )
       )
-    MemsqlTable(conf, sparkSession.sparkContext, table, schema, context = SQLGenContext(conf))
+    MemsqlTable(query,
+                conf,
+                sparkSession.sparkContext,
+                table,
+                schema,
+                context = SQLGenContext(conf))
   }
 }
