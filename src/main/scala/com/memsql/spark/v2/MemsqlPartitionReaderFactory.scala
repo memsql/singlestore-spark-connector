@@ -7,11 +7,12 @@ import com.memsql.spark.{JdbcHelpers, LazyLogging, MemsqlOptions}
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.connector.read.{InputPartition, PartitionReader, PartitionReaderFactory}
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.StructType
 
-class SimplePartitionReaderFactory(query: String,
+class MemsqlPartitionReaderFactory(query: String,
                                    variables: VariableList,
                                    options: MemsqlOptions,
                                    schema: StructType)
@@ -28,19 +29,21 @@ class SimplePartitionReaderFactory(query: String,
 
     val rows = JdbcUtils.resultSetToRows(rs, schema)
 
-    new SimplePartitionReader(conn, stmt, rows)
+    new SimplePartitionReader(conn, stmt, rows, schema)
   }
 }
 
-class SimplePartitionReader(conn: Connection, stmt: PreparedStatement, rows: Iterator[Row])
+class SimplePartitionReader(conn: Connection,
+                            stmt: PreparedStatement,
+                            rows: Iterator[Row],
+                            schema: StructType)
     extends PartitionReader[InternalRow] {
+
+  val fromRow = RowEncoder(schema).resolveAndBind().createSerializer()
 
   def next = rows.hasNext
 
-  def get = {
-    null
-//    rows.next
-  }
+  override def get(): InternalRow = fromRow(rows.next())
 
   def close() = {
     stmt.close()

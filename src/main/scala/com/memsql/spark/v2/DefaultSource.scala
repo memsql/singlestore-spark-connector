@@ -24,10 +24,20 @@ import scala.collection.JavaConverters._
 class DefaultSource extends TableProvider with DataSourceRegister with SupportsCatalogOptions {
 
   override def extractIdentifier(options: CaseInsensitiveStringMap): Identifier = {
-    new MemsqlIdentifier()
+    val sparkSession = SparkSession.active
+    val opts = CaseInsensitiveMap(
+      includeGlobalParams(sparkSession.sparkContext, options.asCaseSensitiveMap().asScala.toMap))
+    val table = MemsqlOptions
+      .getTable(opts)
+      .getOrElse(
+        throw new IllegalArgumentException(
+          s"To write a dataframe to MemSQL you must specify a table name via the '${MemsqlOptions.TABLE_NAME}' parameter"
+        )
+      )
+    MemsqlIdentifier(table.database, table.table)
   }
 
-  override def shortName(): String = "memsql"
+  override def shortName(): String = "memsql-v2"
 
   private def includeGlobalParams(sqlContext: SparkContext,
                                   params: Map[String, String]): Map[String, String] =

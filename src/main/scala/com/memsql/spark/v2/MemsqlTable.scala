@@ -4,7 +4,7 @@ import java.util
 
 import com.memsql.spark.{JdbcHelpers, LazyLogging, MemsqlOptions}
 import com.memsql.spark.SQLGen.{SQLGenContext, VariableList}
-import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.apache.spark.{SparkContext, TaskContext}
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -23,7 +23,7 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap
 import scala.collection.JavaConverters._
 
 case class MemsqlTable(query: String,
-                       options: MemsqlOptions,
+                       memsqlOptions: MemsqlOptions,
                        @transient val sparkContext: SparkContext,
                        table: TableIdentifier,
                        userSchema: Option[StructType] = None,
@@ -35,7 +35,7 @@ case class MemsqlTable(query: String,
     with SupportsWrite
     with LazyLogging {
 
-  lazy val tableSchema = JdbcHelpers.loadSchema(options, query, Nil)
+  lazy val tableSchema = JdbcHelpers.loadSchema(memsqlOptions, query, Nil)
 
   override def name(): String = table.table
 
@@ -45,17 +45,17 @@ case class MemsqlTable(query: String,
     Set(TableCapability.BATCH_READ, TableCapability.BATCH_WRITE).asJava
 
   override def newScanBuilder(options: CaseInsensitiveStringMap): ScanBuilder =
-    new SimpleScanBuilder()
+    MemsqlScanBuilder(query, memsqlOptions, SparkSession.active.sqlContext)
 
   override def newWriteBuilder(info: LogicalWriteInfo): WriteBuilder = {
-    val isReferenceTable = JdbcHelpers.isReferenceTable(options, table)
+    val isReferenceTable = JdbcHelpers.isReferenceTable(memsqlOptions, table)
     MemsqlLoadDataWriteBuilder(info.schema(),
                                TaskContext.getPartitionId(),
                                0,
                                isReferenceTable,
                                SaveMode.Append,
                                table,
-                               options)
+                               memsqlOptions)
   }
 
   override def commitStagedChanges(): Unit = {}
