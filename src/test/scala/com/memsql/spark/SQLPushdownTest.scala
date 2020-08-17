@@ -1,9 +1,10 @@
 package com.memsql.spark
 
 import com.memsql.spark.SQLGen.Relation
-import org.apache.log4j.{Level, LogManager}
+import org.apache.log4j.{Level, LogManager, Logger}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.rules.RuleExecutor
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
@@ -352,66 +353,158 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("joins") {
-    it("implicit inner join") {
-      testSingleReadQuery("select * from users as a, reviews where a.id = reviews.user_id")
+    describe("successful pushdown") {
+      it("implicit inner join") {
+        testSingleReadQuery("select * from users as a, reviews where a.id = reviews.user_id")
+      }
+      it("explicit inner join") {
+        testSingleReadQuery("select * from users inner join reviews on users.id = reviews.user_id")
+      }
+      it("cross join") {
+        testSingleReadQuery("select * from users cross join reviews on users.id = reviews.user_id")
+      }
+      it("left outer join") {
+        testSingleReadQuery(
+          "select * from users left outer join reviews on users.id = reviews.user_id")
+      }
+      it("right outer join") {
+        testSingleReadQuery(
+          "select * from users right outer join reviews on users.id = reviews.user_id")
+      }
+      it("full outer join") {
+        testSingleReadQuery(
+          "select * from users full outer join reviews on users.id = reviews.user_id")
+      }
+      it("natural join") {
+        testSingleReadQuery(
+          "select users.id, rating from users natural join (select user_id as id, rating from reviews)")
+      }
+      it("complex join") {
+        testSingleReadQuery(
+          """
+            |  select users.id, round(avg(rating), 2) as rating, count(*) as num_reviews
+            |  from users inner join reviews on users.id = reviews.user_id
+            | group by users.id
+            |""".stripMargin)
+      }
+      it("inner join without condition") {
+        testSingleReadQuery(
+          "select * from users inner join reviews order by concat(users.id, ' ', reviews.user_id, ' ', reviews.movie_id) limit 10")
+      }
+      it("cross join without condition") {
+        testSingleReadQuery(
+          "select * from users cross join reviews order by concat(users.id, ' ', reviews.user_id, ' ', reviews.movie_id) limit 10")
+      }
     }
-    it("explicit inner join") {
-      testSingleReadQuery("select * from users inner join reviews on users.id = reviews.user_id")
-    }
-    it("cross join") {
-      testSingleReadQuery("select * from users cross join reviews on users.id = reviews.user_id")
-    }
-    it("left outer join") {
-      testSingleReadQuery(
-        "select * from users left outer join reviews on users.id = reviews.user_id")
-    }
-    it("right outer join") {
-      testSingleReadQuery(
-        "select * from users right outer join reviews on users.id = reviews.user_id")
-    }
-    it("full outer join") {
-      testSingleReadQuery(
-        "select * from users full outer join reviews on users.id = reviews.user_id")
-    }
-    it("natural join") {
-      testSingleReadQuery(
-        "select users.id, rating from users natural join (select user_id as id, rating from reviews)")
-    }
-    it("complex join") {
-      testSingleReadQuery(
-        """
-          |  select users.id, round(avg(rating), 2) as rating, count(*) as num_reviews
-          |  from users inner join reviews on users.id = reviews.user_id
-          | group by users.id
-          |""".stripMargin)
-    }
-  }
 
-  describe("joins with partial pushdown in the condition") {
-    it("explicit inner join") {
-      testSingleReadQuery(
-        "select * from users inner join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
-        expectPartialPushdown = true)
-    }
-    it("cross join") {
-      testSingleReadQuery(
-        "select * from users cross join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
-        expectPartialPushdown = true)
-    }
-    it("left outer join") {
-      testSingleReadQuery(
-        "select * from users left outer join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
-        expectPartialPushdown = true)
-    }
-    it("right outer join") {
-      testSingleReadQuery(
-        "select * from users right outer join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
-        expectPartialPushdown = true)
-    }
-    it("full outer join") {
-      testSingleReadQuery(
-        "select * from users full outer join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
-        expectPartialPushdown = true)
+    describe("unsuccessful pushdown") {
+      describe("udf in the left relation") {
+        it("explicit inner join") {
+          testSingleReadQuery(
+            "select * from (select rating, stringIdentity(user_id) as user_id from reviews) inner join users on users.id = user_id",
+            expectPartialPushdown = true)
+        }
+        it("cross join") {
+          testSingleReadQuery(
+            "select * from (select rating, stringIdentity(user_id) as user_id from reviews) cross join users on users.id = user_id",
+            expectPartialPushdown = true)
+        }
+        it("left outer join") {
+          testSingleReadQuery(
+            "select * from (select rating, stringIdentity(user_id) as user_id from reviews) left outer join users on users.id = user_id",
+            expectPartialPushdown = true
+          )
+        }
+        it("right outer join") {
+          testSingleReadQuery(
+            "select * from (select rating, stringIdentity(user_id) as user_id from reviews) right outer join users on users.id = user_id",
+            expectPartialPushdown = true
+          )
+        }
+        it("full outer join") {
+          testSingleReadQuery(
+            "select * from (select rating, stringIdentity(user_id) as user_id from reviews) full outer join users on users.id = user_id",
+            expectPartialPushdown = true
+          )
+        }
+      }
+
+      describe("udf in the right relation") {
+        it("explicit inner join") {
+          testSingleReadQuery(
+            "select * from users inner join (select rating, stringIdentity(user_id) as user_id from reviews) on users.id = user_id",
+            expectPartialPushdown = true)
+        }
+        it("cross join") {
+          testSingleReadQuery(
+            "select * from users cross join (select rating, stringIdentity(user_id) as user_id from reviews) on users.id = user_id",
+            expectPartialPushdown = true)
+        }
+        it("left outer join") {
+          testSingleReadQuery(
+            "select * from users left outer join (select rating, stringIdentity(user_id) as user_id from reviews) on users.id = user_id",
+            expectPartialPushdown = true
+          )
+        }
+        it("right outer join") {
+          testSingleReadQuery(
+            "select * from users right outer join (select rating, stringIdentity(user_id) as user_id from reviews) on users.id = user_id",
+            expectPartialPushdown = true
+          )
+        }
+        it("full outer join") {
+          testSingleReadQuery(
+            "select * from users full outer join (select rating, stringIdentity(user_id) as user_id from reviews) on users.id = user_id",
+            expectPartialPushdown = true
+          )
+        }
+      }
+
+      describe("udf in the condition") {
+        it("explicit inner join") {
+          testSingleReadQuery(
+            "select * from users inner join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
+            expectPartialPushdown = true)
+        }
+        it("cross join") {
+          testSingleReadQuery(
+            "select * from users cross join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
+            expectPartialPushdown = true)
+        }
+        it("left outer join") {
+          testSingleReadQuery(
+            "select * from users left outer join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
+            expectPartialPushdown = true)
+        }
+        it("right outer join") {
+          testSingleReadQuery(
+            "select * from users right outer join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
+            expectPartialPushdown = true)
+        }
+        it("full outer join") {
+          testSingleReadQuery(
+            "select * from users full outer join reviews on stringIdentity(users.id) = stringIdentity(reviews.user_id)",
+            expectPartialPushdown = true)
+        }
+      }
+
+      describe("outer joins with empty condition") {
+        it("left outer join") {
+          testQuery(
+            "select * from users left outer join (select rating from reviews order by rating limit 10)",
+            expectPartialPushdown = true)
+        }
+        it("right outer join") {
+          testQuery(
+            "select * from users right outer join (select rating from reviews order by rating limit 10)",
+            expectPartialPushdown = true)
+        }
+        it("full outer join") {
+          testQuery(
+            "select * from users full outer join (select rating from reviews order by rating limit 10)",
+            expectPartialPushdown = true)
+        }
+      }
     }
   }
 
