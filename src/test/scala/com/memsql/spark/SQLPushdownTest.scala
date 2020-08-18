@@ -1,6 +1,6 @@
 package com.memsql.spark
 
-import com.memsql.spark.SQLGen.Relation
+import com.memsql.spark.SQLGen.{MemsqlVersion, Relation}
 import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -247,17 +247,26 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   describe("bit operations") {
     it("bit_count") { testQuery("SELECT bit_count(user_id) AS bit_count FROM reviews") }
     def bitOperationTest(sql: String): Unit = {
-      val bitOperationsMinVersion = "7.0.1"
+      val bitOperationsMinVersion = MemsqlVersion(7, 0, 1)
       val resultSet = jdbcConnection.to(conn =>
         Loan(conn.createStatement()).to(_.executeQuery("select @@memsql_version")))
       resultSet.next()
-      val version = resultSet.getString("@@memsql_version")
-      if (version.compareTo(bitOperationsMinVersion) > 0)
+      val version = MemsqlVersion(resultSet.getString("@@memsql_version"))
+      if (version.atLeast(bitOperationsMinVersion))
         testSingleReadQuery(sql)
     }
     it("bit_and") { bitOperationTest("SELECT bit_and(user_id) AS bit_and FROM reviews") }
+    it("bit_and filter") {
+      bitOperationTest("SELECT bit_and(user_id) filter (where user_id % 2 = 0) FROM reviews")
+    }
     it("bit_or") { bitOperationTest("SELECT bit_or(age) AS bit_or FROM users") }
+    it("bit_or filter") {
+      bitOperationTest("SELECT bit_or(age) filter (where age % 2 = 0) FROM users")
+    }
     it("bit_xor") { bitOperationTest("SELECT bit_xor(user_id) AS bit_xor FROM reviews") }
+    it("bit_xor filter") {
+      bitOperationTest("SELECT bit_xor(user_id) filter (where user_id % 2 = 0) FROM reviews")
+    }
   }
 
   describe("datatypes") {
@@ -297,11 +306,49 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("aggregations") {
     it("count") { testSingleReadQuery("select count(*) from users") }
+    it("count filter") {
+      testSingleReadQuery("select count(*) filter (where age % 2 = 0) from users")
+    }
+    it("count filter udf") {
+      spark.udf.register("myUDF", (x: Int) => x % 3 == 1)
+      testSingleReadQuery("SELECT count_if(age % 2 = 0) filter (where myUDF(age)) FROM users",
+                          expectPartialPushdown = true)
+    }
     it("count_if") { testSingleReadQuery("SELECT count_if(age % 2 = 0) as count FROM users") }
+    it("count_if filter") {
+      testSingleReadQuery("SELECT count_if(age % 2 = 0) filter (where age % 2 = 0) FROM users")
+    }
     it("count distinct") { testSingleReadQuery("select count(distinct first_name) from users") }
     it("first") { testSingleReadQuery("select first(first_name) from users group by id") }
+    it("first filter") {
+      testSingleReadQuery(
+        "select first(first_name) filter (where age % 2 = 0) from users group by id")
+    }
     it("last") { testSingleReadQuery("select last(first_name) from users group by id") }
+    it("last filter") {
+      testSingleReadQuery(
+        "select last(first_name) filter (where age % 2 = 0) from users group by id")
+    }
+    it("stddev_pop") { testSingleReadQuery("select stddev_pop(age) from users") }
+    it("stddev_pop filter") {
+      testSingleReadQuery("select stddev_pop(age) filter (where age % 2 = 0) from users")
+    }
+    it("stddev_samp") { testSingleReadQuery("select stddev_pop(age) from users") }
+    it("stddev_samp filter") {
+      testSingleReadQuery("select stddev_samp(age) filter (where age % 2 = 0) from users")
+    }
+    it("var_pop") { testSingleReadQuery("select var_pop(age) from users") }
+    it("var_pop filter") {
+      testSingleReadQuery("select var_pop(age) filter (where age % 2 = 0) from users")
+    }
+    it("var_samp") { testSingleReadQuery("select var_samp(age) from users") }
+    it("var_samp filter") {
+      testSingleReadQuery("select var_samp(age) filter (where age % 2 = 0) from users")
+    }
     it("floor(avg(age))") { testSingleReadQuery("select floor(avg(age)) from users") }
+    it("avg(age) filter") {
+      testSingleReadQuery("select avg(age) filter (where age % 2 = 0) from users")
+    }
     it("top 3 email domains") {
       testOrderedQuery(
         """
@@ -314,6 +361,16 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         |   limit 3
         |""".stripMargin
       )
+    }
+    it("max") { testSingleReadQuery("select max(user_id) as maxid from reviews") }
+    it("max filter") {
+      testSingleReadQuery(
+        "select max(user_id) filter (where user_id % 2 = 0) as maxid_filter from reviews")
+    }
+    it("min") { testSingleReadQuery("select min(user_id) as minid from reviews") }
+    it("min filter") {
+      testSingleReadQuery(
+        "select min(user_id) filter (where user_id % 2 = 0) as minid_filter from reviews")
     }
   }
 

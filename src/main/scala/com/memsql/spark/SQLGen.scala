@@ -567,8 +567,8 @@ object SQLGen extends LazyLogging {
       out
     }
 
-    def unapply(arg: Option[Expression]): Option[Option[Joinable]] =
-      arg.map(ExpressionGen.apply(this).lift)
+    def unapply(arg: Option[Expression]): Option[Joinable] =
+      arg.flatMap(ExpressionGen.apply(this).lift)
 
     def unapply(args: Seq[Expression]): Option[Option[Joinable]] = {
       if (args.isEmpty) {
