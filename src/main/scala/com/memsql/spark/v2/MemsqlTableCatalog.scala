@@ -7,6 +7,7 @@ import com.memsql.spark.{DefaultSource, JdbcHelpers, MemsqlOptions}
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.TableIdentifier
+import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.connector.catalog._
 import org.apache.spark.sql.connector.expressions.Transform
@@ -14,7 +15,21 @@ import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
-class MemsqlTableCatalog extends StagingTableCatalog {
+class MemsqlTableCatalog extends StagingTableCatalog with SupportsNamespaces {
+
+  override def listNamespaces(): Array[Array[String]] = Array.empty
+
+  override def listNamespaces(namespace: Array[String]): Array[Array[String]] = Array.empty
+
+  override def loadNamespaceMetadata(namespace: Array[String]): util.Map[String, String] =
+    throw new NoSuchNamespaceException(namespace)
+
+  override def createNamespace(namespace: Array[String], metadata: util.Map[String, String]): Unit =
+    new util.HashMap[String, String]()
+
+  override def alterNamespace(namespace: Array[String], changes: NamespaceChange*): Unit = {}
+
+  override def dropNamespace(namespace: Array[String]): Boolean = true
 
   override def stageCreate(ident: Identifier,
                            schema: StructType,
@@ -30,6 +45,7 @@ class MemsqlTableCatalog extends StagingTableCatalog {
       JdbcHelpers.createTable(conn, tableIdentifier, schema, List.empty)
     }
     MemsqlTable(getQuery(tableIdentifier),
+                Nil,
                 conf,
                 sparkSession.sparkContext,
                 tableIdentifier,
@@ -63,6 +79,7 @@ class MemsqlTableCatalog extends StagingTableCatalog {
     val tableIdentifier = TableIdentifier(ident.name(), Some(ident.namespace()(0)))
     if (JdbcHelpers.tableExists(conn, tableIdentifier)) {
       MemsqlTable(getQuery(tableIdentifier),
+                  Nil,
                   conf,
                   sparkSession.sparkContext,
                   tableIdentifier,
@@ -92,6 +109,7 @@ class MemsqlTableCatalog extends StagingTableCatalog {
       JdbcHelpers.createTable(conn, tableIdentifier, schema, List.empty)
     }
     MemsqlTable(getQuery(tableIdentifier),
+                Nil,
                 conf,
                 sparkSession.sparkContext,
                 tableIdentifier,

@@ -1,28 +1,31 @@
 package com.memsql.spark.v2
 
+import java.sql.SQLSyntaxErrorException
 import java.util
 
-import com.memsql.spark.{JdbcHelpers, LazyLogging, MemsqlOptions}
-import com.memsql.spark.SQLGen.{SQLGenContext, VariableList}
-import org.apache.spark.sql.{SaveMode, SparkSession}
-import org.apache.spark.{SparkContext, TaskContext}
+import com.memsql.spark.SQLGen.{ExpressionExtractor, SQLGenContext, VariableList}
+import com.memsql.spark._
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.catalyst.expressions.Attribute
+import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression}
 import org.apache.spark.sql.connector.catalog.{
   StagedTable,
   SupportsRead,
   SupportsWrite,
-  Table,
   TableCapability
 }
 import org.apache.spark.sql.connector.read.ScanBuilder
 import org.apache.spark.sql.connector.write.{LogicalWriteInfo, WriteBuilder}
-import org.apache.spark.sql.types.{StringType, StructField, StructType}
+import org.apache.spark.sql.sources.{CatalystScan, TableScan}
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
+import org.apache.spark.sql.{Row, SaveMode, SparkSession}
+import org.apache.spark.{SparkContext, TaskContext}
 
 import scala.collection.JavaConverters._
 
 case class MemsqlTable(query: String,
+                       variables: VariableList,
                        memsqlOptions: MemsqlOptions,
                        @transient val sparkContext: SparkContext,
                        table: TableIdentifier,
@@ -33,7 +36,55 @@ case class MemsqlTable(query: String,
     extends StagedTable
     with SupportsRead
     with SupportsWrite
+    with TableScan
+    with CatalystScan
     with LazyLogging {
+
+  override def buildScan(): RDD[Row] = {
+    MemsqlRDD(query, Nil, memsqlOptions, tableSchema, expectedOutput, sparkContext)
+  }
+
+  override def buildScan(requiredColumns: Seq[Attribute], rawFilters: Seq[Expression]): RDD[Row] = {
+    // we don't have to push down *everything* using this interface since Spark will
+    // run the projection and filter again upon receiving the results from MemSQL
+    val projection =
+      requiredColumns
+        .flatMap(ExpressionGen.apply(ExpressionExtractor(context)).lift(_))
+        .reduceOption(_ + "," + _)
+    val filters =
+      rawFilters
+        .flatMap(ExpressionGen.apply(ExpressionExtractor(context)).lift(_))
+        .reduceOption(_ + "AND" + _)
+
+    val stmt = (projection, filters) match {
+      case (Some(p), Some(f)) =>
+        SQLGen
+          .select(p)
+          .from(SQLGen.RelationV2(Nil, this, context.nextAlias(), null))
+          .where(f)
+          .output(requiredColumns)
+      case (Some(p), None) =>
+        SQLGen
+          .select(p)
+          .from(SQLGen.RelationV2(Nil, this, context.nextAlias(), null))
+          .output(requiredColumns)
+      case (None, Some(f)) =>
+        SQLGen.selectAll
+          .from(SQLGen.RelationV2(Nil, this, context.nextAlias(), null))
+          .where(f)
+          .output(expectedOutput)
+      case _ =>
+        return buildScan
+    }
+
+    val newReader = copy(query = stmt.sql, variables = stmt.variables, expectedOutput = stmt.output)
+
+    if (log.isTraceEnabled) {
+      log.trace(s"CatalystScan additional rewrite:\n${newReader}")
+    }
+
+    newReader.buildScan
+  }
 
   lazy val tableSchema = JdbcHelpers.loadSchema(memsqlOptions, query, Nil)
 
@@ -61,4 +112,27 @@ case class MemsqlTable(query: String,
   override def commitStagedChanges(): Unit = {}
 
   override def abortStagedChanges(): Unit = {}
+
+  override def toString: String = {
+    val explain =
+      try {
+        JdbcHelpers.explainQuery(memsqlOptions, query, variables)
+      } catch {
+        case e: SQLSyntaxErrorException => e.toString
+        case e: Exception               => throw e
+      }
+    val v = variables.map(_.variable).mkString(", ")
+
+    s"""
+       |---------------
+       |MemSQL Query
+       |Variables: ($v)
+       |SQL:
+       |$query
+       |
+       |EXPLAIN:
+       |$explain
+       |---------------
+      """.stripMargin
+  }
 }

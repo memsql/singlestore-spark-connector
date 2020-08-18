@@ -3,7 +3,7 @@ package com.memsql.spark.v2
 import java.util
 
 import com.memsql.spark.SQLGen.SQLGenContext
-import com.memsql.spark.{DefaultSource, JdbcHelpers, MemsqlOptions}
+import com.memsql.spark.{DefaultSource, MemsqlOptions, SQLPushdownRule}
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
@@ -14,7 +14,6 @@ import org.apache.spark.sql.connector.catalog.{
   TableProvider
 }
 import org.apache.spark.sql.connector.expressions.Transform
-import org.apache.spark.sql.internal.{SQLConf, StaticSQLConf}
 import org.apache.spark.sql.sources.DataSourceRegister
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
@@ -27,6 +26,7 @@ class DefaultSource extends TableProvider with DataSourceRegister with SupportsC
     val sparkSession = SparkSession.active
     val opts = CaseInsensitiveMap(
       includeGlobalParams(sparkSession.sparkContext, options.asCaseSensitiveMap().asScala.toMap))
+    val conf = MemsqlOptions(opts)
     val table = MemsqlOptions
       .getTable(opts)
       .getOrElse(
@@ -34,7 +34,11 @@ class DefaultSource extends TableProvider with DataSourceRegister with SupportsC
           s"To write a dataframe to MemSQL you must specify a table name via the '${MemsqlOptions.TABLE_NAME}' parameter"
         )
       )
-    MemsqlIdentifier(table.database, table.table)
+    val databaseName =
+      table.database
+        .orElse(conf.database)
+        .getOrElse(throw new IllegalArgumentException("Database name should be defined"))
+    MemsqlIdentifier(databaseName, table.table)
   }
 
   override def shortName(): String = "memsql-v2"
@@ -72,7 +76,9 @@ class DefaultSource extends TableProvider with DataSourceRegister with SupportsC
           s"To write a dataframe to MemSQL you must specify a table name via the '${MemsqlOptions.TABLE_NAME}' parameter"
         )
       )
+    SQLPushdownRule.ensureInjected(sparkSession)
     MemsqlTable(query,
+                Nil,
                 conf,
                 sparkSession.sparkContext,
                 table,

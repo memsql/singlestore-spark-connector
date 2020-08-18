@@ -2,6 +2,7 @@ package com.memsql.spark
 
 import java.sql.{Date, Timestamp}
 
+import com.memsql.spark.v2.MemsqlTable
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.logical._
@@ -143,6 +144,67 @@ object SQLGen extends LazyLogging {
     //      qualifier
     //        .map(q => s"${MemsqlDialect.quoteIdentifier(q)}.")
     //        .getOrElse("") + MemsqlDialect.quoteIdentifier(name)
+  }
+
+  case class RelationV2(
+      rawOutput: Seq[Attribute],
+      reader: MemsqlTable,
+      name: String,
+      toLogicalPlan: (Seq[AttributeReference],
+                      String,
+                      VariableList,
+                      Boolean,
+                      SQLGenContext) => LogicalPlan
+  ) extends SQLChunk {
+
+    val isFinal = reader.isFinal
+
+    val output = rawOutput.map(
+      a => AttributeReference(a.name, a.dataType, a.nullable, a.metadata)(a.exprId)
+    )
+
+    override val sql: String = {
+      val indentedQuery = reader.query.replace("\n", "\n  ")
+      val alias         = MemsqlDialect.quoteIdentifier(name)
+      s"(\n  $indentedQuery\n) AS $alias"
+    }
+
+    def renameOutput: LogicalPlan =
+      select(
+        output
+          .map(a => alias(MemsqlDialect.quoteIdentifier(a.name), a.name, a.exprId, reader.context))
+          .reduce(_ + "," + _))
+        .from(this)
+        .output(output)
+        .asLogicalPlan()
+
+    def castOutputAndFinalize: LogicalPlan = {
+      val schema = try {
+        reader.schema
+      } catch {
+        case e: Exception => {
+          log.error(s"Failed to compute schema for reader:\n${reader.toString}")
+          throw e
+        }
+      }
+
+      val castedOutputExpr = output
+        .zip(schema)
+        .map({
+          case (a, f) if a.dataType != f.dataType =>
+            Alias(Cast(a, a.dataType), a.name)(a.exprId, a.qualifier, Some(a.metadata))
+
+          case (a, _) => a
+        })
+      val expressionExtractor = ExpressionExtractor(reader.context)
+
+      select(castedOutputExpr match {
+        case expressionExtractor(expr) => expr
+        case _                         => None
+      }).from(this)
+        .output(output)
+        .asLogicalPlan(true)
+    }
   }
 
   case class Relation(
