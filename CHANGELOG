@@ -1,4 +1,7 @@
-2020-08-03 Version 3.0.3
+2020-08-20 Version 3.0.4
+	* Added trim pushdown
+
+2020-08-14 Version 3.0.3
 	* Fixed bug with pushdown of the join condition
 
 2020-08-03 Version 3.0.2
