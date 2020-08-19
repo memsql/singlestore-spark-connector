@@ -160,10 +160,19 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         df.schema
           .filter(_.dataType == FloatType)
           .foreach(x => newDf = newDf.withColumn(x.name, newDf(x.name).cast(DoubleType)))
+
+        // replace all Decimals with Doubles, because assertApproximateDataFrameEquality compare Decimals for strong equality
+        df.schema
+          .foreach(x =>
+            x.dataType match {
+              case _: DecimalType =>
+                newDf = newDf.withColumn(x.name, newDf(x.name).cast(DoubleType))
+              case _ =>
+          })
         newDf
       }
       assertApproximateDataFrameEquality(changeTypes(memsqlDF),
-                                         jdbcDF,
+                                         changeTypes(jdbcDF),
                                          0.1,
                                          orderedComparison = alreadyOrdered)
     } catch {
@@ -736,6 +745,62 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("with escape char equal to '/'") {
       testQuery(
         "select first_name like last_name escape '/', last_name like first_name escape '/' from users")
+    }
+  }
+
+  describe("decimalExpressions") {
+    it("sum of decimals") {
+      // If precision + 10 <= Decimal.MAX_LONG_DIGITS then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
+      for (precision <- 0 to Decimal.MAX_LONG_DIGITS - 10;
+           // If rating >= 10^(precision - scale) then rating will overflow during the casting
+           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
+           // MemSQL truncates the value on overflow
+           // Because of this, we filter such cases
+           scale <- 1 to precision) {
+        testSingleReadQuery(
+          s"select sum(cast(rating as decimal($precision, $scale))) filter (where rating < pow(10.0, ${precision - scale})) as rs from reviews")
+      }
+    }
+
+    it("window expression with sum of decimals") {
+      // If precision + 10 <= Decimal.MAX_LONG_DIGITS then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
+      for (precision <- 1 to Decimal.MAX_LONG_DIGITS - 10;
+           // If rating >= 10^(precision - scale) then rating will overflow during the casting
+           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
+           // MemSQL truncates the value on overflow
+           // Window aggregate function with filter predicate is not supported by spark yet
+           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
+           scale <- 1 until precision) {
+        testSingleReadQuery(
+          s"select sum(cast(rating as decimal($precision, $scale))) over (order by rating) as out from reviews")
+      }
+    }
+
+    it("avg of decimals") {
+      // If precision + 4 <= MAX_DOUBLE_DIGITS (15) then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
+      for (precision <- 1 to 11;
+           // If rating >= 10^(precision - scale) then rating will overflow during the casting
+           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
+           // MemSQL truncates the value on overflow
+           // Because of this, we filter such cases
+           scale <- 0 to precision) {
+        testSingleReadQuery(
+          s"select avg(cast(rating as decimal($precision, $scale))) filter (where rating < pow(10.0, ${precision - scale})) as rs from reviews")
+      }
+    }
+
+    it("window expression with avg of decimals") {
+      // If precision + 4 <= MAX_DOUBLE_DIGITS (15) then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
+      for (precision <- 1 to 11;
+           // If rating >= 10^(precision - scale) then rating will overflow during the casting
+           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
+           // MemSQL truncates the value on overflow
+           // Window aggregate function with filter predicate is not supported by spark yet
+           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
+           scale <- 1 until precision) {
+        testSingleReadQuery(
+          s"select avg(cast(rating as decimal($precision, $scale))) over (order by rating) as out from reviews")
+      }
     }
   }
 }

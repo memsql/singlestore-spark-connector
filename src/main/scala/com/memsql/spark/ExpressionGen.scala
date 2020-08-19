@@ -103,6 +103,13 @@ object ExpressionGen extends LazyLogging {
     }
   }
 
+  case class DecimalExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(e: Expression): Option[(Joinable, Int, Int)] = (e, e.dataType) match {
+      case (expressionExtractor(child), t: DecimalType) => Some((child, t.precision, t.scale))
+      case _                                            => None
+    }
+  }
+
   case class WindowBoundaryExpressionExtractor(expressionExtractor: ExpressionExtractor) {
     def unapply(arg: Expression): Option[Joinable] = arg match {
       case e: SpecialFrameBoundary                => Some(e.sql)
@@ -221,6 +228,7 @@ object ExpressionGen extends LazyLogging {
     val monthsBetweenExpressionExtractor  = MonthsBetweenExpressionExtractor(expressionExtractor)
     val context                           = expressionExtractor.context
     val aggregateExpressionExtractor      = AggregateExpressionExtractor(expressionExtractor, context)
+    val decimalExpressionExtractor        = DecimalExpressionExtractor(expressionExtractor)
     return {
       // ----------------------------------
       // Attributes
@@ -665,7 +673,14 @@ object ExpressionGen extends LazyLogging {
           f("CONCAT", year, "'-'", month, "'-'", day, "' '", hour, "':'", min, "':'", sec))
 
       // decimalExpressions.scala
-      // TODO: case MakeDecimal(Expression(child), p: Int, s: Int, false) => makeDecimal(child, p, s)
+      // MakeDecimal and UnscaledValue value are used in DecimalAggregates optimizer
+      // This optimizer replace Decimals inside of the sum and aggregate expressions to the Longs using UnscaledValue
+      // and then casts the result back to Decimal using MakeDecimal
+      case MakeDecimal(expressionExtractor(child), p, s, _) =>
+        makeDecimal(op("/", child, math.pow(10.0, s).toString), p, s)
+
+      case UnscaledValue(decimalExpressionExtractor(child, precision, scale)) =>
+        op("!:>", op("*", child, math.pow(10.0, scale).toString), "BIGINT")
 
       // hash.scala
       case Md5(expressionExtractor(child))   => f("MD5", child)
