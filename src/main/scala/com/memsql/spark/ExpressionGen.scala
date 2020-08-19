@@ -450,6 +450,27 @@ object ExpressionGen extends LazyLogging {
       case StringRepeat(expressionExtractor(child), expressionExtractor(times)) =>
         f("LPAD", StringVar(""), times + "*" + f("CHAR_LENGTH", child), child)
 
+      case StringTrim(expressionExtractor(srcStr), None) =>
+        f("TRIM", Raw("BOTH") + "FROM" + srcStr)
+      case StringTrim(expressionExtractor(srcStr), Some(trimStr))
+          if trimStr.foldable && trimStr.dataType == StringType &&
+            trimStr.eval().asInstanceOf[UTF8String] == UTF8String.fromString(" ") =>
+        f("TRIM", Raw("BOTH") + "FROM" + srcStr)
+
+      case StringTrimLeft(expressionExtractor(srcStr), None) =>
+        f("LTRIM", srcStr)
+      case StringTrimLeft(expressionExtractor(srcStr), Some(trimStr))
+          if trimStr.foldable && trimStr.dataType == StringType &&
+            trimStr.eval().asInstanceOf[UTF8String] == UTF8String.fromString(" ") =>
+        f("LTRIM", srcStr)
+
+      case StringTrimRight(expressionExtractor(srcStr), None) =>
+        f("RTRIM", srcStr)
+      case StringTrimRight(expressionExtractor(srcStr), Some(trimStr))
+          if trimStr.foldable && trimStr.dataType == StringType &&
+            trimStr.eval().asInstanceOf[UTF8String] == UTF8String.fromString(" ") =>
+        f("RTRIM", srcStr)
+
       // TODO: case _: Levenshtein => None
 
       // ----------------------------------
