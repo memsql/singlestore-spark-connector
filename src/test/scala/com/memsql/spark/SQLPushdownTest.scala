@@ -505,6 +505,47 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             expectPartialPushdown = true)
         }
       }
+
+      describe("different dml jdbc options") {
+        def testPushdown(joinType: String): Unit = {
+          val df1 =
+            spark.read
+              .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)
+              .options(Map("dmlEndpoint" -> "host1:1020,host2:1010"))
+              .load("testdb.users")
+          val df2 =
+            spark.read
+              .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)
+              .options(Map("dmlEndpoint" -> "host3:1020,host2:1010"))
+              .load("testdb.reviews")
+
+          val joinedDf = df1.join(df2, df1("id") === df2("user_id"), joinType)
+          log.debug(joinedDf.queryExecution.optimizedPlan.toString())
+          assert(
+            joinedDf.queryExecution.optimizedPlan match {
+              case SQLGen.Relation(_) => false
+              case _                  => true
+            },
+            "Join of the relations with different jdbc connection options should not be pushed down"
+          )
+        }
+
+        it("explicit inner join") {
+          testPushdown("inner")
+        }
+        it("cross join") {
+          testPushdown("cross")
+        }
+        it("left outer join") {
+          testPushdown("leftouter")
+        }
+        it("right outer join") {
+          testPushdown("rightouter")
+        }
+        it("full outer join") {
+          testPushdown("fullouter")
+        }
+      }
     }
   }
 

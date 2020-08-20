@@ -8,6 +8,7 @@ import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.types._
 import org.slf4j.{Logger, LoggerFactory}
+import com.memsql.spark.JdbcHelpers.getDMLJDBCOptions
 
 import scala.collection.immutable.HashMap
 import scala.collection.{breakOut, mutable}
@@ -369,7 +370,9 @@ object SQLGen extends LazyLogging {
       case plan @ Join(Relation(left),
                        Relation(right),
                        joinType @ (Inner | Cross),
-                       sortPredicates(condition)) =>
+                       sortPredicates(condition))
+          if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
+            right.reader.options).asProperties =>
         newStatement(plan)
           .selectAll()
           .from(left)
@@ -378,11 +381,12 @@ object SQLGen extends LazyLogging {
           .output(plan.output)
 
       // condition is required for {Left, Right, Full} outer joins
-      // TODO: need to verify that both relations are part of the same cluster
       case plan @ Join(Relation(left),
                        Relation(right),
                        joinType @ (LeftOuter | RightOuter | FullOuter),
-                       Some(sortPredicates(condition))) =>
+                       Some(sortPredicates(condition)))
+          if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
+            right.reader.options).asProperties =>
         newStatement(plan)
           .selectAll()
           .from(left)
@@ -391,7 +395,9 @@ object SQLGen extends LazyLogging {
           .output(plan.output)
 
       // condition is not allowed for natural joins
-      case plan @ Join(Relation(left), Relation(right), NaturalJoin(joinType), None) =>
+      case plan @ Join(Relation(left), Relation(right), NaturalJoin(joinType), None)
+          if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
+            right.reader.options).asProperties =>
         newStatement(plan)
           .selectAll()
           .from(left)
