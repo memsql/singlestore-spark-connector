@@ -23,6 +23,8 @@ trait IntegrationSuiteBase
   final val continuousIntegration: Boolean = sys.env
     .getOrElse("CONTINUOUS_INTEGRATION", "false") == "true"
 
+  final val memsqlSourceName: String = "com.memsql.spark.v2"
+
   var spark: SparkSession = _
 
   override def beforeAll(): Unit = {
@@ -130,12 +132,9 @@ trait IntegrationSuiteBase
       })
       .mkString(", ")
 
-  def writeTable(dbtable: String,
-                 df: DataFrame,
-                 saveMode: SaveMode = SaveMode.ErrorIfExists): Unit =
+  def writeTable(dbtable: String, df: DataFrame, saveMode: SaveMode = SaveMode.Overwrite): Unit =
     df.write
-//      .format("memsql")
-      .format("com.memsql.spark.v2")
+      .format(memsqlSourceName)
       .mode(saveMode)
       .save(dbtable)
 
@@ -144,7 +143,7 @@ trait IntegrationSuiteBase
                    onDuplicateKeySQL: String,
                    insertBatchSize: Long): Unit =
     df.write
-      .format("memsql")
+      .format(memsqlSourceName)
       .option("onDuplicateKeySQL", onDuplicateKeySQL)
       .option("insertBatchSize", insertBatchSize)
       .mode(SaveMode.Append)
