@@ -7,7 +7,7 @@ import com.memsql.spark.{DefaultSource, JdbcHelpers, MemsqlOptions}
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException
+import org.apache.spark.sql.catalyst.analysis.{NoSuchNamespaceException, NoSuchTableException}
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.connector.catalog._
 import org.apache.spark.sql.connector.expressions.Transform
@@ -89,14 +89,15 @@ class MemsqlTableCatalog extends TableCatalog with SupportsNamespaces {
     val jdbcOpts        = JdbcHelpers.getDDLJDBCOptions(conf)
     val conn            = JdbcUtils.createConnectionFactory(jdbcOpts)()
     val tableIdentifier = TableIdentifier(ident.name(), Some(ident.namespace()(0)))
-    if (JdbcHelpers.tableExists(conn, tableIdentifier)) {
-      MemsqlTable(getQuery(tableIdentifier),
-                  Nil,
-                  conf,
-                  sparkSession.sparkContext,
-                  tableIdentifier,
-                  context = SQLGenContext(conf))
-    } else null
+    if (!JdbcHelpers.tableExists(conn, tableIdentifier)) {
+      throw new NoSuchTableException("table doesn't exist")
+    }
+    MemsqlTable(getQuery(tableIdentifier),
+                Nil,
+                conf,
+                sparkSession.sparkContext,
+                tableIdentifier,
+                context = SQLGenContext(conf))
   }
 
   private def includeGlobalParams(sqlContext: SparkContext,
