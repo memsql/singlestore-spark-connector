@@ -271,6 +271,85 @@ object JdbcHelpers extends LazyLogging {
     } else throw new IllegalArgumentException("Can't get MemSQL version")
   }
 
+  def showTables(database: String, conf: MemsqlOptions): Array[String] = {
+    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
+    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    val sql      = "show tables"
+    log.trace(s"Executing SQL:\n$sql")
+    val resultSet = conn.withStatement(stmt => {
+      try {
+        stmt.executeQuery(sql)
+      } catch {
+        case _: SQLException => throw new IllegalArgumentException("Can't get databases")
+      } finally {
+        stmt.close()
+        conn.close()
+      }
+    })
+    var databases = Array.empty[String]
+    while (resultSet.next()) {
+      databases = databases :+ resultSet.getString(1)
+    }
+    databases
+  }
+
+  def showDatabases(conf: MemsqlOptions): Array[String] = {
+    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
+    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    val sql      = "show databases"
+    log.trace(s"Executing SQL:\n$sql")
+    val resultSet = conn.withStatement(stmt => {
+      try {
+        stmt.executeQuery(sql)
+      } catch {
+        case _: SQLException => throw new IllegalArgumentException("Can't get databases")
+      } finally {
+        stmt.close()
+        conn.close()
+      }
+    })
+    var databases = Array.empty[String]
+    while (resultSet.next()) {
+      databases = databases :+ resultSet.getString(1)
+    }
+    databases
+  }
+
+  def createDatabase(conf: MemsqlOptions, name: String): Unit = {
+    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
+    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    val sql      = s"create database $name"
+    log.trace(s"Executing SQL:\n$sql")
+    conn.withStatement(stmt => {
+      try {
+        stmt.execute(sql)
+      } catch {
+        case _: SQLException => throw new IllegalArgumentException("Can't create databases")
+      } finally {
+        stmt.close()
+        conn.close()
+      }
+    })
+  }
+
+  def dropDatabase(conf: MemsqlOptions, name: String): Boolean = {
+    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
+    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    val sql      = s"drop database $name"
+    log.trace(s"Executing SQL:\n$sql")
+    val result = conn.withStatement(stmt => {
+      try {
+        stmt.execute(sql)
+      } catch {
+        case _: SQLException => throw new IllegalArgumentException("Can't drop databases")
+      } finally {
+        stmt.close()
+        conn.close()
+      }
+    })
+    result
+  }
+
   def createTable(conn: Connection,
                   table: TableIdentifier,
                   schema: StructType,

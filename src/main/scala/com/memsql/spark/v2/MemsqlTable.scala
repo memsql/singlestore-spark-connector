@@ -12,6 +12,7 @@ import org.apache.spark.sql.connector.catalog.{
   StagedTable,
   SupportsRead,
   SupportsWrite,
+  Table,
   TableCapability
 }
 import org.apache.spark.sql.connector.read.ScanBuilder
@@ -33,7 +34,7 @@ case class MemsqlTable(query: String,
                        isFinal: Boolean = false,
                        expectedOutput: Seq[Attribute] = Nil,
                        context: SQLGenContext)
-    extends StagedTable
+    extends Table
     with SupportsRead
     with SupportsWrite
     with TableScan
@@ -93,7 +94,7 @@ case class MemsqlTable(query: String,
   override def schema(): StructType = userSchema.getOrElse(tableSchema)
 
   override def capabilities(): util.Set[TableCapability] =
-    Set(TableCapability.BATCH_READ, TableCapability.BATCH_WRITE).asJava
+    Set(TableCapability.BATCH_READ, TableCapability.BATCH_WRITE, TableCapability.ACCEPT_ANY_SCHEMA).asJava
 
   override def newScanBuilder(options: CaseInsensitiveStringMap): ScanBuilder =
     MemsqlScanBuilder(query, memsqlOptions, SparkSession.active.sqlContext)
@@ -108,10 +109,6 @@ case class MemsqlTable(query: String,
                                table,
                                memsqlOptions)
   }
-
-  override def commitStagedChanges(): Unit = {}
-
-  override def abortStagedChanges(): Unit = {}
 
   override def toString: String = {
     val explain =

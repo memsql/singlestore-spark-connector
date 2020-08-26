@@ -15,60 +15,72 @@ import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
-class MemsqlTableCatalog extends StagingTableCatalog with SupportsNamespaces {
+class MemsqlTableCatalog extends TableCatalog with SupportsNamespaces {
 
-  override def listNamespaces(): Array[Array[String]] = Array.empty
+  override def listNamespaces(): Array[Array[String]] = {
+    val sparkSession = SparkSession.active
+    val opts         = CaseInsensitiveMap(includeGlobalParams(sparkSession.sparkContext, Map.empty))
+    val conf         = MemsqlOptions(opts)
+    Array(JdbcHelpers.showDatabases(conf))
+  }
 
-  override def listNamespaces(namespace: Array[String]): Array[Array[String]] = Array.empty
+  override def listNamespaces(namespace: Array[String]): Array[Array[String]] = {
+    listNamespaces()
+  }
 
-  override def loadNamespaceMetadata(namespace: Array[String]): util.Map[String, String] =
-    throw new NoSuchNamespaceException(namespace)
-
-  override def createNamespace(namespace: Array[String], metadata: util.Map[String, String]): Unit =
-    new util.HashMap[String, String]()
-
-  override def alterNamespace(namespace: Array[String], changes: NamespaceChange*): Unit = {}
-
-  override def dropNamespace(namespace: Array[String]): Boolean = true
-
-  override def stageCreate(ident: Identifier,
-                           schema: StructType,
-                           partitions: Array[Transform],
-                           properties: util.Map[String, String]): StagedTable = {
-    val sparkSession    = SparkSession.active
-    val opts            = CaseInsensitiveMap(includeGlobalParams(sparkSession.sparkContext, Map.empty))
-    val conf            = MemsqlOptions(opts)
-    val jdbcOpts        = JdbcHelpers.getDDLJDBCOptions(conf)
-    val conn            = JdbcUtils.createConnectionFactory(jdbcOpts)()
-    val tableIdentifier = TableIdentifier(ident.name(), Some(ident.namespace()(0)))
-    if (!JdbcHelpers.tableExists(conn, tableIdentifier)) {
-      JdbcHelpers.createTable(conn, tableIdentifier, schema, List.empty)
+  override def loadNamespaceMetadata(namespace: Array[String]): util.Map[String, String] = {
+    val sparkSession = SparkSession.active
+    val opts         = CaseInsensitiveMap(includeGlobalParams(sparkSession.sparkContext, Map.empty))
+    val conf         = MemsqlOptions(opts)
+    val databases    = JdbcHelpers.showDatabases(conf)
+    for (name <- namespace) {
+      if (!databases.contains(name)) throw new NoSuchNamespaceException(namespace)
     }
-    MemsqlTable(getQuery(tableIdentifier),
-                Nil,
-                conf,
-                sparkSession.sparkContext,
-                tableIdentifier,
-                context = SQLGenContext(conf))
+    new util.HashMap[String, String]()
+  }
+
+  override def createNamespace(namespace: Array[String],
+                               metadata: util.Map[String, String]): Unit = {
+    val sparkSession = SparkSession.active
+    val opts         = CaseInsensitiveMap(includeGlobalParams(sparkSession.sparkContext, Map.empty))
+    val conf         = MemsqlOptions(opts)
+    for (name <- namespace) {
+      JdbcHelpers.createDatabase(conf, name)
+    }
+  }
+
+  override def alterNamespace(namespace: Array[String], changes: NamespaceChange*): Unit = {
+    println("alterNamespace")
+  }
+
+  override def dropNamespace(namespace: Array[String]): Boolean = {
+    val sparkSession = SparkSession.active
+    val opts         = CaseInsensitiveMap(includeGlobalParams(sparkSession.sparkContext, Map.empty))
+    val conf         = MemsqlOptions(opts)
+    for (name <- namespace) {
+      if (!JdbcHelpers.dropDatabase(conf, name)) false
+    }
+    true
   }
 
   private def getQuery(t: TableIdentifier): String = {
     s"SELECT * FROM ${t.quotedString}"
   }
 
-  override def stageReplace(ident: Identifier,
-                            schema: StructType,
-                            partitions: Array[Transform],
-                            properties: util.Map[String, String]): StagedTable = ???
-
-  override def stageCreateOrReplace(ident: Identifier,
-                                    schema: StructType,
-                                    partitions: Array[Transform],
-                                    properties: util.Map[String, String]): StagedTable = ???
-
   override def initialize(name: String, options: CaseInsensitiveStringMap): Unit = {}
 
-  override def listTables(namespace: Array[String]): Array[Identifier] = ???
+  override def listTables(namespace: Array[String]): Array[Identifier] = {
+    val sparkSession = SparkSession.active
+    val opts         = CaseInsensitiveMap(includeGlobalParams(sparkSession.sparkContext, Map.empty))
+    val conf         = MemsqlOptions(opts)
+    var identifiers  = Array.empty[Identifier]
+    for (database <- namespace) {
+      identifiers = identifiers ++ JdbcHelpers
+        .showTables(database, conf)
+        .map(table => MemsqlIdentifier(database, table))
+    }
+    identifiers
+  }
 
   override def loadTable(ident: Identifier): Table = {
     val sparkSession    = SparkSession.active
