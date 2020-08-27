@@ -94,7 +94,10 @@ case class MemsqlTable(query: String,
   override def schema(): StructType = userSchema.getOrElse(tableSchema)
 
   override def capabilities(): util.Set[TableCapability] =
-    Set(TableCapability.BATCH_READ, TableCapability.BATCH_WRITE, TableCapability.ACCEPT_ANY_SCHEMA).asJava
+    Set(TableCapability.BATCH_READ,
+        TableCapability.BATCH_WRITE,
+        TableCapability.ACCEPT_ANY_SCHEMA,
+        TableCapability.TRUNCATE).asJava
 
   override def newScanBuilder(options: CaseInsensitiveStringMap): ScanBuilder =
     MemsqlScanBuilder(query, memsqlOptions, SparkSession.active.sqlContext)

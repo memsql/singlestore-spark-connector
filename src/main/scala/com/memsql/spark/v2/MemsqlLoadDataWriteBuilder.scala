@@ -9,6 +9,7 @@ import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.connector.write._
 import org.apache.spark.sql.connector.write.streaming.StreamingWrite
+import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.StructType
 
 import scala.concurrent.duration.Duration
@@ -22,7 +23,20 @@ case class MemsqlLoadDataWriteBuilder(schema: StructType,
                                       table: TableIdentifier,
                                       conf: MemsqlOptions)
     extends WriteBuilder
+    with SupportsTruncate
     with LazyLogging {
+  override def truncate(): WriteBuilder = {
+    val conn = JdbcUtils.createConnectionFactory(
+      if (isReferenceTable) {
+        JdbcHelpers.getDDLJDBCOptions(conf)
+      } else {
+        JdbcHelpers.getDMLJDBCOptions(conf)
+      }
+    )()
+
+    JdbcHelpers.truncateTable(conn, table)
+    this
+  }
 
   override def buildForBatch(): BatchWrite = {
     new LoadDataWriter(schema, partitionId, attemptNumber, isReferenceTable, mode, table, conf)
