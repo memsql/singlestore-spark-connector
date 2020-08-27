@@ -136,7 +136,7 @@ trait IntegrationSuiteBase
     df.write
       .format(memsqlSourceName)
       .mode(saveMode)
-      .save(dbtable)
+      .saveAsTable(dbtable)
 
   def insertValues(dbtable: String,
                    df: DataFrame,
