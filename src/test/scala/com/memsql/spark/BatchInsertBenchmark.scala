@@ -24,6 +24,7 @@ object BatchInsertBenchmark extends App {
     .config("spark.driver.bindAddress", "localhost")
     .config("spark.datasource.memsql.ddlEndpoint", s"${masterHost}:${masterPort}")
     .config("spark.datasource.memsql.database", "testdb")
+    .config("spark.sql.catalog.spark_catalog", "com.memsql.spark.v2.MemsqlTableCatalog")
     .getOrCreate()
 
   def jdbcConnection: Loan[Connection] = {
@@ -59,14 +60,26 @@ object BatchInsertBenchmark extends App {
            ("DateType", DateType, true))
     )
 
-  val start = System.nanoTime()
-  df.write
-    .format("memsql")
-    .option("tableKey.primary", "IntType")
-    .option("onDuplicateKeySQL", "IntType = IntType")
-    .mode(SaveMode.Append)
-    .save("testdb.batchinsert")
+  println("Data: ")
+  df.show(10)
 
-  val diff = System.nanoTime() - start
-  println("Elapsed time: " + diff + "ns")
+  def writeWithSource(sourceName: String): Unit = {
+    val start = System.nanoTime()
+    df.write
+      .format(sourceName)
+      .option("tableKey.primary", "IntType")
+      .option("onDuplicateKeySQL", "IntType = IntType")
+      .mode(SaveMode.ErrorIfExists)
+      .saveAsTable("testdb.batchinsert")
+    val diff = System.nanoTime() - start
+    println("Elapsed time: " + diff + "ns")
+  }
+
+  println("Data Source V1")
+  writeWithSource("memsql")
+
+  executeQuery("DROP TABLE testdb.batchinsert")
+
+  println("Data Source V2")
+  writeWithSource("com.memsql.spark.v2")
 }
