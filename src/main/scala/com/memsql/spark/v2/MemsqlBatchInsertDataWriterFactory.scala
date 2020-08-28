@@ -68,6 +68,8 @@ class MemsqlBatchInsertDataWriterFactory(schema: StructType,
           } rowSeq(j) match {
             case bytes: Array[Byte] =>
               stmt.setObject(i * rowLength + j + 1, Base64.getEncoder.encode(bytes))
+            case string: org.apache.spark.unsafe.types.UTF8String =>
+              stmt.setObject(i * rowLength + j + 1, string.toString)
             case obj =>
               stmt.setObject(i * rowLength + j + 1, obj)
           }
