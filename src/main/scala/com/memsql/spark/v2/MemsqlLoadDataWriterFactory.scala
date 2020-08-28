@@ -1,6 +1,7 @@
 package com.memsql.spark.v2
 
 import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
+import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.sql.Connection
 import java.util.Base64
@@ -11,7 +12,9 @@ import com.memsql.spark._
 import com.memsql.spark.vendor.apache.SchemaConverters
 import net.jpountz.lz4.LZ4FrameOutputStream
 import org.apache.avro.Schema
-import org.apache.spark.sql.SaveMode
+import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
+import org.apache.avro.io.EncoderFactory
+import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.catalyst.{InternalRow, TableIdentifier}
 import org.apache.spark.sql.connector.write.{DataWriter, DataWriterFactory, WriterCommitMessage}
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
@@ -142,14 +145,18 @@ class MemsqlLoadDataWriterFactory(schema: StructType,
         conn.close()
       }
     }
-    new MemsqlLoadDataWriter(outputstream, writer, conn, schema)
+    if (loadDataFormat == MemsqlOptions.LoadDataFormat.Avro) {
+      new MemsqlAvroDataWriter(avroSchema, outputstream, writer, conn, schema)
+    } else {
+      new MemsqlCSVDataWriter(outputstream, writer, conn, schema)
+    }
   }
 }
 
-class MemsqlLoadDataWriter(outputstream: OutputStream,
-                           writeFuture: Future[Long],
-                           conn: Connection,
-                           schema: StructType)
+class MemsqlCSVDataWriter(outputstream: OutputStream,
+                          writeFuture: Future[Long],
+                          conn: Connection,
+                          schema: StructType)
     extends DataWriter[InternalRow] {
 
   override def write(row: InternalRow): Unit = {
@@ -186,6 +193,56 @@ class MemsqlLoadDataWriter(outputstream: OutputStream,
   }
 
   override def commit(): WriterCommitMessage = {
+    outputstream.close()
+    Await.result(writeFuture, Duration.Inf)
+    new WriteSuccess
+  }
+
+  override def abort(): Unit = {
+    conn.abort(ExecutionContext.global)
+    outputstream.close()
+    Await.ready(writeFuture, Duration.Inf)
+  }
+
+  override def close(): Unit = {
+    outputstream.close()
+    conn.close()
+  }
+}
+
+class MemsqlAvroDataWriter(avroSchema: Schema,
+                           outputstream: OutputStream,
+                           writeFuture: Future[Long],
+                           conn: Connection,
+                           schema: StructType)
+    extends DataWriter[InternalRow] {
+
+  val datumWriter = new GenericDatumWriter[GenericRecord](avroSchema)
+  val encoder     = EncoderFactory.get().binaryEncoder(outputstream, null)
+  val record      = new GenericData.Record(avroSchema)
+
+  val conversionFunctions: Any => Any = {
+    case d: java.math.BigDecimal =>
+      d.toString
+    case s: Short =>
+      s.toInt
+    case bytes: Array[Byte] =>
+      ByteBuffer.wrap(bytes)
+    case b: Byte =>
+      b.toInt
+    case num => num
+  }
+
+  override def write(row: InternalRow): Unit = {
+    val rowLength = row.toSeq(schema).size
+    for (i <- 0 until rowLength) {
+      record.put(i, conversionFunctions(row.toSeq(schema)(i)))
+    }
+    datumWriter.write(record, encoder)
+  }
+
+  override def commit(): WriterCommitMessage = {
+    encoder.flush()
     outputstream.close()
     Await.result(writeFuture, Duration.Inf)
     new WriteSuccess

@@ -70,7 +70,7 @@ object BatchInsertBenchmark extends App {
       .option("tableKey.primary", "IntType")
       .option("onDuplicateKeySQL", "IntType = IntType")
       .mode(SaveMode.ErrorIfExists)
-      .saveAsTable("testdb.batchinsert")
+      .save("testdb.batchinsert")
     val diff = System.nanoTime() - start
     println("Elapsed time: " + diff + "ns")
   }

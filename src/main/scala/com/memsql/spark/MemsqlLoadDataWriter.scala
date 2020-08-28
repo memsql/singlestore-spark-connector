@@ -156,12 +156,12 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
     if (loadDataFormat == MemsqlOptions.LoadDataFormat.Avro) {
       new AvroDataWriter(avroSchema, outputstream, writer, conn)
     } else {
-      new LoadDataWriter(outputstream, writer, conn)
+      new CSVDataWriter(outputstream, writer, conn)
     }
   }
 }
 
-class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn: Connection)
+class CSVDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn: Connection)
     extends DataWriter[Row] {
 
   override def write(row: Row): Unit = {

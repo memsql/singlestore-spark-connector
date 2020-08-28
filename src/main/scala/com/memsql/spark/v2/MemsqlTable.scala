@@ -104,13 +104,13 @@ case class MemsqlTable(query: String,
 
   override def newWriteBuilder(info: LogicalWriteInfo): WriteBuilder = {
     val isReferenceTable = JdbcHelpers.isReferenceTable(memsqlOptions, table)
-    MemsqlLoadDataWriteBuilder(info.schema(),
-                               TaskContext.getPartitionId(),
-                               0,
-                               isReferenceTable,
-                               SaveMode.Append,
-                               table,
-                               memsqlOptions)
+    MemsqlWriteBuilder(info.schema(),
+                       TaskContext.getPartitionId(),
+                       0,
+                       isReferenceTable,
+                       SaveMode.Append,
+                       table,
+                       memsqlOptions)
   }
 
   override def toString: String = {
