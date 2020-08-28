@@ -46,11 +46,9 @@ class MemsqlBatchWrite(schema: StructType,
                        mode: SaveMode,
                        table: TableIdentifier,
                        conf: MemsqlOptions)
-    extends BatchWrite
-    with LazyLogging {
+    extends BatchWrite {
 
   override def createBatchWriterFactory(info: PhysicalWriteInfo): DataWriterFactory = {
-    log.debug(conf.toString + "!!!!!!!!!!!!!!")
     if (conf.onDuplicateKeySQL.isEmpty) {
       new MemsqlLoadDataWriterFactory(schema,
                                       partitionId,
