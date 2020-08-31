@@ -157,18 +157,15 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       def changeTypes(df: DataFrame): DataFrame = {
         var newDf = df
         df.schema
-          .filter(_.dataType == ShortType)
-          .foreach(x => newDf = newDf.withColumn(x.name, newDf(x.name).cast(IntegerType)))
-        df.schema
-          .filter(_.dataType == FloatType)
-          .foreach(x => newDf = newDf.withColumn(x.name, newDf(x.name).cast(DoubleType)))
-
-        // replace all Decimals with Doubles, because assertApproximateDataFrameEquality compare Decimals for strong equality
-        df.schema
           .foreach(x =>
             x.dataType match {
-              case _: DecimalType =>
+              // Replace all Floats with Doubles, because JDBC connector converts FLOAT to DoubleType when MemSQL connector converts it to FloatType
+              // Replace all Decimals with Doubles, because assertApproximateDataFrameEquality compare Decimals for strong equality
+              case _: DecimalType | FloatType =>
                 newDf = newDf.withColumn(x.name, newDf(x.name).cast(DoubleType))
+              // Replace all Shorts with Integers, because JDBC connector converts SMALLINT to IntegerType when MemSQL connector converts it to ShortType
+              case _: ShortType =>
+                newDf = newDf.withColumn(x.name, newDf(x.name).cast(IntegerType))
               case _ =>
           })
         newDf
