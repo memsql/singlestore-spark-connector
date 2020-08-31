@@ -167,7 +167,8 @@ object MemsqlOptions extends LazyLogging {
 
     new MemsqlOptions(
       ddlEndpoint = options(DDL_ENDPOINT),
-      dmlEndpoints = options.getOrElse(DML_ENDPOINTS, options(DDL_ENDPOINT)).split(",").toList,
+      dmlEndpoints =
+        options.getOrElse(DML_ENDPOINTS, options(DDL_ENDPOINT)).split(",").toList.sorted,
       user = options.getOrElse(USER, "root"),
       password = options.getOrElse(PASSWORD, ""),
       database = options.get(DATABASE).orElse(table.flatMap(t => t.database)),

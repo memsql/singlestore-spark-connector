@@ -91,6 +91,7 @@ trait IntegrationSuiteBase
       .config("spark.datasource.memsql.serverSslCert",
               s"${System.getProperty("user.dir")}/scripts/ssl/test-ca-cert.pem")
       .config("spark.datasource.memsql.disableSslHostnameVerification", "true")
+      .config("spark.sql.crossJoin.enabled", "true")
       .getOrCreate()
   }
 
