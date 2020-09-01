@@ -86,12 +86,6 @@ object ExpressionGen extends LazyLogging {
 
       case v: Boolean => Raw(if (v) "TRUE" else "FALSE")
 
-      // MemSQL does not support intervals which define month + remainder at the same time
-      case v: CalendarInterval if v.months == 0 =>
-        Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND"
-      case v: CalendarInterval if v.months != 0 && v.microseconds == 0 =>
-        Raw("INTERVAL") + v.months.toString + "MONTH"
-
       case v: Short                                  => Raw(v.toString)
       case v: Int                                    => Raw(v.toString)
       case v: Integer                                => Raw(v.toString)
@@ -281,29 +275,41 @@ object ExpressionGen extends LazyLogging {
       case DateFormatClass(expressionExtractor(left), expressionExtractor(right), timeZoneId) =>
         f("DATE_FORMAT", left, right)
 
-      // Special case since MemSQL doesn't support INTERVAL with both month and microsecond
       case TimeAdd(expressionExtractor(start),
                    Literal(v: CalendarInterval, CalendarIntervalType),
-                   timeZoneId) if v.months > 0 && v.microseconds > 0 =>
-        f(
-          "DATE_ADD",
-          f("DATE_ADD", start, Raw("INTERVAL") + v.months.toString + "MONTH"),
-          Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND"
-        )
+                   timeZoneId) => {
+        def addMicroseconds(start: Joinable) =
+          if (v.microseconds == 0) {
+            start
+          } else {
+            f("DATE_ADD", start, Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
+          }
+        def addMonths(start: Joinable) =
+          if (v.months == 0) {
+            start
+          } else {
+            f("DATE_ADD", start, Raw("INTERVAL") + v.months.toString + "MONTH")
+          }
+        addMicroseconds(addMonths(start))
+      }
 
-      case TimeAdd(expressionExtractor(start), expressionExtractor(interval), timeZoneId) =>
-        f("DATE_ADD", start, interval)
-
-      // Special case since MemSQL doesn't support INTERVAL with both month and microsecond
       case TimeSub(expressionExtractor(start),
                    Literal(v: CalendarInterval, CalendarIntervalType),
-                   timeZoneId) if v.months > 0 && v.microseconds > 0 =>
-        f("DATE_SUB",
-          f("DATE_SUB", start, Raw("INTERVAL") + v.months.toString + "MONTH"),
-          Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
-
-      case TimeSub(expressionExtractor(start), expressionExtractor(interval), timeZoneId) =>
-        f("DATE_SUB", start, interval)
+                   timeZoneId) => {
+        def subMicroseconds(start: Joinable) =
+          if (v.microseconds == 0) {
+            start
+          } else {
+            f("DATE_SUB", start, Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
+          }
+        def subMonths(start: Joinable) =
+          if (v.months == 0) {
+            start
+          } else {
+            f("DATE_SUB", start, Raw("INTERVAL") + v.months.toString + "MONTH")
+          }
+        subMicroseconds(subMonths(start))
+      }
 
       case FromUTCTimestamp(expressionExtractor(timestamp), expressionExtractor(timezone)) =>
         f("CONVERT_TZ", timestamp, StringVar("UTC"), timezone)

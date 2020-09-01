@@ -166,6 +166,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
               // Replace all Shorts with Integers, because JDBC connector converts SMALLINT to IntegerType when MemSQL connector converts it to ShortType
               case _: ShortType =>
                 newDf = newDf.withColumn(x.name, newDf(x.name).cast(IntegerType))
+              // Replace all CalendarIntervals with Strings, because assertApproximateDataFrameEquality can't sort CalendarIntervals
+              case _: CalendarIntervalType =>
+                newDf = newDf.withColumn(x.name, newDf(x.name).cast(StringType))
               case _ =>
           })
         newDf
@@ -202,6 +205,120 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
               expectPartialPushdown = expectPartialPushdown,
               expectSingleRead = true,
               pushdown = pushdown)
+  }
+
+  describe("Attributes") {
+    describe("successful pushdown") {
+      it("Attribute") { testQuery("select id from users") }
+      it("Alias") { testQuery("select id as user_id from users") }
+    }
+    describe("unsuccessful pushdown") {
+      it("alias with udf") {
+        testQuery("select stringIdentity(id) as user_id from users", expectPartialPushdown = true)
+      }
+    }
+  }
+
+  describe("Literals") {
+    describe("successful pushdown") {
+      it("string") { testSingleReadQuery("select 'string' from users") }
+      it("null") { testSingleReadQuery("select null from users") }
+      describe("boolean") {
+        it("true") { testQuery("select true from users") }
+        it("false") { testQuery("select false from users") }
+      }
+
+      it("byte") { testSingleReadQuery("select 100Y from users") }
+      it("short") { testQuery("select 100S from users") }
+      it("integer") { testQuery("select 100 from users") }
+      it("long") { testSingleReadQuery("select 100L from users") }
+
+      it("float") { testQuery("select 1.1 as x from users") }
+      it("double") { testQuery("select 1.1D as x from users") }
+      it("decimal") { testQuery("select 1.1BD as x from users") }
+
+      it("datetime") { testQuery("select date '1997-11-11' as x from users") }
+    }
+
+    describe("unsuccessful pushdown") {
+      it("interval") {
+        testQuery("select interval 1 year 1 month as x from users", expectPartialPushdown = true)
+      }
+      it("binary literal") {
+        testQuery("select X'123456' from users", expectPartialPushdown = true)
+      }
+    }
+  }
+
+  describe("Variable Expressions") {
+    describe("Coalesce") {
+      it("one non-null value") { testQuery("select coalesce(id) from users") }
+      it("one null value") { testSingleReadQuery("select coalesce(null) from users") }
+      it("a lot of values") { testQuery("select coalesce(null, id, null, id+1) from users") }
+      it("a lot of nulls") { testSingleReadQuery("select coalesce(null, null, null) from users") }
+      it("partial pushdown with udf") {
+        testQuery(
+          "select coalesce('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
+          expectPartialPushdown = true)
+      }
+    }
+
+    describe("Least") {
+      it("a lot of ints") { testQuery("select least(id+5, id, 5, id+1) from users") }
+      it("a lot of strings") {
+        testQuery("select least('qwerty', 'bob', first_name, 'alice') from users")
+      }
+      // MemSQL returns NULL if at least one argument is NULL, when spark skips nulls
+      // it("ints with null") { testQuery("select least(null, id, null, id+1) from users") }
+      it("a lot of nulls") { testSingleReadQuery("select least(null, null, null) from users") }
+      it("partial pushdown with udf") {
+        testQuery("select least('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Greatest") {
+      it("a lot of ints") { testQuery("select greatest(id+5, id, 5, id+1) from users") }
+      it("a lot of strings") {
+        testQuery("select greatest('qwerty', 'bob', first_name, 'alice') from users")
+      }
+      // MemSQL returns NULL if at least one argument is NULL, when spark skips nulls
+      // it("ints with null") { testQuery("select greatest(null, id, null, id+1) from users") }
+      it("a lot of nulls") { testSingleReadQuery("select greatest(null, null, null) from users") }
+      it("partial pushdown with udf") {
+        testQuery(
+          "select greatest('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
+          expectPartialPushdown = true)
+      }
+    }
+
+    describe("Concat") {
+      it("a lot of ints") { testQuery("select concat(id+5, id, 5, id+1) from users") }
+      it("a lot of strings") {
+        testQuery("select concat('qwerty', 'bob', first_name, 'alice') from users")
+      }
+      it("ints with null") { testQuery("select concat(null, id, null, id+1) from users") }
+      it("a lot of nulls") { testSingleReadQuery("select concat(null, null, null) from users") }
+      it("int and string") { testQuery("select concat(id, first_name) from users") }
+      it("partial pushdown with udf") {
+        testQuery("select concat('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Elt") {
+      it("a lot of ints") { testQuery("select elt(id+5, id, 5, id+1) from users") }
+      it("a lot of strings") {
+        testQuery("select elt('qwerty', 'bob', first_name, 'alice') from users")
+      }
+      it("ints with null") { testQuery("select elt(null, id, null, id+1) from users") }
+      it("a lot of nulls") { testQuery("select elt(null, null, null) from users") }
+      it("int and string") { testQuery("select elt(id, first_name) from users") }
+      it("partial pushdown with udf") {
+        testQuery("select elt('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
+                  expectPartialPushdown = true)
+      }
+    }
   }
 
   describe("sanity test disablePushdown") {
@@ -246,11 +363,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("datatypes") {
-    it("null literal") { testSingleReadQuery("select null from users") }
-    it("int literal") { testQuery("select 1 from users") }
-    it("bool literal") { testQuery("select true from users") }
-    it("float, bool literal") { testQuery("select 1.2 as x, true from users") }
-
     // due to a bug in our dataframe comparison library we need to alias the column 4.9 to x...
     // this is because when the library asks spark for a column called "4.9", spark thinks the
     // library wants the table 4 and column 9.
