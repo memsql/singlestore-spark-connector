@@ -9,7 +9,7 @@ import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
 class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {
 
-  override def beforeAll() = {
+  override def beforeAll(): Unit = {
     super.beforeAll()
     super.beforeEach() // we want to run beforeEach to set up a spark session
 
@@ -59,7 +59,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                  .limit(10))
   }
 
-  override def beforeEach() = {
+  override def beforeEach(): Unit = {
     super.beforeEach()
 
     spark.sql("create database testdb")
@@ -68,11 +68,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     def makeTables(sourceTable: String) = {
       spark.sql(
-        s"create table testdb.${sourceTable} using memsql options ('dbtable'='testdb.${sourceTable}')")
+        s"create table testdb.$sourceTable using memsql options ('dbtable'='testdb.$sourceTable')")
       spark.sql(
-        s"create table testdb_nopushdown.${sourceTable} using memsql options ('dbtable'='testdb.${sourceTable}','disablePushdown'='true')")
-      spark.sql(s"create table testdb_jdbc.${sourceTable} using jdbc options (${jdbcOptionsSQL(
-        s"testdb.${sourceTable}")})")
+        s"create table testdb_nopushdown.$sourceTable using memsql options ('dbtable'='testdb.$sourceTable','disablePushdown'='true')")
+      spark.sql(s"create table testdb_jdbc.$sourceTable using jdbc options (${jdbcOptionsSQL(
+        s"testdb.$sourceTable")})")
     }
 
     makeTables("users")
@@ -178,10 +178,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                                          0.1,
                                          orderedComparison = alreadyOrdered)
     } catch {
-      case e: Throwable => {
+      case e: Throwable =>
         if (continuousIntegration) { println(memsqlDF.explain(true)) }
         throw e
-      }
     }
   }
 
@@ -321,6 +320,244 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
+  describe("Aggregate Expressions") {
+    describe("Average") {
+      it("ints") { testSingleReadQuery("select avg(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select avg(rating) as x from reviews") }
+      it("floats with nulls") { testSingleReadQuery("select avg(critic_rating) as x from movies") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select avg(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+    }
+    describe("StddevPop") {
+      it("ints") { testSingleReadQuery("select stddev_pop(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select stddev_pop(rating) as x from reviews") }
+      it("floats with nulls") {
+        testSingleReadQuery("select stddev_pop(critic_rating) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select stddev_pop(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+    }
+    describe("StddevSamp") {
+      it("ints") { testSingleReadQuery("select stddev_samp(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select stddev_samp(rating) as x from reviews") }
+      it("floats with nulls") {
+        testSingleReadQuery("select stddev_samp(critic_rating) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select stddev_samp(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+    }
+    describe("VariancePop") {
+      it("ints") { testSingleReadQuery("select var_pop(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select var_pop(rating) as x from reviews") }
+      it("floats with nulls") {
+        testSingleReadQuery("select var_pop(critic_rating) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select var_pop(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+    }
+    describe("VarianceSamp") {
+      it("ints") { testSingleReadQuery("select var_samp(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select var_samp(rating) as x from reviews") }
+      it("floats with nulls") {
+        testSingleReadQuery("select var_samp(critic_rating) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select var_samp(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+    }
+    describe("Max") {
+      it("ints") { testSingleReadQuery("select  max(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select max(rating) as x from reviews") }
+      it("strings") { testSingleReadQuery("select max(first_name) as x from users") }
+      it("floats with nulls") { testSingleReadQuery("select max(critic_rating) as x from movies") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select max(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+    }
+    describe("Min") {
+      it("ints") { testSingleReadQuery("select min(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select min(rating) as x from reviews") }
+      it("strings") { testSingleReadQuery("select min(first_name) as x from users") }
+      it("floats with nulls") { testSingleReadQuery("select min(critic_rating) as x from movies") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select min(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+    }
+    describe("Sum") {
+      // We cast the output, because MemSQL SUM returns DECIMAL(41, 0)
+      // which is not supported by spark (spark maximum decimal precision is 38)
+      it("ints") { testSingleReadQuery("select cast(sum(age) as decimal(20, 0)) as x from users") }
+      it("floats") { testSingleReadQuery("select sum(rating) as x from reviews") }
+      it("floats with nulls") { testSingleReadQuery("select sum(critic_rating) as x from movies") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select sum(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+    }
+    describe("First") {
+      it("succeeds") { testSingleReadQuery("select first(first_name) from users group by id") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select first(stringIdentity(first_name)) from users group by id",
+                            expectPartialPushdown = true)
+      }
+    }
+    describe("Last") {
+      it("succeeds") { testSingleReadQuery("select last(first_name) from users group by id") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select last(stringIdentity(first_name)) from users group by id",
+                            expectPartialPushdown = true)
+      }
+    }
+    describe("Count") {
+      it("all") { testSingleReadQuery("select count(*) from users") }
+      it("distinct") { testSingleReadQuery("select count(distinct first_name) from users") }
+      it("partial pushdown with udf (all)") {
+        testSingleReadQuery("select count(stringIdentity(first_name)) from users group by id",
+                            expectPartialPushdown = true)
+      }
+      it("partial pushdown with udf (distinct)") {
+        testSingleReadQuery(
+          "select count(distinct stringIdentity(first_name)) from users group by id",
+          expectPartialPushdown = true)
+      }
+    }
+    it("top 3 email domains") {
+      testOrderedQuery(
+        """
+          |   select domain, count(*) from (
+          |     select substring(email, locate('@', email) + 1) as domain
+          |     from users
+          |   )
+          |   group by 1
+          |   order by 2 desc, 1 asc
+          |   limit 3
+          |""".stripMargin
+      )
+    }
+  }
+
+  describe("arithmetic") {
+    describe("Add") {
+      it("numbers") { testQuery("select user_id + movie_id as x from reviews") }
+      it("floats") { testQuery("select rating + 1.0 as x from reviews") }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select stringIdentity(user_id) + movie_id as x from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select user_id + stringIdentity(movie_id) as x from reviews",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("Subtract") {
+      it("numbers") { testQuery("select user_id - movie_id as x from reviews") }
+      it("floats") { testQuery("select rating - 1.0 as x from reviews") }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select stringIdentity(user_id) - movie_id as x from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select user_id - stringIdentity(movie_id) as x from reviews",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("Multiply") {
+      it("numbers") { testQuery("select user_id * movie_id as x from reviews") }
+      it("floats") { testQuery("select rating * 1.3 as x from reviews") }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select stringIdentity(user_id) * movie_id as x from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select user_id * stringIdentity(movie_id) as x from reviews",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("Divide") {
+      it("numbers") { testQuery("select user_id / movie_id as x from reviews") }
+      it("floats") { testQuery("select rating / 1.3 as x from reviews") }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select stringIdentity(user_id) / movie_id as x from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select user_id / stringIdentity(movie_id) as x from reviews",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("Remainder") {
+      it("numbers") { testQuery("select user_id % movie_id as x from reviews") }
+      it("floats") { testQuery("select rating % 4 as x from reviews") }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select stringIdentity(user_id) % movie_id as x from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select user_id % stringIdentity(movie_id) as x from reviews",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("Pmod") {
+      it("numbers") { testQuery("select pmod(user_id, movie_id) as x from reviews") }
+      it("floats") { testQuery("select pmod(rating, 4) as x from reviews") }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select pmod(stringIdentity(user_id), movie_id) as x from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select pmod(user_id, stringIdentity(movie_id)) as x from reviews",
+                  expectPartialPushdown = true)
+      }
+    }
+  }
+
+  describe("bitwiseExpressions") {
+    describe("And") {
+      it("succeeds") { testQuery("select user_id & movie_id as x from reviews") }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select cast(stringIdentity(user_id) as integer) & movie_id as x from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select user_id & cast(stringIdentity(movie_id) as integer) as x from reviews",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("Or") {
+      it("numbers") { testQuery("select user_id | movie_id as x from reviews") }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select cast(stringIdentity(user_id) as integer) | movie_id as x from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select user_id | cast(stringIdentity(movie_id) as integer) as x from reviews",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("Xor") {
+      it("numbers") { testQuery("select user_id ^ movie_id as x from reviews") }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select cast(stringIdentity(user_id) as integer) ^ movie_id as x from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select user_id ^ cast(stringIdentity(movie_id) as integer) as x from reviews",
+                  expectPartialPushdown = true)
+      }
+    }
+  }
+
   describe("sanity test disablePushdown") {
     def testNoPushdownQuery(q: String, expectSingleRead: Boolean = false): Unit =
       testQuery(q,
@@ -386,27 +623,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("numeric comparison >") { testQuery("select * from users where id > 500") }
     it("numeric comparison > <") { testQuery("select * from users where id > 500 and id < 550") }
     it("string equality") { testQuery("select * from users where first_name = 'Evan'") }
-  }
-
-  describe("aggregations") {
-    it("count") { testSingleReadQuery("select count(*) from users") }
-    it("count distinct") { testSingleReadQuery("select count(distinct first_name) from users") }
-    it("first") { testSingleReadQuery("select first(first_name) from users group by id") }
-    it("last") { testSingleReadQuery("select last(first_name) from users group by id") }
-    it("floor(avg(age))") { testSingleReadQuery("select floor(avg(age)) from users") }
-    it("top 3 email domains") {
-      testOrderedQuery(
-        """
-        |   select domain, count(*) from (
-        |     select substring(email, locate('@', email) + 1) as domain
-        |     from users
-        |   )
-        |   group by 1
-        |   order by 2 desc, 1 asc
-        |   limit 3
-        |""".stripMargin
-      )
-    }
   }
 
   describe("window functions") {
@@ -690,7 +906,33 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("datetime expressions") {
+  describe("datetimeExpressions") {
+    describe("DateAdd") {
+      it("positive num_days") { testQuery("select date_add(birthday, age) from users") }
+      it("negative num_days") { testQuery("select date_add(birthday, -age) from users") }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select date_add(stringIdentity(birthday), age) from users",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select date_add(birthday, -stringIdentity(age)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("DateSub") {
+      it("positive num_days") { testQuery("select date_sub(birthday, age) from users") }
+      it("negative num_days") { testQuery("select date_sub(birthday, -age) from users") }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select date_sub(stringIdentity(birthday), age) from users",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select date_sub(birthday, -stringIdentity(age)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+
     val intervals = List(
       "1 month",
       "3 week",
@@ -703,94 +945,168 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       "3 month 1 week 3 hour 5 minute 4 seconds"
     )
 
-    it("toUnixTimestamp with TimestampType") {
-      testQuery("select created, to_unix_timestamp(created) from reviews")
+    describe("toUnixTimestamp") {
+      it("works with TimestampType") {
+        testQuery("select created, to_unix_timestamp(created) from reviews")
+      }
+      it("works with DateType") {
+        testQuery("select birthday, to_unix_timestamp(birthday) from users")
+      }
+      it("partial pushdown because of udf") {
+        testQuery("select to_unix_timestamp(stringIdentity(birthday)) from users",
+                  expectPartialPushdown = true)
+      }
     }
 
-    it("toUnixTimestamp with DateType") {
-      testQuery("select birthday, to_unix_timestamp(birthday) from users")
+    describe("unixTimestamp") {
+      it("works with TimestampType") {
+        testQuery("select created, unix_timestamp(created) from reviews")
+      }
+      it("works with DateType") {
+        testQuery("select birthday, unix_timestamp(birthday) from users")
+      }
+      it("partial pushdown because of udf") {
+        testQuery("select unix_timestamp(stringIdentity(birthday)) from users",
+                  expectPartialPushdown = true)
+      }
     }
 
-    it("unixTimestamp with TimestampType") {
-      testQuery("select created, unix_timestamp(created) from reviews")
-    }
-
-    it("unixTimestamp with DateType") {
-      testQuery("select birthday, unix_timestamp(birthday) from users")
-    }
-
-    it("fromUnixTime") {
-      // cast is needed because in MemSQL 6.8 FROM_UNIXTIME query returns a result with microseconds
-      testQuery("select id, cast(from_unixtime(id) as timestamp) from movies")
+    describe("fromUnixTime") {
+      it("works") {
+        // cast is needed because in MemSQL 6.8 FROM_UNIXTIME query returns a result with microseconds
+        testQuery("select id, cast(from_unixtime(id) as timestamp) from movies")
+      }
+      it("tutu") {
+        testQuery("select from_unixtime(stringIdentity(id)) from movies",
+                  expectPartialPushdown = true)
+      }
     }
 
     // MemSQL and Spark differ on how they do last day calculations, so we ignore
     // them in some of these tests
 
-    it("timeAdd") {
-      for (interval <- intervals) {
-        println(s"testing timeAdd with interval $interval")
-        testQuery(s"""
-            | select created, created + interval $interval
-            | from reviews
-            | where date(created) != last_day(created)
-            |""".stripMargin)
+    describe("timeAdd") {
+      it("works") {
+        for (interval <- intervals) {
+          println(s"testing timeAdd with interval $interval")
+          testQuery(s"""
+                       | select created, created + interval $interval
+                       | from reviews
+                       | where date(created) != last_day(created)
+                       |""".stripMargin)
+        }
+      }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery(
+          s"""
+                     | select created, stringIdentity(created) + interval 1 day
+                     | from reviews
+                     | where date(created) != last_day(created)
+                     |""".stripMargin,
+          expectPartialPushdown = true
+        )
       }
     }
 
-    it("timeSub") {
-      for (interval <- intervals) {
-        println(s"testing timeSub with interval $interval")
-        testQuery(s"""
-            | select created, created - interval $interval
-            | from reviews
-            | where date(created) != last_day(created)
-            |""".stripMargin)
+    describe("timeSub") {
+      it("works") {
+        for (interval <- intervals) {
+          println(s"testing timeSub with interval $interval")
+          testQuery(s"""
+                       | select created, created - interval $interval
+                       | from reviews
+                       | where date(created) != last_day(created)
+                       |""".stripMargin)
+        }
       }
-    }
-
-    it("addMonths") {
-      val numMonthsList = List(0, 1, 2, 12, 13, 200, -1, -2, -12, -13, -200)
-      for (numMonths <- numMonthsList) {
-        println(s"testing addMonths with $numMonths months")
-        testQuery(s"""
-             | select created, add_months(created, $numMonths)
+      it("partial pushdown because of udf in the left argument") {
+        testQuery(
+          s"""
+             | select created, stringIdentity(created) - interval 1 day
              | from reviews
              | where date(created) != last_day(created)
-             |""".stripMargin)
+             |""".stripMargin,
+          expectPartialPushdown = true
+        )
       }
     }
 
-    it("nextDay") {
-      for ((dayOfWeek, i) <- com.memsql.spark.ExpressionGen.DAYS_OF_WEEK_OFFSET_MAP) {
-        println(s"testing nextDay with $dayOfWeek")
-        testQuery(s"""
-             | select created, next_day(created, '$dayOfWeek')
+    describe("addMonths") {
+      it("works") {
+        val numMonthsList = List(0, 1, 2, 12, 13, 200, -1, -2, -12, -13, -200)
+        for (numMonths <- numMonthsList) {
+          println(s"testing addMonths with $numMonths months")
+          testQuery(s"""
+                       | select created, add_months(created, $numMonths)
+                       | from reviews
+                       | where date(created) != last_day(created)
+                       |""".stripMargin)
+        }
+      }
+      it("partial pushdown with udf in the left argument") {
+        testQuery(
+          s"""
+                     | select created, add_months(stringIdentity(created), 1)
+                     | from reviews
+                     | where date(created) != last_day(created)
+                     |""".stripMargin,
+          expectPartialPushdown = true
+        )
+      }
+      it("partial pushdown with udf in the right argument") {
+        testQuery(
+          s"""
+             | select created, add_months(created, stringIdentity(1))
              | from reviews
-             |""".stripMargin)
+             | where date(created) != last_day(created)
+             |""".stripMargin,
+          expectPartialPushdown = true
+        )
       }
     }
 
-    it("nextDay with invalid day name") {
-      testQuery(s"""
-           | select created, next_day(created, 'invalid_day')
-           | from reviews
-           |""".stripMargin)
+    describe("NextDay") {
+      it("works") {
+        for ((dayOfWeek, _) <- com.memsql.spark.ExpressionGen.DAYS_OF_WEEK_OFFSET_MAP) {
+          println(s"testing nextDay with $dayOfWeek")
+          testQuery(s"""
+                       | select created, next_day(created, '$dayOfWeek')
+                       | from reviews
+                       |""".stripMargin)
+        }
+      }
+      it("works with invalid day name") {
+        testQuery(s"""
+                     | select created, next_day(created, 'invalid_day')
+                     | from reviews
+                     |""".stripMargin)
+      }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select next_day(stringIdentity(created), 'monday') from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select next_day(created, stringIdentity('monday')) from reviews",
+                  expectPartialPushdown = true)
+      }
     }
 
-    it("dateDiff") {
-      testSingleReadQuery(
-        """
-          | select birthday, created, DateDiff(birthday, created), DateDiff(created, birthday)
-          | from users inner join reviews on users.id = reviews.user_id
-          | """.stripMargin)
-    }
-
-    it("dateDiff for equal dates") {
-      testQuery("""
-          | select created, DateDiff(created, created)
-          | from reviews
-          | """.stripMargin)
+    describe("DateDiff") {
+      it("works") {
+        testSingleReadQuery(
+          """
+            | select birthday, created, DateDiff(birthday, created), DateDiff(created, birthday), DateDiff(created, created)
+            | from users inner join reviews on users.id = reviews.user_id
+            | """.stripMargin)
+      }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select DateDiff(stringIdentity(created), created) from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select DateDiff(created, stringIdentity(created)) from reviews",
+                  expectPartialPushdown = true)
+      }
     }
 
     // Spark doesn't support explicit time intervals like `+/-hh:mm`
@@ -803,58 +1119,110 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       "Etc/GMT-6"
     )
 
-    it("fromUTCTimestamp") {
-      for (timeZone <- timeZones) {
-        println(s"testing fromUTCTimestamp with timezone $timeZone")
-        testQuery(s"select from_utc_timestamp(created, '$timeZone') from reviews")
+    describe("fromUTCTimestamp") {
+      it("works") {
+        for (timeZone <- timeZones) {
+          println(s"testing fromUTCTimestamp with timezone $timeZone")
+          testQuery(s"select from_utc_timestamp(created, '$timeZone') from reviews")
+        }
+      }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select from_utc_timestamp(stringIdentity(created), 'EST') from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select from_utc_timestamp(created, stringIdentity('EST')) from reviews",
+                  expectPartialPushdown = true)
       }
     }
 
-    it("toUTCTimestamp") {
-      for (timeZone <- timeZones) {
-        println(s"testing toUTCTimestamp with timezone $timeZone")
-        testQuery(s"select to_utc_timestamp(created, '$timeZone') from reviews")
+    describe("toUTCTimestamp") {
+      it("works") {
+        for (timeZone <- timeZones) {
+          println(s"testing toUTCTimestamp with timezone $timeZone")
+          testQuery(s"select to_utc_timestamp(created, '$timeZone') from reviews")
+        }
+      }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery("select to_utc_timestamp(stringIdentity(created), 'EST') from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery("select to_utc_timestamp(created, stringIdentity('EST')) from reviews",
+                  expectPartialPushdown = true)
       }
     }
 
     // TruncTimestamp is called as date_trunc() in Spark
-    it("truncTimestamp") {
-      val dateParts = List(
-        "YEAR",
-        "YYYY",
-        "YY",
-        "MON",
-        "MONTH",
-        "MM",
-        "DAY",
-        "DD",
-        "HOUR",
-        "MINUTE",
-        "SECOND",
-        "WEEK",
-        "QUARTER"
-      )
-      for (datePart <- dateParts) {
-        println(s"testing truncTimestamp with datepart $datePart")
-        testQuery(s"select date_trunc('$datePart', created) from reviews")
+    describe("truncTimestamp") {
+      it("works") {
+        val dateParts = List(
+          "YEAR",
+          "YYYY",
+          "YY",
+          "MON",
+          "MONTH",
+          "MM",
+          "DAY",
+          "DD",
+          "HOUR",
+          "MINUTE",
+          "SECOND",
+          "WEEK",
+          "QUARTER"
+        )
+        for (datePart <- dateParts) {
+          println(s"testing truncTimestamp with datepart $datePart")
+          testQuery(s"select date_trunc('$datePart', created) from reviews")
+        }
+      }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery(s"select date_trunc(stringIdentity('DAY'), created) from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery(s"select date_trunc('DAY', stringIdentity(created)) from reviews",
+                  expectPartialPushdown = true)
       }
     }
 
     // TruncDate is called as trunc()
-    it("truncDate") {
-      val dateParts = List("YEAR", "YYYY", "YY", "MON", "MONTH", "MM")
-      for (datePart <- dateParts) {
-        println(s"testing truncDate with datepart $datePart")
-        testQuery(s"select trunc(created, '$datePart') from reviews")
+    describe("truncDate") {
+      it("works") {
+        val dateParts = List("YEAR", "YYYY", "YY", "MON", "MONTH", "MM")
+        for (datePart <- dateParts) {
+          println(s"testing truncDate with datepart $datePart")
+          testQuery(s"select trunc(created, '$datePart') from reviews")
+        }
+      }
+      it("partial pushdown because of udf in the left argument") {
+        testQuery(s"select trunc(stringIdentity(created), 'MONTH') from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery(s"select trunc(created, stringIdentity('MONTH')) from reviews",
+                  expectPartialPushdown = true)
       }
     }
 
-    it("monthsBetween") {
-      for (interval <- intervals) {
-        println(s"testing monthsBetween with interval $interval")
+    describe("monthsBetween") {
+      it("works") {
+        for (interval <- intervals) {
+          println(s"testing monthsBetween with interval $interval")
+          testQuery(
+            s"select months_between(created, created + interval $interval) from reviews"
+          )
+        }
+      }
+      it("partial pushdown because of udf in the left argument") {
         testQuery(
-          s"select months_between(created, created + interval $interval) from reviews"
-        )
+          s"select months_between(stringIdentity(created), created + interval 1 month) from reviews",
+          expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument") {
+        testQuery(
+          s"select months_between(created, stringIdentity(created) + interval 1 month) from reviews",
+          expectPartialPushdown = true)
       }
     }
   }
@@ -986,6 +1354,50 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
            scale <- 1 until precision) {
         testSingleReadQuery(
           s"select avg(cast(rating as decimal($precision, $scale))) over (order by rating) as out from reviews")
+      }
+    }
+  }
+
+  describe("hash") {
+    describe("sha2") {
+      val supportedBitLengths = List(256, 384, 512, 100, -100, 1234)
+      it("short literal") {
+        for (bitLength <- supportedBitLengths) {
+          testQuery(s"select sha2(first_name, ${bitLength}S) from users")
+        }
+      }
+      it("int literal") {
+        for (bitLength <- supportedBitLengths) {
+          testQuery(s"select sha2(first_name, ${bitLength}) from users")
+        }
+      }
+      it("long literal") {
+        for (bitLength <- supportedBitLengths) {
+          testQuery(s"select sha2(first_name, ${bitLength}L) from users")
+        }
+      }
+      it("foldable expression") {
+        for (bitLength <- supportedBitLengths) {
+          testQuery(s"select sha2(first_name, ${bitLength} + 256) from users")
+        }
+      }
+      describe("partial pushdown when bitLength is 224 (it is not supported by MemSQL)") {
+        it("short") {
+          testQuery(s"select sha2(first_name, 224S) from users", expectPartialPushdown = true)
+        }
+        it("int") {
+          testQuery(s"select sha2(first_name, 224) from users", expectPartialPushdown = true)
+        }
+        it("long") {
+          testQuery(s"select sha2(first_name, 224L) from users", expectPartialPushdown = true)
+        }
+      }
+      it("partial pushdown when left argument contains udf") {
+        testQuery("select sha2(stringIdentity(first_name), 224) from users",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown when right argument is not a numeric") {
+        testQuery("select sha2(first_name, '224') from users", expectPartialPushdown = true)
       }
     }
   }

@@ -445,7 +445,8 @@ Happy querying!
  * `ToUnixTimestamp` and `UnixTimestamp` handle only time less then `2038-01-19 03:14:08`, if they get `DateType` or `TimestampType` as a first argument
  * `FromUnixTime` with default format (`yyyy-MM-dd HH:mm:ss`) handle only time less then `2147483648` (`2^31`)
  * `DecimalType` on the overflow is truncated (by default spark either throws exception or returns null)
- * `greatest` and `least` returns null if at least one argument is null (in spark these functions skip nulls)
+ * `greatest` and `least` return null if at least one argument is null (in spark these functions skip nulls)
+ *  When value can not be converted to numeric or fractional type MemSQL returns 0 (spark returns `null`)
 
 ## Major changes from the 2.0.0 connector
 

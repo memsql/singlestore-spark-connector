@@ -272,8 +272,6 @@ object ExpressionGen extends LazyLogging {
         f("ADDDATE", startDate, days)
       case DateSub(expressionExtractor(startDate), expressionExtractor(days)) =>
         f("SUBDATE", startDate, days)
-      case DateFormatClass(expressionExtractor(left), expressionExtractor(right), timeZoneId) =>
-        f("DATE_FORMAT", left, right)
 
       case TimeAdd(expressionExtractor(start),
                    Literal(v: CalendarInterval, CalendarIntervalType),
@@ -404,7 +402,11 @@ object ExpressionGen extends LazyLogging {
         f("DATEDIFF", endDate, startDate)
 
       // hash.scala
-      case Sha2(expressionExtractor(left), expressionExtractor(right)) => f("SHA2", left, right)
+      case Sha2(expressionExtractor(left), right)
+          if right.foldable &&
+            right.eval().isInstanceOf[Int] &&
+            right.eval().asInstanceOf[Int] != 224 =>
+        f("SHA2", left, right.toString)
 
       // mathExpressions.scala
       case Atan2(expressionExtractor(left), expressionExtractor(right))     => f("ATAN2", left, right)
