@@ -51,7 +51,7 @@ docker build -t zeppelin .
 
 * Run zeppelin docker container
 ```
-docker run -i --init \
+docker run -d --init \
 --name zeppelin \
 -p 8082:8082 \
 --net=zeppelin-ciab-network \
