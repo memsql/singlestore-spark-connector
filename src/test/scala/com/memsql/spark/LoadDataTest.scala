@@ -64,7 +64,7 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
       fail()
     } catch {
       // error code 1364 is `Field 'id' doesn't have a default value`
-      case e: Throwable if SQLHelper.isSQLExceptionWithCode(e, List(1364)) =>
+      case e: Throwable if TestHelper.isSQLExceptionWithCode(e, List(1364)) =>
     }
   }
 
@@ -145,7 +145,7 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
       fail()
     } catch {
       // error code 1054 is `Unknown column 'extra' in 'field list'`
-      case e: Throwable if SQLHelper.isSQLExceptionWithCode(e, List(1054)) =>
+      case e: Throwable if TestHelper.isSQLExceptionWithCode(e, List(1054)) =>
     }
   }
 
@@ -159,7 +159,7 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
       fail()
     } catch {
       // error code 1054 is `Unknown column 'wrongname' in 'field list'`
-      case e: Throwable if SQLHelper.isSQLExceptionWithCode(e, List(1054)) =>
+      case e: Throwable if TestHelper.isSQLExceptionWithCode(e, List(1054)) =>
     }
   }
 

@@ -7,7 +7,7 @@ import org.apache.spark.sql.types._
 
 class IssuesTest extends IntegrationSuiteBase {
   it("https://github.com/memsql/memsql-spark-connector/issues/41") {
-    executeQuery("""
+    executeQueryWithLog("""
         | create table if not exists testdb.issue41 (
         |   start_video_pos smallint(5) unsigned DEFAULT NULL
         | )
@@ -29,7 +29,7 @@ class IssuesTest extends IntegrationSuiteBase {
 
   it("https://memsql.zendesk.com/agent/tickets/10451") {
     // parallel read should support columnar scan with filter
-    executeQuery("""
+    executeQueryWithLog("""
       | create table if not exists testdb.ticket10451 (
       |   t text,
       |   h bigint(20) DEFAULT NULL,

@@ -7,7 +7,7 @@ import com.memsql.spark.MemsqlOptions.{CompressionType, TableKeyType}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{IntegerType, StringType}
 import org.apache.spark.sql.{DataFrame, SaveMode}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+import org.scalatest.BeforeAndAfterEach
 
 class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
   var df: DataFrame = _
@@ -24,7 +24,7 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
 
   it("sets strict sql session variables") {
     // set a large but not exactly the same sql select limit
-    executeQuery("set global sql_select_limit = 18446744000000000000")
+    executeQueryWithLog( "set global sql_select_limit = 18446744000000000000")
 
     val variables = spark.read
       .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)

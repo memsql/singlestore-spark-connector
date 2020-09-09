@@ -51,7 +51,7 @@ class BenchmarkSerializingTest extends IntegrationSuiteBase {
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-    executeQuery(s"drop table if exists $dbName.$tableName")
+    executeQueryWithLog(s"drop table if exists $dbName.$tableName")
   }
 
   def doWriteOperation(dataFrame: DataFrame, options: Map[String, String]): Long = {

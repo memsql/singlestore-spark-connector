@@ -5,9 +5,12 @@ import java.util.{Properties, TimeZone}
 
 import com.github.mrpowers.spark.fast.tests.DataFrameComparer
 import org.apache.log4j.{Level, LogManager}
+import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.scalatest._
 import org.scalatest.funspec.AnyFunSpec
+import com.memsql.spark.JdbcHelpers.executeQuery
+import com.memsql.spark.SQLHelper._
 
 import scala.util.Random
 
@@ -25,15 +28,29 @@ trait IntegrationSuiteBase
 
   var spark: SparkSession = _
 
+  var jdbcOptsDefault = new JDBCOptions(
+    Map(
+      JDBCOptions.JDBC_URL          -> s"jdbc:mysql://$masterHost:$masterPort",
+      JDBCOptions.JDBC_TABLE_NAME   -> "XXX",
+      JDBCOptions.JDBC_DRIVER_CLASS -> "org.mariadb.jdbc.Driver",
+      "user"                        -> "root"
+    )
+  )
+
   override def beforeAll(): Unit = {
     // override global JVM timezone to GMT
     TimeZone.setDefault(TimeZone.getTimeZone("GMT"))
 
-    // make memsql use less memory
-    executeQuery("set global default_partitions_per_leaf = 2")
+    val conn = JdbcUtils.createConnectionFactory(jdbcOptsDefault)()
+    try {
+      // make memsql use less memory
+      executeQuery(conn, "set global default_partitions_per_leaf = 2")
 
-    executeQuery("drop database if exists testdb")
-    executeQuery("create database testdb")
+      executeQuery(conn, "drop database if exists testdb")
+      executeQuery(conn, "create database testdb")
+    } finally {
+      conn.close()
+    }
   }
 
   override def withFixture(test: NoArgTest): Outcome = {
@@ -100,20 +117,9 @@ trait IntegrationSuiteBase
     spark.close()
   }
 
-  def jdbcConnection: Loan[Connection] = {
-    val connProperties = new Properties()
-    connProperties.put("user", "root")
-
-    Loan(
-      DriverManager.getConnection(
-        s"jdbc:mysql://$masterHost:$masterPort",
-        connProperties
-      ))
-  }
-
-  def executeQuery(sql: String): Unit = {
+  def executeQueryWithLog(sql: String): Unit = {
     log.trace(s"executing query: ${sql}")
-    jdbcConnection.to(conn => Loan(conn.createStatement).to(_.execute(sql)))
+    spark.executeMemsqlQuery(sql)
   }
 
   def jdbcOptions(dbtable: String): Map[String, String] = Map(

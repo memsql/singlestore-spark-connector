@@ -1,10 +1,10 @@
 package com.memsql.spark
 
-import java.sql.{Connection, PreparedStatement, Statement}
+import java.sql.{Date, Timestamp, Connection, PreparedStatement, Statement}
 
 import com.memsql.spark.MemsqlOptions.{TableKey, TableKeyType}
 import com.memsql.spark.SQLGen.{StringVar, VariableList}
-import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.jdbc.JdbcDialects
@@ -29,9 +29,9 @@ object JdbcHelpers extends LazyLogging {
       Loan(conn.prepareStatement(query)).to(handle)
   }
 
-  def getJDBCOptions(conf: MemsqlOptions, hostports: String*): JDBCOptions = {
+  def getJDBCOptions(conf: MemsqlOptions, hostPorts: String*): JDBCOptions = {
     val url: String = {
-      val base = s"jdbc:mysql://${hostports.mkString(",")}"
+      val base = s"jdbc:mysql://${hostPorts.mkString(",")}"
       conf.database match {
         case Some(d) => s"$base/$d"
         case None    => base
@@ -66,6 +66,18 @@ object JdbcHelpers extends LazyLogging {
   def getDMLJDBCOptions(conf: MemsqlOptions): JDBCOptions =
     getJDBCOptions(conf, conf.dmlEndpoints: _*)
 
+  def executeQuery(conn: Connection, query: String, variables: Any*): Iterator[Row] = {
+    val statement = conn.prepareStatement(query)
+    try {
+      fillStatementJdbc(statement, variables.toList)
+      val rs     = statement.executeQuery()
+      val schema = JdbcUtils.getSchema(rs, MemsqlDialect, alwaysNullable = true)
+      JdbcUtils.resultSetToRows(rs, schema)
+    } finally {
+      statement.close()
+    }
+  }
+
   def loadSchema(conf: MemsqlOptions, query: String, variables: VariableList): StructType = {
     val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
     try {
@@ -90,7 +102,7 @@ object JdbcHelpers extends LazyLogging {
   def explainQuery(conf: MemsqlOptions, query: String, variables: VariableList): String = {
     val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
     try {
-      val statement = conn.prepareStatement(s"EXPLAIN ${query}")
+      val statement = conn.prepareStatement(s"EXPLAIN $query")
       try {
         fillStatement(statement, variables)
         val rs = statement.executeQuery()
@@ -193,6 +205,14 @@ object JdbcHelpers extends LazyLogging {
         throw new IllegalArgumentException(
           "Unexpected Variable Type: " + v.getClass.getName
         )
+    }
+  }
+
+  def fillStatementJdbc(stmt: PreparedStatement, variables: List[Any]): Unit = {
+    // here we leave it to JDBC driver to do type conversions
+    if (variables.isEmpty) { return }
+    for ((v, index) <- variables.zipWithIndex) {
+      stmt.setObject(index + 1, v)
     }
   }
 

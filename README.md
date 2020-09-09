@@ -85,7 +85,7 @@ For Java/Python versions of some of these examples, visit the section ["Java & P
 
 ## Writing to MemSQL
 
-The `memsql-spark-connector` supports saving dataframe's to MemSQL using the Spark write API. Here is a basic example of using this API:
+The `memsql-spark-connector` supports saving dataframes to MemSQL using the Spark write API. Here is a basic example of using this API:
 
 ```scala
 df.write
@@ -336,6 +336,48 @@ In order to use parallel reads, the username and password provided to the
 In addition, the hostnames and ports listed by `SHOW LEAVES` must be directly
 connectible from Spark.
 
+## Running SQL queries
+The methods `executeMemsqlQuery(query: String, variables: Any*)` and `executeMemsqlQueryDB(db: String, query: String, variables: Any*)`
+allow you to run SQL queries on a MemSQL database directly using the existing `SparkSession` object. The method `executeMemsqlQuery`
+uses the database defined in the `SparkContext` object you use. `executeMemsqlQueryDB` allows you to specify the database that
+will be used for querying.
+The following examples demonstrate their usage (assuming you already have
+initialized `SparkSession` object named `spark`). The methods return `Iterator[org.apache.spark.sql.Row]` object.
+
+```scala
+// this imports the implicit class QueryMethods which adds the methods
+// executeMemsqlQuery and executeMemsqlQueryDB to SparkSession class
+import com.memsql.spark.SQLHelper.QueryMethods
+
+// You can pass an empty database to executeMemsqlQueryDB to connect to MemSQL without specifying a database.
+// This allows you to create a database which is defined in the SparkSession config for example.
+spark.executeMemsqlQueryDB("", "CREATE DATABASE foo")
+// the next query can be used if the database field has been specified in spark object   
+s = spark.executeMemsqlQuery("CREATE TABLE user(id INT, name VARCHAR(30), status BOOLEAN)")
+
+// you can create another database
+spark.executeMemsqlQuery("CREATE DATABASE bar")
+// the database specified as the first argument will override the database set in the SparkSession object
+s = spark.executeMemsqlQueryDB("bar", "CREATE TABLE user(id INT, name VARCHAR(30), status BOOLEAN)")
+```
+
+You can pass query parameters to the functions as arguments following `query`. The supported types for parameters are `String, Int, Long, Short, Float, Double, Boolean, Byte, java.sql.Date, java.sql.Timestamp`.
+```scala
+import com.memsql.spark.SQLHelper.QueryMethods
+
+var userRows = spark.executeMemsqlQuery("SELECT id, name FROM USER WHERE id > ? AND status = ? AND name LIKE ?", 10, true, "%at%")
+
+for (row <- userRows) {
+  println(row.getInt(0), row.getString(1))
+}
+```
+Alternatively, these functions can take `SparkSession` object as the first argument, as in the example below
+```scala
+import com.memsql.spark.SQLHelper.{executeMemsqlQuery, executeMemsqlQueryDB}
+
+executeMemsqlQuery(spark, "CREATE DATABASE foo")
+var s = executeMemsqlQueryDB(spark, "foo", "SHOW TABLES")
+```
 ## Security
 
 ### Connecting with a Kerberos-authenticated User
@@ -349,7 +391,7 @@ Here is an example of configuring the Spark connector globally with a Kerberized
 
 ```scala
 spark = SparkSession.builder()
-    .config(“spark.datasource.memsql.user”, “krb_user”)
+    .config("spark.datasource.memsql.user", "krb_user")
     .getOrCreate()
 ```
 
@@ -428,14 +470,15 @@ Happy querying!
 ## Setting up development environment
 
  * install Oracle JDK 8 from this url: https://www.oracle.com/java/technologies/javase/javase-jdk8-downloads.html
- * install community version of Intellij IDEA from https://www.jetbrains.com/idea/
+ * install the community edition of Intellij IDEA from https://www.jetbrains.com/idea/
  * clone the repository https://github.com/memsql/memsql-spark-connector.git
  * in Intellij IDEA choose `Configure->Plugins` and install Scala plugin
- * in Intellij IDEA run `Import Project` and select path to memsql-spark-connector
+ * in Intellij IDEA run `Import Project` and select path to memsql-spark-connector `build.sbt` file
  * choose `import project from external model` and `sbt`
- * in `Project JDK` select `New...->JDK` and choose path to the installed JDK
+ * in `Project JDK` select `New...->JDK` and choose the path to the installed JDK
  * `Finish`
- * it will overwrite some files and create build files (which are in gitignore)
+ * it will overwrite some files and create build files (which are in .gitignore)
+ * you may need to remove the `.idea` directory for IDEA to load the project properly
  * in Intellij IDEA choose `File->Close Project`
  * run `git checkout .` to revert all changes made by Intellij IDEA
  * in Intellij IDEA choose `Open` and select path to memsql-spark-connector
