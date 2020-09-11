@@ -1401,4 +1401,25 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
   }
+
+  describe("SortOrder") {
+    it("works asc, nulls first") {
+      testSingleReadQuery("select * from movies order by critic_rating asc nulls first")
+    }
+    it("works desc, nulls last") {
+      testSingleReadQuery("select * from movies order by critic_rating desc nulls last")
+    }
+    it("partial pushdown asc, nulls last") {
+      testSingleReadQuery("select * from movies order by critic_rating asc nulls last",
+                          expectPartialPushdown = true)
+    }
+    it("partial pushdown desc, nulls first") {
+      testSingleReadQuery("select * from movies order by critic_rating desc nulls first",
+                          expectPartialPushdown = true)
+    }
+    it("partial pushdown with udf") {
+      testSingleReadQuery("select * from movies order by stringIdentity(critic_rating)",
+                          expectPartialPushdown = true)
+    }
+  }
 }
