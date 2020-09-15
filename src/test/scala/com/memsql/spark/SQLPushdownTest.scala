@@ -1308,6 +1308,118 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                   expectPartialPushdown = true)
       }
     }
+
+    describe("Upper") {
+      it("works") {
+        testQuery("select id, upper(critic_review) from movies")
+      }
+      it("works with ints") {
+        testQuery("select id, upper(id) from movies")
+      }
+      it("partial pushdown whith udf") {
+        testQuery("select id, upper(stringIdentity(critic_review)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Lower") {
+      it("works") {
+        testQuery("select id, lower(critic_review) from movies")
+      }
+      it("works with ints") {
+        testQuery("select id, lower(id) from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, lower(stringIdentity(critic_review)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringSpace") {
+      it("works") {
+        testQuery("select id, space(floor(critic_rating)) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, space(stringIdentity(id)) from movies", expectPartialPushdown = true)
+      }
+    }
+
+    describe("Length") {
+      it("works with strings") {
+        testQuery("select id, length(critic_review) from movies")
+      }
+      it("works with binary") {
+        testQuery("select id, length(cast(critic_review as binary)) from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, length(stringIdentity(id)) from movies", expectPartialPushdown = true)
+      }
+    }
+
+    describe("BitLength") {
+      it("works with strings") {
+        testQuery("select id, bit_length(critic_review) from movies")
+      }
+      it("works with binary") {
+        testQuery("select id, bit_length(cast(critic_review as binary)) from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, bit_length(stringIdentity(id)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("OctetLength") {
+      it("works with strings") {
+        testQuery("select id, octet_length(critic_review) from movies")
+      }
+      it("works with binary") {
+        testQuery("select id, octet_length(cast(critic_review as binary)) from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, octet_length(stringIdentity(id)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Ascii") {
+      it("works") {
+        testQuery("select id, ascii(critic_review) from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, ascii(stringIdentity(critic_review)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Chr") {
+      it("works") {
+        testQuery("select id, chr(floor(critic_rating)) as ch from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, chr(stringIdentity(id)) from movies", expectPartialPushdown = true)
+      }
+    }
+
+    describe("Base64") {
+      it("works") {
+        testQuery("select id, base64(critic_review) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, base64(stringIdentity(critic_review)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("UnBase64") {
+      it("works") {
+        testQuery("select id, unbase64(base64(critic_review)) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, unbase64(base64(stringIdentity(critic_review))) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
   }
 
   describe("decimalExpressions") {

@@ -696,17 +696,17 @@ object ExpressionGen extends LazyLogging {
       case Upper(expressionExtractor(child)) => f("UPPER", child)
       case Lower(expressionExtractor(child)) => f("LOWER", child)
 
-      case StringSpace(expressionExtractor(child)) => f("LPAD", "", child, StringVar(" "))
+      case StringSpace(expressionExtractor(child)) =>
+        f("LPAD", StringVar(""), child, StringVar(" "))
 
-      case Right(expressionExtractor(str), expressionExtractor(len), _) => f("RIGHT", str, len)
-      case Left(expressionExtractor(str), expressionExtractor(len), _)  => f("LEFT", str, len)
-      case Length(expressionExtractor(child))                           => f("CHAR_LENGTH", child)
-      case BitLength(expressionExtractor(child))                        => block(func("LENGTH", child) + "* 8")
-      case OctetLength(expressionExtractor(child))                      => f("LENGTH", child)
-      case Ascii(expressionExtractor(child))                            => f("ASCII", child)
-      case Chr(expressionExtractor(child))                              => f("CHAR", child)
-      case Base64(expressionExtractor(child))                           => f("TO_BASE64", child)
-      case UnBase64(expressionExtractor(child))                         => f("FROM_BASE64", child)
+      case Length(expressionExtractor(child))      => f("CHAR_LENGTH", child)
+      case BitLength(expressionExtractor(child))   => block(func("LENGTH", child) + "* 8")
+      case OctetLength(expressionExtractor(child)) => f("LENGTH", child)
+      case Ascii(expressionExtractor(child))       => f("ASCII", child)
+      case Chr(expressionExtractor(child)) =>
+        f("IF", f("ISNULL", child), StringVar(null), f("CHAR", child))
+      case Base64(expressionExtractor(child))   => f("TO_BASE64", child)
+      case UnBase64(expressionExtractor(child)) => f("FROM_BASE64", child)
 
       // TODO: case InitCap(expressionExtractor(child)) => ???
       // TODO: case StringReverse(expressionExtractor(child)) => ???
