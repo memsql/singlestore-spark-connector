@@ -117,6 +117,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                 expectPartialPushdown: Boolean = false,
                 expectSingleRead: Boolean = false,
                 expectEmpty: Boolean = false,
+                expectSameResult: Boolean = true,
+                expectCodegenDeterminism: Boolean = true,
                 pushdown: Boolean = true): Unit = {
 
     spark.sql("use testdb_jdbc")
@@ -125,7 +127,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     jdbcDF.collect()
     if (pushdown) { spark.sql("use testdb") } else { spark.sql("use testdb_nopushdown") }
 
-    testCodegenDeterminism(q)
+    if (expectCodegenDeterminism) {
+      testCodegenDeterminism(q)
+    }
 
     val memsqlDF = spark.sql(q)
 
@@ -153,34 +157,36 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       s"the optimized plan does not match expectPartialPushdown=$expectPartialPushdown"
     )
 
-    try {
-      def changeTypes(df: DataFrame): DataFrame = {
-        var newDf = df
-        df.schema
-          .foreach(x =>
-            x.dataType match {
-              // Replace all Floats with Doubles, because JDBC connector converts FLOAT to DoubleType when MemSQL connector converts it to FloatType
-              // Replace all Decimals with Doubles, because assertApproximateDataFrameEquality compare Decimals for strong equality
-              case _: DecimalType | FloatType =>
-                newDf = newDf.withColumn(x.name, newDf(x.name).cast(DoubleType))
-              // Replace all Shorts with Integers, because JDBC connector converts SMALLINT to IntegerType when MemSQL connector converts it to ShortType
-              case _: ShortType =>
-                newDf = newDf.withColumn(x.name, newDf(x.name).cast(IntegerType))
-              // Replace all CalendarIntervals with Strings, because assertApproximateDataFrameEquality can't sort CalendarIntervals
-              case _: CalendarIntervalType =>
-                newDf = newDf.withColumn(x.name, newDf(x.name).cast(StringType))
-              case _ =>
-          })
-        newDf
+    if (expectSameResult) {
+      try {
+        def changeTypes(df: DataFrame): DataFrame = {
+          var newDf = df
+          df.schema
+            .foreach(x =>
+              x.dataType match {
+                // Replace all Floats with Doubles, because JDBC connector converts FLOAT to DoubleType when MemSQL connector converts it to FloatType
+                // Replace all Decimals with Doubles, because assertApproximateDataFrameEquality compare Decimals for strong equality
+                case _: DecimalType | FloatType =>
+                  newDf = newDf.withColumn(x.name, newDf(x.name).cast(DoubleType))
+                // Replace all Shorts with Integers, because JDBC connector converts SMALLINT to IntegerType when MemSQL connector converts it to ShortType
+                case _: ShortType =>
+                  newDf = newDf.withColumn(x.name, newDf(x.name).cast(IntegerType))
+                // Replace all CalendarIntervals with Strings, because assertApproximateDataFrameEquality can't sort CalendarIntervals
+                case _: CalendarIntervalType =>
+                  newDf = newDf.withColumn(x.name, newDf(x.name).cast(StringType))
+                case _ =>
+            })
+          newDf
+        }
+        assertApproximateDataFrameEquality(changeTypes(memsqlDF),
+                                           changeTypes(jdbcDF),
+                                           0.1,
+                                           orderedComparison = alreadyOrdered)
+      } catch {
+        case e: Throwable =>
+          if (continuousIntegration) { println(memsqlDF.explain(true)) }
+          throw e
       }
-      assertApproximateDataFrameEquality(changeTypes(memsqlDF),
-                                         changeTypes(jdbcDF),
-                                         0.1,
-                                         orderedComparison = alreadyOrdered)
-    } catch {
-      case e: Throwable =>
-        if (continuousIntegration) { println(memsqlDF.explain(true)) }
-        throw e
     }
   }
 
@@ -1420,6 +1426,28 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("partial pushdown with udf") {
       testSingleReadQuery("select * from movies order by stringIdentity(critic_rating)",
                           expectPartialPushdown = true)
+    }
+  }
+
+  describe("Rand") {
+    it("integer literal") {
+      testQuery("select rand(100)*id from users", expectSameResult = false)
+    }
+    it("long literal") {
+      testQuery("select rand(100L)*id from users", expectSameResult = false)
+    }
+    it("null literal") {
+      testQuery("select rand(null)*id from users", expectSameResult = false)
+    }
+    it("empty arguments") {
+      testQuery("select rand()*id from users",
+                expectSameResult = false,
+                expectCodegenDeterminism = false)
+    }
+    it("should return the same value for the same input") {
+      val df1 = spark.sql("select rand(100)*id from testdb.users")
+      val df2 = spark.sql("select rand(100)*id from testdb.users")
+      assertApproximateDataFrameEquality(df1, df2, 0.001, orderedComparison = false)
     }
   }
 }
