@@ -71,7 +71,7 @@ object SQLGen extends LazyLogging {
 
     def withLogicalPlanComment(plan: LogicalPlan): Statement =
       if (log.isTraceEnabled()) {
-        this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${plan.simpleString}"
+        this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${plan.simpleString.replace("\n", "\n-- ")}"
       } else {
         this
       }
@@ -163,8 +163,28 @@ object SQLGen extends LazyLogging {
     )
 
     override val sql: String = {
-      val indentedQuery = reader.query.replace("\n", "\n  ")
-      val alias         = MemsqlDialect.quoteIdentifier(name)
+      var inAttributeName: Boolean = false
+
+      // Add indentation after new line character if it is not in the attribute name.
+      // We are inside of the Attribute if the number of backticks we already processed is odd.
+      // Example:
+      // "select id as `name\n\n``name` from \n table" -> "select id as `name\n\n``name` from \n   table"
+      val indentedQuery = reader.query
+        .map({
+          case '`' =>
+            inAttributeName = !inAttributeName
+            "`"
+          case '\n' =>
+            if (inAttributeName) {
+              "\n"
+            } else {
+              "\n  "
+            }
+          case c => c.toString
+        })
+        .mkString
+
+      val alias = MemsqlDialect.quoteIdentifier(name)
       s"(\n  $indentedQuery\n) AS $alias"
     }
 

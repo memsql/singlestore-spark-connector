@@ -216,6 +216,15 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     describe("successful pushdown") {
       it("Attribute") { testQuery("select id from users") }
       it("Alias") { testQuery("select id as user_id from users") }
+      it("Alias with new line") { testQuery("select id as `user_id\n` from users") }
+      it("Alias with hyphen") { testQuery("select id as `user-id` from users") }
+      // DatasetComparer fails to sort a DataFrame with weird names, because of it following queries are ran as alreadyOrdered
+      it("Alias with dot") {
+        testSingleReadQuery("select id as `user.id` from users order by id", alreadyOrdered = true)
+      }
+      it("Alias with backtick") {
+        testSingleReadQuery("select id as `user``id` from users order by id", alreadyOrdered = true)
+      }
     }
     describe("unsuccessful pushdown") {
       it("alias with udf") {

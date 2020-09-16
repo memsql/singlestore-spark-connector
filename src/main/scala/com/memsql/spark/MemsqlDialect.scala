@@ -52,7 +52,7 @@ case object MemsqlDialect extends JdbcDialect {
   }
 
   override def quoteIdentifier(colName: String): String = {
-    s"`$colName`"
+    s"`${colName.replace("`", "``")}`"
   }
 
   override def isCascadingTruncateTable(): Option[Boolean] = Some(false)
