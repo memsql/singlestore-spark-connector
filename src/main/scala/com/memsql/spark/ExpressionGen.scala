@@ -560,26 +560,46 @@ object ExpressionGen extends LazyLogging {
       case BitwiseNot(expressionExtractor(expr)) => f("~", expr)
 
       // Cast.scala
-      case Cast(expressionExtractor(child), dataType, _) =>
+      case Cast(e @ expressionExtractor(child), dataType, _) => {
         dataType match {
-          case TimestampType => cast(child, "DATETIME(6)")
-          case DateType      => cast(child, "DATE")
+          case TimestampType => {
+            e.dataType match {
+              case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
+                  DoubleType | _: DecimalType =>
+                cast(f("FROM_UNIXTIME", child), "DATETIME(6)")
+              case _ => cast(child, "DATETIME(6)")
+            }
+          }
+          case DateType => cast(child, "DATE")
 
-          case dt: DecimalType => makeDecimal(child, dt.precision, dt.scale)
+          case StringType => cast(child, "CHAR")
+          case BinaryType => cast(child, "BINARY")
 
-          case StringType  => cast(child, "CHAR")
-          case BinaryType  => cast(child, "BINARY")
-          case ShortType   => op("!:>", child, "SMALLINT")
-          case IntegerType => op("!:>", child, "INT")
-          case LongType    => op("!:>", child, "BIGINT")
-          case FloatType   => op("!:>", child, "FLOAT")
-          case DoubleType  => op("!:>", child, "DOUBLE")
-          case BooleanType => op("!:>", child, "BOOL")
-
+          case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
+              DoubleType | _: DecimalType =>
+            if (e.dataType == DateType) {
+              StringVar(null)
+            } else {
+              val numeric_ch = if (e.dataType == TimestampType) {
+                f("UNIX_TIMESTAMP", child)
+              } else {
+                child
+              }
+              dataType match {
+                case BooleanType     => op("!=", numeric_ch, IntVar(0))
+                case ByteType        => op("!:>", numeric_ch, "TINYINT")
+                case ShortType       => op("!:>", numeric_ch, "SMALLINT")
+                case IntegerType     => op("!:>", numeric_ch, "INT")
+                case LongType        => op("!:>", numeric_ch, "BIGINT")
+                case FloatType       => op("!:>", numeric_ch, "FLOAT")
+                case DoubleType      => op("!:>", numeric_ch, "DOUBLE")
+                case dt: DecimalType => makeDecimal(numeric_ch, dt.precision, dt.scale)
+              }
+            }
           // MemSQL doesn't know how to handle this cast, pass it through AS is
           case _ => child
         }
-
+      }
       // TODO: case UpCast(expressionExtractor(child), dataType, walkedTypePath) => ???
 
       // datetimeExpressions.scala

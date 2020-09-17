@@ -446,7 +446,10 @@ Happy querying!
  * `FromUnixTime` with default format (`yyyy-MM-dd HH:mm:ss`) handle only time less then `2147483648` (`2^31`)
  * `DecimalType` on the overflow is truncated (by default spark either throws exception or returns null)
  * `greatest` and `least` return null if at least one argument is null (in spark these functions skip nulls)
- *  When value can not be converted to numeric or fractional type MemSQL returns 0 (spark returns `null`)
+ *  When string is casted to numeric type, memsql takes the prefix of it which is numeric (spark returns `null` if the whole string is not numeric)
+ *  When numeric type is casted to the smaller one memsql truncates it. For example `500` casted to the Byte will be `127`. 
+ Note: spark optimizer can optimize casts for literals and then behaviour for them will match custom spark behaviour.
+ * When fractional type is casted to integral type memsql rounds it to the closest value.
 
 ## Major changes from the 2.0.0 connector
 

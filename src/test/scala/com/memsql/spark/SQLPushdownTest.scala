@@ -242,7 +242,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         it("false") { testQuery("select false from users") }
       }
 
-      it("byte") { testSingleReadQuery("select 100Y from users") }
+      it("byte") { testQuery("select 100Y from users") }
       it("short") { testQuery("select 100S from users") }
       it("integer") { testQuery("select 100 from users") }
       it("long") { testSingleReadQuery("select 100L from users") }
@@ -260,6 +260,308 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("binary literal") {
         testQuery("select X'123456' from users", expectPartialPushdown = true)
+      }
+    }
+  }
+
+  describe("Cast") {
+    describe("to boolean") {
+      it("boolean") {
+        testQuery("select cast(owns_house as boolean) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as boolean) from users")
+      }
+      it("long") {
+        testQuery("select cast(id as boolean) from users")
+      }
+      it("float") {
+        testQuery("select cast(critic_rating as boolean) from movies")
+      }
+      it("date") {
+        testQuery("select cast(birthday as boolean) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as boolean) from reviews")
+      }
+    }
+
+    describe("to byte") {
+      it("boolean") {
+        testQuery("select cast(owns_house as byte) from users")
+      }
+      it("int") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min TINYINT value
+        // spark returns module (452->-60)
+        testQuery("select cast(age as byte) from users where age > -129 and age < 128")
+      }
+      it("long") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min TINYINT value
+        // spark returns module (452->-60)
+        testQuery("select cast(id as byte) from users where id > -129 and id < 128")
+      }
+      it("float") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min TINYINT value
+        // spark returns module (452->-60)
+        // memsql and spark use different rounding
+        // memsql round to the closest value
+        // spark round to the smaller one
+        testQuery(
+          "select cast(critic_rating as byte) from movies where critic_rating > -129 and critic_rating < 128 and critic_rating - floor(critic_rating) < 0.5")
+      }
+      it("date") {
+        testQuery("select cast(birthday as byte) from users")
+      }
+      it("timestamp") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min TINYINT value
+        // spark returns module (452->-60)
+        testQuery(
+          "select cast(created as byte) from reviews where cast(created as long) > -129 and cast(created as long) < 128")
+      }
+    }
+
+    describe("to short") {
+      it("boolean") {
+        testQuery("select cast(owns_house as short) from users")
+      }
+      it("int") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min SMALLINT value
+        // spark returns module (40004->-25532)
+        testQuery("select cast(age as short) from users where age > -32769 and age < 32768")
+      }
+      it("long") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min SMALLINT value
+        // spark returns module (40004->-25532)
+        testQuery("select cast(id as short) as d from users where id > -32769 and id < 32768")
+      }
+      it("float") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min SMALLINT value
+        // spark returns module (40004->-25532)
+        // memsql and spark use different rounding
+        // memsql round to the closest value
+        // spark round to the smaller one
+        testQuery(
+          "select cast(critic_rating as short) from movies where critic_rating > -32769 and critic_rating < 32768 and critic_rating - floor(critic_rating) < 0.5")
+      }
+      it("date") {
+        testQuery("select cast(birthday as short) from users")
+      }
+      it("timestamp") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min SMALLINT value
+        // spark returns module (40004->-25532)
+        testQuery(
+          "select cast(created as short) from reviews where cast(created as long) > -32769 and cast(created as long) < 32768")
+      }
+    }
+
+    describe("to int") {
+      it("boolean") {
+        testQuery("select cast(owns_house as int) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as int) from users")
+      }
+      it("long") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min INT value
+        // spark returns module (10000000000->1410065408)
+        testQuery(
+          "select cast(id as int) as d from users where id > -2147483649 and id < 2147483648")
+      }
+      it("float") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min INT value
+        // spark returns module (10000000000->1410065408)
+        // memsql and spark use different rounding
+        // memsql round to the closest value
+        // spark round to the smaller one
+        testQuery(
+          "select cast(critic_rating as int) from movies where critic_rating > -2147483649 and critic_rating < 2147483648 and critic_rating - floor(critic_rating) < 0.5")
+      }
+      it("date") {
+        testQuery("select cast(birthday as int) from users")
+      }
+      it("timestamp") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min INT value
+        // spark returns module (10000000000->1410065408)
+        testQuery(
+          "select cast(created as int) from reviews where cast(created as long) > -2147483649 and cast(created as long) < 2147483648")
+      }
+    }
+
+    describe("to long") {
+      it("boolean") {
+        testQuery("select cast(owns_house as long) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as long) from users")
+      }
+      it("long") {
+        testQuery("select cast(id as long) from users")
+      }
+      it("float") {
+        // memsql and spark use different rounding
+        // memsql round to the closest value
+        // spark round to the smaller one
+        testQuery(
+          "select cast(critic_rating as long) from movies where critic_rating - floor(critic_rating) < 0.5")
+      }
+      it("date") {
+        testQuery("select cast(birthday as long) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as long) from reviews")
+      }
+    }
+
+    describe("to float") {
+      it("boolean") {
+        testQuery("select cast(owns_house as float) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as float) from users")
+      }
+      it("long") {
+        testQuery("select cast(id as float) from users")
+      }
+      it("float") {
+        testQuery("select cast(critic_rating as float) from movies")
+      }
+      it("date") {
+        testQuery("select cast(birthday as float) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as float) from reviews")
+      }
+    }
+
+    describe("to double") {
+      it("boolean") {
+        testQuery("select cast(owns_house as double) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as double) from users")
+      }
+      it("long") {
+        testQuery("select cast(id as double) from users")
+      }
+      it("float") {
+        testQuery("select cast(critic_rating as double) from movies")
+      }
+      it("date") {
+        testQuery("select cast(birthday as double) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as double) from reviews")
+      }
+    }
+
+    describe("to decimal") {
+      it("boolean") {
+        testQuery("select cast(owns_house as decimal(20, 5)) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as decimal(20, 5)) from users")
+      }
+      it("long") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min DECIMAL(x, y) value
+        // spark returns null
+        testQuery("select cast(id as decimal(20, 5)) from users where id < 999999999999999.99999")
+      }
+      it("float") {
+        testQuery("select cast(critic_rating as decimal(20, 5)) from movies")
+      }
+      it("date") {
+        testQuery("select cast(birthday as decimal(20, 5)) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as decimal(20, 5)) from reviews")
+      }
+    }
+
+    describe("to string") {
+      it("boolean") {
+        testQuery("select cast(owns_house as string) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as string) from users")
+      }
+      it("long") {
+        testQuery("select cast(id as string) from users")
+      }
+      it("float") {
+        // memsql converts integers to string with 0 digits after the point
+        // spark adds 1 digit after the point
+        testQuery("select cast(cast(critic_rating as string) as float) from movies")
+      }
+      it("date") {
+        testQuery("select cast(birthday as string) from users")
+      }
+      it("timestamp") {
+        // memsql converts timestamps to string with 6 digits after the point
+        // spark adds 0 digit after the point
+        testQuery("select cast(cast(created as string) as timestamp) from reviews")
+      }
+      it("string") {
+        testQuery("select cast(first_name as string) from users")
+      }
+    }
+
+    describe("to binary") {
+      // spark doesn't support casting other types to binary
+      it("string") {
+        testQuery("select cast(first_name as binary) from users")
+      }
+    }
+
+    describe("to date") {
+      it("date") {
+        testQuery("select cast(birthday as date) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as date) from reviews")
+      }
+      it("string") {
+        testQuery("select cast(first_name as date) from users")
+      }
+    }
+
+    describe("to timestamp") {
+      it("boolean") {
+        testQuery("select cast(owns_house as timestamp) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as timestamp) from users")
+      }
+      it("long") {
+        // TIMESTAMP in MemSQL doesn't support values greater then 2147483647999
+        testQuery("select cast(id as timestamp) from users where id < 2147483647999")
+      }
+      it("float") {
+        // memsql and spark use different rounding
+        // memsql round to the closest value
+        // spark round to the smaller one
+        testQuery(
+          "select to_unix_timestamp(cast(critic_rating as timestamp)) from movies where critic_rating - floor(critic_rating) < 0.5")
+      }
+      it("date") {
+        testQuery("select cast(birthday as timestamp) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as timestamp) from reviews")
+      }
+      it("string") {
+        testQuery("select cast(first_name as timestamp) from users")
       }
     }
   }
@@ -1155,7 +1457,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("works") {
         for (timeZone <- timeZones) {
           println(s"testing toUTCTimestamp with timezone $timeZone")
-          testQuery(s"select to_utc_timestamp(created, '$timeZone') from reviews")
+          // memsql doesn't support timestamps less then 1970-01-01T00:00:00Z
+          testQuery(
+            s"select to_utc_timestamp(created, '$timeZone') from reviews where to_unix_timestamp(created) > 24*60*60")
         }
       }
       it("partial pushdown because of udf in the left argument") {
