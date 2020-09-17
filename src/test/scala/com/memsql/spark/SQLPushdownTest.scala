@@ -4,7 +4,6 @@ import com.memsql.spark.SQLGen.{MemsqlVersion, Relation}
 import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.catalyst.rules.RuleExecutor
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
@@ -242,18 +241,270 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("math expressions") {
-    it("sinh") { testQuery("select sinh(rating) as sinh from reviews") }
-    it("cosh") { testQuery("select cosh(rating) as cosh from reviews") }
-    it("tanh") { testQuery("select tanh(rating) as tanh from reviews") }
-    it("hypot") { testQuery("select hypot(rating, user_id) as hypot from reviews") }
-    it("rint") { testQuery("select rint(rating) as rint from reviews") }
-    it("asinh") { testQuery("select asinh(rating) as asinh from reviews") }
-    it("acosh") { testQuery("select acosh(rating) as acosh from reviews") }
-    it("atanh") {
-      testQuery(
-        "select atanh(critic_rating) as atanh from movies where critic_rating > -1 AND critic_rating < 1")
+    describe("sinh") {
+      it("works with float") { testQuery("select sinh(rating) as sinh from reviews") }
+      it("works with tinyint") { testQuery("select sinh(owns_house) as sinh from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select sinh(stringIdentity(rating)) as sinh, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select sinh(null) as sinh from reviews") }
     }
-    it("integralDivide") { testQuery("SELECT user_id div movie_id FROM reviews") }
+    describe("cosh") {
+      it("works with float") { testQuery("select cosh(rating) as cosh from reviews") }
+      it("works with tinyint") { testQuery("select cosh(owns_house) as cosh from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select cosh(stringIdentity(rating)) as cosh, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select cosh(null) as cosh from reviews") }
+    }
+    describe("tanh") {
+      it("works with float") { testQuery("select tanh(rating) as tanh from reviews") }
+      it("works with tinyint") { testQuery("select tanh(owns_house) as tanh from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select tanh(stringIdentity(rating)) as tanh, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select tanh(null) as tanh from reviews") }
+    }
+    describe("hypot") {
+      it("works with float") { testQuery("select hypot(rating, user_id) as hypot from reviews") }
+      it("works with tinyint") {
+        testQuery("select hypot(owns_house, id) as hypot from users")
+      }
+      it("partial pushdown") {
+        testQuery(
+          "select hypot(stringIdentity(rating), user_id) as hypot, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select hypot(null, null) as hypot from reviews") }
+    }
+    describe("rint") {
+      it("works with float") { testQuery("select rint(rating) as rint from reviews") }
+      it("works with tinyint") { testQuery("select rint(owns_house) as rint from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select rint(stringIdentity(rating)) as rint, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select rint(null) as rint from reviews") }
+    }
+    describe("asinh") {
+      it("works with float") { testQuery("select asinh(rating) as asinh from reviews") }
+      it("works with tinyint") { testQuery("select asinh(owns_house) as asinh from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select asinh(stringIdentity(rating)) as asinh, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select asinh(null) as asinh from reviews") }
+    }
+    describe("acosh") {
+      it("works with float") { testQuery("select acosh(rating) as acosh from reviews") }
+      it("partial pushdown") {
+        testQuery(
+          "select acosh(stringIdentity(rating)) as acosh, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select acosh(null) as acosh from reviews") }
+    }
+    describe("atanh") {
+      it("works with float") {
+        testQuery(
+          "select atanh(critic_rating) as atanh from movies where critic_rating > -1 AND critic_rating < 1")
+      }
+      it("partial pushdown") {
+        testQuery(
+          "select atanh(stringIdentity(rating)) as atanh, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select atanh(null) as atanh from reviews") }
+    }
+    describe("integralDivide") {
+      it("works with bigint") { testQuery("select user_id div movie_id from reviews") }
+      it("works with null") { testQuery("select null div null as integralDivide from reviews") }
+      it("partial pushdown") {
+        testQuery(
+          "select stringIdentity(null div null) as integralDivide, stringIdentity(review) from reviews",
+          expectPartialPushdown = true)
+      }
+    }
+    describe("sqrt") {
+      it("works with float") { testQuery("select sqrt(rating) as sqrt from reviews") }
+      it("works with tinyint") { testQuery("select sqrt(owns_house) as sqrt from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select sqrt(stringIdentity(rating)) as sqrt, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select sqrt(null) as sqrt from reviews") }
+    }
+    describe("ceil") {
+      it("works with float") { testQuery("select ceil(rating) as ceil from reviews") }
+      it("works with tinyint") { testQuery("select ceil(owns_house) as ceil from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select ceil(stringIdentity(rating)) as ceil, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select ceil(null) as ceil from reviews") }
+    }
+    describe("cos") {
+      it("works with float") { testQuery("select cos(rating) as cos from reviews") }
+      it("works with tinyint") { testQuery("select cos(owns_house) as cos from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select cos(stringIdentity(rating)) as cos, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select cos(null) as cos from reviews") }
+    }
+    describe("exp") {
+      it("works with float") { testQuery("select exp(rating) as exp from reviews") }
+      it("works with tinyint") { testQuery("select exp(owns_house) as exp from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select exp(stringIdentity(rating)) as exp, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select exp(null) as exp from reviews") }
+    }
+    describe("expm1") {
+      it("works with float") { testQuery("select expm1(rating) as expm1 from reviews") }
+      it("works with tinyint") { testQuery("select expm1(owns_house) as expm1 from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select expm1(stringIdentity(rating)) as expm1, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select expm1(null) as expm1 from reviews") }
+    }
+    describe("floor") {
+      it("works with float") { testQuery("select floor(rating) as floor from reviews") }
+      it("works with tinyint") { testQuery("select floor(owns_house) as floor from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select floor(stringIdentity(rating)) as floor, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select floor(null) as floor from reviews") }
+    }
+    describe("log") {
+      it("works with float") { testQuery("select log(rating) as log from reviews") }
+      it("works with tinyint") { testQuery("select log(owns_house) as log from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select log(stringIdentity(rating)) as log, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select log(null) as log from reviews") }
+    }
+    describe("log2") {
+      it("works with float") { testQuery("select log2(rating) as log2 from reviews") }
+      it("works with tinyint") { testQuery("select log2(owns_house) as log2 from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select log2(stringIdentity(rating)) as log2, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select log2(null) as log2 from reviews") }
+    }
+    describe("log10") {
+      it("works with float") { testQuery("select log10(rating) as log10 from reviews") }
+      it("works with tinyint") { testQuery("select log10(owns_house) as log10 from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select log10(stringIdentity(rating)) as log10, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select log10(null) as log10 from reviews") }
+    }
+    describe("log1p") {
+      it("works with float") { testQuery("select log1p(rating) as log1p from reviews") }
+      it("works with tinyint") { testQuery("select log1p(owns_house) as log1p from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select log1p(stringIdentity(rating)) as log1p, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select log1p(null) as log1p from reviews") }
+    }
+    describe("signum") {
+      it("works with float") { testQuery("select signum(rating) as signum from reviews") }
+      it("works with tinyint") { testQuery("select signum(owns_house) as signum from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select signum(stringIdentity(rating)) as signum, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select signum(null) as signum from reviews") }
+    }
+    describe("cot") {
+      it("works with float") { testQuery("select cot(rating) as cot from reviews") }
+      it("partial pushdown") {
+        testQuery(
+          "select cot(stringIdentity(rating)) as cot, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select cot(null) as cot from reviews") }
+    }
+    describe("toDegrees") {
+      it("works with float") { testQuery("select degrees(rating) as degrees from reviews") }
+      it("works with tinyint") { testQuery("select degrees(owns_house) as degrees from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select degrees(stringIdentity(rating)) as degrees, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select degrees(null) as degrees from reviews") }
+    }
+    describe("toRadians") {
+      it("works with float") { testQuery("select radians(rating) as radians from reviews") }
+      it("works with tinyint") { testQuery("select radians(owns_house) as radians from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select radians(stringIdentity(rating)) as radians, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select radians(null) as radians from reviews") }
+    }
+    describe("bin") {
+      it("works with float") { testQuery("select bin(user_id) as bin from reviews") }
+      it("works with tinyint") { testQuery("select bin(owns_house) as bin from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select bin(stringIdentity(rating)) as bin, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") {
+        testSingleReadQuery("select bin(null) as bin from reviews")
+      }
+    }
+    describe("hex") {
+      it("works with float") { testQuery("select hex(user_id) as hex from reviews") }
+      it("works with tinyint") { testQuery("select hex(owns_house) as hex from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select hex(stringIdentity(rating)) as hex, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") {
+        testSingleReadQuery("select hex(null) as hex from reviews")
+      }
+    }
+    describe("unhex") {
+      it("works with tinyint") { testQuery("select unhex(owns_house) as unhex from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select unhex(stringIdentity(rating)) as unhex, stringIdentity(review) as review from reviews",
+          expectPartialPushdown = true)
+      }
+      it("works with null") { testQuery("select unhex(null) as unhex from reviews") }
+    }
   }
 
   describe("bit operations") {
@@ -440,6 +691,46 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
     it("limit with sort on outside") {
       testOrderedQuery("select * from (select * from users order by id limit 10) order by id")
+    }
+  }
+
+  describe("hashes") {
+    describe("sha1") {
+      it("works with text") { testQuery("select sha1(first_name) from users") }
+      it("works with null") { testSingleReadQuery("select sha1(null) from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select sha1(stringIdentity(first_name)) as sha1, stringIdentity(first_name) as first_name from users",
+          expectPartialPushdown = true)
+      }
+    }
+
+    describe("sha2") {
+      it("0 bit length") { testQuery("select sha2(first_name, 0) from users") }
+      it("256 bit length") { testQuery("select sha2(first_name, 256) from users") }
+      it("384 bit length") { testQuery("select sha2(first_name, 384) from users") }
+      it("512 bit length") { testQuery("select sha2(first_name, 512) from users") }
+      it("works with null") {
+        testSingleReadQuery("select sha2(null, 256) from users")
+      }
+      it("224 bit length partial pushdown") {
+        testQuery("select sha2(first_name, 224) from users", expectPartialPushdown = true)
+      }
+      it("partial pushdown") {
+        testQuery(
+          "select sha2(stringIdentity(first_name), 256) as sha2, stringIdentity(first_name) as first_name from users",
+          expectPartialPushdown = true)
+      }
+    }
+
+    describe("md5") {
+      it("works with text") { testQuery("select md5(first_name) from users") }
+      it("works with null") { testSingleReadQuery("select md5(null) from users") }
+      it("partial pushdown") {
+        testQuery(
+          "select md5(stringIdentity(first_name)) as md5, stringIdentity(first_name) as first_name from users",
+          expectPartialPushdown = true)
+      }
     }
   }
 

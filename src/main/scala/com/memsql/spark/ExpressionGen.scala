@@ -460,9 +460,6 @@ object ExpressionGen extends LazyLogging {
       case DateDiff(expressionExtractor(endDate), expressionExtractor(startDate)) =>
         f("DATEDIFF", endDate, startDate)
 
-      // hash.scala
-      case Sha2(expressionExtractor(left), expressionExtractor(right)) => f("SHA2", left, right)
-
       // mathExpressions.scala
       case Atan2(expressionExtractor(left), expressionExtractor(right))     => f("ATAN2", left, right)
       case Pow(expressionExtractor(left), expressionExtractor(right))       => f("POWER", left, right)
@@ -704,8 +701,13 @@ object ExpressionGen extends LazyLogging {
         op("!:>", op("*", child, math.pow(10.0, scale).toString), "BIGINT")
 
       // hash.scala
-      case Md5(expressionExtractor(child))   => f("MD5", child)
-      case Sha1(expressionExtractor(child))  => f("SHA1", child)
+      case Md5(expressionExtractor(child))  => f("MD5", child)
+      case Sha1(expressionExtractor(child)) => f("SHA1", child)
+      case Sha2(expressionExtractor(left), right)
+          if right.foldable &&
+            right.eval().isInstanceOf[Int] &&
+            right.eval().asInstanceOf[Int] != 224 =>
+        f("SHA2", left, right.toString)
       case Crc32(expressionExtractor(child)) => f("CRC32", child)
 
       // mathExpressions.scala
