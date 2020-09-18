@@ -59,16 +59,24 @@ case class MemsqlRDD(query: String,
       val schemaDatatypes   = schema.map(_.dataType)
       val expectedDatatypes = expectedOutput.map(_.dataType)
 
+      def getOrNull(f: => Any, r: Row, i: Int): Any = {
+        if (r.isNullAt(i)) null
+        else f
+      }
+
       if (schemaDatatypes != expectedDatatypes) {
         val columnEncoders = schemaDatatypes.zip(expectedDatatypes).zipWithIndex.map {
-          case ((_: StringType, _: NullType), _)     => ((_: Row) => null)
-          case ((_: ShortType, _: BooleanType), i)   => ((r: Row) => r.getShort(i) != 0)
-          case ((_: IntegerType, _: BooleanType), i) => ((r: Row) => r.getInt(i) != 0)
-          case ((_: LongType, _: BooleanType), i)    => ((r: Row) => r.getLong(i) != 0)
+          case ((_: StringType, _: NullType), _) => ((_: Row) => null)
+          case ((_: ShortType, _: BooleanType), i) =>
+            ((r: Row) => getOrNull(r.getShort(i) != 0, r, i))
+          case ((_: IntegerType, _: BooleanType), i) =>
+            ((r: Row) => getOrNull(r.getInt(i) != 0, r, i))
+          case ((_: LongType, _: BooleanType), i) =>
+            ((r: Row) => getOrNull(r.getLong(i) != 0, r, i))
 
           case ((l, r), i) => {
             options.assert(l == r, s"MemsqlRDD: unable to encode ${l} into ${r}")
-            ((r: Row) => r.get(i))
+            ((r: Row) => getOrNull(r.get(i), r, i))
           }
         }
 

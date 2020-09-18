@@ -931,6 +931,231 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
+  describe("predicates") {
+    describe("and") {
+      it("works with cast and true") {
+        testQuery("select cast(owns_house as boolean) and true from users")
+      }
+      it("works with cast and false") {
+        testQuery("select cast(owns_house as boolean) and false from users")
+      }
+      it("works with cast to bool") {
+        testQuery("select cast(id as boolean) and cast(owns_house as boolean) from users")
+      }
+      it("works with true and false") {
+        testQuery("select true and false from users")
+      }
+      it("works with null") {
+        testQuery("select cast(id as boolean) and null from users")
+      }
+      it("partial pushdown") {
+        testQuery(
+          "select cast(stringIdentity(id) as boolean) and cast(stringIdentity(owns_house) as boolean) from users",
+          expectPartialPushdown = true)
+      }
+    }
+    describe("or") {
+      it("works with cast or true") {
+        testQuery("select cast(owns_house as boolean) or true from users")
+      }
+      it("works with cast or false") {
+        testQuery("select cast(owns_house as boolean) or false from users")
+      }
+      it("works with cast to bool") {
+        testQuery("select cast(id as boolean) or cast(owns_house as boolean) from users")
+      }
+      it("works with true or false") {
+        testQuery("select true or false from users")
+      }
+      it("works with null") {
+        testQuery("select cast(id as boolean) or null from users")
+      }
+      it("partial pushdown") {
+        testQuery(
+          "select cast(stringIdentity(id) as boolean) or cast(stringIdentity(owns_house) as boolean) from users",
+          expectPartialPushdown = true)
+      }
+    }
+    describe("equal") {
+      it("works with tinyint") {
+        testQuery("select owns_house = 1 as owns_house from users")
+      }
+      it("works with single brackets") {
+        testQuery("select id = '1' as owns_house from users")
+      }
+      it("works with boolean") {
+        testQuery("select cast(owns_house as boolean) = true as owns_house from users")
+      }
+      it("works with tinyint equals null") {
+        testQuery("select owns_house = null as owns_house from users")
+      }
+      it("works with null equals null") {
+        testQuery("select null = null as null from users")
+      }
+      it("partial pushdown") {
+        testQuery("select stringIdentity(id) = '1' from users", expectPartialPushdown = true)
+      }
+    }
+    describe("equalNullSafe") {
+      it("works with tinyint") {
+        testQuery("select owns_house <=> 1 as owns_house from users")
+      }
+      it("works with single brackets") {
+        testQuery("select id <=> '1' as owns_house from users")
+      }
+      it("works with boolean") {
+        testQuery("select cast(owns_house as boolean) <=> true as owns_house from users")
+      }
+      it("works with tinyint equals null") {
+        testQuery("select owns_house <=> null as owns_house from users")
+      }
+      it("works with null equals null") {
+        testQuery("select null <=> null as null from users")
+      }
+      it("partial pushdown") {
+        testQuery("select stringIdentity(id) <=> '1' from users", expectPartialPushdown = true)
+      }
+    }
+    describe("lessThan") {
+      it("works with tinyint") {
+        testQuery("select owns_house < 1 as owns_house from users")
+      }
+      it("works with single brackets") {
+        testQuery("select id < '10' as owns_house from users")
+      }
+      it("works with text") {
+        testQuery("select first_name < 'ZZZ' as first_name from users")
+      }
+      it("works with boolean") {
+        testQuery("select cast(owns_house as boolean) < true as owns_house from users")
+      }
+      it("works with tinyint less than null") {
+        testQuery("select owns_house < null as owns_house from users")
+      }
+      it("works with null less than null") {
+        testQuery("select null < null as null from users")
+      }
+      it("partial pushdown") {
+        testQuery("select stringIdentity(id) < '10' from users", expectPartialPushdown = true)
+      }
+    }
+    describe("lessThanOrEqual") {
+      it("works with tinyint") {
+        testQuery("select owns_house <= 1 as owns_house from users")
+      }
+      it("works with single brackets") {
+        testQuery("select id <= '10' as owns_house from users")
+      }
+      it("works with text") {
+        testQuery("select first_name <= 'ZZZ' as first_name from users")
+      }
+      it("works with boolean") {
+        testQuery("select cast(owns_house as boolean) <= true as owns_house from users")
+      }
+      it("works with tinyint less than or equal null") {
+        testQuery("select owns_house <= null as owns_house from users")
+      }
+      it("works with null less than or equal null") {
+        testQuery("select null <= null as null from users")
+      }
+      it("partial pushdown") {
+        testQuery("select stringIdentity(id) <= '10' from users", expectPartialPushdown = true)
+      }
+    }
+    describe("greaterThan") {
+      it("works with tinyint") {
+        testQuery("select owns_house > 1 as owns_house from users")
+      }
+      it("works with single brackets") {
+        testQuery("select id > '10' as owns_house from users")
+      }
+      it("works with text") {
+        testQuery("select first_name > 'ZZZ' as first_name from users")
+      }
+      it("works with boolean") {
+        testQuery("select cast(owns_house as boolean) > false as owns_house from users")
+      }
+      it("works with tinyint greater than null") {
+        testQuery("select owns_house > null as owns_house from users")
+      }
+      it("works with null greater than null") {
+        testQuery("select null > null as null from users")
+      }
+      it("partial pushdown") {
+        testQuery("select stringIdentity(id) > '10' from users", expectPartialPushdown = true)
+      }
+    }
+    describe("greaterThanOrEqual") {
+      it("works with tinyint") {
+        testQuery("select owns_house >= 1 as owns_house from users")
+      }
+      it("works with single brackets") {
+        testQuery("select id >= '10' as owns_house from users")
+      }
+      it("works with text") {
+        testQuery("select first_name >= 'ZZZ' as first_name from users")
+      }
+      it("works with boolean") {
+        testQuery("select cast(owns_house as boolean) >= true as owns_house from users")
+      }
+      it("works with tinyint greater than or equal null") {
+        testQuery("select owns_house >= null as owns_house from users")
+      }
+      it("works with null greater than or equal null") {
+        testQuery("select null >= null as null from users")
+      }
+      it("partial pushdown") {
+        testQuery("select stringIdentity(id) >= '10' from users", expectPartialPushdown = true)
+      }
+    }
+    describe("in") {
+      it("works with tinyint") {
+        testQuery("select owns_house in(1) as owns_house from users")
+      }
+      it("works with single brackets") {
+        testQuery("select id in('10','11','12') as owns_house from users")
+      }
+      it("works with text") {
+        testQuery("select first_name in('Wylie', 'Sukey', 'Sondra') as first_name from users")
+      }
+      it("works with boolean") {
+        testQuery("select cast(owns_house as boolean) in(true) as owns_house from users")
+      }
+      it("works with tinyint in null") {
+        testQuery("select owns_house in(null) as owns_house from users")
+      }
+      it("works with null in null") {
+        testQuery("select null in(null) as null from users")
+      }
+      it("partial pushdown") {
+        testQuery("select stringIdentity(id) in('10') from users", expectPartialPushdown = true)
+      }
+    }
+    describe("not") {
+      it("works with tinyint") {
+        testQuery("select not (owns_house = 1) as not_owns_house from users")
+      }
+      it("works with single brackets") {
+        testQuery("select not (id = '10') as owns_house from users")
+      }
+      it("works with text") {
+        testQuery("select not (first_name = 'Wylie') as first_name from users")
+      }
+      it("works with boolean") {
+        testQuery("select not (cast(owns_house as boolean) = true) as owns_house from users")
+      }
+      it("works with tinyint not null") {
+        testQuery("select not (owns_house = null) as owns_house from users")
+      }
+      it("works with not null") {
+        testQuery("select not (null = null) as null from users")
+      }
+      it("partial pushdown") {
+        testQuery("select not (stringIdentity(id) = '10') from users", expectPartialPushdown = true)
+      }
+    }
+  }
+
   describe("same-name column selection") {
     it("join two tables which project the same column name") {
       testOrderedQuery(
