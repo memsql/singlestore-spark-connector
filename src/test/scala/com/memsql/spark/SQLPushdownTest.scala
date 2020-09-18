@@ -1544,6 +1544,53 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           expectPartialPushdown = true)
       }
     }
+
+    it("CurrentDate") {
+      testQuery("select current_date() from users", expectSameResult = false)
+    }
+
+    it("CurrentTimestamp") {
+      testQuery("select current_timestamp() from users", expectSameResult = false)
+    }
+
+    describe("timestamp parts functions") {
+      val functions = Seq("Hour",
+                          "Minute",
+                          "Second",
+                          "DayOfYear",
+                          "Year",
+                          "Quarter",
+                          "Month",
+                          "DayOfMonth",
+                          "DayOfWeek",
+                          "WeekOfYear",
+                          "last_day")
+      it("works with date") {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(birthday) from users")
+        }
+      }
+      it("works with timestamp") {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(created) from reviews")
+        }
+      }
+      it("works with string") {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(first_name) from users")
+        }
+      }
+      it("partial pushdown") {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(stringIdentity(first_name)) from users",
+                    expectPartialPushdown = true)
+        }
+      }
+    }
   }
 
   describe("partial pushdown") {

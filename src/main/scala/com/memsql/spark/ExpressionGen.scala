@@ -615,14 +615,6 @@ object ExpressionGen extends LazyLogging {
       case WeekOfYear(expressionExtractor(child))  => f("WEEK", child, "3")
       case LastDay(expressionExtractor(startDate)) => f("LAST_DAY", startDate)
 
-      case ParseToDate(expressionExtractor(left), None, _) => f("DATE", left)
-      case ParseToDate(expressionExtractor(left), Some(expressionExtractor(format)), _) =>
-        f("TO_DATE", left, format)
-
-      case ParseToTimestamp(expressionExtractor(left), None, _) => f("TIMESTAMP", left)
-      case ParseToTimestamp(expressionExtractor(left), Some(expressionExtractor(format)), _) =>
-        f("TO_TIMESTAMP", left, format)
-
       // decimalExpressions.scala
 
       // MakeDecimal and UnscaledValue value are used in DecimalAggregates optimizer
