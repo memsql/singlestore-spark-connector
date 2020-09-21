@@ -837,6 +837,29 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                   expectPartialPushdown = true)
       }
     }
+    describe("UnaryMinus") {
+      it("numbers") { testQuery("select -id from users") }
+      it("floats") { testQuery("select -critic_rating from movies") }
+      it("partial pushdown with udf") {
+        testQuery("select -stringIdentity(id) from users", expectPartialPushdown = true)
+      }
+    }
+    describe("UnaryPositive") {
+      it("numbers") { testQuery("select +id from users") }
+      it("floats") { testQuery("select +critic_rating from movies") }
+      it("partial pushdown with udf") {
+        testQuery("select +stringIdentity(id) from users", expectPartialPushdown = true)
+      }
+    }
+    describe("Abs") {
+      it("positive numbers") { testQuery("select abs(id) from users") }
+      it("negative numbers") { testQuery("select abs(-id) from users") }
+      it("positive floats") { testQuery("select abs(critic_rating) from movies") }
+      it("negative floats") { testQuery("select abs(-critic_rating) from movies") }
+      it("partial pushdown with udf") {
+        testQuery("select abs(stringIdentity(id)) from users", expectPartialPushdown = true)
+      }
+    }
   }
 
   describe("bitwiseExpressions") {
