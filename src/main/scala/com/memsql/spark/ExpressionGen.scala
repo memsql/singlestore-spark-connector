@@ -709,6 +709,10 @@ object ExpressionGen extends LazyLogging {
 
       // predicates.scala
       case Not(expressionExtractor(child)) => block(Raw("NOT") + child)
+      case If(expressionExtractor(predicate),
+              expressionExtractor(trueValue),
+              expressionExtractor(falseValue)) =>
+        f("IF", predicate, trueValue, falseValue)
 
       // randomExpressions.scala
       case Rand(expressionExtractor(child)) => f("RAND", child)

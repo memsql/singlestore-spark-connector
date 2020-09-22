@@ -564,6 +564,7 @@ object SQLGen extends LazyLogging {
       if (args.isEmpty) {
         Some(None)
       } else {
+        // TODO: PLAT-4670 check how this can be improved to enable pushdown for queries like "SELECT CONCAT(first_name, first_name) FROM users"
         if (args.lengthCompare(1) > 0) {
           val expressionNames = new mutable.HashSet[String]()
           val hasDuplicates = args.exists({

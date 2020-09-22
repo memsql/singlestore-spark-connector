@@ -13,7 +13,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     super.beforeAll()
     super.beforeEach() // we want to run beforeEach to set up a spark session
 
-    // need to specific explicit schemas - otherwise Spark will infer them
+    // need to specify explicit schemas - otherwise Spark will infer them
     // incorrectly from the JSON file
     val usersSchema = StructType(
       StructField("id", LongType)
@@ -635,6 +635,106 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("partial pushdown with udf") {
         testQuery("select elt('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
                   expectPartialPushdown = true)
+      }
+    }
+  }
+
+  describe("Null Expressions") {
+    describe("IfNull") {
+      it("returns the second argument") {
+        testQuery("select IfNull(null, id) as ifn from users")
+      }
+      it("returns the first argument") {
+        testQuery("select IfNull(id, null) as ifn from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select IfNull(stringIdentity(id), id) as ifn from users",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("NullIf") {
+      it("equal arguments") {
+        testQuery("select id, NullIf(1, 1) as nif from users")
+      }
+      it("non-equal arguments") {
+        testQuery("select NullIf(id, null) as nif from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select IfNull(null, stringIdentity(id)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("Nvl") {
+      it("returns the second argument") {
+        testQuery("select Nvl(null, id) as id1 from users")
+      }
+      it("returns the first argument") {
+        testQuery("select Nvl(id, id+1) as id1 from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select Nvl(stringIdentity(id), null) from users", expectPartialPushdown = true)
+      }
+    }
+    describe("Nvl2") {
+      it("returns the second argument") {
+        testSingleReadQuery("select Nvl2(null, id, 0) as id1 from users")
+      }
+      it("returns the first argument") {
+        testQuery("select Nvl2(id, 10, id+1) as id1 from users")
+      }
+      it("partial pushdown with udf") { // error
+        testQuery("select Nvl2(stringIdentity(id), null, id) as id1 from users",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("IsNull") {
+      it("not null") {
+        testQuery("select IsNull(favorite_color) from users")
+      }
+      it("null") {
+        testQuery("select IsNull(null) from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select IsNull(stringIdentity(id)) from users", expectPartialPushdown = true)
+      }
+    }
+    describe("IsNotNull") {
+      it("not null") {
+        testQuery("select IsNotNull(favorite_color) from users")
+      }
+      it("null") {
+        testQuery("select IsNotNull(null) from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select IsNotNull(stringIdentity(id)) from users", expectPartialPushdown = true)
+      }
+    }
+  }
+
+  describe("Predicates") {
+    describe("Not") {
+      it("not null") {
+        testQuery("select not(cast(owns_house as boolean)) from users")
+      }
+      it("null") {
+        testQuery("select not(null) from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select not(cast(stringIdentity(id) as boolean)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("If") {
+      it("boolean") {
+        testQuery("select if(cast(owns_house as boolean), first_name, last_name) from users")
+      }
+      it("always true") {
+        testQuery("select if(true, first_name, last_name) from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery(
+          "select if(cast(stringIdentity(id) as boolean), first_name, last_name) from users",
+          expectPartialPushdown = true)
       }
     }
   }
@@ -2470,8 +2570,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
     it("empty arguments") {
       testQuery("select rand()*id from users",
-        expectSameResult = false,
-        expectCodegenDeterminism = false)
+                expectSameResult = false,
+                expectCodegenDeterminism = false)
     }
     it("should return the same value for the same input") {
       val df1 = spark.sql("select rand(100)*id from testdb.users")
@@ -2500,17 +2600,21 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("dumb false") {
         testQuery("select 2 like 1 from users")
       }
+      it("dumb true once more") {
+        testQuery("select first_name from users where first_name like first_name")
+      }
       it("partial pushdown left") {
-        testQuery("select * from users where stringIdentity(first_name) like 'Di'", expectPartialPushdown = true)
+        testQuery("select * from users where stringIdentity(first_name) like 'Di'",
+                  expectPartialPushdown = true)
       }
       it("partial pushdown right") {
-        testQuery("select * from users where first_name like stringIdentity('Di')", expectPartialPushdown = true)
+        testQuery("select * from users where first_name like stringIdentity('Di')",
+                  expectPartialPushdown = true)
       }
       it("null") {
         testQuery("select critic_review like null from movies")
       }
     }
-
     describe("rlike") {
       it("simple") {
         testQuery("select * from users where first_name rlike 'D.'")
@@ -2528,10 +2632,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery("select 2 rlike 1 from users")
       }
       it("partial pushdown left") {
-        testQuery("select * from users where stringIdentity(first_name) rlike 'D.'", expectPartialPushdown = true)
+        testQuery("select * from users where stringIdentity(first_name) rlike 'D.'",
+                  expectPartialPushdown = true)
       }
       it("partial pushdown right") {
-        testQuery("select * from users where first_name rlike stringIdentity('D.')", expectPartialPushdown = true)
+        testQuery("select * from users where first_name rlike stringIdentity('D.')",
+                  expectPartialPushdown = true)
       }
       it("null") {
         testQuery("select critic_review rlike null from movies")
@@ -2552,10 +2658,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery("select 2 regexp 1 from users")
       }
       it("partial pushdown left") {
-        testQuery("select * from users where stringIdentity(first_name) regexp 'D.'", expectPartialPushdown = true)
+        testQuery("select * from users where stringIdentity(first_name) regexp 'D.'",
+                  expectPartialPushdown = true)
       }
       it("partial pushdown right") {
-        testQuery("select * from users where first_name regexp stringIdentity('D.')", expectPartialPushdown = true)
+        testQuery("select * from users where first_name regexp stringIdentity('D.')",
+                  expectPartialPushdown = true)
       }
       it("null") {
         testQuery("select critic_review regexp null from movies")
@@ -2570,7 +2678,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery("select * from users where regexp_replace(first_name, 'D', 'd') = 'di'")
       }
       it("partial pushdown") {
-        testQuery("select regexp_replace(stringIdentity(first_name), 'D', 'd') from users", expectPartialPushdown = true)
+        testQuery("select regexp_replace(stringIdentity(first_name), 'D', 'd') from users",
+                  expectPartialPushdown = true)
       }
       it("null") {
         testQuery("select regexp_replace(first_name, 'D', null) from users")
