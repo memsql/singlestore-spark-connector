@@ -447,10 +447,15 @@ Happy querying!
  * `DecimalType` on the overflow is truncated (by default spark either throws exception or returns null)
  * `greatest` and `least` return null if at least one argument is null (in spark these functions skip nulls)
  *  When string is casted to numeric type, memsql takes the prefix of it which is numeric (spark returns `null` if the whole string is not numeric)
- *  When numeric type is casted to the smaller one memsql truncates it. For example `500` casted to the Byte will be `127`. 
- Note: spark optimizer can optimize casts for literals and then behaviour for them will match custom spark behaviour.
- * When fractional type is casted to integral type memsql rounds it to the closest value.
-
+ *  When numeric type is casted to the smaller one memsql truncates it. For example `500` casted to the Byte will be `127`
+ Note: spark optimizer can optimize casts for literals and then behaviour for them will match custom spark behaviour
+ * When fractional type is casted to integral type memsql rounds it to the closest value
+ * `Log` instead of `NaN`, `Infinity`, `-Infinity` returns `null`
+ * `Round` rounds down, if the number that should be rounded is followed by 5 and it is `DOUBLE` or `FLOAT` (`DECIMAL` will be rounded up)
+ * `Conv` works differently if the number contains non alphanumeric characters
+ * `ShiftLeft`, `ShiftRight` and `ShiftRightUnsigned` converts the value to the UNSIGNED BIGINT and then produces the shift
+ In the case of overflow, it returns 0 (`1<<64` = `0` and `10>>20` = `0`)
+ 
 ## Major changes from the 2.0.0 connector
 
 The MemSQL Spark Connector 3.0.4 has a number of key features and enhancements:

@@ -97,6 +97,15 @@ object ExpressionGen extends LazyLogging {
     }
   }
 
+  case class FoldableExtractor[T]() {
+    def unapply(e: Expression): Option[T] =
+      if (e.foldable && e.eval().isInstanceOf[T]) {
+        Some(e.eval().asInstanceOf[T])
+      } else {
+        None
+      }
+  }
+
   case class DecimalExpressionExtractor(expressionExtractor: ExpressionExtractor) {
     def unapply(e: Expression): Option[(Joinable, Int, Int)] = (e, e.dataType) match {
       case (expressionExtractor(child), t: DecimalType) => Some((child, t.precision, t.scale))
@@ -131,6 +140,8 @@ object ExpressionGen extends LazyLogging {
     val windowBoundaryExpressionExtractor = WindowBoundaryExpressionExtractor(expressionExtractor)
     val monthsBetweenExpressionExtractor  = MonthsBetweenExpressionExtractor(expressionExtractor)
     val decimalExpressionExtractor        = DecimalExpressionExtractor(expressionExtractor)
+    val intFoldableExtractor              = FoldableExtractor[Int]()
+    val utf8StringFoldableExtractor       = FoldableExtractor[UTF8String]()
     return {
       // ----------------------------------
       // Attributes
@@ -374,17 +385,15 @@ object ExpressionGen extends LazyLogging {
       case UnixTimestamp(e @ expressionExtractor(timeExp), _, _) if e.dataType == TimestampType =>
         f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0")
 
-      case FromUnixTime(expressionExtractor(sec), format, timeZoneId)
-          if format.foldable && format.dataType == StringType &&
-            format.eval().asInstanceOf[UTF8String] == MEMSQL_DEFAULT_TIME_FORMAT =>
+      case FromUnixTime(expressionExtractor(sec), utf8StringFoldableExtractor(format), timeZoneId)
+          if format == MEMSQL_DEFAULT_TIME_FORMAT =>
         f("FROM_UNIXTIME", sec)
 
-      case NextDay(expressionExtractor(startDate), dayOfWeek)
-          if dayOfWeek.foldable && dayOfWeek.dataType == StringType =>
+      case NextDay(expressionExtractor(startDate), utf8StringFoldableExtractor(dayOfWeek)) =>
         computeNextDay(
           startDate,
           sqlMapValueCaseInsensitive(
-            StringVar(dayOfWeek.eval().asInstanceOf[UTF8String].toString),
+            StringVar(dayOfWeek.toString),
             DAYS_OF_WEEK_OFFSET_MAP,
             StringVar(null)
           )
@@ -402,10 +411,7 @@ object ExpressionGen extends LazyLogging {
         f("DATEDIFF", endDate, startDate)
 
       // hash.scala
-      case Sha2(expressionExtractor(left), right)
-          if right.foldable &&
-            right.eval().isInstanceOf[Int] &&
-            right.eval().asInstanceOf[Int] != 224 =>
+      case Sha2(expressionExtractor(left), intFoldableExtractor(right)) if right != 224 =>
         f("SHA2", left, right.toString)
 
       // mathExpressions.scala
@@ -468,23 +474,20 @@ object ExpressionGen extends LazyLogging {
 
       case StringTrim(expressionExtractor(srcStr), None) =>
         f("TRIM", Raw("BOTH") + "FROM" + srcStr)
-      case StringTrim(expressionExtractor(srcStr), Some(trimStr))
-          if trimStr.foldable && trimStr.dataType == StringType &&
-            trimStr.eval().asInstanceOf[UTF8String] == UTF8String.fromString(" ") =>
+      case StringTrim(expressionExtractor(srcStr), Some(utf8StringFoldableExtractor(trimStr)))
+          if trimStr == UTF8String.fromString(" ") =>
         f("TRIM", Raw("BOTH") + "FROM" + srcStr)
 
       case StringTrimLeft(expressionExtractor(srcStr), None) =>
         f("LTRIM", srcStr)
-      case StringTrimLeft(expressionExtractor(srcStr), Some(trimStr))
-          if trimStr.foldable && trimStr.dataType == StringType &&
-            trimStr.eval().asInstanceOf[UTF8String] == UTF8String.fromString(" ") =>
+      case StringTrimLeft(expressionExtractor(srcStr), Some(utf8StringFoldableExtractor(trimStr)))
+          if trimStr == UTF8String.fromString(" ") =>
         f("LTRIM", srcStr)
 
       case StringTrimRight(expressionExtractor(srcStr), None) =>
         f("RTRIM", srcStr)
-      case StringTrimRight(expressionExtractor(srcStr), Some(trimStr))
-          if trimStr.foldable && trimStr.dataType == StringType &&
-            trimStr.eval().asInstanceOf[UTF8String] == UTF8String.fromString(" ") =>
+      case StringTrimRight(expressionExtractor(srcStr), Some(utf8StringFoldableExtractor(trimStr)))
+          if trimStr == UTF8String.fromString(" ") =>
         f("RTRIM", srcStr)
 
       // TODO: case _: Levenshtein => None
@@ -507,9 +510,12 @@ object ExpressionGen extends LazyLogging {
 
       // mathExpressions.scala
       case Conv(expressionExtractor(numExpr),
-                expressionExtractor(fromBaseExpr),
-                expressionExtractor(toBaseExpr)) =>
-        f("CONV", numExpr, fromBaseExpr, toBaseExpr)
+                intFoldableExtractor(fromBase),
+                intFoldableExtractor(toBase))
+          // memsql supports bases only from [2, 36]
+          if fromBase >= 2 && fromBase <= 36 &&
+            toBase >= 2 && toBase <= 36 =>
+        f("CONV", numExpr, IntVar(fromBase), IntVar(toBase))
 
       // regexpExpressions.scala
       case RegExpReplace(expressionExtractor(subject),

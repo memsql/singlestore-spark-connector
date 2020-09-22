@@ -914,6 +914,223 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("tanh") { testQuery("select tanh(rating) as tanh from reviews") }
     it("hypot") { testQuery("select hypot(rating, user_id) as hypot from reviews") }
     it("rint") { testQuery("select rint(rating) as rint from reviews") }
+
+    describe("Atan2") {
+      // atan(-e,-1) = -pi
+      // atan(e,-1) = pi
+      // where e is a very small value
+      // we are filtering this cases, because the result can differ
+      // for memsql and spark, because of precision loss
+      it("works") {
+        testQuery("""select 
+            | atan2(critic_rating, id) as a1, 
+            | atan2(critic_rating, -id) as a2,
+            | atan2(-critic_rating, id) as a3,
+            | atan2(-critic_rating, -id) as a4,
+            | critic_rating, id
+            | from movies where abs(critic_rating) > 0.01 or critic_rating is null""".stripMargin)
+      }
+      it("udf in the left argument") {
+        testQuery("select atan2(stringIdentity(critic_rating), id) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select atan2(critic_rating, stringIdentity(id)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Pow") {
+      it("works") {
+        testQuery("select log(pow(id, critic_rating)) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select log(pow(stringIdentity(id), critic_rating)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select log(pow(id, stringIdentity(critic_rating))) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Logarithm") {
+      it("works") {
+        // spark returns +/-Infinity for log(1, x)
+        // memsql returns NULL for it
+        testQuery("""select 
+                    | log(critic_rating, id) as l1, 
+                    | log(critic_rating, -id) as l2,
+                    | log(-critic_rating, id) as l3,
+                    | log(-critic_rating, -id) as l4,
+                    | log(id, critic_rating) as l5, 
+                    | log(id, -critic_rating) as l6,
+                    | log(-id, critic_rating) as l7,
+                    | log(-id, -critic_rating) as l8,
+                    | critic_rating, id
+                    | from movies where id != 1 and critic_rating != 1""".stripMargin)
+      }
+      it("works with 1 argument") {
+        testQuery("select log(critic_rating) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select log(stringIdentity(id), critic_rating) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select log(id, stringIdentity(critic_rating)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Round") {
+      // memsql can round x.5 differently
+      it("works with one argument") {
+        testQuery("""select 
+            |round(critic_rating), 
+            |round(-critic_rating),
+            |critic_rating from movies 
+            |where critic_rating - floor(critic_rating) != 0.5""".stripMargin)
+      }
+      it("works with two arguments") {
+        testQuery("""select 
+                    |round(critic_rating/10.0, 1) as x1, 
+                    |round(-critic_rating/100.0, 2) as x2,
+                    |critic_rating from movies 
+                    |where critic_rating - floor(critic_rating) != 0.5""".stripMargin)
+      }
+      it("works with negative scale") {
+        testQuery("select round(critic_rating, -2) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select round(stringIdentity(critic_rating), 2) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      // right argument must be foldable
+      // because of it, we can't use udf there
+    }
+
+    describe("Hypot") {
+      it("works") {
+        testQuery("""select 
+                    | Hypot(critic_rating, id) as h1, 
+                    | Hypot(critic_rating, -id) as h2,
+                    | Hypot(-critic_rating, id) as h3,
+                    | Hypot(-critic_rating, -id) as h4,
+                    | Hypot(id, critic_rating) as h5, 
+                    | Hypot(id, -critic_rating) as h6,
+                    | Hypot(-id, critic_rating) as h7,
+                    | Hypot(-id, -critic_rating) as h8,
+                    | critic_rating, id
+                    | from movies""".stripMargin)
+      }
+      it("udf in the left argument") {
+        testQuery("select Hypot(stringIdentity(critic_rating), id) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select Hypot(critic_rating, stringIdentity(id)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    it("EulerNumber") {
+      testQuery("select E() from movies")
+    }
+
+    it("Pi") {
+      testQuery("select PI() from movies")
+    }
+
+    describe("Conv") {
+      // memsql and spark behaviour differs when num contains non alphanumeric characters
+      val bases = Seq(2, 5, 23, 36)
+      it("works with all supported by memsql fromBase") {
+        for (fromBase <- 2 to 36; toBase <- bases) {
+          log.debug(s"testing conv $fromBase -> $toBase")
+          testQuery(s"""select 
+               |first_name, 
+               |conv(first_name, $fromBase, $toBase) 
+               |from users 
+               |where first_name rlike '^[a-zA-Z0-9]*$$'""".stripMargin)
+        }
+      }
+      it("works with all supported by memsql toBase") {
+        for (fromBase <- bases; toBase <- 2 to 36) {
+          log.debug(s"testing conv $fromBase -> $toBase")
+          testQuery(s"""select 
+               |first_name, 
+               |conv(first_name, $fromBase, $toBase) 
+               |from users 
+               |where first_name rlike '^[a-zA-Z0-9]*$$'""".stripMargin)
+        }
+      }
+      it("works with numeric") {
+        testQuery("select conv(id, 10, 2) from users")
+      }
+      it("partial pushdown when fromBase out of range [2, 36]") {
+        testQuery("select conv(first_name, 1, 20) from users", expectPartialPushdown = true)
+      }
+      it("partial pushdown when toBase out of range [2, 36]") {
+        testQuery("select conv(first_name, 20, 1) from users", expectPartialPushdown = true)
+      }
+      it("udf in the first argument") {
+        testQuery("select conv(stringIdentity(first_name), 20, 15) from users",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select conv(first_name, stringIdentity(20), 15) from users",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select conv(first_name, 20, stringIdentity(15)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("ShiftLeft") {
+      it("works") {
+        testQuery("select ShiftLeft(id, floor(critic_rating)) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select ShiftLeft(stringIdentity(id), floor(critic_rating)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select ShiftLeft(id, stringIdentity(floor(critic_rating))) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("ShiftRight") {
+      it("works") {
+        testQuery("select ShiftRight(id, floor(critic_rating)) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select ShiftRight(stringIdentity(id), floor(critic_rating)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select ShiftRight(id, stringIdentity(floor(critic_rating))) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("ShiftRightUnsigned") {
+      it("works") {
+        testQuery("select ShiftRightUnsigned(id, floor(critic_rating)) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery(
+          "select ShiftRightUnsigned(stringIdentity(id), floor(critic_rating)) as x from movies",
+          expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery(
+          "select ShiftRightUnsigned(id, stringIdentity(floor(critic_rating))) as x from movies",
+          expectPartialPushdown = true)
+      }
+    }
   }
 
   describe("datatypes") {
