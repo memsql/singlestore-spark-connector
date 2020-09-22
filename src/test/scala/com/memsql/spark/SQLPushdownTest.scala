@@ -2153,13 +2153,114 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
     it("empty arguments") {
       testQuery("select rand()*id from users",
-                expectSameResult = false,
-                expectCodegenDeterminism = false)
+        expectSameResult = false,
+        expectCodegenDeterminism = false)
     }
     it("should return the same value for the same input") {
       val df1 = spark.sql("select rand(100)*id from testdb.users")
       val df2 = spark.sql("select rand(100)*id from testdb.users")
       assertApproximateDataFrameEquality(df1, df2, 0.001, orderedComparison = false)
+    }
+  }
+
+  describe("regular expressions") {
+    describe("like") {
+      it("simple") {
+        testQuery("select * from users where first_name like 'Di'")
+      }
+      it("simple, both fields") {
+        testQuery("select * from users where first_name like last_name")
+      }
+      it("character wildcard") {
+        testQuery("select * from users where first_name like 'D_'")
+      }
+      it("string wildcard") {
+        testQuery("select * from users where first_name like 'D%'")
+      }
+      it("dumb true") {
+        testQuery("select * from users where 1 like 1")
+      }
+      it("dumb false") {
+        testQuery("select 2 like 1 from users")
+      }
+      it("partial pushdown left") {
+        testQuery("select * from users where stringIdentity(first_name) like 'Di'", expectPartialPushdown = true)
+      }
+      it("partial pushdown right") {
+        testQuery("select * from users where first_name like stringIdentity('Di')", expectPartialPushdown = true)
+      }
+      it("null") {
+        testQuery("select critic_review like null from movies")
+      }
+    }
+
+    describe("rlike") {
+      it("simple") {
+        testQuery("select * from users where first_name rlike 'D.'")
+      }
+      it("simple, both fields") {
+        testQuery("select * from users where first_name rlike last_name")
+      }
+      it("from beginning") {
+        testQuery("select * from users where first_name rlike '^D.'")
+      }
+      it("dumb true") {
+        testQuery("select * from users where 1 rlike 1")
+      }
+      it("dumb false") {
+        testQuery("select 2 rlike 1 from users")
+      }
+      it("partial pushdown left") {
+        testQuery("select * from users where stringIdentity(first_name) rlike 'D.'", expectPartialPushdown = true)
+      }
+      it("partial pushdown right") {
+        testQuery("select * from users where first_name rlike stringIdentity('D.')", expectPartialPushdown = true)
+      }
+      it("null") {
+        testQuery("select critic_review rlike null from movies")
+      }
+    }
+
+    describe("regexp") {
+      it("simple") {
+        testQuery("select * from users where first_name regexp 'D.'")
+      }
+      it("simple, both fields") {
+        testQuery("select * from users where first_name regexp last_name")
+      }
+      it("dumb true") {
+        testQuery("select * from users where 1 regexp 1")
+      }
+      it("dumb false") {
+        testQuery("select 2 regexp 1 from users")
+      }
+      it("partial pushdown left") {
+        testQuery("select * from users where stringIdentity(first_name) regexp 'D.'", expectPartialPushdown = true)
+      }
+      it("partial pushdown right") {
+        testQuery("select * from users where first_name regexp stringIdentity('D.')", expectPartialPushdown = true)
+      }
+      it("null") {
+        testQuery("select critic_review regexp null from movies")
+      }
+    }
+
+    describe("regexpReplace") {
+      it("simple") {
+        testQuery("select regexp_replace(first_name, 'D', 'd') from users")
+      }
+      it("works correctly") {
+        testQuery("select * from users where regexp_replace(first_name, 'D', 'd') = 'di'")
+      }
+      it("partial pushdown") {
+        testQuery("select regexp_replace(stringIdentity(first_name), 'D', 'd') from users", expectPartialPushdown = true)
+      }
+      it("null") {
+        testQuery("select regexp_replace(first_name, 'D', null) from users")
+      }
+      it("non-literals") {
+        testQuery("select regexp_replace(first_name, first_name, first_name) from users")
+      }
     }
   }
 }

@@ -34,6 +34,9 @@ object ExpressionGen extends LazyLogging {
     cast(child, s"DECIMAL($p, $s)")
   }
 
+  // regexpFromStart adds a ^ prefix for memsql regexp to match the beginning of the string (as Java does)
+  def regexpFromStart(r: Joinable): Joinable = func("CONCAT", StringVar("^"), r)
+
   // computeNextDay returns a statement for computing the next date after startDate with specified offset (sunday -> 1, saturday -> 7)
   // ADDDATE(startDate,(dayOfWeekOffset - DAYOFWEEK(startDate) + 6)%7 +1)
   def computeNextDay(startDate: Joinable, offset: Joinable): Statement = f(
@@ -457,7 +460,7 @@ object ExpressionGen extends LazyLogging {
 
       // regexpExpressions.scala
       case Like(expressionExtractor(left), expressionExtractor(right))  => op("LIKE", left, right)
-      case RLike(expressionExtractor(left), expressionExtractor(right)) => op("RLIKE", left, right)
+      case RLike(expressionExtractor(left), expressionExtractor(right)) => op("RLIKE", left, regexpFromStart(right))
 
       // stringExpressions.scala
       case Contains(expressionExtractor(left), expressionExtractor(right)) =>
