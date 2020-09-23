@@ -27,6 +27,8 @@ object ExpressionGen extends LazyLogging {
   // helpers to keep this code sane
   def f(n: String, c: Joinable*)              = func(n, c: _*)
   def op(o: String, l: Joinable, r: Joinable) = block(l + o + r)
+  def ifNeg(value: Joinable, valTrue: Joinable, valFalse: Joinable) =
+    f("IF", op("<", value, IntVar(0)), valTrue, valFalse)
 
   def makeDecimal(child: Joinable, precision: Int, scale: Int): Joinable = {
     val p = Math.min(MEMSQL_DECIMAL_MAX_PRECISION, precision)
@@ -471,9 +473,14 @@ object ExpressionGen extends LazyLogging {
         op("LIKE", left, f("CONCAT", StringVar("%"), right))
       case StringInstr(expressionExtractor(str), expressionExtractor(substr)) =>
         f("INSTR", str, substr)
-      case FormatNumber(expressionExtractor(x), expressionExtractor(d)) => f("FORMAT", x, d)
+      case FormatNumber(expressionExtractor(x), e @ expressionExtractor(d))
+          if e.dataType == IntegerType =>
+        ifNeg(d, StringVar(null), f("FORMAT", x, d))
       case StringRepeat(expressionExtractor(child), expressionExtractor(times)) =>
-        f("LPAD", StringVar(""), times + "*" + f("CHAR_LENGTH", child), child)
+        f("LPAD",
+          StringVar(""),
+          ifNeg(times, IntVar(0), times) + "*" + f("CHAR_LENGTH", child),
+          child)
 
       case StringTrim(expressionExtractor(srcStr), None) =>
         f("TRIM", Raw("BOTH") + "FROM" + srcStr)
@@ -544,11 +551,11 @@ object ExpressionGen extends LazyLogging {
       case StringLPad(expressionExtractor(str),
                       expressionExtractor(len),
                       expressionExtractor(pad)) =>
-        f("LPAD", str, len, pad)
+        f("LPAD", str, ifNeg(len, IntVar(0), len), pad)
       case StringRPad(expressionExtractor(str),
                       expressionExtractor(len),
                       expressionExtractor(pad)) =>
-        f("RPAD", str, len, pad)
+        f("RPAD", str, ifNeg(len, IntVar(0), len), pad)
       case Substring(expressionExtractor(str),
                      expressionExtractor(pos),
                      expressionExtractor(len)) =>

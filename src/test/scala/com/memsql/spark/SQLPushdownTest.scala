@@ -92,7 +92,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       .sorted
   }
 
-  def testCodegenDeterminism(q: String): Unit = {
+  def testCodegenDeterminism(q: String, filterDF: DataFrame => DataFrame): Unit = {
     val logManager    = LogManager.getLogger("com.memsql.spark")
     var setLogToTrace = false
 
@@ -102,8 +102,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     assert(
-      extractQueriesFromPlan(spark.sql(q).queryExecution.optimizedPlan) ==
-        extractQueriesFromPlan(spark.sql(q).queryExecution.optimizedPlan),
+      extractQueriesFromPlan(filterDF(spark.sql(q)).queryExecution.optimizedPlan) ==
+        extractQueriesFromPlan(filterDF(spark.sql(q)).queryExecution.optimizedPlan),
       "All generated MemSQL queries should be the same"
     )
 
@@ -119,19 +119,21 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                 expectEmpty: Boolean = false,
                 expectSameResult: Boolean = true,
                 expectCodegenDeterminism: Boolean = true,
-                pushdown: Boolean = true): Unit = {
+                pushdown: Boolean = true,
+                filterDF: DataFrame => DataFrame = x => x): Unit = {
 
     spark.sql("use testdb_jdbc")
-    val jdbcDF = spark.sql(q)
+    val jdbcDF = filterDF(spark.sql(q))
+
     // verify that the jdbc DF works first
     jdbcDF.collect()
     if (pushdown) { spark.sql("use testdb") } else { spark.sql("use testdb_nopushdown") }
 
     if (expectCodegenDeterminism) {
-      testCodegenDeterminism(q)
+      testCodegenDeterminism(q, filterDF)
     }
 
-    val memsqlDF = spark.sql(q)
+    val memsqlDF = filterDF(spark.sql(q))
 
     if (!continuousIntegration) { memsqlDF.show(4) }
 
@@ -1854,6 +1856,140 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("stringExpressions") {
+    describe("StartsWith") {
+      it("works") {
+        testQuery("select * from movies",
+                  filterDF = df => df.filter(df.col("critic_review").startsWith("M")))
+      }
+      it("udf in the left argument") {
+        testQuery("select stringIdentity(critic_review) as x from movies",
+                  filterDF = df => df.filter(df.col("x").startsWith("M")),
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("EndsWith") {
+      it("works") {
+        testQuery("select * from movies",
+                  filterDF = df => df.filter(df.col("critic_review").endsWith("s.")))
+      }
+      it("udf in the left argument") {
+        testQuery("select stringIdentity(critic_review) as x from movies",
+                  filterDF = df => df.filter(df.col("x").endsWith("s.")),
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Contains") {
+      it("works") {
+        testQuery("select * from movies",
+                  filterDF = df => df.filter(df.col("critic_review").contains("a")))
+      }
+      it("udf in the left argument") {
+        testQuery("select stringIdentity(critic_review) as x from movies",
+                  filterDF = df => df.filter(df.col("x").contains("a")),
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringInstr") {
+      it("works") {
+        testQuery("select instr(critic_review, 'id') from movies")
+      }
+      it("works when all arguments are not literals") {
+        testQuery("select instr(critic_review, critic_review) from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select instr(stringIdentity(critic_review), 'id') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select instr(critic_review, stringIdentity('id')) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("FormatNumber") {
+      // memsql and spark rounds fractional types differently
+      it("works with zero precision") {
+        testQuery(
+          "select format_number(critic_rating, 0) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
+      }
+      it("works with negative precision") {
+        testQuery(
+          "select format_number(critic_rating, -10) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
+      }
+      it("works with numbers and zero precision") {
+        testQuery(
+          "select format_number(id, 0) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
+      }
+      it("works with numbers and negative precision") {
+        testQuery(
+          "select format_number(id, -10) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
+      }
+      it("works with positive precision") {
+        testQuery(
+          """select format_number(critic_rating, cast(floor(critic_rating) as int)) as x from movies 
+            |where (
+            |        critic_rating - floor(critic_rating) != 0.5 and 
+            |        critic_rating*pow(10, floor(critic_rating))  - floor(critic_rating*pow(10, floor(critic_rating))) != 0.5
+            |    ) or 
+            |    critic_rating is null""".stripMargin)
+      }
+      it("works with negative numbers") {
+        testQuery(
+          """select format_number(-critic_rating, 0), round(critic_rating, 5) as a from movies 
+            |where (
+            |        critic_rating - floor(critic_rating) != 0.5 and 
+            |        abs(critic_rating) > 1
+            |    ) or 
+            |    critic_rating is null""".stripMargin)
+      }
+      it("works with null") {
+        testQuery(
+          "select format_number(critic_rating, null) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
+      }
+
+      it("works with format") {
+        if (spark.version != "2.3.4") {
+          testQuery("select format_number(critic_rating, '#####,#,#,#.##') as x from movies",
+                    expectPartialPushdown = true)
+        }
+      }
+      it("udf in the left argument") {
+        testQuery(
+          "select format_number(cast(stringIdentity(critic_rating) as double), 4) from movies",
+          expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select format_number(critic_rating, cast(stringIdentity(4) as int)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringRepeat") {
+      it("works") {
+        testQuery("select id, repeat(critic_review, floor(critic_rating)) as x from movies")
+      }
+      it("works with empty string") {
+        testQuery("select id, repeat('', floor(critic_rating)) as x from movies")
+      }
+      it("works with negative times") {
+        testQuery(
+          "select id, repeat(critic_review, -floor(critic_rating)) as x1, -floor(critic_rating)  as x2 from movies")
+      }
+      it("udf in the left argument") {
+        testQuery(
+          "select id, repeat(stringIdentity(critic_review), -floor(critic_rating)) as x from movies",
+          expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery(
+          "select id, repeat(critic_review, -stringIdentity(floor(critic_rating))) as x from movies",
+          expectPartialPushdown = true)
+      }
+    }
+
     describe("StringTrim") {
       it("works") {
         testQuery("select id, trim(first_name) from users")
@@ -1905,6 +2041,187 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown with udf") {
         testQuery("select id, rtrim(stringIdentity(first_name)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringReplace") {
+      it("works") {
+        testQuery("select id, replace(critic_review, 'an', 'AAA') from movies")
+      }
+      it("works when second argument is empty") {
+        testQuery("select id, replace(critic_review, '', 'A') from movies")
+      }
+      it("works when third argument is empty") {
+        testQuery("select id, replace(critic_review, 'a', '') from movies")
+      }
+      it("works with two arguments") {
+        testQuery("select id, replace(critic_review, 'a') from movies")
+      }
+      it("works when all arguments are not literals") {
+        testQuery("select id, replace(critic_review, title, genre) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery("select id, replace(stringIdentity(critic_review), 'an', 'AAA') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, replace(critic_review, stringIdentity('an'), 'AAA') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, replace(critic_review, 'an', stringIdentity('AAA')) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("SubstringIndex") {
+      it("works with negative count") {
+        testQuery("select id, substring_index(critic_review, ' ', -100) from movies")
+      }
+      it("works with zero count") {
+        testQuery("select id, substring_index(critic_review, ' ', 0) from movies")
+      }
+      it("works with small count") {
+        testQuery("select id, substring_index(critic_review, ' ', 2) from movies")
+      }
+      it("works with large count") {
+        testQuery("select id, substring_index(critic_review, ' ', 100) from movies")
+      }
+      it("works when delimiter and count are not literals") {
+        testQuery("select id, substring_index(critic_review, title, id) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery(
+          "select id, substring_index(stringIdentity(critic_review), 'an', '2') from movies",
+          expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, substring_index(critic_review, stringIdentity(' '), '2') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, substring_index(critic_review, ' ', stringIdentity(2)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringLocate") {
+      it("works with negative start") {
+        testQuery("select id, locate(critic_review, ' ', -100) from movies")
+      }
+      it("works with zero start") {
+        testQuery("select id, locate(critic_review, ' ', 0) from movies")
+      }
+      it("works with small start") {
+        testQuery("select id, locate(critic_review, ' ', 2) from movies")
+      }
+      it("works with large start") {
+        testQuery("select id, locate(critic_review, ' ', 100) from movies")
+      }
+      it("works when str and start are not literals") {
+        testQuery("select id, locate(critic_review, title, id) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery("select id, locate(stringIdentity(critic_review), 'an', '2') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, locate(critic_review, stringIdentity(' '), '2') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, locate(critic_review, ' ', stringIdentity(2)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringLPad") {
+      it("works with negative len") {
+        testQuery("select id, lpad(critic_review, -100, 'ab') from movies")
+      }
+      it("works with zero len") {
+        testQuery("select id, lpad(critic_review, 0, 'ab') from movies")
+      }
+      it("works with small len") {
+        testQuery("select id, lpad(critic_review, 3, 'ab') from movies")
+      }
+      it("works with large len") {
+        testQuery("select id, lpad(critic_review, 1000, 'ab') from movies")
+      }
+      it("works when len and pad are not literals") {
+        testQuery("select id, lpad(critic_review, id, title) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery("select id, lpad(stringIdentity(critic_review), 2, 'an') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, lpad(critic_review, stringIdentity(2), ' ') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, lpad(critic_review, 2, stringIdentity(' ')) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringRPad") {
+      it("works with negative len") {
+        testQuery("select id, rpad(critic_review, -100, 'ab') from movies")
+      }
+      it("works with zero len") {
+        testQuery("select id, rpad(critic_review, 0, 'ab') from movies")
+      }
+      it("works with small len") {
+        testQuery("select id, rpad(critic_review, 3, 'ab') from movies")
+      }
+      it("works with large len") {
+        testQuery("select id, rpad(critic_review, 1000, 'ab') from movies")
+      }
+      it("works when len and pad are not literals") {
+        testQuery("select id, rpad(critic_review, id, title) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery("select id, rpad(stringIdentity(critic_review), 2, 'an') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, rpad(critic_review, stringIdentity(2), ' ') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, rpad(critic_review, 2, stringIdentity(' ')) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Substring") {
+      it("works") {
+        testQuery("select id, substring(critic_review, 1, 20) from movies")
+      }
+      it("works when pos is negative") {
+        testQuery("select id, substring(critic_review, -1, 20) from movies")
+      }
+      it("works with empty len") {
+        testQuery("select id, substring(critic_review, 5) from movies")
+      }
+      it("works with negative len") {
+        testQuery("select id, substring(critic_review, 5, -4) from movies")
+      }
+      it("works with non-literals") {
+        testQuery("select id, substring(critic_review, id, id) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery("select id, substring(stringIdentity(critic_review), 5, 4) from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, substring(critic_review, stringIdentity(5), 4) from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, substring(critic_review, 5, stringIdentity(4)) from movies",
                   expectPartialPushdown = true)
       }
     }
