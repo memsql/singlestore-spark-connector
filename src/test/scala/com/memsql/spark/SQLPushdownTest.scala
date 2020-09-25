@@ -676,73 +676,173 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("string equality") { testQuery("select * from users where first_name = 'Evan'") }
   }
 
-  describe("aggregations") {
-    it("count") { testSingleReadQuery("select count(*) from users") }
-    it("count filter") {
-      testSingleReadQuery("select count(*) filter (where age % 2 = 0) from users")
+  describe("Aggregate Expressions") {
+    describe("Average") {
+      it("ints") { testSingleReadQuery("select avg(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select avg(rating) as x from reviews") }
+      it("floats with nulls") { testSingleReadQuery("select avg(critic_rating) as x from movies") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select avg(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+      it("filter") {
+        testSingleReadQuery("select avg(age) filter (where age % 2 = 0) from users")
+      }
     }
-    it("count filter udf") {
-      spark.udf.register("myUDF", (x: Int) => x % 3 == 1)
-      testSingleReadQuery("SELECT count_if(age % 2 = 0) filter (where myUDF(age)) FROM users",
-                          expectPartialPushdown = true)
+    describe("StddevPop") {
+      it("ints") { testSingleReadQuery("select stddev_pop(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select stddev_pop(rating) as x from reviews") }
+      it("floats with nulls") {
+        testSingleReadQuery("select stddev_pop(critic_rating) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select stddev_pop(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+      it("filter") {
+        testSingleReadQuery("select stddev_pop(age) filter (where age % 2 = 0) from users")
+      }
     }
-    it("count_if") { testSingleReadQuery("SELECT count_if(age % 2 = 0) as count FROM users") }
-    it("count_if filter") {
-      testSingleReadQuery("SELECT count_if(age % 2 = 0) filter (where age % 2 = 0) FROM users")
+    describe("StddevSamp") {
+      it("ints") { testSingleReadQuery("select stddev_samp(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select stddev_samp(rating) as x from reviews") }
+      it("floats with nulls") {
+        testSingleReadQuery("select stddev_samp(critic_rating) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select stddev_samp(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+      it("filter") {
+        testSingleReadQuery("select stddev_samp(age) filter (where age % 2 = 0) from users")
+      }
     }
-    it("count distinct") { testSingleReadQuery("select count(distinct first_name) from users") }
-    it("first") { testSingleReadQuery("select first(first_name) from users group by id") }
-    it("first filter") {
-      testSingleReadQuery(
-        "select first(first_name) filter (where age % 2 = 0) from users group by id")
+    describe("VariancePop") {
+      it("ints") { testSingleReadQuery("select var_pop(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select var_pop(rating) as x from reviews") }
+      it("floats with nulls") {
+        testSingleReadQuery("select var_pop(critic_rating) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select var_pop(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+      it("filter") {
+        testSingleReadQuery("select var_pop(age) filter (where age % 2 = 0) from users")
+      }
     }
-    it("last") { testSingleReadQuery("select last(first_name) from users group by id") }
-    it("last filter") {
-      testSingleReadQuery(
-        "select last(first_name) filter (where age % 2 = 0) from users group by id")
+    describe("VarianceSamp") {
+      it("ints") { testSingleReadQuery("select var_samp(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select var_samp(rating) as x from reviews") }
+      it("floats with nulls") {
+        testSingleReadQuery("select var_samp(critic_rating) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select var_samp(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+      it("filter") {
+        testSingleReadQuery("select var_samp(age) filter (where age % 2 = 0) from users")
+      }
     }
-    it("stddev_pop") { testSingleReadQuery("select stddev_pop(age) from users") }
-    it("stddev_pop filter") {
-      testSingleReadQuery("select stddev_pop(age) filter (where age % 2 = 0) from users")
+    describe("Max") {
+      it("ints") { testSingleReadQuery("select  max(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select max(rating) as x from reviews") }
+      it("strings") { testSingleReadQuery("select max(first_name) as x from users") }
+      it("floats with nulls") { testSingleReadQuery("select max(critic_rating) as x from movies") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select max(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+      it("filter") {
+        testSingleReadQuery(
+          "select max(user_id) filter (where user_id % 2 = 0) as maxid_filter from reviews")
+      }
     }
-    it("stddev_samp") { testSingleReadQuery("select stddev_pop(age) from users") }
-    it("stddev_samp filter") {
-      testSingleReadQuery("select stddev_samp(age) filter (where age % 2 = 0) from users")
+    describe("Min") {
+      it("ints") { testSingleReadQuery("select min(user_id) as x from reviews") }
+      it("floats") { testSingleReadQuery("select min(rating) as x from reviews") }
+      it("strings") { testSingleReadQuery("select min(first_name) as x from users") }
+      it("floats with nulls") { testSingleReadQuery("select min(critic_rating) as x from movies") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select min(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
+      it("filter") {
+        testSingleReadQuery(
+          "select min(user_id) filter (where user_id % 2 = 0) as minid_filter from reviews")
+      }
     }
-    it("var_pop") { testSingleReadQuery("select var_pop(age) from users") }
-    it("var_pop filter") {
-      testSingleReadQuery("select var_pop(age) filter (where age % 2 = 0) from users")
+    describe("Sum") {
+      // We cast the output, because MemSQL SUM returns DECIMAL(41, 0)
+      // which is not supported by spark (spark maximum decimal precision is 38)
+      it("ints") { testSingleReadQuery("select cast(sum(age) as decimal(20, 0)) as x from users") }
+      it("floats") { testSingleReadQuery("select sum(rating) as x from reviews") }
+      it("floats with nulls") { testSingleReadQuery("select sum(critic_rating) as x from movies") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select sum(stringIdentity(user_id)) as x from reviews",
+                            expectPartialPushdown = true)
+      }
     }
-    it("var_samp") { testSingleReadQuery("select var_samp(age) from users") }
-    it("var_samp filter") {
-      testSingleReadQuery("select var_samp(age) filter (where age % 2 = 0) from users")
+    describe("First") {
+      it("succeeds") { testSingleReadQuery("select first(first_name) from users group by id") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select first(stringIdentity(first_name)) from users group by id",
+                            expectPartialPushdown = true)
+      }
+      it("filter") {
+        testSingleReadQuery(
+          "select first(first_name) filter (where age % 2 = 0) from users group by id")
+      }
     }
-    it("floor(avg(age))") { testSingleReadQuery("select floor(avg(age)) from users") }
-    it("avg(age) filter") {
-      testSingleReadQuery("select avg(age) filter (where age % 2 = 0) from users")
+    describe("Last") {
+      it("succeeds") { testSingleReadQuery("select last(first_name) from users group by id") }
+      it("partial pushdown with udf") {
+        testSingleReadQuery("select last(stringIdentity(first_name)) from users group by id",
+                            expectPartialPushdown = true)
+      }
+      it("filter") {
+        testSingleReadQuery(
+          "select last(first_name) filter (where age % 2 = 0) from users group by id")
+      }
+    }
+    describe("Count") {
+      it("all") { testSingleReadQuery("select count(*) from users") }
+      it("distinct") { testSingleReadQuery("select count(distinct first_name) from users") }
+      it("partial pushdown with udf (all)") {
+        testSingleReadQuery("select count(stringIdentity(first_name)) from users group by id",
+                            expectPartialPushdown = true)
+      }
+      it("partial pushdown with udf (distinct)") {
+        testSingleReadQuery(
+          "select count(distinct stringIdentity(first_name)) from users group by id",
+          expectPartialPushdown = true)
+      }
+      it("filter") {
+        testSingleReadQuery("select count(*) filter (where age % 2 = 0) from users")
+      }
+      it("partial pushdown with udf in filter") {
+        spark.udf.register("myUDF", (x: Int) => x % 3 == 1)
+        testSingleReadQuery("SELECT count_if(age % 2 = 0) filter (where myUDF(age)) FROM users",
+                            expectPartialPushdown = true)
+      }
+      it("count_if") { testSingleReadQuery("SELECT count_if(age % 2 = 0) as count FROM users") }
+      it("count_if filter") {
+        testSingleReadQuery("SELECT count_if(age % 2 = 0) filter (where age % 2 = 0) FROM users")
+      }
     }
     it("top 3 email domains") {
       testOrderedQuery(
         """
-        |   select domain, count(*) from (
-        |     select substring(email, locate('@', email) + 1) as domain
-        |     from users
-        |   )
-        |   group by 1
-        |   order by 2 desc, 1 asc
-        |   limit 3
-        |""".stripMargin
+          |   select domain, count(*) from (
+          |     select substring(email, locate('@', email) + 1) as domain
+          |     from users
+          |   )
+          |   group by 1
+          |   order by 2 desc, 1 asc
+          |   limit 3
+          |""".stripMargin
       )
-    }
-    it("max") { testSingleReadQuery("select max(user_id) as maxid from reviews") }
-    it("max filter") {
-      testSingleReadQuery(
-        "select max(user_id) filter (where user_id % 2 = 0) as maxid_filter from reviews")
-    }
-    it("min") { testSingleReadQuery("select min(user_id) as minid from reviews") }
-    it("min filter") {
-      testSingleReadQuery(
-        "select min(user_id) filter (where user_id % 2 = 0) as minid_filter from reviews")
     }
   }
 

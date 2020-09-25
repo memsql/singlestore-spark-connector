@@ -125,22 +125,22 @@ object ExpressionGen extends LazyLogging {
             .unapply(filter)
             .map(f => Some(f))
       }
-      filterOption.map(filter => {
+      filterOption.flatMap(filter => {
         arg.aggregateFunction match {
 
           // Average.scala
           case Average(expressionExtractor(child)) =>
-            aggregateWithFilter("AVG", child, filter)
+            Some(aggregateWithFilter("AVG", child, filter))
 
           // CentralMomentAgg.scala
           case StddevPop(expressionExtractor(child)) =>
-            aggregateWithFilter("STDDEV_POP", child, filter)
+            Some(aggregateWithFilter("STDDEV_POP", child, filter))
           case StddevSamp(expressionExtractor(child)) =>
-            aggregateWithFilter("STDDEV_SAMP", child, filter)
+            Some(aggregateWithFilter("STDDEV_SAMP", child, filter))
           case VariancePop(expressionExtractor(child)) =>
-            aggregateWithFilter("VAR_POP", child, filter)
+            Some(aggregateWithFilter("VAR_POP", child, filter))
           case VarianceSamp(expressionExtractor(child)) =>
-            aggregateWithFilter("VAR_SAMP", child, filter)
+            Some(aggregateWithFilter("VAR_SAMP", child, filter))
 
           // TODO: case Skewness(expressionExtractor(child))     => ???
           // TODO: case Kurtosis(expressionExtractor(child))     => ???
@@ -148,12 +148,13 @@ object ExpressionGen extends LazyLogging {
           case Count(expression) =>
             (expression, arg.isDistinct, filter) match {
               case (expressionExtractor(None), false, filter) =>
-                aggregateWithFilter("COUNT", "1", filter)
+                Some(aggregateWithFilter("COUNT", "1", filter))
               case (expressionExtractor(Some(children)), false, filter) =>
-                aggregateWithFilter("COUNT", children, filter)
+                Some(aggregateWithFilter("COUNT", children, filter))
               // DISTINCT and FILTER can't be used together
               case (expressionExtractor(Some(children)), true, None) =>
-                Raw("COUNT") + block(Raw("DISTINCT") + children)
+                Some(Raw("COUNT") + block(Raw("DISTINCT") + children))
+              case _ => None
             }
 
           // Covariance.scala
@@ -162,36 +163,37 @@ object ExpressionGen extends LazyLogging {
 
           // First.scala
           case First(expressionExtractor(child), Literal(false, BooleanType)) =>
-            aggregateWithFilter("ANY_VALUE", child, filter)
+            Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
           // Last.scala
           case Last(expressionExtractor(child), Literal(false, BooleanType)) =>
-            aggregateWithFilter("ANY_VALUE", child, filter)
+            Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
           // Max.scala
           case Max(expressionExtractor(child)) =>
-            aggregateWithFilter("MAX", child, filter)
+            Some(aggregateWithFilter("MAX", child, filter))
 
           // Min.scala
           case Min(expressionExtractor(child)) =>
-            aggregateWithFilter("MIN", child, filter)
+            Some(aggregateWithFilter("MIN", child, filter))
 
           // Sum.scala
           case Sum(expressionExtractor(child)) =>
-            aggregateWithFilter("SUM", child, filter)
+            Some(aggregateWithFilter("SUM", child, filter))
 
           // BitAnd.scala
           case BitAndAgg(expressionExtractor(child)) if context.memsqlVersionAtLeast("7.0.1") =>
-            aggregateWithFilter("BIT_AND", child, filter)
+            Some(aggregateWithFilter("BIT_AND", child, filter))
           // BitOr.scala
           case BitOrAgg(expressionExtractor(child)) if context.memsqlVersionAtLeast("7.0.1") =>
-            aggregateWithFilter("BIT_OR", child, filter)
+            Some(aggregateWithFilter("BIT_OR", child, filter))
           // BitXor.scala
           case BitXorAgg(expressionExtractor(child)) if context.memsqlVersionAtLeast("7.0.1") =>
-            aggregateWithFilter("BIT_XOR", child, filter)
+            Some(aggregateWithFilter("BIT_XOR", child, filter))
 
           //    case AggregateExpression(MaxBy(expressionExtractor(valueExpr), expressionExtractor(orderingExpr)), _, _, None, _) =>
           //    case AggregateExpression(MinBy(expressionExtractor(valueExpr), expressionExtractor(orderingExpr)), _, _, None, _) =>
+          case _ => None
         }
       })
     }
