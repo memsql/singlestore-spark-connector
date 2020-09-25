@@ -27,12 +27,17 @@ object ExpressionGen extends LazyLogging {
   // helpers to keep this code sane
   def f(n: String, c: Joinable*)              = func(n, c: _*)
   def op(o: String, l: Joinable, r: Joinable) = block(l + o + r)
+  def ifNeg(value: Joinable, valTrue: Joinable, valFalse: Joinable) =
+    f("IF", op("<", value, IntVar(0)), valTrue, valFalse)
 
   def makeDecimal(child: Joinable, precision: Int, scale: Int): Joinable = {
     val p = Math.min(MEMSQL_DECIMAL_MAX_PRECISION, precision)
     val s = Math.min(MEMSQL_DECIMAL_MAX_SCALE, scale)
     cast(child, s"DECIMAL($p, $s)")
   }
+
+  // regexpFromStart adds a ^ prefix for memsql regexp to match the beginning of the string (as Java does)
+  def regexpFromStart(r: Joinable): Joinable = func("CONCAT", StringVar("^"), r)
 
   // computeNextDay returns a statement for computing the next date after startDate with specified offset (sunday -> 1, saturday -> 7)
   // ADDDATE(startDate,(dayOfWeekOffset - DAYOFWEEK(startDate) + 6)%7 +1)
@@ -95,6 +100,15 @@ object ExpressionGen extends LazyLogging {
       case v: Float if java.lang.Float.isFinite(v)   => Raw(v.toString)
       case v: Double if java.lang.Double.isFinite(v) => Raw(v.toString)
     }
+  }
+
+  case class FoldableExtractor[T]() {
+    def unapply(e: Expression): Option[T] =
+      if (e.foldable && e.eval().isInstanceOf[T]) {
+        Some(e.eval().asInstanceOf[T])
+      } else {
+        None
+      }
   }
 
   case class DecimalExpressionExtractor(expressionExtractor: ExpressionExtractor) {
@@ -225,6 +239,8 @@ object ExpressionGen extends LazyLogging {
     val context                           = expressionExtractor.context
     val aggregateExpressionExtractor      = AggregateExpressionExtractor(expressionExtractor, context)
     val decimalExpressionExtractor        = DecimalExpressionExtractor(expressionExtractor)
+    val intFoldableExtractor              = FoldableExtractor[Int]()
+    val utf8StringFoldableExtractor       = FoldableExtractor[UTF8String]()
     return {
       // ----------------------------------
       // Attributes
@@ -427,17 +443,15 @@ object ExpressionGen extends LazyLogging {
       case UnixTimestamp(e @ expressionExtractor(timeExp), _, _) if e.dataType == TimestampType =>
         f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0")
 
-      case FromUnixTime(expressionExtractor(sec), format, timeZoneId)
-          if format.foldable && format.dataType == StringType &&
-            format.eval().asInstanceOf[UTF8String] == MEMSQL_DEFAULT_TIME_FORMAT =>
+      case FromUnixTime(expressionExtractor(sec), utf8StringFoldableExtractor(format), timeZoneId)
+          if format == MEMSQL_DEFAULT_TIME_FORMAT =>
         f("FROM_UNIXTIME", sec)
 
-      case NextDay(expressionExtractor(startDate), dayOfWeek)
-          if dayOfWeek.foldable && dayOfWeek.dataType == StringType =>
+      case NextDay(expressionExtractor(startDate), utf8StringFoldableExtractor(dayOfWeek)) =>
         computeNextDay(
           startDate,
           sqlMapValueCaseInsensitive(
-            StringVar(dayOfWeek.eval().asInstanceOf[UTF8String].toString),
+            StringVar(dayOfWeek.toString),
             DAYS_OF_WEEK_OFFSET_MAP,
             StringVar(null)
           )
@@ -503,6 +517,7 @@ object ExpressionGen extends LazyLogging {
         )
 
       // regexpExpressions.scala
+
       case Like(expressionExtractor(left), expressionExtractor(right), escapeChar: Char) =>
         if (escapeChar == '\\') {
           op("LIKE", left, right)
@@ -510,7 +525,8 @@ object ExpressionGen extends LazyLogging {
           op("LIKE", left, f("REPLACE", right, "'" + escapeChar.toString() + "'", "'\\\\'"))
         }
 
-      case RLike(expressionExtractor(left), expressionExtractor(right)) => op("RLIKE", left, right)
+      case RLike(expressionExtractor(left), expressionExtractor(right)) =>
+        op("RLIKE", left, regexpFromStart(right))
 
       // stringExpressions.scala
       case Contains(expressionExtractor(left), expressionExtractor(right)) =>
@@ -521,29 +537,31 @@ object ExpressionGen extends LazyLogging {
         op("LIKE", left, f("CONCAT", StringVar("%"), right))
       case StringInstr(expressionExtractor(str), expressionExtractor(substr)) =>
         f("INSTR", str, substr)
-      case FormatNumber(expressionExtractor(x), expressionExtractor(d)) => f("FORMAT", x, d)
+      case FormatNumber(expressionExtractor(x), e @ expressionExtractor(d))
+          if e.dataType == IntegerType =>
+        ifNeg(d, StringVar(null), f("FORMAT", x, d))
       case StringRepeat(expressionExtractor(child), expressionExtractor(times)) =>
-        f("LPAD", StringVar(""), times + "*" + f("CHAR_LENGTH", child), child)
+        f("LPAD",
+          StringVar(""),
+          ifNeg(times, IntVar(0), times) + "*" + f("CHAR_LENGTH", child),
+          child)
 
       case StringTrim(expressionExtractor(srcStr), None) =>
         f("TRIM", Raw("BOTH") + "FROM" + srcStr)
-      case StringTrim(expressionExtractor(srcStr), Some(trimStr))
-          if trimStr.foldable && trimStr.dataType == StringType &&
-            trimStr.eval().asInstanceOf[UTF8String] == UTF8String.fromString(" ") =>
+      case StringTrim(expressionExtractor(srcStr), Some(utf8StringFoldableExtractor(trimStr)))
+          if trimStr == UTF8String.fromString(" ") =>
         f("TRIM", Raw("BOTH") + "FROM" + srcStr)
 
       case StringTrimLeft(expressionExtractor(srcStr), None) =>
         f("LTRIM", srcStr)
-      case StringTrimLeft(expressionExtractor(srcStr), Some(trimStr))
-          if trimStr.foldable && trimStr.dataType == StringType &&
-            trimStr.eval().asInstanceOf[UTF8String] == UTF8String.fromString(" ") =>
+      case StringTrimLeft(expressionExtractor(srcStr), Some(utf8StringFoldableExtractor(trimStr)))
+          if trimStr == UTF8String.fromString(" ") =>
         f("LTRIM", srcStr)
 
       case StringTrimRight(expressionExtractor(srcStr), None) =>
         f("RTRIM", srcStr)
-      case StringTrimRight(expressionExtractor(srcStr), Some(trimStr))
-          if trimStr.foldable && trimStr.dataType == StringType &&
-            trimStr.eval().asInstanceOf[UTF8String] == UTF8String.fromString(" ") =>
+      case StringTrimRight(expressionExtractor(srcStr), Some(utf8StringFoldableExtractor(trimStr)))
+          if trimStr == UTF8String.fromString(" ") =>
         f("RTRIM", srcStr)
 
       // TODO: case _: Levenshtein => None
@@ -566,9 +584,12 @@ object ExpressionGen extends LazyLogging {
 
       // mathExpressions.scala
       case Conv(expressionExtractor(numExpr),
-                expressionExtractor(fromBaseExpr),
-                expressionExtractor(toBaseExpr)) =>
-        f("CONV", numExpr, fromBaseExpr, toBaseExpr)
+                intFoldableExtractor(fromBase),
+                intFoldableExtractor(toBase))
+          // memsql supports bases only from [2, 36]
+          if fromBase >= 2 && fromBase <= 36 &&
+            toBase >= 2 && toBase <= 36 =>
+        f("CONV", numExpr, IntVar(fromBase), IntVar(toBase))
 
       // regexpExpression.scala
       case RegExpReplace(expressionExtractor(subject),
@@ -594,11 +615,11 @@ object ExpressionGen extends LazyLogging {
       case StringLPad(expressionExtractor(str),
                       expressionExtractor(len),
                       expressionExtractor(pad)) =>
-        f("LPAD", str, len, pad)
+        f("LPAD", str, ifNeg(len, IntVar(0), len), pad)
       case StringRPad(expressionExtractor(str),
                       expressionExtractor(len),
                       expressionExtractor(pad)) =>
-        f("RPAD", str, len, pad)
+        f("RPAD", str, ifNeg(len, IntVar(0), len), pad)
       case Substring(expressionExtractor(str),
                      expressionExtractor(pos),
                      expressionExtractor(len)) =>
@@ -622,26 +643,46 @@ object ExpressionGen extends LazyLogging {
         f("BIT_COUNT", child)
 
       // Cast.scala
-      case Cast(expressionExtractor(child), dataType, _) =>
+      case Cast(e @ expressionExtractor(child), dataType, _) => {
         dataType match {
-          case TimestampType => cast(child, "DATETIME(6)")
-          case DateType      => cast(child, "DATE")
+          case TimestampType => {
+            e.dataType match {
+              case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
+                  DoubleType | _: DecimalType =>
+                cast(f("FROM_UNIXTIME", child), "DATETIME(6)")
+              case _ => cast(child, "DATETIME(6)")
+            }
+          }
+          case DateType => cast(child, "DATE")
 
-          case dt: DecimalType => makeDecimal(child, dt.precision, dt.scale)
+          case StringType => cast(child, "CHAR")
+          case BinaryType => cast(child, "BINARY")
 
-          case StringType  => cast(child, "CHAR")
-          case BinaryType  => cast(child, "BINARY")
-          case ShortType   => op("!:>", child, "SMALLINT")
-          case IntegerType => op("!:>", child, "INT")
-          case LongType    => op("!:>", child, "BIGINT")
-          case FloatType   => op("!:>", child, "FLOAT")
-          case DoubleType  => op("!:>", child, "DOUBLE")
-          case BooleanType => op("!:>", child, "BOOL")
-
+          case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
+              DoubleType | _: DecimalType =>
+            if (e.dataType == DateType) {
+              StringVar(null)
+            } else {
+              val numeric_ch = if (e.dataType == TimestampType) {
+                f("UNIX_TIMESTAMP", child)
+              } else {
+                child
+              }
+              dataType match {
+                case BooleanType     => op("!=", numeric_ch, IntVar(0))
+                case ByteType        => op("!:>", numeric_ch, "TINYINT")
+                case ShortType       => op("!:>", numeric_ch, "SMALLINT")
+                case IntegerType     => op("!:>", numeric_ch, "INT")
+                case LongType        => op("!:>", numeric_ch, "BIGINT")
+                case FloatType       => op("!:>", numeric_ch, "FLOAT")
+                case DoubleType      => op("!:>", numeric_ch, "DOUBLE")
+                case dt: DecimalType => makeDecimal(numeric_ch, dt.precision, dt.scale)
+              }
+            }
           // MemSQL doesn't know how to handle this cast, pass it through AS is
           case _ => child
         }
-
+      }
       // TODO: case UpCast(expressionExtractor(child), dataType, walkedTypePath) => ???
 
       // datetimeExpressions.scala
@@ -657,14 +698,6 @@ object ExpressionGen extends LazyLogging {
       case WeekDay(expressionExtractor(child))     => f("WEEKDAY", child)
       case WeekOfYear(expressionExtractor(child))  => f("WEEK", child, "3")
       case LastDay(expressionExtractor(startDate)) => f("LAST_DAY", startDate)
-
-      case ParseToDate(expressionExtractor(left), None, _) => f("DATE", left)
-      case ParseToDate(expressionExtractor(left), Some(expressionExtractor(format)), _) =>
-        f("TO_DATE", left, format)
-
-      case ParseToTimestamp(expressionExtractor(left), None, _) => f("TIMESTAMP", left)
-      case ParseToTimestamp(expressionExtractor(left), Some(expressionExtractor(format)), _) =>
-        f("TO_TIMESTAMP", left, format)
 
       //    case DatePart(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child)) => // Converts to CAST(field)
       //    case Extract(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child))  => // Converts to CAST(field)
@@ -792,6 +825,10 @@ object ExpressionGen extends LazyLogging {
 
       // predicates.scala
       case Not(expressionExtractor(child)) => block(Raw("NOT") + child)
+      case If(expressionExtractor(predicate),
+              expressionExtractor(trueValue),
+              expressionExtractor(falseValue)) =>
+        f("IF", predicate, trueValue, falseValue)
 
       // randomExpression.scala
       case Rand(expressionExtractor(child)) => f("RAND", child)
@@ -807,17 +844,17 @@ object ExpressionGen extends LazyLogging {
       case Upper(expressionExtractor(child)) => f("UPPER", child)
       case Lower(expressionExtractor(child)) => f("LOWER", child)
 
-      case StringSpace(expressionExtractor(child)) => f("LPAD", "", child, StringVar(" "))
+      case StringSpace(expressionExtractor(child)) =>
+        f("LPAD", StringVar(""), child, StringVar(" "))
 
-      case Right(expressionExtractor(str), expressionExtractor(len), _) => f("RIGHT", str, len)
-      case Left(expressionExtractor(str), expressionExtractor(len), _)  => f("LEFT", str, len)
-      case Length(expressionExtractor(child))                           => f("CHAR_LENGTH", child)
-      case BitLength(expressionExtractor(child))                        => block(func("LENGTH", child) + "* 8")
-      case OctetLength(expressionExtractor(child))                      => f("LENGTH", child)
-      case Ascii(expressionExtractor(child))                            => f("ASCII", child)
-      case Chr(expressionExtractor(child))                              => f("CHAR", child)
-      case Base64(expressionExtractor(child))                           => f("TO_BASE64", child)
-      case UnBase64(expressionExtractor(child))                         => f("FROM_BASE64", child)
+      case Length(expressionExtractor(child))      => f("CHAR_LENGTH", child)
+      case BitLength(expressionExtractor(child))   => block(func("LENGTH", child) + "* 8")
+      case OctetLength(expressionExtractor(child)) => f("LENGTH", child)
+      case Ascii(expressionExtractor(child))       => f("ASCII", child)
+      case Chr(expressionExtractor(child)) =>
+        f("IF", f("ISNULL", child), StringVar(null), f("CHAR", child))
+      case Base64(expressionExtractor(child))   => f("TO_BASE64", child)
+      case UnBase64(expressionExtractor(child)) => f("FROM_BASE64", child)
 
       // TODO: case InitCap(expressionExtractor(child)) => ???
       // TODO: case StringReverse(expressionExtractor(child)) => ???

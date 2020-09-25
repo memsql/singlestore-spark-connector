@@ -72,7 +72,7 @@ object SQLGen extends LazyLogging {
     val MAX_PLAN_FIELDS = Int.MaxValue
     def withLogicalPlanComment(plan: LogicalPlan): Statement =
       if (log.isTraceEnabled()) {
-        this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${plan.simpleString(MAX_PLAN_FIELDS)}"
+        this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${plan.simpleString(MAX_PLAN_FIELDS).replace("\n", "\n-- ")}"
       } else {
         this
       }
@@ -164,8 +164,28 @@ object SQLGen extends LazyLogging {
     )
 
     override val sql: String = {
-      val indentedQuery = reader.query.replace("\n", "\n  ")
-      val alias         = MemsqlDialect.quoteIdentifier(name)
+      var inAttributeName: Boolean = false
+
+      // Add indentation after new line character if it is not in the attribute name.
+      // We are inside of the Attribute if the number of backticks we already processed is odd.
+      // Example:
+      // "select id as `name\n\n``name` from \n table" -> "select id as `name\n\n``name` from \n   table"
+      val indentedQuery = reader.query
+        .map({
+          case '`' =>
+            inAttributeName = !inAttributeName
+            "`"
+          case '\n' =>
+            if (inAttributeName) {
+              "\n"
+            } else {
+              "\n  "
+            }
+          case c => c.toString
+        })
+        .mkString
+
+      val alias = MemsqlDialect.quoteIdentifier(name)
       s"(\n  $indentedQuery\n) AS $alias"
     }
 
@@ -594,6 +614,7 @@ object SQLGen extends LazyLogging {
       if (args.isEmpty) {
         Some(None)
       } else {
+        // TODO: PLAT-4670 check how this can be improved to enable pushdown for queries like "SELECT CONCAT(first_name, first_name) FROM users"
         if (args.lengthCompare(1) > 0) {
           val expressionNames = new mutable.HashSet[String]()
           val hasDuplicates = args.exists({

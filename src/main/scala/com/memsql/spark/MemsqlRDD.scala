@@ -87,10 +87,9 @@ case class MemsqlRDD(query: String,
             (r: Row) =>
               getOrNull(r.getLong(i).toByte, r, i)
 
-          case ((l, r), i) => {
+          case ((l, r), i) =>
             options.assert(l == r, s"MemsqlRDD: unable to encode ${l} into ${r}")
             ((r: Row) => getOrNull(r.get(i), r, i))
-          }
         }
 
         rowsIter = rowsIter

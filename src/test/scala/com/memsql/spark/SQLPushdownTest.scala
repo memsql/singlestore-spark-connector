@@ -13,7 +13,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     super.beforeAll()
     super.beforeEach() // we want to run beforeEach to set up a spark session
 
-    // need to specific explicit schemas - otherwise Spark will infer them
+    // need to specify explicit schemas - otherwise Spark will infer them
     // incorrectly from the JSON file
     val usersSchema = StructType(
       StructField("id", LongType)
@@ -92,7 +92,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       .sorted
   }
 
-  def testCodegenDeterminism(q: String): Unit = {
+  def testCodegenDeterminism(q: String, filterDF: DataFrame => DataFrame): Unit = {
     val logManager    = LogManager.getLogger("com.memsql.spark")
     var setLogToTrace = false
 
@@ -102,8 +102,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     assert(
-      extractQueriesFromPlan(spark.sql(q).queryExecution.optimizedPlan) ==
-        extractQueriesFromPlan(spark.sql(q).queryExecution.optimizedPlan),
+      extractQueriesFromPlan(filterDF(spark.sql(q)).queryExecution.optimizedPlan) ==
+        extractQueriesFromPlan(filterDF(spark.sql(q)).queryExecution.optimizedPlan),
       "All generated MemSQL queries should be the same"
     )
 
@@ -117,17 +117,23 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                 expectPartialPushdown: Boolean = false,
                 expectSingleRead: Boolean = false,
                 expectEmpty: Boolean = false,
-                pushdown: Boolean = true): Unit = {
+                expectSameResult: Boolean = true,
+                expectCodegenDeterminism: Boolean = true,
+                pushdown: Boolean = true,
+                filterDF: DataFrame => DataFrame = x => x): Unit = {
 
     spark.sql("use testdb_jdbc")
-    val jdbcDF = spark.sql(q)
+    val jdbcDF = filterDF(spark.sql(q))
+
     // verify that the jdbc DF works first
     jdbcDF.collect()
     if (pushdown) { spark.sql("use testdb") } else { spark.sql("use testdb_nopushdown") }
 
-    testCodegenDeterminism(q)
+    if (expectCodegenDeterminism) {
+      testCodegenDeterminism(q, filterDF)
+    }
 
-    val memsqlDF = spark.sql(q)
+    val memsqlDF = filterDF(spark.sql(q))
 
     if (!continuousIntegration) { memsqlDF.show(4) }
 
@@ -153,34 +159,36 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       s"the optimized plan does not match expectPartialPushdown=$expectPartialPushdown"
     )
 
-    try {
-      def changeTypes(df: DataFrame): DataFrame = {
-        var newDf = df
-        df.schema
-          .foreach(x =>
-            x.dataType match {
-              // Replace all Floats with Doubles, because JDBC connector converts FLOAT to DoubleType when MemSQL connector converts it to FloatType
-              // Replace all Decimals with Doubles, because assertApproximateDataFrameEquality compare Decimals for strong equality
-              case _: DecimalType | FloatType =>
-                newDf = newDf.withColumn(x.name, newDf(x.name).cast(DoubleType))
-              // Replace all Shorts with Integers, because JDBC connector converts SMALLINT to IntegerType when MemSQL connector converts it to ShortType
-              case _: ShortType =>
-                newDf = newDf.withColumn(x.name, newDf(x.name).cast(IntegerType))
-              // Replace all CalendarIntervals with Strings, because assertApproximateDataFrameEquality can't sort CalendarIntervals
-              case _: CalendarIntervalType =>
-                newDf = newDf.withColumn(x.name, newDf(x.name).cast(StringType))
-              case _ =>
-          })
-        newDf
+    if (expectSameResult) {
+      try {
+        def changeTypes(df: DataFrame): DataFrame = {
+          var newDf = df
+          df.schema
+            .foreach(x =>
+              x.dataType match {
+                // Replace all Floats with Doubles, because JDBC connector converts FLOAT to DoubleType when MemSQL connector converts it to FloatType
+                // Replace all Decimals with Doubles, because assertApproximateDataFrameEquality compare Decimals for strong equality
+                case _: DecimalType | FloatType =>
+                  newDf = newDf.withColumn(x.name, newDf(x.name).cast(DoubleType))
+                // Replace all Shorts with Integers, because JDBC connector converts SMALLINT to IntegerType when MemSQL connector converts it to ShortType
+                case _: ShortType =>
+                  newDf = newDf.withColumn(x.name, newDf(x.name).cast(IntegerType))
+                // Replace all CalendarIntervals with Strings, because assertApproximateDataFrameEquality can't sort CalendarIntervals
+                case _: CalendarIntervalType =>
+                  newDf = newDf.withColumn(x.name, newDf(x.name).cast(StringType))
+                case _ =>
+            })
+          newDf
+        }
+        assertApproximateDataFrameEquality(changeTypes(memsqlDF),
+                                           changeTypes(jdbcDF),
+                                           0.1,
+                                           orderedComparison = alreadyOrdered)
+      } catch {
+        case e: Throwable =>
+          if (continuousIntegration) { println(memsqlDF.explain(true)) }
+          throw e
       }
-      assertApproximateDataFrameEquality(changeTypes(memsqlDF),
-                                         changeTypes(jdbcDF),
-                                         0.1,
-                                         orderedComparison = alreadyOrdered)
-    } catch {
-      case e: Throwable =>
-        if (continuousIntegration) { println(memsqlDF.explain(true)) }
-        throw e
     }
   }
 
@@ -210,6 +218,15 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     describe("successful pushdown") {
       it("Attribute") { testQuery("select id from users") }
       it("Alias") { testQuery("select id as user_id from users") }
+      it("Alias with new line") { testQuery("select id as `user_id\n` from users") }
+      it("Alias with hyphen") { testQuery("select id as `user-id` from users") }
+      // DatasetComparer fails to sort a DataFrame with weird names, because of it following queries are ran as alreadyOrdered
+      it("Alias with dot") {
+        testSingleReadQuery("select id as `user.id` from users order by id", alreadyOrdered = true)
+      }
+      it("Alias with backtick") {
+        testSingleReadQuery("select id as `user``id` from users order by id", alreadyOrdered = true)
+      }
     }
     describe("unsuccessful pushdown") {
       it("alias with udf") {
@@ -227,7 +244,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         it("false") { testQuery("select false from users") }
       }
 
-      it("byte") { testSingleReadQuery("select 100Y from users") }
+      it("byte") { testQuery("select 100Y from users") }
       it("short") { testQuery("select 100S from users") }
       it("integer") { testQuery("select 100 from users") }
       it("long") { testSingleReadQuery("select 100L from users") }
@@ -245,6 +262,308 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("binary literal") {
         testQuery("select X'123456' from users", expectPartialPushdown = true)
+      }
+    }
+  }
+
+  describe("Cast") {
+    describe("to boolean") {
+      it("boolean") {
+        testQuery("select cast(owns_house as boolean) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as boolean) from users")
+      }
+      it("long") {
+        testQuery("select cast(id as boolean) from users")
+      }
+      it("float") {
+        testQuery("select cast(critic_rating as boolean) from movies")
+      }
+      it("date") {
+        testQuery("select cast(birthday as boolean) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as boolean) from reviews")
+      }
+    }
+
+    describe("to byte") {
+      it("boolean") {
+        testQuery("select cast(owns_house as byte) from users")
+      }
+      it("int") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min TINYINT value
+        // spark returns module (452->-60)
+        testQuery("select cast(age as byte) from users where age > -129 and age < 128")
+      }
+      it("long") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min TINYINT value
+        // spark returns module (452->-60)
+        testQuery("select cast(id as byte) from users where id > -129 and id < 128")
+      }
+      it("float") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min TINYINT value
+        // spark returns module (452->-60)
+        // memsql and spark use different rounding
+        // memsql round to the closest value
+        // spark round to the smaller one
+        testQuery(
+          "select cast(critic_rating as byte) from movies where critic_rating > -129 and critic_rating < 128 and critic_rating - floor(critic_rating) < 0.5")
+      }
+      it("date") {
+        testQuery("select cast(birthday as byte) from users")
+      }
+      it("timestamp") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min TINYINT value
+        // spark returns module (452->-60)
+        testQuery(
+          "select cast(created as byte) from reviews where cast(created as long) > -129 and cast(created as long) < 128")
+      }
+    }
+
+    describe("to short") {
+      it("boolean") {
+        testQuery("select cast(owns_house as short) from users")
+      }
+      it("int") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min SMALLINT value
+        // spark returns module (40004->-25532)
+        testQuery("select cast(age as short) from users where age > -32769 and age < 32768")
+      }
+      it("long") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min SMALLINT value
+        // spark returns module (40004->-25532)
+        testQuery("select cast(id as short) as d from users where id > -32769 and id < 32768")
+      }
+      it("float") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min SMALLINT value
+        // spark returns module (40004->-25532)
+        // memsql and spark use different rounding
+        // memsql round to the closest value
+        // spark round to the smaller one
+        testQuery(
+          "select cast(critic_rating as short) from movies where critic_rating > -32769 and critic_rating < 32768 and critic_rating - floor(critic_rating) < 0.5")
+      }
+      it("date") {
+        testQuery("select cast(birthday as short) from users")
+      }
+      it("timestamp") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min SMALLINT value
+        // spark returns module (40004->-25532)
+        testQuery(
+          "select cast(created as short) from reviews where cast(created as long) > -32769 and cast(created as long) < 32768")
+      }
+    }
+
+    describe("to int") {
+      it("boolean") {
+        testQuery("select cast(owns_house as int) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as int) from users")
+      }
+      it("long") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min INT value
+        // spark returns module (10000000000->1410065408)
+        testQuery(
+          "select cast(id as int) as d from users where id > -2147483649 and id < 2147483648")
+      }
+      it("float") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min INT value
+        // spark returns module (10000000000->1410065408)
+        // memsql and spark use different rounding
+        // memsql round to the closest value
+        // spark round to the smaller one
+        testQuery(
+          "select cast(critic_rating as int) from movies where critic_rating > -2147483649 and critic_rating < 2147483648 and critic_rating - floor(critic_rating) < 0.5")
+      }
+      it("date") {
+        testQuery("select cast(birthday as int) from users")
+      }
+      it("timestamp") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min INT value
+        // spark returns module (10000000000->1410065408)
+        testQuery(
+          "select cast(created as int) from reviews where cast(created as long) > -2147483649 and cast(created as long) < 2147483648")
+      }
+    }
+
+    describe("to long") {
+      it("boolean") {
+        testQuery("select cast(owns_house as long) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as long) from users")
+      }
+      it("long") {
+        testQuery("select cast(id as long) from users")
+      }
+      it("float") {
+        // memsql and spark use different rounding
+        // memsql round to the closest value
+        // spark round to the smaller one
+        testQuery(
+          "select cast(critic_rating as long) from movies where critic_rating - floor(critic_rating) < 0.5")
+      }
+      it("date") {
+        testQuery("select cast(birthday as long) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as long) from reviews")
+      }
+    }
+
+    describe("to float") {
+      it("boolean") {
+        testQuery("select cast(owns_house as float) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as float) from users")
+      }
+      it("long") {
+        testQuery("select cast(id as float) from users")
+      }
+      it("float") {
+        testQuery("select cast(critic_rating as float) from movies")
+      }
+      it("date") {
+        testQuery("select cast(birthday as float) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as float) from reviews")
+      }
+    }
+
+    describe("to double") {
+      it("boolean") {
+        testQuery("select cast(owns_house as double) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as double) from users")
+      }
+      it("long") {
+        testQuery("select cast(id as double) from users")
+      }
+      it("float") {
+        testQuery("select cast(critic_rating as double) from movies")
+      }
+      it("date") {
+        testQuery("select cast(birthday as double) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as double) from reviews")
+      }
+    }
+
+    describe("to decimal") {
+      it("boolean") {
+        testQuery("select cast(owns_house as decimal(20, 5)) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as decimal(20, 5)) from users")
+      }
+      it("long") {
+        // memsql and spark behaviour differs on the overflow
+        // memsql returns max/min DECIMAL(x, y) value
+        // spark returns null
+        testQuery("select cast(id as decimal(20, 5)) from users where id < 999999999999999.99999")
+      }
+      it("float") {
+        testQuery("select cast(critic_rating as decimal(20, 5)) from movies")
+      }
+      it("date") {
+        testQuery("select cast(birthday as decimal(20, 5)) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as decimal(20, 5)) from reviews")
+      }
+    }
+
+    describe("to string") {
+      it("boolean") {
+        testQuery("select cast(owns_house as string) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as string) from users")
+      }
+      it("long") {
+        testQuery("select cast(id as string) from users")
+      }
+      it("float") {
+        // memsql converts integers to string with 0 digits after the point
+        // spark adds 1 digit after the point
+        testQuery("select cast(cast(critic_rating as string) as float) from movies")
+      }
+      it("date") {
+        testQuery("select cast(birthday as string) from users")
+      }
+      it("timestamp") {
+        // memsql converts timestamps to string with 6 digits after the point
+        // spark adds 0 digit after the point
+        testQuery("select cast(cast(created as string) as timestamp) from reviews")
+      }
+      it("string") {
+        testQuery("select cast(first_name as string) from users")
+      }
+    }
+
+    describe("to binary") {
+      // spark doesn't support casting other types to binary
+      it("string") {
+        testQuery("select cast(first_name as binary) from users")
+      }
+    }
+
+    describe("to date") {
+      it("date") {
+        testQuery("select cast(birthday as date) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as date) from reviews")
+      }
+      it("string") {
+        testQuery("select cast(first_name as date) from users")
+      }
+    }
+
+    describe("to timestamp") {
+      it("boolean") {
+        testQuery("select cast(owns_house as timestamp) from users")
+      }
+      it("int") {
+        testQuery("select cast(age as timestamp) from users")
+      }
+      it("long") {
+        // TIMESTAMP in MemSQL doesn't support values greater then 2147483647999
+        testQuery("select cast(id as timestamp) from users where id < 2147483647999")
+      }
+      it("float") {
+        // memsql and spark use different rounding
+        // memsql round to the closest value
+        // spark round to the smaller one
+        testQuery(
+          "select to_unix_timestamp(cast(critic_rating as timestamp)) from movies where critic_rating - floor(critic_rating) < 0.5")
+      }
+      it("date") {
+        testQuery("select cast(birthday as timestamp) from users")
+      }
+      it("timestamp") {
+        testQuery("select cast(created as timestamp) from reviews")
+      }
+      it("string") {
+        testQuery("select cast(first_name as timestamp) from users")
       }
     }
   }
@@ -316,6 +635,106 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("partial pushdown with udf") {
         testQuery("select elt('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
                   expectPartialPushdown = true)
+      }
+    }
+  }
+
+  describe("Null Expressions") {
+    describe("IfNull") {
+      it("returns the second argument") {
+        testQuery("select IfNull(null, id) as ifn from users")
+      }
+      it("returns the first argument") {
+        testQuery("select IfNull(id, null) as ifn from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select IfNull(stringIdentity(id), id) as ifn from users",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("NullIf") {
+      it("equal arguments") {
+        testQuery("select id, NullIf(1, 1) as nif from users")
+      }
+      it("non-equal arguments") {
+        testQuery("select NullIf(id, null) as nif from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select IfNull(null, stringIdentity(id)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("Nvl") {
+      it("returns the second argument") {
+        testQuery("select Nvl(null, id) as id1 from users")
+      }
+      it("returns the first argument") {
+        testQuery("select Nvl(id, id+1) as id1 from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select Nvl(stringIdentity(id), null) from users", expectPartialPushdown = true)
+      }
+    }
+    describe("Nvl2") {
+      it("returns the second argument") {
+        testSingleReadQuery("select Nvl2(null, id, 0) as id1 from users")
+      }
+      it("returns the first argument") {
+        testQuery("select Nvl2(id, 10, id+1) as id1 from users")
+      }
+      it("partial pushdown with udf") { // error
+        testQuery("select Nvl2(stringIdentity(id), null, id) as id1 from users",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("IsNull") {
+      it("not null") {
+        testQuery("select IsNull(favorite_color) from users")
+      }
+      it("null") {
+        testQuery("select IsNull(null) from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select IsNull(stringIdentity(id)) from users", expectPartialPushdown = true)
+      }
+    }
+    describe("IsNotNull") {
+      it("not null") {
+        testQuery("select IsNotNull(favorite_color) from users")
+      }
+      it("null") {
+        testQuery("select IsNotNull(null) from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select IsNotNull(stringIdentity(id)) from users", expectPartialPushdown = true)
+      }
+    }
+  }
+
+  describe("Predicates") {
+    describe("Not") {
+      it("not null") {
+        testQuery("select not(cast(owns_house as boolean)) from users")
+      }
+      it("null") {
+        testQuery("select not(null) from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select not(cast(stringIdentity(id) as boolean)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+    describe("If") {
+      it("boolean") {
+        testQuery("select if(cast(owns_house as boolean), first_name, last_name) from users")
+      }
+      it("always true") {
+        testQuery("select if(true, first_name, last_name) from users")
+      }
+      it("partial pushdown with udf") {
+        testQuery(
+          "select if(cast(stringIdentity(id) as boolean), first_name, last_name) from users",
+          expectPartialPushdown = true)
       }
     }
   }
@@ -393,6 +812,29 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                   expectPartialPushdown = true)
       }
     }
+    describe("UnaryMinus") {
+      it("numbers") { testQuery("select -id from users") }
+      it("floats") { testQuery("select -critic_rating from movies") }
+      it("partial pushdown with udf") {
+        testQuery("select -stringIdentity(id) from users", expectPartialPushdown = true)
+      }
+    }
+    describe("UnaryPositive") {
+      it("numbers") { testQuery("select +id from users") }
+      it("floats") { testQuery("select +critic_rating from movies") }
+      it("partial pushdown with udf") {
+        testQuery("select +stringIdentity(id) from users", expectPartialPushdown = true)
+      }
+    }
+    describe("Abs") {
+      it("positive numbers") { testQuery("select abs(id) from users") }
+      it("negative numbers") { testQuery("select abs(-id) from users") }
+      it("positive floats") { testQuery("select abs(critic_rating) from movies") }
+      it("negative floats") { testQuery("select abs(-critic_rating) from movies") }
+      it("partial pushdown with udf") {
+        testQuery("select abs(stringIdentity(id)) from users", expectPartialPushdown = true)
+      }
+    }
   }
 
   describe("bitwiseExpressions") {
@@ -466,37 +908,57 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("math expressions") {
     describe("sinh") {
-      it("works with float") { testQuery("select sinh(rating) as sinh from reviews") }
-      it("works with tinyint") { testQuery("select sinh(owns_house) as sinh from users") }
+      it("works with float") {
+        testQuery("select sinh(rating) as sinh from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select sinh(owns_house) as sinh from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select sinh(stringIdentity(rating)) as sinh, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select sinh(null) as sinh from reviews") }
+      it("works with null") {
+        testQuery("select sinh(null) as sinh from reviews")
+      }
     }
     describe("cosh") {
-      it("works with float") { testQuery("select cosh(rating) as cosh from reviews") }
-      it("works with tinyint") { testQuery("select cosh(owns_house) as cosh from users") }
+      it("works with float") {
+        testQuery("select cosh(rating) as cosh from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select cosh(owns_house) as cosh from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select cosh(stringIdentity(rating)) as cosh, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select cosh(null) as cosh from reviews") }
+      it("works with null") {
+        testQuery("select cosh(null) as cosh from reviews")
+      }
     }
     describe("tanh") {
-      it("works with float") { testQuery("select tanh(rating) as tanh from reviews") }
-      it("works with tinyint") { testQuery("select tanh(owns_house) as tanh from users") }
+      it("works with float") {
+        testQuery("select tanh(rating) as tanh from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select tanh(owns_house) as tanh from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select tanh(stringIdentity(rating)) as tanh, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select tanh(null) as tanh from reviews") }
+      it("works with null") {
+        testQuery("select tanh(null) as tanh from reviews")
+      }
     }
     describe("hypot") {
-      it("works with float") { testQuery("select hypot(rating, user_id) as hypot from reviews") }
+      it("works with float") {
+        testQuery("select hypot(rating, user_id) as hypot from reviews")
+      }
       it("works with tinyint") {
         testQuery("select hypot(owns_house, id) as hypot from users")
       }
@@ -505,36 +967,54 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           "select hypot(stringIdentity(rating), user_id) as hypot, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select hypot(null, null) as hypot from reviews") }
+      it("works with null") {
+        testQuery("select hypot(null, null) as hypot from reviews")
+      }
     }
     describe("rint") {
-      it("works with float") { testQuery("select rint(rating) as rint from reviews") }
-      it("works with tinyint") { testQuery("select rint(owns_house) as rint from users") }
+      it("works with float") {
+        testQuery("select rint(rating) as rint from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select rint(owns_house) as rint from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select rint(stringIdentity(rating)) as rint, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select rint(null) as rint from reviews") }
+      it("works with null") {
+        testQuery("select rint(null) as rint from reviews")
+      }
     }
     describe("asinh") {
-      it("works with float") { testQuery("select asinh(rating) as asinh from reviews") }
-      it("works with tinyint") { testQuery("select asinh(owns_house) as asinh from users") }
+      it("works with float") {
+        testQuery("select asinh(rating) as asinh from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select asinh(owns_house) as asinh from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select asinh(stringIdentity(rating)) as asinh, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select asinh(null) as asinh from reviews") }
+      it("works with null") {
+        testQuery("select asinh(null) as asinh from reviews")
+      }
     }
     describe("acosh") {
-      it("works with float") { testQuery("select acosh(rating) as acosh from reviews") }
+      it("works with float") {
+        testQuery("select acosh(rating) as acosh from reviews")
+      }
       it("partial pushdown") {
         testQuery(
           "select acosh(stringIdentity(rating)) as acosh, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select acosh(null) as acosh from reviews") }
+      it("works with null") {
+        testQuery("select acosh(null) as acosh from reviews")
+      }
     }
     describe("atanh") {
       it("works with float") {
@@ -546,11 +1026,17 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           "select atanh(stringIdentity(rating)) as atanh, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select atanh(null) as atanh from reviews") }
+      it("works with null") {
+        testQuery("select atanh(null) as atanh from reviews")
+      }
     }
     describe("integralDivide") {
-      it("works with bigint") { testQuery("select user_id div movie_id from reviews") }
-      it("works with null") { testQuery("select null div null as integralDivide from reviews") }
+      it("works with bigint") {
+        testQuery("select user_id div movie_id from reviews")
+      }
+      it("works with null") {
+        testQuery("select null div null as integralDivide from reviews")
+      }
       it("partial pushdown") {
         testQuery(
           "select stringIdentity(null div null) as integralDivide, stringIdentity(review) from reviews",
@@ -558,147 +1044,233 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
     describe("sqrt") {
-      it("works with float") { testQuery("select sqrt(rating) as sqrt from reviews") }
-      it("works with tinyint") { testQuery("select sqrt(owns_house) as sqrt from users") }
+      it("works with float") {
+        testQuery("select sqrt(rating) as sqrt from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select sqrt(owns_house) as sqrt from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select sqrt(stringIdentity(rating)) as sqrt, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select sqrt(null) as sqrt from reviews") }
+      it("works with null") {
+        testQuery("select sqrt(null) as sqrt from reviews")
+      }
     }
     describe("ceil") {
-      it("works with float") { testQuery("select ceil(rating) as ceil from reviews") }
-      it("works with tinyint") { testQuery("select ceil(owns_house) as ceil from users") }
+      it("works with float") {
+        testQuery("select ceil(rating) as ceil from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select ceil(owns_house) as ceil from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select ceil(stringIdentity(rating)) as ceil, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select ceil(null) as ceil from reviews") }
+      it("works with null") {
+        testQuery("select ceil(null) as ceil from reviews")
+      }
     }
     describe("cos") {
-      it("works with float") { testQuery("select cos(rating) as cos from reviews") }
-      it("works with tinyint") { testQuery("select cos(owns_house) as cos from users") }
+      it("works with float") {
+        testQuery("select cos(rating) as cos from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select cos(owns_house) as cos from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select cos(stringIdentity(rating)) as cos, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select cos(null) as cos from reviews") }
+      it("works with null") {
+        testQuery("select cos(null) as cos from reviews")
+      }
     }
     describe("exp") {
-      it("works with float") { testQuery("select exp(rating) as exp from reviews") }
-      it("works with tinyint") { testQuery("select exp(owns_house) as exp from users") }
+      it("works with float") {
+        testQuery("select exp(rating) as exp from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select exp(owns_house) as exp from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select exp(stringIdentity(rating)) as exp, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select exp(null) as exp from reviews") }
+      it("works with null") {
+        testQuery("select exp(null) as exp from reviews")
+      }
     }
     describe("expm1") {
-      it("works with float") { testQuery("select expm1(rating) as expm1 from reviews") }
-      it("works with tinyint") { testQuery("select expm1(owns_house) as expm1 from users") }
+      it("works with float") {
+        testQuery("select expm1(rating) as expm1 from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select expm1(owns_house) as expm1 from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select expm1(stringIdentity(rating)) as expm1, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select expm1(null) as expm1 from reviews") }
+      it("works with null") {
+        testQuery("select expm1(null) as expm1 from reviews")
+      }
     }
     describe("floor") {
-      it("works with float") { testQuery("select floor(rating) as floor from reviews") }
-      it("works with tinyint") { testQuery("select floor(owns_house) as floor from users") }
+      it("works with float") {
+        testQuery("select floor(rating) as floor from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select floor(owns_house) as floor from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select floor(stringIdentity(rating)) as floor, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select floor(null) as floor from reviews") }
+      it("works with null") {
+        testQuery("select floor(null) as floor from reviews")
+      }
     }
     describe("log") {
-      it("works with float") { testQuery("select log(rating) as log from reviews") }
-      it("works with tinyint") { testQuery("select log(owns_house) as log from users") }
+      it("works with float") {
+        testQuery("select log(rating) as log from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select log(owns_house) as log from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select log(stringIdentity(rating)) as log, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select log(null) as log from reviews") }
+      it("works with null") {
+        testQuery("select log(null) as log from reviews")
+      }
     }
     describe("log2") {
-      it("works with float") { testQuery("select log2(rating) as log2 from reviews") }
-      it("works with tinyint") { testQuery("select log2(owns_house) as log2 from users") }
+      it("works with float") {
+        testQuery("select log2(rating) as log2 from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select log2(owns_house) as log2 from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select log2(stringIdentity(rating)) as log2, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select log2(null) as log2 from reviews") }
+      it("works with null") {
+        testQuery("select log2(null) as log2 from reviews")
+      }
     }
     describe("log10") {
-      it("works with float") { testQuery("select log10(rating) as log10 from reviews") }
-      it("works with tinyint") { testQuery("select log10(owns_house) as log10 from users") }
+      it("works with float") {
+        testQuery("select log10(rating) as log10 from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select log10(owns_house) as log10 from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select log10(stringIdentity(rating)) as log10, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select log10(null) as log10 from reviews") }
+      it("works with null") {
+        testQuery("select log10(null) as log10 from reviews")
+      }
     }
     describe("log1p") {
-      it("works with float") { testQuery("select log1p(rating) as log1p from reviews") }
-      it("works with tinyint") { testQuery("select log1p(owns_house) as log1p from users") }
+      it("works with float") {
+        testQuery("select log1p(rating) as log1p from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select log1p(owns_house) as log1p from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select log1p(stringIdentity(rating)) as log1p, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select log1p(null) as log1p from reviews") }
+      it("works with null") {
+        testQuery("select log1p(null) as log1p from reviews")
+      }
     }
     describe("signum") {
-      it("works with float") { testQuery("select signum(rating) as signum from reviews") }
-      it("works with tinyint") { testQuery("select signum(owns_house) as signum from users") }
+      it("works with float") {
+        testQuery("select signum(rating) as signum from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select signum(owns_house) as signum from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select signum(stringIdentity(rating)) as signum, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select signum(null) as signum from reviews") }
+      it("works with null") {
+        testQuery("select signum(null) as signum from reviews")
+      }
     }
     describe("cot") {
-      it("works with float") { testQuery("select cot(rating) as cot from reviews") }
+      it("works with float") {
+        testQuery("select cot(rating) as cot from reviews")
+      }
       it("partial pushdown") {
         testQuery(
           "select cot(stringIdentity(rating)) as cot, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select cot(null) as cot from reviews") }
+      it("works with null") {
+        testQuery("select cot(null) as cot from reviews")
+      }
     }
     describe("toDegrees") {
-      it("works with float") { testQuery("select degrees(rating) as degrees from reviews") }
-      it("works with tinyint") { testQuery("select degrees(owns_house) as degrees from users") }
+      it("works with float") {
+        testQuery("select degrees(rating) as degrees from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select degrees(owns_house) as degrees from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select degrees(stringIdentity(rating)) as degrees, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select degrees(null) as degrees from reviews") }
+      it("works with null") {
+        testQuery("select degrees(null) as degrees from reviews")
+      }
     }
     describe("toRadians") {
-      it("works with float") { testQuery("select radians(rating) as radians from reviews") }
-      it("works with tinyint") { testQuery("select radians(owns_house) as radians from users") }
+      it("works with float") {
+        testQuery("select radians(rating) as radians from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select radians(owns_house) as radians from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select radians(stringIdentity(rating)) as radians, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select radians(null) as radians from reviews") }
+      it("works with null") {
+        testQuery("select radians(null) as radians from reviews")
+      }
     }
     describe("bin") {
-      it("works with float") { testQuery("select bin(user_id) as bin from reviews") }
-      it("works with tinyint") { testQuery("select bin(owns_house) as bin from users") }
+      it("works with float") {
+        testQuery("select bin(user_id) as bin from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select bin(owns_house) as bin from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select bin(stringIdentity(rating)) as bin, stringIdentity(review) as review from reviews",
@@ -709,8 +1281,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
     describe("hex") {
-      it("works with float") { testQuery("select hex(user_id) as hex from reviews") }
-      it("works with tinyint") { testQuery("select hex(owns_house) as hex from users") }
+      it("works with float") {
+        testQuery("select hex(user_id) as hex from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select hex(owns_house) as hex from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select hex(stringIdentity(rating)) as hex, stringIdentity(review) as review from reviews",
@@ -721,13 +1297,250 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
     describe("unhex") {
-      it("works with tinyint") { testQuery("select unhex(owns_house) as unhex from users") }
+      it("works with tinyint") {
+        testQuery("select unhex(owns_house) as unhex from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select unhex(stringIdentity(rating)) as unhex, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") { testQuery("select unhex(null) as unhex from reviews") }
+      it("works with null") {
+        testQuery("select unhex(null) as unhex from reviews")
+      }
+    }
+
+    it("sinh") {
+      testQuery("select sinh(rating) as sinh from reviews")
+    }
+    it("cosh") {
+      testQuery("select cosh(rating) as cosh from reviews")
+    }
+    it("tanh") {
+      testQuery("select tanh(rating) as tanh from reviews")
+    }
+    it("hypot") {
+      testQuery("select hypot(rating, user_id) as hypot from reviews")
+    }
+    it("rint") {
+      testQuery("select rint(rating) as rint from reviews")
+    }
+
+    describe("Atan2") {
+      // atan(-e,-1) = -pi
+      // atan(e,-1) = pi
+      // where e is a very small value
+      // we are filtering this cases, because the result can differ
+      // for memsql and spark, because of precision loss
+      it("works") {
+        testQuery("""select 
+            | atan2(critic_rating, id) as a1, 
+            | atan2(critic_rating, -id) as a2,
+            | atan2(-critic_rating, id) as a3,
+            | atan2(-critic_rating, -id) as a4,
+            | critic_rating, id
+            | from movies where abs(critic_rating) > 0.01 or critic_rating is null""".stripMargin)
+      }
+      it("udf in the left argument") {
+        testQuery("select atan2(stringIdentity(critic_rating), id) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select atan2(critic_rating, stringIdentity(id)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Pow") {
+      it("works") {
+        testQuery("select log(pow(id, critic_rating)) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select log(pow(stringIdentity(id), critic_rating)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select log(pow(id, stringIdentity(critic_rating))) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Logarithm") {
+      it("works") {
+        // spark returns +/-Infinity for log(1, x)
+        // memsql returns NULL for it
+        testQuery("""select 
+            | log(critic_rating, id) as l1, 
+            | log(critic_rating, -id) as l2,
+            | log(-critic_rating, id) as l3,
+            | log(-critic_rating, -id) as l4,
+            | log(id, critic_rating) as l5, 
+            | log(id, -critic_rating) as l6,
+            | log(-id, critic_rating) as l7,
+            | log(-id, -critic_rating) as l8,
+            | critic_rating, id
+            | from movies where id != 1 and critic_rating != 1""".stripMargin)
+      }
+      it("works with 1 argument") {
+        testQuery("select log(critic_rating) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select log(stringIdentity(id), critic_rating) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select log(id, stringIdentity(critic_rating)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Round") {
+      // memsql can round x.5 differently
+      it("works with one argument") {
+        testQuery("""select 
+            |round(critic_rating), 
+            |round(-critic_rating),
+            |critic_rating from movies 
+            |where critic_rating - floor(critic_rating) != 0.5""".stripMargin)
+      }
+      it("works with two arguments") {
+        testQuery("""select 
+            |round(critic_rating/10.0, 1) as x1, 
+            |round(-critic_rating/100.0, 2) as x2,
+            |critic_rating from movies 
+            |where critic_rating - floor(critic_rating) != 0.5""".stripMargin)
+      }
+      it("works with negative scale") {
+        testQuery("select round(critic_rating, -2) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select round(stringIdentity(critic_rating), 2) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      // right argument must be foldable
+      // because of it, we can't use udf there
+    }
+
+    describe("Hypot") {
+      it("works") {
+        testQuery("""select 
+            | Hypot(critic_rating, id) as h1, 
+            | Hypot(critic_rating, -id) as h2,
+            | Hypot(-critic_rating, id) as h3,
+            | Hypot(-critic_rating, -id) as h4,
+            | Hypot(id, critic_rating) as h5, 
+            | Hypot(id, -critic_rating) as h6,
+            | Hypot(-id, critic_rating) as h7,
+            | Hypot(-id, -critic_rating) as h8,
+            | critic_rating, id
+            | from movies""".stripMargin)
+      }
+      it("udf in the left argument") {
+        testQuery("select Hypot(stringIdentity(critic_rating), id) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select Hypot(critic_rating, stringIdentity(id)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    it("EulerNumber") {
+      testQuery("select E() from movies")
+    }
+
+    it("Pi") {
+      testQuery("select PI() from movies")
+    }
+
+    describe("Conv") {
+      // memsql and spark behaviour differs when num contains non alphanumeric characters
+      val bases = Seq(2, 5, 23, 36)
+      it("works with all supported by memsql fromBase") {
+        for (fromBase <- 2 to 36; toBase <- bases) {
+          log.debug(s"testing conv $fromBase -> $toBase")
+          testQuery(s"""select 
+               |first_name, 
+               |conv(first_name, $fromBase, $toBase) 
+               |from users 
+               |where first_name rlike '^[a-zA-Z0-9]*$$'""".stripMargin)
+        }
+      }
+      it("works with all supported by memsql toBase") {
+        for (fromBase <- bases; toBase <- 2 to 36) {
+          log.debug(s"testing conv $fromBase -> $toBase")
+          testQuery(s"""select 
+               |first_name, 
+               |conv(first_name, $fromBase, $toBase) 
+               |from users 
+               |where first_name rlike '^[a-zA-Z0-9]*$$'""".stripMargin)
+        }
+      }
+      it("works with numeric") {
+        testQuery("select conv(id, 10, 2) from users")
+      }
+      it("partial pushdown when fromBase out of range [2, 36]") {
+        testQuery("select conv(first_name, 1, 20) from users", expectPartialPushdown = true)
+      }
+      it("partial pushdown when toBase out of range [2, 36]") {
+        testQuery("select conv(first_name, 20, 1) from users", expectPartialPushdown = true)
+      }
+      it("udf in the first argument") {
+        testQuery("select conv(stringIdentity(first_name), 20, 15) from users",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select conv(first_name, stringIdentity(20), 15) from users",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select conv(first_name, 20, stringIdentity(15)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("ShiftLeft") {
+      it("works") {
+        testQuery("select ShiftLeft(id, floor(critic_rating)) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select ShiftLeft(stringIdentity(id), floor(critic_rating)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select ShiftLeft(id, stringIdentity(floor(critic_rating))) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("ShiftRight") {
+      it("works") {
+        testQuery("select ShiftRight(id, floor(critic_rating)) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select ShiftRight(stringIdentity(id), floor(critic_rating)) as x from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select ShiftRight(id, stringIdentity(floor(critic_rating))) as x from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("ShiftRightUnsigned") {
+      it("works") {
+        testQuery("select ShiftRightUnsigned(id, floor(critic_rating)) as x from movies")
+      }
+      it("udf in the left argument") {
+        testQuery(
+          "select ShiftRightUnsigned(stringIdentity(id), floor(critic_rating)) as x from movies",
+          expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery(
+          "select ShiftRightUnsigned(id, stringIdentity(floor(critic_rating))) as x from movies",
+          expectPartialPushdown = true)
+      }
     }
   }
 
@@ -1742,7 +2555,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("works") {
         for (timeZone <- timeZones) {
           println(s"testing toUTCTimestamp with timezone $timeZone")
-          testQuery(s"select to_utc_timestamp(created, '$timeZone') from reviews")
+          // memsql doesn't support timestamps less then 1970-01-01T00:00:00Z
+          testQuery(
+            s"select to_utc_timestamp(created, '$timeZone') from reviews where to_unix_timestamp(created) > 24*60*60")
         }
       }
       it("partial pushdown because of udf in the left argument") {
@@ -1850,7 +2665,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    it(s"datePart") {
+    it("datePart") {
       for (periods <- periodsList) {
         for (period <- periods) {
           testQuery(s"SELECT date_part('$period', birthday) as date_part from users")
@@ -1866,6 +2681,53 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("makeTimestamp") {
       testQuery(
         "SELECT make_timestamp(1000, user_id, user_id, user_id, user_id, user_id) FROM reviews")
+    }
+
+    it("CurrentDate") {
+      testQuery("select current_date() from users", expectSameResult = false)
+    }
+
+    it("CurrentTimestamp") {
+      testQuery("select current_timestamp() from users", expectSameResult = false)
+    }
+
+    describe("timestamp parts functions") {
+      val functions = Seq("Hour",
+                          "Minute",
+                          "Second",
+                          "DayOfYear",
+                          "Year",
+                          "Quarter",
+                          "Month",
+                          "DayOfMonth",
+                          "DayOfWeek",
+                          "WeekOfYear",
+                          "last_day")
+      it("works with date") {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(birthday) from users")
+        }
+      }
+      it("works with timestamp") {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(created) from reviews")
+        }
+      }
+      it("works with string") {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(first_name) from users")
+        }
+      }
+      it("partial pushdown") {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(stringIdentity(first_name)) from users",
+                    expectPartialPushdown = true)
+        }
+      }
     }
   }
 
@@ -1889,19 +2751,487 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("like") {
-    it("no escape char") {
-      testQuery("select first_name like last_name, last_name like first_name escape from users")
+  describe("stringExpressions") {
+    describe("StartsWith") {
+      it("works") {
+        testQuery("select * from movies",
+                  filterDF = df => df.filter(df.col("critic_review").startsWith("M")))
+      }
+      it("udf in the left argument") {
+        testQuery("select stringIdentity(critic_review) as x from movies",
+                  filterDF = df => df.filter(df.col("x").startsWith("M")),
+                  expectPartialPushdown = true)
+      }
     }
 
-    it("with escape char") {
-      testQuery(
-        "select first_name like last_name escape '^', last_name like first_name escape '^' from users")
+    describe("EndsWith") {
+      it("works") {
+        testQuery("select * from movies",
+                  filterDF = df => df.filter(df.col("critic_review").endsWith("s.")))
+      }
+      it("udf in the left argument") {
+        testQuery("select stringIdentity(critic_review) as x from movies",
+                  filterDF = df => df.filter(df.col("x").endsWith("s.")),
+                  expectPartialPushdown = true)
+      }
     }
 
-    it("with escape char equal to '/'") {
-      testQuery(
-        "select first_name like last_name escape '/', last_name like first_name escape '/' from users")
+    describe("Contains") {
+      it("works") {
+        testQuery("select * from movies",
+                  filterDF = df => df.filter(df.col("critic_review").contains("a")))
+      }
+      it("udf in the left argument") {
+        testQuery("select stringIdentity(critic_review) as x from movies",
+                  filterDF = df => df.filter(df.col("x").contains("a")),
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringInstr") {
+      it("works") {
+        testQuery("select instr(critic_review, 'id') from movies")
+      }
+      it("works when all arguments are not literals") {
+        testQuery("select instr(critic_review, critic_review) from movies")
+      }
+      it("udf in the left argument") {
+        testQuery("select instr(stringIdentity(critic_review), 'id') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select instr(critic_review, stringIdentity('id')) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringTrim") {
+      it("works") {
+        testQuery("select id, trim(first_name) from users")
+      }
+      it("works when trimStr is ' '") {
+        testQuery("select id, trim(both ' ' from first_name) from users")
+      }
+      it("partial pushdown when trimStr is not None and not ' '") {
+        testQuery("select id, trim(both 'abc' from first_name) from users",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, trim(stringIdentity(first_name)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringTrimLeft") {
+      it("works") {
+        testQuery("select id, ltrim(first_name) from users")
+      }
+      it("works when trimStr is ' '") {
+        testQuery("select id, trim(leading ' ' from first_name) from users")
+      }
+      it("works when trimStr is ' ' (other syntax)") {
+        testQuery("select id, ltrim(' ', first_name) from users")
+      }
+      it("partial pushdown when trimStr is not None and not ' '") {
+        testQuery("select id, ltrim('abc', first_name) from users", expectPartialPushdown = true)
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, ltrim(stringIdentity(first_name)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringTrimRight") {
+      it("works") {
+        testQuery("select id, rtrim(first_name) from users")
+      }
+      it("works when trimStr is ' '") {
+        testQuery("select id, trim(trailing ' ' from first_name) from users")
+      }
+      it("works when trimStr is ' ' (other syntax)") {
+        testQuery("select id, rtrim(' ', first_name) from users")
+      }
+      it("partial pushdown when trimStr is not None and not ' '") {
+        testQuery("select id, rtrim('abc', first_name) from users", expectPartialPushdown = true)
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, rtrim(stringIdentity(first_name)) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("FormatNumber") {
+      // memsql and spark rounds fractional types differently
+      it("works with zero precision") {
+        testQuery(
+          "select format_number(critic_rating, 0) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
+      }
+      it("works with negative precision") {
+        testQuery(
+          "select format_number(critic_rating, -10) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
+      }
+      it("works with numbers and zero precision") {
+        testQuery(
+          "select format_number(id, 0) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
+      }
+      it("works with numbers and negative precision") {
+        testQuery(
+          "select format_number(id, -10) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
+      }
+      it("works with positive precision") {
+        testQuery(
+          """select format_number(critic_rating, cast(floor(critic_rating) as int)) as x from movies 
+            |where (
+            |        critic_rating - floor(critic_rating) != 0.5 and 
+            |        critic_rating*pow(10, floor(critic_rating))  - floor(critic_rating*pow(10, floor(critic_rating))) != 0.5
+            |    ) or 
+            |    critic_rating is null""".stripMargin)
+      }
+      it("works with negative numbers") {
+        testQuery(
+          """select format_number(-critic_rating, 0), round(critic_rating, 5) as a from movies 
+            |where (
+            |        critic_rating - floor(critic_rating) != 0.5 and 
+            |        abs(critic_rating) > 1
+            |    ) or 
+            |    critic_rating is null""".stripMargin)
+      }
+      it("works with null") {
+        testQuery(
+          "select format_number(critic_rating, null) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
+      }
+
+      it("works with format") {
+        if (spark.version != "2.3.4") {
+          testQuery("select format_number(critic_rating, '#####,#,#,#.##') as x from movies",
+                    expectPartialPushdown = true)
+        }
+      }
+      it("udf in the left argument") {
+        testQuery(
+          "select format_number(cast(stringIdentity(critic_rating) as double), 4) from movies",
+          expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select format_number(critic_rating, cast(stringIdentity(4) as int)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringRepeat") {
+      it("works") {
+        testQuery("select id, repeat(critic_review, floor(critic_rating)) as x from movies")
+      }
+      it("works with empty string") {
+        testQuery("select id, repeat('', floor(critic_rating)) as x from movies")
+      }
+      it("works with negative times") {
+        testQuery(
+          "select id, repeat(critic_review, -floor(critic_rating)) as x1, -floor(critic_rating)  as x2 from movies")
+      }
+      it("udf in the left argument") {
+        testQuery(
+          "select id, repeat(stringIdentity(critic_review), -floor(critic_rating)) as x from movies",
+          expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery(
+          "select id, repeat(critic_review, -stringIdentity(floor(critic_rating))) as x from movies",
+          expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringReplace") {
+      it("works") {
+        testQuery("select id, replace(critic_review, 'an', 'AAA') from movies")
+      }
+      it("works when second argument is empty") {
+        testQuery("select id, replace(critic_review, '', 'A') from movies")
+      }
+      it("works when third argument is empty") {
+        testQuery("select id, replace(critic_review, 'a', '') from movies")
+      }
+      it("works with two arguments") {
+        testQuery("select id, replace(critic_review, 'a') from movies")
+      }
+      it("works when all arguments are not literals") {
+        testQuery("select id, replace(critic_review, title, genre) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery("select id, replace(stringIdentity(critic_review), 'an', 'AAA') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, replace(critic_review, stringIdentity('an'), 'AAA') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, replace(critic_review, 'an', stringIdentity('AAA')) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("SubstringIndex") {
+      it("works with negative count") {
+        testQuery("select id, substring_index(critic_review, ' ', -100) from movies")
+      }
+      it("works with zero count") {
+        testQuery("select id, substring_index(critic_review, ' ', 0) from movies")
+      }
+      it("works with small count") {
+        testQuery("select id, substring_index(critic_review, ' ', 2) from movies")
+      }
+      it("works with large count") {
+        testQuery("select id, substring_index(critic_review, ' ', 100) from movies")
+      }
+      it("works when delimiter and count are not literals") {
+        testQuery("select id, substring_index(critic_review, title, id) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery(
+          "select id, substring_index(stringIdentity(critic_review), 'an', '2') from movies",
+          expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, substring_index(critic_review, stringIdentity(' '), '2') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, substring_index(critic_review, ' ', stringIdentity(2)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringLocate") {
+      it("works with negative start") {
+        testQuery("select id, locate(critic_review, ' ', -100) from movies")
+      }
+      it("works with zero start") {
+        testQuery("select id, locate(critic_review, ' ', 0) from movies")
+      }
+      it("works with small start") {
+        testQuery("select id, locate(critic_review, ' ', 2) from movies")
+      }
+      it("works with large start") {
+        testQuery("select id, locate(critic_review, ' ', 100) from movies")
+      }
+      it("works when str and start are not literals") {
+        testQuery("select id, locate(critic_review, title, id) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery("select id, locate(stringIdentity(critic_review), 'an', '2') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, locate(critic_review, stringIdentity(' '), '2') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, locate(critic_review, ' ', stringIdentity(2)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringLPad") {
+      it("works with negative len") {
+        testQuery("select id, lpad(critic_review, -100, 'ab') from movies")
+      }
+      it("works with zero len") {
+        testQuery("select id, lpad(critic_review, 0, 'ab') from movies")
+      }
+      it("works with small len") {
+        testQuery("select id, lpad(critic_review, 3, 'ab') from movies")
+      }
+      it("works with large len") {
+        testQuery("select id, lpad(critic_review, 1000, 'ab') from movies")
+      }
+      it("works when len and pad are not literals") {
+        testQuery("select id, lpad(critic_review, id, title) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery("select id, lpad(stringIdentity(critic_review), 2, 'an') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, lpad(critic_review, stringIdentity(2), ' ') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, lpad(critic_review, 2, stringIdentity(' ')) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringRPad") {
+      it("works with negative len") {
+        testQuery("select id, rpad(critic_review, -100, 'ab') from movies")
+      }
+      it("works with zero len") {
+        testQuery("select id, rpad(critic_review, 0, 'ab') from movies")
+      }
+      it("works with small len") {
+        testQuery("select id, rpad(critic_review, 3, 'ab') from movies")
+      }
+      it("works with large len") {
+        testQuery("select id, rpad(critic_review, 1000, 'ab') from movies")
+      }
+      it("works when len and pad are not literals") {
+        testQuery("select id, rpad(critic_review, id, title) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery("select id, rpad(stringIdentity(critic_review), 2, 'an') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, rpad(critic_review, stringIdentity(2), ' ') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, rpad(critic_review, 2, stringIdentity(' ')) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Substring") {
+      it("works") {
+        testQuery("select id, substring(critic_review, 1, 20) from movies")
+      }
+      it("works when pos is negative") {
+        testQuery("select id, substring(critic_review, -1, 20) from movies")
+      }
+      it("works with empty len") {
+        testQuery("select id, substring(critic_review, 5) from movies")
+      }
+      it("works with negative len") {
+        testQuery("select id, substring(critic_review, 5, -4) from movies")
+      }
+      it("works with non-literals") {
+        testQuery("select id, substring(critic_review, id, id) from movies")
+      }
+      it("udf in the first argument") {
+        testQuery("select id, substring(stringIdentity(critic_review), 5, 4) from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery("select id, substring(critic_review, stringIdentity(5), 4) from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the third argument") {
+        testQuery("select id, substring(critic_review, 5, stringIdentity(4)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Upper") {
+      it("works") {
+        testQuery("select id, upper(critic_review) from movies")
+      }
+      it("works with ints") {
+        testQuery("select id, upper(id) from movies")
+      }
+      it("partial pushdown whith udf") {
+        testQuery("select id, upper(stringIdentity(critic_review)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Lower") {
+      it("works") {
+        testQuery("select id, lower(critic_review) from movies")
+      }
+      it("works with ints") {
+        testQuery("select id, lower(id) from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, lower(stringIdentity(critic_review)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("StringSpace") {
+      it("works") {
+        testQuery("select id, space(floor(critic_rating)) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, space(stringIdentity(id)) from movies", expectPartialPushdown = true)
+      }
+    }
+
+    describe("Length") {
+      it("works with strings") {
+        testQuery("select id, length(critic_review) from movies")
+      }
+      it("works with binary") {
+        testQuery("select id, length(cast(critic_review as binary)) from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, length(stringIdentity(id)) from movies", expectPartialPushdown = true)
+      }
+    }
+
+    describe("BitLength") {
+      it("works with strings") {
+        testQuery("select id, bit_length(critic_review) from movies")
+      }
+      it("works with binary") {
+        testQuery("select id, bit_length(cast(critic_review as binary)) from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, bit_length(stringIdentity(id)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("OctetLength") {
+      it("works with strings") {
+        testQuery("select id, octet_length(critic_review) from movies")
+      }
+      it("works with binary") {
+        testQuery("select id, octet_length(cast(critic_review as binary)) from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, octet_length(stringIdentity(id)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Ascii") {
+      it("works") {
+        testQuery("select id, ascii(critic_review) from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, ascii(stringIdentity(critic_review)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Chr") {
+      it("works") {
+        testQuery("select id, chr(floor(critic_rating)) as ch from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, chr(stringIdentity(id)) from movies", expectPartialPushdown = true)
+      }
+    }
+
+    describe("Base64") {
+      it("works") {
+        testQuery("select id, base64(critic_review) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, base64(stringIdentity(critic_review)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("UnBase64") {
+      it("works") {
+        testQuery("select id, unbase64(base64(critic_review)) as x from movies")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, unbase64(base64(stringIdentity(critic_review))) from movies",
+                  expectPartialPushdown = true)
+      }
     }
   }
 
@@ -1961,59 +3291,163 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("stringExpressions") {
-    describe("StringTrim") {
-      it("works") {
-        testQuery("select id, trim(first_name) from users")
+  describe("SortOrder") {
+    it("works asc, nulls first") {
+      testSingleReadQuery("select * from movies order by critic_rating asc nulls first")
+    }
+    it("works desc, nulls last") {
+      testSingleReadQuery("select * from movies order by critic_rating desc nulls last")
+    }
+    it("partial pushdown asc, nulls last") {
+      testSingleReadQuery("select * from movies order by critic_rating asc nulls last",
+                          expectPartialPushdown = true)
+    }
+    it("partial pushdown desc, nulls first") {
+      testSingleReadQuery("select * from movies order by critic_rating desc nulls first",
+                          expectPartialPushdown = true)
+    }
+    it("partial pushdown with udf") {
+      testSingleReadQuery("select * from movies order by stringIdentity(critic_rating)",
+                          expectPartialPushdown = true)
+    }
+  }
+
+  describe("Rand") {
+    it("integer literal") {
+      testQuery("select rand(100)*id from users", expectSameResult = false)
+    }
+    it("long literal") {
+      testQuery("select rand(100L)*id from users", expectSameResult = false)
+    }
+    it("null literal") {
+      testQuery("select rand(null)*id from users", expectSameResult = false)
+    }
+    it("empty arguments") {
+      testQuery("select rand()*id from users",
+                expectSameResult = false,
+                expectCodegenDeterminism = false)
+    }
+    it("should return the same value for the same input") {
+      val df1 = spark.sql("select rand(100)*id from testdb.users")
+      val df2 = spark.sql("select rand(100)*id from testdb.users")
+      assertApproximateDataFrameEquality(df1, df2, 0.001, orderedComparison = false)
+    }
+  }
+
+  describe("regular expressions") {
+    describe("like") {
+      it("simple") {
+        testQuery("select * from users where first_name like 'Di'")
       }
-      it("works when trimStr is ' '") {
-        testQuery("select id, trim(both ' ' from first_name) from users")
+      it("simple, both fields") {
+        testQuery("select * from users where first_name like last_name")
       }
-      it("partial pushdown when trimStr is not None and not ' '") {
-        testQuery("select id, trim(both 'abc' from first_name) from users",
+      it("character wildcard") {
+        testQuery("select * from users where first_name like 'D_'")
+      }
+      it("string wildcard") {
+        testQuery("select * from users where first_name like 'D%'")
+      }
+      it("dumb true") {
+        testQuery("select * from users where 1 like 1")
+      }
+      it("dumb false") {
+        testQuery("select 2 like 1 from users")
+      }
+      it("dumb true once more") {
+        testQuery("select first_name from users where first_name like first_name")
+      }
+      it("partial pushdown left") {
+        testQuery("select * from users where stringIdentity(first_name) like 'Di'",
                   expectPartialPushdown = true)
       }
-      it("partial pushdown with udf") {
-        testQuery("select id, trim(stringIdentity(first_name)) from users",
+      it("partial pushdown right") {
+        testQuery("select * from users where first_name like stringIdentity('Di')",
                   expectPartialPushdown = true)
+      }
+      it("null") {
+        testQuery("select critic_review like null from movies")
+      }
+      it("with escape char") {
+        testQuery(
+          "select first_name like last_name escape '^', last_name like first_name escape '^' from users")
+      }
+      it("with escape char equal to '/'") {
+        testQuery(
+          "select first_name like last_name escape '/', last_name like first_name escape '/' from users")
+      }
+    }
+    describe("rlike") {
+      it("simple") {
+        testQuery("select * from users where first_name rlike 'D.'")
+      }
+      it("simple, both fields") {
+        testQuery("select * from users where first_name rlike last_name")
+      }
+      it("from beginning") {
+        testQuery("select * from users where first_name rlike '^D.'")
+      }
+      it("dumb true") {
+        testQuery("select * from users where 1 rlike 1")
+      }
+      it("dumb false") {
+        testQuery("select 2 rlike 1 from users")
+      }
+      it("partial pushdown left") {
+        testQuery("select * from users where stringIdentity(first_name) rlike 'D.'",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown right") {
+        testQuery("select * from users where first_name rlike stringIdentity('D.')",
+                  expectPartialPushdown = true)
+      }
+      it("null") {
+        testQuery("select critic_review rlike null from movies")
       }
     }
 
-    describe("StringTrimLeft") {
-      it("works") {
-        testQuery("select id, ltrim(first_name) from users")
+    describe("regexp") {
+      it("simple") {
+        testQuery("select * from users where first_name regexp 'D.'")
       }
-      it("works when trimStr is ' '") {
-        testQuery("select id, trim(leading ' ' from first_name) from users")
+      it("simple, both fields") {
+        testQuery("select * from users where first_name regexp last_name")
       }
-      it("works when trimStr is ' ' (other syntax)") {
-        testQuery("select id, ltrim(' ', first_name) from users")
+      it("dumb true") {
+        testQuery("select * from users where 1 regexp 1")
       }
-      it("partial pushdown when trimStr is not None and not ' '") {
-        testQuery("select id, ltrim('abc', first_name) from users", expectPartialPushdown = true)
+      it("dumb false") {
+        testQuery("select 2 regexp 1 from users")
       }
-      it("partial pushdown with udf") {
-        testQuery("select id, ltrim(stringIdentity(first_name)) from users",
+      it("partial pushdown left") {
+        testQuery("select * from users where stringIdentity(first_name) regexp 'D.'",
                   expectPartialPushdown = true)
+      }
+      it("partial pushdown right") {
+        testQuery("select * from users where first_name regexp stringIdentity('D.')",
+                  expectPartialPushdown = true)
+      }
+      it("null") {
+        testQuery("select critic_review regexp null from movies")
       }
     }
 
-    describe("StringTrimRight") {
-      it("works") {
-        testQuery("select id, rtrim(first_name) from users")
+    describe("regexpReplace") {
+      it("simple") {
+        testQuery("select regexp_replace(first_name, 'D', 'd') from users")
       }
-      it("works when trimStr is ' '") {
-        testQuery("select id, trim(trailing ' ' from first_name) from users")
+      it("works correctly") {
+        testQuery("select * from users where regexp_replace(first_name, 'D', 'd') = 'di'")
       }
-      it("works when trimStr is ' ' (other syntax)") {
-        testQuery("select id, rtrim(' ', first_name) from users")
-      }
-      it("partial pushdown when trimStr is not None and not ' '") {
-        testQuery("select id, rtrim('abc', first_name) from users", expectPartialPushdown = true)
-      }
-      it("partial pushdown with udf") {
-        testQuery("select id, rtrim(stringIdentity(first_name)) from users",
+      it("partial pushdown") {
+        testQuery("select regexp_replace(stringIdentity(first_name), 'D', 'd') from users",
                   expectPartialPushdown = true)
+      }
+      it("null") {
+        testQuery("select regexp_replace(first_name, 'D', null) from users")
+      }
+      it("non-literals") {
+        testQuery("select regexp_replace(first_name, first_name, first_name) from users")
       }
     }
   }

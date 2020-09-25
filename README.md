@@ -415,10 +415,19 @@ Happy querying!
  * `ToUnixTimestamp` and `UnixTimestamp` handle only time less then `2038-01-19 03:14:08`, if they get `DateType` or `TimestampType` as a first argument
  * `FromUnixTime` with default format (`yyyy-MM-dd HH:mm:ss`) handle only time less than `2147483648` (`2^31`)
  * `DecimalType` on the overflow is truncated (by default spark either throws exception or returns null)
- * `greatest` and `least` returns null if at least one argument is null (in spark these functions skip nulls)
+ * `greatest` and `least` return null if at least one argument is null (in spark these functions skip nulls)
  *  When value can not be converted to numeric or fractional type MemSQL returns 0 (spark returns `null`)
  * `Atanh(x)`, for x ∈ (-∞, -1] ∪ [1, ∞) retuns, `null` (spark returns `NaN`)
-
+ *  When string is casted to numeric type, memsql takes the prefix of it which is numeric (spark returns `null` if the whole string is not numeric)
+ *  When numeric type is casted to the smaller one memsql truncates it. For example `500` casted to the Byte will be `127`
+ Note: spark optimizer can optimize casts for literals and then behaviour for them will match custom spark behaviour
+ * When fractional type is casted to integral type memsql rounds it to the closest value
+ * `Log` instead of `NaN`, `Infinity`, `-Infinity` returns `null`
+ * `Round` rounds down, if the number that should be rounded is followed by 5 and it is `DOUBLE` or `FLOAT` (`DECIMAL` will be rounded up)
+ * `Conv` works differently if the number contains non alphanumeric characters
+ * `ShiftLeft`, `ShiftRight` and `ShiftRightUnsigned` converts the value to the UNSIGNED BIGINT and then produces the shift
+ In the case of overflow, it returns 0 (`1<<64` = `0` and `10>>20` = `0`)
+ 
 ## Major changes from the 2.0.0 connector
 
 The MemSQL Spark Connector 3.1.0-beta1 has a number of key features and enhancements:
