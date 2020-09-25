@@ -416,10 +416,8 @@ Happy querying!
  * `FromUnixTime` with default format (`yyyy-MM-dd HH:mm:ss`) handle only time less than `2147483648` (`2^31`)
  * `DecimalType` on the overflow is truncated (by default spark either throws exception or returns null)
  * `greatest` and `least` returns null if at least one argument is null (in spark these functions skip nulls)
- 
-| Operation                              | MemSQL          | Spark       |
-| -------------------------------------- |:---------------:| -----------:|
-| `Atanh(x)`, for x ∈ (-∞, -1] ∪ [1, ∞)  | `null`          | `NaN`       |
+ *  When value can not be converted to numeric or fractional type MemSQL returns 0 (spark returns `null`)
+ * `Atanh(x)`, for x ∈ (-∞, -1] ∪ [1, ∞) retuns, `null` (spark returns `NaN`)
 
 ## Major changes from the 2.0.0 connector
 

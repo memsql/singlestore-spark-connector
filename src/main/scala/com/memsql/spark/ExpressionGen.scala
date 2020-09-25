@@ -313,8 +313,6 @@ object ExpressionGen extends LazyLogging {
         f("ADDDATE", startDate, days)
       case DateSub(expressionExtractor(startDate), expressionExtractor(days)) =>
         f("SUBDATE", startDate, days)
-      case DateFormatClass(expressionExtractor(left), expressionExtractor(right), timeZoneId) =>
-        f("DATE_FORMAT", left, right)
 
       case TimeAdd(expressionExtractor(start),
                    Literal(v: CalendarInterval, CalendarIntervalType),
