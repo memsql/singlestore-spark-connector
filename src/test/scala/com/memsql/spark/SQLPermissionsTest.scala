@@ -25,9 +25,9 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
 
   private def setUpUserPermissions(privilege: String): Unit = {
     /* Revoke all permissions from user */
-    Try(executeQuery(s"REVOKE ALL PRIVILEGES ON ${dbName}.* FROM '${testUserName}'@'%'"))
+    Try(executeQueryWithLog(s"REVOKE ALL PRIVILEGES ON ${dbName}.* FROM '${testUserName}'@'%'"))
     /* Give permissions to user */
-    executeQuery(s"GRANT ${privilege} ON ${dbName}.* TO '${testUserName}'@'%'")
+    executeQueryWithLog(s"GRANT ${privilege} ON ${dbName}.* TO '${testUserName}'@'%'")
     /* Set up user to spark */
     spark.conf.set("spark.datasource.memsql.user", s"${testUserName}")
   }
@@ -51,7 +51,7 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
         1142 = <command> denied to current user
         1050 = table already exists (error throws when we don't have SELECT permission to check if such table already exists)
        */
-      assert(SQLHelper.isSQLExceptionWithCode(result.failed.get, List(1142, 1050)))
+      assert(TestHelper.isSQLExceptionWithCode(result.failed.get, List(1142, 1050)))
     }
   }
 

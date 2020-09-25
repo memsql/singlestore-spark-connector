@@ -17,7 +17,7 @@ class SQLOverwriteTest extends IntegrationSuiteBase {
     dropTable(tableName)
   }
 
-  def dropTable(tableName: String): Unit = executeQuery(s"drop table if exists $dbName.$tableName")
+  def dropTable(tableName: String): Unit = executeQueryWithLog(s"drop table if exists $dbName.$tableName")
 
   def insertAndAssertEquality(dfBefore: List[(Integer, String)],
                               dfAfter: List[(Integer, String)],
@@ -239,7 +239,7 @@ class SQLOverwriteTest extends IntegrationSuiteBase {
       /* Error code description:
         1062 = duplicate key error
        * */
-      SQLHelper.isSQLExceptionWithCode(result.failed.get, List(1062))
+      TestHelper.isSQLExceptionWithCode(result.failed.get, List(1062))
     }
   }
 

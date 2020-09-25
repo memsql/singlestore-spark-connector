@@ -6,6 +6,7 @@ import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+import com.memsql.spark.SQLHelper._
 
 class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {
 
@@ -1548,10 +1549,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("bit_count") { testQuery("SELECT bit_count(user_id) AS bit_count FROM reviews") }
     def bitOperationTest(sql: String): Unit = {
       val bitOperationsMinVersion = MemsqlVersion(7, 0, 1)
-      val resultSet = jdbcConnection.to(conn =>
-        Loan(conn.createStatement()).to(_.executeQuery("select @@memsql_version")))
-      resultSet.next()
-      val version = MemsqlVersion(resultSet.getString("@@memsql_version"))
+      val resultSet               = spark.executeMemsqlQuery("select @@memsql_version")
+      val version                 = MemsqlVersion(resultSet.next().getString(0))
       if (version.atLeast(bitOperationsMinVersion))
         testSingleReadQuery(sql)
     }

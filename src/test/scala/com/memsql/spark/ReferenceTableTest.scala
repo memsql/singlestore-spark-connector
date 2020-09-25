@@ -47,21 +47,20 @@ class ReferenceTableTest extends IntegrationSuiteBase {
     assert(sqlRows.length == 3)
   }
 
-  def dropTable(tableName: String): Unit = executeQuery(s"drop table if exists $dbName.$tableName")
+  def dropTable(tableName: String): Unit = executeQueryWithLog(s"drop table if exists $dbName.$tableName")
 
   describe("Success during write operations") {
 
     it("to common table") {
       dropTable(commonCollectionName)
-      executeQuery(
+      executeQueryWithLog(
         s"create table if not exists $dbName.$commonCollectionName (id INT NOT NULL, PRIMARY KEY (id))")
       writeAndReadFromTable(commonCollectionName)
     }
 
     it("to reference table") {
       dropTable(referenceCollectionName)
-      executeQuery(
-        s"create reference table if not exists $dbName.$referenceCollectionName (id INT NOT NULL, PRIMARY KEY (id))")
+      executeQueryWithLog(s"create reference table if not exists $dbName.$referenceCollectionName (id INT NOT NULL, PRIMARY KEY (id))")
       writeAndReadFromTable(referenceCollectionName)
     }
   }
@@ -91,7 +90,7 @@ class ReferenceTableTest extends IntegrationSuiteBase {
       /* Error code description:
         1046 = Database name not provided
        * */
-      assert(SQLHelper.isSQLExceptionWithCode(result.failed.get, List(1046)))
+      assert(TestHelper.isSQLExceptionWithCode(result.failed.get, List(1046)))
     }
   }
 }

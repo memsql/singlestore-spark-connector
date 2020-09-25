@@ -463,8 +463,8 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     }
 
     it("big precision") {
-      executeQuery("drop table if exists testdb.DecimalTypeBigPrecision")
-      executeQuery("create table testdb.DecimalTypeBigPrecision(a DECIMAL(65, 30))")
+      executeQueryWithLog("drop table if exists testdb.DecimalTypeBigPrecision")
+      executeQueryWithLog("create table testdb.DecimalTypeBigPrecision(a DECIMAL(65, 30))")
 
       val readResult = Try {
         spark.read
@@ -479,7 +479,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
   }
 
   it("JSON columns are treated as strings by Spark") {
-    executeQuery(s"""
+    executeQueryWithLog(s"""
                     |create table if not exists ${dbName}.basic (
                     | j JSON
                     |)""".stripMargin)
@@ -503,9 +503,9 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
   }
 
   it("BIT columns are treated as BinaryType") {
-    executeQuery("drop table if exists testdb.BIT")
-    executeQuery("create table testdb.BIT(a BIT)")
-    executeQuery("insert into testdb.BIT values('010101'), ('00'), ('1'), (null)")
+    executeQueryWithLog("drop table if exists testdb.BIT")
+    executeQueryWithLog("create table testdb.BIT(a BIT)")
+    executeQueryWithLog("insert into testdb.BIT values('010101'), ('00'), ('1'), (null)")
 
     val df = spark.read
       .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)
@@ -526,9 +526,9 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
   }
 
   it("TIME columns are treated as TimestampType") {
-    executeQuery("drop table if exists testdb.TIME")
-    executeQuery("create table testdb.TIME(a TIME)")
-    executeQuery("insert into testdb.TIME values('-838:59:59'), (null), ('838:59:59')")
+    executeQueryWithLog("drop table if exists testdb.TIME")
+    executeQueryWithLog("create table testdb.TIME(a TIME)")
+    executeQueryWithLog("insert into testdb.TIME values('-838:59:59'), (null), ('838:59:59')")
 
     val df = spark.read
       .format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT)

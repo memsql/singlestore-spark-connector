@@ -90,10 +90,9 @@ class DefaultSource
         writer.commit()
         MetricsHandler.setRecordsWritten(totalRowCount)
       } catch {
-        case e: Exception => {
+        case e: Exception =>
           writer.abort()
           throw e
-        }
       }
     })
 

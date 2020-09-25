@@ -4,7 +4,7 @@ import java.sql.SQLException
 
 import scala.annotation.tailrec
 
-object SQLHelper {
+object TestHelper {
 
   @tailrec
   def isSQLExceptionWithCode(e: Throwable, codes: List[Integer]): Boolean = e match {
