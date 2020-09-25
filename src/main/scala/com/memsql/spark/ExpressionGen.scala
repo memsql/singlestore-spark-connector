@@ -86,12 +86,6 @@ object ExpressionGen extends LazyLogging {
 
       case v: Boolean => Raw(if (v) "TRUE" else "FALSE")
 
-      // MemSQL does not support intervals which define month + remainder at the same time
-      case v: CalendarInterval if v.months == 0 =>
-        Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND"
-      case v: CalendarInterval if v.months != 0 && v.microseconds == 0 =>
-        Raw("INTERVAL") + v.months.toString + "MONTH"
-
       case v: Short                                  => Raw(v.toString)
       case v: Int                                    => Raw(v.toString)
       case v: Integer                                => Raw(v.toString)

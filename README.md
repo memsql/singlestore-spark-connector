@@ -415,6 +415,7 @@ Happy querying!
  * `ToUnixTimestamp` and `UnixTimestamp` handle only time less then `2038-01-19 03:14:08`, if they get `DateType` or `TimestampType` as a first argument
  * `FromUnixTime` with default format (`yyyy-MM-dd HH:mm:ss`) handle only time less than `2147483648` (`2^31`)
  * `DecimalType` on the overflow is truncated (by default spark either throws exception or returns null)
+ * `greatest` and `least` returns null if at least one argument is null (in spark these functions skip nulls)
  
 | Operation                              | MemSQL          | Spark       |
 | -------------------------------------- |:---------------:| -----------:|
@@ -431,7 +432,7 @@ The MemSQL Spark Connector 3.1.0-beta1 has a number of key features and enhancem
 * Is compatible with Spark 3.0
 * Leverages MemSQL LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
 * Takes advantage of all the latest and greatest features in MemSQL 7.x
- 
+
 <h2 id="java-python-example">Java & Python Examples</h2>
 
 ### Java
