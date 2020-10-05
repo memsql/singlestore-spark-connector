@@ -8,6 +8,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.types._
+import org.apache.spark.util.TaskCompletionListener
 import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
 
 case class MemsqlRDD(query: String,
@@ -44,8 +45,10 @@ case class MemsqlRDD(query: String,
       closed = true
     }
 
-    context.addTaskCompletionListener[Unit] { context: TaskContext =>
-      close()
+    context.addTaskCompletionListener {
+      new TaskCompletionListener {
+        override def onTaskCompletion(context: TaskContext): Unit = close()
+      }
     }
 
     conn = JdbcUtils.createConnectionFactory(partition.connectionInfo)()

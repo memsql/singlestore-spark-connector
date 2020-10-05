@@ -5,6 +5,11 @@ import xerial.sbt.Sonatype._
     -Dspark.version=3.0.0
  */
 val sparkVersion = sys.props.get("spark.version").getOrElse("3.0.0")
+val scalaVersionStr = sparkVersion match {
+  case "2.3.4" | "2.4.4" => "2.11.11"
+  case _                 => "2.12.12"
+}
+val scalaVersionPrefix = scalaVersionStr.substring(0, 4)
 
 lazy val root = project
   .withId("memsql-spark-connector")
@@ -12,7 +17,12 @@ lazy val root = project
   .settings(
     name := "memsql-spark-connector",
     organization := "com.memsql",
-    scalaVersion := "2.12.12",
+    scalaVersion := scalaVersionStr,
+    Compile / unmanagedSourceDirectories += (Compile / sourceDirectory).value / (sparkVersion match {
+      case "2.3.4" => "scala-sparkv2"
+      case "2.4.4" => "scala-sparkv2"
+      case _       => "scala-sparkv3"
+    }),
     version := s"3.1.0-beta1-spark",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
@@ -20,18 +30,18 @@ lazy val root = project
     resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven",
     libraryDependencies ++= Seq(
       // runtime dependencies
-      "org.apache.spark"       %% "spark-core"             % sparkVersion % "provided, test",
-      "org.apache.spark"       %% "spark-sql"              % sparkVersion % "provided, test",
-      "org.apache.avro"        % "avro"                    % "1.8.2",
-      "org.apache.commons"     % "commons-dbcp2"           % "2.7.0",
-      "org.scala-lang.modules" % "scala-java8-compat_2.12" % "0.9.0",
-      "org.mariadb.jdbc"       % "mariadb-java-client"     % "2.+",
-      "io.spray"               %% "spray-json"             % "1.3.5",
+      "org.apache.spark"       %% "spark-core"         % sparkVersion % "provided, test",
+      "org.apache.spark"       %% "spark-sql"          % sparkVersion % "provided, test",
+      "org.apache.avro"        % "avro"                % "1.8.2",
+      "org.apache.commons"     % "commons-dbcp2"       % "2.7.0",
+      "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.0",
+      "org.mariadb.jdbc"       % "mariadb-java-client" % "2.+",
+      "io.spray"               %% "spray-json"         % "1.3.5",
       // test dependencies
-      "org.scalatest"  %% "scalatest"       % "3.1.0"         % Test,
-      "org.scalacheck" %% "scalacheck"      % "1.14.1"        % Test,
-      "mrpowers"       % "spark-daria"      % "0.35.0-s_2.12" % Test,
-      "MrPowers"       % "spark-fast-tests" % "0.21.0-s_2.12" % Test
+      "org.scalatest"  %% "scalatest"       % "3.1.0"                         % Test,
+      "org.scalacheck" %% "scalacheck"      % "1.14.1"                        % Test,
+      "mrpowers"       % "spark-daria"      % s"0.35.0-s_$scalaVersionPrefix" % Test,
+      "MrPowers"       % "spark-fast-tests" % s"0.21.0-s_$scalaVersionPrefix" % Test
     ),
     Test / testOptions += Tests.Argument("-oF"),
     Test / fork := true

@@ -14,7 +14,6 @@ import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.avro.io.EncoderFactory
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.connector.write.{DataWriter, WriterCommitMessage}
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.{Row, SaveMode}
@@ -23,7 +22,14 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
 
-case class WriteSuccess() extends WriterCommitMessage
+abstract class WriterCommitMessage extends Serializable {}
+case class WriteSuccess()          extends WriterCommitMessage
+
+abstract class DataWriter[T] {
+  def write(record: T): Unit
+  def commit(): WriterCommitMessage
+  def abort(): Unit
+}
 
 abstract class WriterFactory extends Serializable {
   def createDataWriter(schema: StructType,
@@ -208,11 +214,6 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
     outputstream.close()
     Await.ready(writeFuture, Duration.Inf)
   }
-
-  override def close(): Unit = {
-    outputstream.close()
-    conn.close()
-  }
 }
 
 class AvroDataWriter(avroSchema: Schema,
@@ -256,10 +257,5 @@ class AvroDataWriter(avroSchema: Schema,
     conn.abort(ExecutionContext.global)
     outputstream.close()
     Await.ready(writeFuture, Duration.Inf)
-  }
-
-  override def close(): Unit = {
-    outputstream.close()
-    conn.close()
   }
 }

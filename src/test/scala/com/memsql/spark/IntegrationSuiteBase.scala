@@ -20,6 +20,8 @@ trait IntegrationSuiteBase
     with BeforeAndAfterAll
     with DataFrameComparer
     with LazyLogging {
+  object OnlySpark3 extends Tag("OnlySpark3")
+
   final val masterHost: String = sys.props.getOrElse("memsql.host", "localhost")
   final val masterPort: String = sys.props.getOrElse("memsql.port", "5506")
 

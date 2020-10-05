@@ -25,9 +25,9 @@ object ExpressionGen extends LazyLogging {
   }
 
   // helpers to keep this code sane
-  def f(n: String, c: Joinable*)              = func(n, c: _*)
-  def op(o: String, l: Joinable, r: Joinable) = block(l + o + r)
-  def ifNeg(value: Joinable, valTrue: Joinable, valFalse: Joinable) =
+  def f(n: String, c: Joinable*): Statement              = func(n, c: _*)
+  def op(o: String, l: Joinable, r: Joinable): Statement = block(l + o + r)
+  def ifNeg(value: Joinable, valTrue: Joinable, valFalse: Joinable): Statement =
     f("IF", op("<", value, IntVar(0)), valTrue, valFalse)
 
   def makeDecimal(child: Joinable, precision: Int, scale: Int): Joinable = {
@@ -35,6 +35,40 @@ object ExpressionGen extends LazyLogging {
     val s = Math.min(MEMSQL_DECIMAL_MAX_SCALE, scale)
     cast(child, s"DECIMAL($p, $s)")
   }
+
+  def addMicroseconds(start: Joinable, v: CalendarInterval): Joinable =
+    if (v.microseconds == 0) {
+      start
+    } else {
+      f("DATE_ADD", start, Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
+    }
+
+  def addMonths(start: Joinable, v: CalendarInterval): Joinable =
+    if (v.months == 0) {
+      start
+    } else {
+      f("DATE_ADD", start, Raw("INTERVAL") + v.months.toString + "MONTH")
+    }
+
+  def subMicroseconds(start: Joinable, v: CalendarInterval): Joinable =
+    if (v.microseconds == 0) {
+      start
+    } else {
+      f("DATE_SUB", start, Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
+    }
+
+  def subMonths(start: Joinable, v: CalendarInterval): Joinable =
+    if (v.months == 0) {
+      start
+    } else {
+      f("DATE_SUB", start, Raw("INTERVAL") + v.months.toString + "MONTH")
+    }
+
+  def longToDecimal(child: Joinable, p: Int, s: Int): Joinable =
+    makeDecimal(op("/", child, math.pow(10.0, s).toString), p, s)
+
+  def like(left: Joinable, right: Joinable): Joinable =
+    op("LIKE", left, right)
 
   // regexpFromStart adds a ^ prefix for memsql regexp to match the beginning of the string (as Java does)
   def regexpFromStart(r: Joinable): Joinable = func("CONCAT", StringVar("^"), r)
@@ -132,14 +166,10 @@ object ExpressionGen extends LazyLogging {
   case class AggregateExpressionExtractor(expressionExtractor: ExpressionExtractor,
                                           context: SQLGenContext) {
     def unapply(arg: AggregateExpression): Option[Joinable] = {
-      val filterOption = arg.filter match {
-        case None => Some(None)
-        case Some(filter) =>
-          expressionExtractor
-            .unapply(filter)
-            .map(f => Some(f))
-      }
+      val filterOption = AggregateExpressionFilter.get(expressionExtractor, arg)
       filterOption.flatMap(filter => {
+        val bitAggregateExpressionExtractor =
+          BitAggregateExpressionExtractor(expressionExtractor, context, filter)
         arg.aggregateFunction match {
 
           // Average.scala
@@ -195,16 +225,7 @@ object ExpressionGen extends LazyLogging {
           case Sum(expressionExtractor(child)) =>
             Some(aggregateWithFilter("SUM", child, filter))
 
-          // BitAnd.scala
-          case BitAndAgg(expressionExtractor(child)) if context.memsqlVersionAtLeast("7.0.1") =>
-            Some(aggregateWithFilter("BIT_AND", child, filter))
-          // BitOr.scala
-          case BitOrAgg(expressionExtractor(child)) if context.memsqlVersionAtLeast("7.0.1") =>
-            Some(aggregateWithFilter("BIT_OR", child, filter))
-          // BitXor.scala
-          case BitXorAgg(expressionExtractor(child)) if context.memsqlVersionAtLeast("7.0.1") =>
-            Some(aggregateWithFilter("BIT_XOR", child, filter))
-
+          case bitAggregateExpressionExtractor(statement) => Some(statement)
           //    case AggregateExpression(MaxBy(expressionExtractor(valueExpr), expressionExtractor(orderingExpr)), _, _, None, _) =>
           //    case AggregateExpression(MinBy(expressionExtractor(valueExpr), expressionExtractor(orderingExpr)), _, _, None, _) =>
           case _ => None
@@ -241,6 +262,8 @@ object ExpressionGen extends LazyLogging {
     val decimalExpressionExtractor        = DecimalExpressionExtractor(expressionExtractor)
     val intFoldableExtractor              = FoldableExtractor[Int]()
     val utf8StringFoldableExtractor       = FoldableExtractor[UTF8String]()
+    val versionSpecificExpressionGen      = VersionSpecificExpressionGen(expressionExtractor)
+
     return {
       // ----------------------------------
       // Attributes
@@ -329,54 +352,6 @@ object ExpressionGen extends LazyLogging {
         f("ADDDATE", startDate, days)
       case DateSub(expressionExtractor(startDate), expressionExtractor(days)) =>
         f("SUBDATE", startDate, days)
-
-      case TimeAdd(expressionExtractor(start),
-                   Literal(v: CalendarInterval, CalendarIntervalType),
-                   timeZoneId) => {
-        def addMicroseconds(start: Joinable) =
-          if (v.microseconds == 0) {
-            start
-          } else {
-            f("DATE_ADD", start, Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
-          }
-        def addDays(start: Joinable) =
-          if (v.days == 0) {
-            start
-          } else {
-            f("DATE_ADD", start, Raw("INTERVAL") + v.days.toString + "DAY")
-          }
-        def addMonths(start: Joinable) =
-          if (v.months == 0) {
-            start
-          } else {
-            f("DATE_ADD", start, Raw("INTERVAL") + v.months.toString + "MONTH")
-          }
-        addMicroseconds(addDays(addMonths(start)))
-      }
-
-      case TimeSub(expressionExtractor(start),
-                   Literal(v: CalendarInterval, CalendarIntervalType),
-                   timeZoneId) => {
-        def subMicroseconds(start: Joinable) =
-          if (v.microseconds == 0) {
-            start
-          } else {
-            f("DATE_SUB", start, Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
-          }
-        def subDays(start: Joinable) =
-          if (v.days == 0) {
-            start
-          } else {
-            f("DATE_SUB", start, Raw("INTERVAL") + v.days.toString + "DAY")
-          }
-        def subMonths(start: Joinable) =
-          if (v.months == 0) {
-            start
-          } else {
-            f("DATE_SUB", start, Raw("INTERVAL") + v.months.toString + "MONTH")
-          }
-        subMicroseconds(subDays(subMonths(start)))
-      }
 
       case FromUTCTimestamp(expressionExtractor(timestamp), expressionExtractor(timezone)) =>
         f("CONVERT_TZ", timestamp, StringVar("UTC"), timezone)
@@ -478,9 +453,6 @@ object ExpressionGen extends LazyLogging {
         op(">>", left, right)
       case Logarithm(expressionExtractor(left), expressionExtractor(right)) => f("LOG", left, right)
       case Round(expressionExtractor(child), expressionExtractor(scale))    => f("ROUND", child, scale)
-      case IntegralDivide(expressionExtractor(left), expressionExtractor(right)) =>
-        f("FLOOR", op("/", left, right))
-
       case Hypot(expressionExtractor(left), expressionExtractor(right)) =>
         f("SQRT", op("+", f("POW", left, "2"), f("POW", right, "2")))
 
@@ -517,14 +489,6 @@ object ExpressionGen extends LazyLogging {
         )
 
       // regexpExpressions.scala
-
-      case Like(expressionExtractor(left), expressionExtractor(right), escapeChar: Char) =>
-        if (escapeChar == '\\') {
-          op("LIKE", left, right)
-        } else {
-          op("LIKE", left, f("REPLACE", right, "'" + escapeChar.toString() + "'", "'\\\\'"))
-        }
-
       case RLike(expressionExtractor(left), expressionExtractor(right)) =>
         op("RLIKE", left, regexpFromStart(right))
 
@@ -639,9 +603,6 @@ object ExpressionGen extends LazyLogging {
       // bitwiseExpression.scala
       case BitwiseNot(expressionExtractor(expr)) => f("~", expr)
 
-      case BitwiseCount(expressionExtractor(child)) =>
-        f("BIT_COUNT", child)
-
       // Cast.scala
       case Cast(e @ expressionExtractor(child), dataType, _) => {
         dataType match {
@@ -695,34 +656,8 @@ object ExpressionGen extends LazyLogging {
       case Month(expressionExtractor(child))       => f("MONTH", child)
       case DayOfMonth(expressionExtractor(child))  => f("DAY", child)
       case DayOfWeek(expressionExtractor(child))   => f("DAYOFWEEK", child)
-      case WeekDay(expressionExtractor(child))     => f("WEEKDAY", child)
       case WeekOfYear(expressionExtractor(child))  => f("WEEK", child, "3")
       case LastDay(expressionExtractor(startDate)) => f("LAST_DAY", startDate)
-
-      //    case DatePart(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child)) => // Converts to CAST(field)
-      //    case Extract(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child))  => // Converts to CAST(field)
-      case MakeDate(expressionExtractor(year),
-                    expressionExtractor(month),
-                    expressionExtractor(day)) =>
-        f("DATE", f("CONCAT", year, "'-'", month, "'-'", day))
-      //    case MakeInterval(_, _, _, _, _, _, _) => ???
-      case MakeTimestamp(expressionExtractor(year),
-                         expressionExtractor(month),
-                         expressionExtractor(day),
-                         expressionExtractor(hour),
-                         expressionExtractor(min),
-                         expressionExtractor(sec),
-                         _,
-                         _) =>
-        f("TIMESTAMP",
-          f("CONCAT", year, "'-'", month, "'-'", day, "' '", hour, "':'", min, "':'", sec))
-
-      // decimalExpressions.scala
-      // MakeDecimal and UnscaledValue value are used in DecimalAggregates optimizer
-      // This optimizer replace Decimals inside of the sum and aggregate expressions to the Longs using UnscaledValue
-      // and then casts the result back to Decimal using MakeDecimal
-      case MakeDecimal(expressionExtractor(child), p, s, _) =>
-        makeDecimal(op("/", child, math.pow(10.0, s).toString), p, s)
 
       case UnscaledValue(decimalExpressionExtractor(child, precision, scale)) =>
         op("!:>", op("*", child, math.pow(10.0, scale).toString), "BIGINT")
@@ -788,19 +723,6 @@ object ExpressionGen extends LazyLogging {
       // cosh(x) = (exp(x) + exp(-x)) / 2
       case Cosh(expressionExtractor(child)) =>
         op("/", op("+", f("EXP", child), f("EXP", f("-", child))), "2")
-
-      // asinh(x) = ln(x + sqrt(x^2 + 1))
-      case Asinh(expressionExtractor(child)) =>
-        f("LN", op("+", child, f("SQRT", op("+", f("POW", child, "2"), "1"))))
-
-      // acosh(x) = ln(x + sqrt(x^2 - 1))
-      case Acosh(expressionExtractor(child)) =>
-        f("LN", op("+", child, f("SQRT", op("-", f("POW", child, "2"), "1"))))
-
-      // atanh(x) = 1/2 * ln((1 + x)/(1 - x))
-      case Atanh(expressionExtractor(child)) =>
-        op("/", f("LN", op("/", op("+", "1", child), op("-", "1", child))), "2")
-
       case Rint(expressionExtractor(child)) => f("ROUND", child, "0")
 
       // TODO: case Factorial(expressionExtractor(child)) => ???
@@ -855,6 +777,8 @@ object ExpressionGen extends LazyLogging {
         f("IF", f("ISNULL", child), StringVar(null), f("CHAR", child))
       case Base64(expressionExtractor(child))   => f("TO_BASE64", child)
       case UnBase64(expressionExtractor(child)) => f("FROM_BASE64", child)
+
+      case versionSpecificExpressionGen(child) => child
 
       // TODO: case InitCap(expressionExtractor(child)) => ???
       // TODO: case StringReverse(expressionExtractor(child)) => ???

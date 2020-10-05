@@ -1,6 +1,37 @@
 # MemSQL Spark Connector
 ## Version: 3.1.0-beta1 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
+## Getting Started
+
+You can find the latest version of the connector on Maven Central and
+spark-packages.org.  The group is `com.memsql` and the artifact is
+`memsql-spark-connector_2.11` for Spark 2 and `memsql-spark-connector_2.12` for Spark 3.
+
+* [Maven Central (Spark 2)](https://search.maven.org/artifact/com.memsql/memsql-spark-connector_2.11)
+* [Maven Central (Spark 3)](https://search.maven.org/artifact/com.memsql/memsql-spark-connector_2.12)
+* [spark-packages.org](https://spark-packages.org/package/memsql/memsql-spark-connector)
+
+You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
+```
+$SPARK_HOME/bin/spark-shell --packages com.memsql:memsql-spark-connector_2.12:3.1.0-beta1-spark-3.0.0
+```
+
+We release three versions of the `memsql-spark-connector`, one per Spark version.
+An example version number is: `3.1.0-beta1-spark-3.0.0` which is the 3.1.0-beta1
+version of the connector, compiled and tested against Spark 3.0.0. Make sure
+you are using the most recent version of the connector.
+
+In addition to adding the `memsql-spark-connector`, you will also need to have the
+MariaDB JDBC driver installed.  This library is tested against the following
+MariaDB driver version:
+
+```
+"org.mariadb.jdbc" % "mariadb-java-client"  % "2.+"
+```
+
+Once you have everything installed, you're ready to run your first
+queries against MemSQL!
+
 ## Configuration
 
 The `memsql-spark-connector` is configurable globally via Spark options and
@@ -479,7 +510,7 @@ The MemSQL Spark Connector 3.1.0-beta1 has a number of key features and enhancem
 * Implemented as a native Spark SQL plugin
 * Supports both the DataSource and DataSourceV2 API for maximum support of current and future functionality
 * Contains deep integrations with the Catalyst query optimizer
-* Is compatible with Spark 3.0
+* Is compatible with Spark 2.3, 2.4 and 3.0
 * Leverages MemSQL LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
 * Takes advantage of all the latest and greatest features in MemSQL 7.x
 

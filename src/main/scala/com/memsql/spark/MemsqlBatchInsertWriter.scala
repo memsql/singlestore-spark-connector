@@ -5,7 +5,6 @@ import java.util.Base64
 
 import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.connector.write.{DataWriter, WriterCommitMessage}
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.{BinaryType, StructType}
 
@@ -105,10 +104,6 @@ class BatchInsertWriter(batchSize: Int, writeBatch: ListBuffer[Row] => Long, con
   override def abort(): Unit = {
     buff = ListBuffer.empty[Row]
     conn.abort(ExecutionContext.global)
-    conn.close()
-  }
-
-  override def close(): Unit = {
     conn.close()
   }
 }

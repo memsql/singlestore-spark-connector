@@ -42,7 +42,6 @@ object MemsqlOptions extends LazyLogging {
       values.find(_.toString.toLowerCase() == s.toLowerCase())
 
     lazy val valuesString = values.mkString(", ")
-
     def fromOption(optionName: String, source: Option[String], default: Value): Value =
       source
         .orElse(Some(default.toString))

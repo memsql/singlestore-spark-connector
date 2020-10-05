@@ -122,7 +122,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                 expectCodegenDeterminism: Boolean = true,
                 pushdown: Boolean = true,
                 filterDF: DataFrame => DataFrame = x => x): Unit = {
-
     spark.sql("use testdb_jdbc")
     val jdbcDF = filterDF(spark.sql(q))
 
@@ -988,62 +987,61 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery("select rint(null) as rint from reviews")
       }
     }
+
     describe("asinh") {
-      it("works with float") {
-        testQuery("select asinh(rating) as asinh from reviews")
+      it("works with float", OnlySpark3) {
+        testQuery("select rating, asinh(rating) as x from reviews")
       }
-      it("works with tinyint") {
-        testQuery("select asinh(owns_house) as asinh from users")
+      it("works with tinyint", OnlySpark3) {
+        testQuery("select owns_house, asinh(owns_house) as x from users")
       }
-      it("partial pushdown") {
-        testQuery(
-          "select asinh(stringIdentity(rating)) as asinh, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true)
+      it("partial pushdown", OnlySpark3) {
+        testQuery("select rating, asinh(stringIdentity(rating)) as x from reviews",
+                  expectPartialPushdown = true)
       }
-      it("works with null") {
-        testQuery("select asinh(null) as asinh from reviews")
+      it("works with null", OnlySpark3) {
+        testQuery("select asinh(null) as x from reviews")
       }
     }
     describe("acosh") {
-      it("works with float") {
+      it("works with float", OnlySpark3) {
         testQuery("select acosh(rating) as acosh from reviews")
       }
-      it("partial pushdown") {
+      it("partial pushdown", OnlySpark3) {
         testQuery(
           "select acosh(stringIdentity(rating)) as acosh, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true)
       }
-      it("works with null") {
+      it("works with null", OnlySpark3) {
         testQuery("select acosh(null) as acosh from reviews")
       }
     }
     describe("atanh") {
-      it("works with float") {
+      it("works with float", OnlySpark3) {
         testQuery(
-          "select atanh(critic_rating) as atanh from movies where critic_rating > -1 AND critic_rating < 1")
+          "select critic_rating, atanh(critic_rating) as x from movies where critic_rating > -1 AND critic_rating < 1")
       }
-      it("partial pushdown") {
-        testQuery(
-          "select atanh(stringIdentity(rating)) as atanh, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true)
+      it("partial pushdown", OnlySpark3) {
+        testQuery("select rating, atanh(stringIdentity(rating)) as x from reviews",
+                  expectPartialPushdown = true)
       }
-      it("works with null") {
-        testQuery("select atanh(null) as atanh from reviews")
+      it("works with null", OnlySpark3) {
+        testQuery("select atanh(null) as x from reviews")
       }
     }
     describe("integralDivide") {
-      it("works with bigint") {
-        testQuery("select user_id div movie_id from reviews")
+      it("works with bigint", OnlySpark3) {
+        testQuery("select user_id, movie_id, user_id div movie_id from reviews")
       }
-      it("works with null") {
+      it("works with null", OnlySpark3) {
         testQuery("select null div null as integralDivide from reviews")
       }
-      it("partial pushdown") {
-        testQuery(
-          "select stringIdentity(null div null) as integralDivide, stringIdentity(review) from reviews",
-          expectPartialPushdown = true)
+      it("partial pushdown", OnlySpark3) {
+        testQuery("select stringIdentity(null div null) as integralDivide from reviews",
+                  expectPartialPushdown = true)
       }
     }
+
     describe("sqrt") {
       it("works with float") {
         testQuery("select sqrt(rating) as sqrt from reviews")
@@ -1546,7 +1544,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("bit operations") {
-    it("bit_count") { testQuery("SELECT bit_count(user_id) AS bit_count FROM reviews") }
+    it("bit_count", OnlySpark3) { testQuery("SELECT bit_count(user_id) AS bit_count FROM reviews") }
     def bitOperationTest(sql: String): Unit = {
       val bitOperationsMinVersion = MemsqlVersion(7, 0, 1)
       val resultSet               = spark.executeMemsqlQuery("select @@memsql_version")
@@ -1554,16 +1552,20 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       if (version.atLeast(bitOperationsMinVersion))
         testSingleReadQuery(sql)
     }
-    it("bit_and") { bitOperationTest("SELECT bit_and(user_id) AS bit_and FROM reviews") }
-    it("bit_and filter") {
+    it("bit_and", OnlySpark3) {
+      bitOperationTest("SELECT bit_and(user_id) AS bit_and FROM reviews")
+    }
+    it("bit_and filter", OnlySpark3) {
       bitOperationTest("SELECT bit_and(user_id) filter (where user_id % 2 = 0) FROM reviews")
     }
-    it("bit_or") { bitOperationTest("SELECT bit_or(age) AS bit_or FROM users") }
-    it("bit_or filter") {
+    it("bit_or", OnlySpark3) { bitOperationTest("SELECT bit_or(age) AS bit_or FROM users") }
+    it("bit_or filter", OnlySpark3) {
       bitOperationTest("SELECT bit_or(age) filter (where age % 2 = 0) FROM users")
     }
-    it("bit_xor") { bitOperationTest("SELECT bit_xor(user_id) AS bit_xor FROM reviews") }
-    it("bit_xor filter") {
+    it("bit_xor", OnlySpark3) {
+      bitOperationTest("SELECT bit_xor(user_id) AS bit_xor FROM reviews")
+    }
+    it("bit_xor filter", OnlySpark3) {
       bitOperationTest("SELECT bit_xor(user_id) filter (where user_id % 2 = 0) FROM reviews")
     }
   }
@@ -1585,7 +1587,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("float") { testQuery("select critic_rating from movies") }
     it("text") { testQuery("select first_name from users") }
 
-    it("typeof") {
+    it("typeof", OnlySpark3) {
       testSingleReadQuery("SELECT typeof(user_id), typeof(created), typeof(review) FROM reviews")
     }
   }
@@ -1607,7 +1609,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadQuery("select avg(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
-      it("filter") {
+      it("filter", OnlySpark3) {
         testSingleReadQuery("select avg(age) filter (where age % 2 = 0) from users")
       }
     }
@@ -1621,7 +1623,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadQuery("select stddev_pop(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
-      it("filter") {
+      it("filter", OnlySpark3) {
         testSingleReadQuery("select stddev_pop(age) filter (where age % 2 = 0) from users")
       }
     }
@@ -1635,7 +1637,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadQuery("select stddev_samp(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
-      it("filter") {
+      it("filter", OnlySpark3) {
         testSingleReadQuery("select stddev_samp(age) filter (where age % 2 = 0) from users")
       }
     }
@@ -1649,7 +1651,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadQuery("select var_pop(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
-      it("filter") {
+      it("filter", OnlySpark3) {
         testSingleReadQuery("select var_pop(age) filter (where age % 2 = 0) from users")
       }
     }
@@ -1663,7 +1665,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadQuery("select var_samp(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
-      it("filter") {
+      it("filter", OnlySpark3) {
         testSingleReadQuery("select var_samp(age) filter (where age % 2 = 0) from users")
       }
     }
@@ -1676,7 +1678,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadQuery("select max(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
-      it("filter") {
+      it("filter", OnlySpark3) {
         testSingleReadQuery(
           "select max(user_id) filter (where user_id % 2 = 0) as maxid_filter from reviews")
       }
@@ -1690,7 +1692,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadQuery("select min(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
-      it("filter") {
+      it("filter", OnlySpark3) {
         testSingleReadQuery(
           "select min(user_id) filter (where user_id % 2 = 0) as minid_filter from reviews")
       }
@@ -1712,7 +1714,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadQuery("select first(stringIdentity(first_name)) from users group by id",
                             expectPartialPushdown = true)
       }
-      it("filter") {
+      it("filter", OnlySpark3) {
         testSingleReadQuery(
           "select first(first_name) filter (where age % 2 = 0) from users group by id")
       }
@@ -1723,7 +1725,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadQuery("select last(stringIdentity(first_name)) from users group by id",
                             expectPartialPushdown = true)
       }
-      it("filter") {
+      it("filter", OnlySpark3) {
         testSingleReadQuery(
           "select last(first_name) filter (where age % 2 = 0) from users group by id")
       }
@@ -1740,16 +1742,18 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           "select count(distinct stringIdentity(first_name)) from users group by id",
           expectPartialPushdown = true)
       }
-      it("filter") {
+      it("filter", OnlySpark3) {
         testSingleReadQuery("select count(*) filter (where age % 2 = 0) from users")
       }
-      it("partial pushdown with udf in filter") {
+      it("partial pushdown with udf in filter", OnlySpark3) {
         spark.udf.register("myUDF", (x: Int) => x % 3 == 1)
         testSingleReadQuery("SELECT count_if(age % 2 = 0) filter (where myUDF(age)) FROM users",
                             expectPartialPushdown = true)
       }
-      it("count_if") { testSingleReadQuery("SELECT count_if(age % 2 = 0) as count FROM users") }
-      it("count_if filter") {
+      it("count_if", OnlySpark3) {
+        testSingleReadQuery("SELECT count_if(age % 2 = 0) as count FROM users")
+      }
+      it("count_if filter", OnlySpark3) {
         testSingleReadQuery("SELECT count_if(age % 2 = 0) filter (where age % 2 = 0) FROM users")
       }
     }
@@ -2015,7 +2019,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         }
         it("right outer join") {
           testSingleReadQuery(
-            "select * from users right outer join (select rating from reviews order by rating limit 10)",
+            "select * from users right outer join (select rating from reviews order by rating limit 10) order by age",
             expectPartialPushdown = true)
         }
         it("full outer join") {
@@ -2403,17 +2407,20 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("works") {
         for (interval <- intervals) {
           println(s"testing timeAdd with interval $interval")
-          testQuery(s"""
+          val query = s"""
                        | select created, created + interval $interval
                        | from reviews
                        | where date(created) != last_day(created)
-                       |""".stripMargin)
+                       |""".stripMargin
+          if (!interval.contains("day") || spark.version != "3.0.0") {
+            testQuery(query)
+          }
         }
       }
       it("partial pushdown because of udf in the left argument") {
         testQuery(
           s"""
-                     | select created, stringIdentity(created) + interval 1 day
+                     | select created, stringIdentity(created) + interval 1 month
                      | from reviews
                      | where date(created) != last_day(created)
                      |""".stripMargin,
@@ -2655,7 +2662,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       List("MINUTE", "MIN", "M", "MINS", "MINUTES")
     )
 
-    it(s"extract") {
+    it("extract", OnlySpark3) {
       for (periods <- periodsList) {
         for (period <- periods) {
           testQuery(s"SELECT extract($period FROM birthday) as extract_period from users")
@@ -2664,7 +2671,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    it("datePart") {
+    it("datePart", OnlySpark3) {
       for (periods <- periodsList) {
         for (period <- periods) {
           testQuery(s"SELECT date_part('$period', birthday) as date_part from users")
@@ -2673,11 +2680,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    it("makeDate") {
+    it("makeDate", OnlySpark3) {
       testQuery("SELECT make_date(1000, user_id, user_id) FROM reviews")
     }
 
-    it("makeTimestamp") {
+    it("makeTimestamp", OnlySpark3) {
       testQuery(
         "SELECT make_timestamp(1000, user_id, user_id, user_id, user_id, user_id) FROM reviews")
     }
@@ -3240,11 +3247,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       for (precision <- 0 to Decimal.MAX_LONG_DIGITS - 10;
            // If rating >= 10^(precision - scale) then rating will overflow during the casting
            // JDBC returns null on overflow if !ansiEnabled and errors otherwise
-           // MemSQL truncates the value on overflow
-           // Because of this, we filter such cases
-           scale <- 1 to precision) {
+           // Me  mSQL truncates the value on overflow
+           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
+           scale <- 1 until precision) {
         testSingleReadQuery(
-          s"select sum(cast(rating as decimal($precision, $scale))) filter (where rating < pow(10.0, ${precision - scale})) as rs from reviews")
+          s"select sum(cast(rating as decimal($precision, $scale))) as rs from reviews")
       }
     }
 
@@ -3254,7 +3261,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
            // If rating >= 10^(precision - scale) then rating will overflow during the casting
            // JDBC returns null on overflow if !ansiEnabled and errors otherwise
            // MemSQL truncates the value on overflow
-           // Window aggregate function with filter predicate is not supported by spark yet
            // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
            scale <- 1 until precision) {
         testSingleReadQuery(
@@ -3268,10 +3274,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
            // If rating >= 10^(precision - scale) then rating will overflow during the casting
            // JDBC returns null on overflow if !ansiEnabled and errors otherwise
            // MemSQL truncates the value on overflow
-           // Because of this, we filter such cases
-           scale <- 0 to precision) {
+           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
+           scale <- 1 until precision) {
         testSingleReadQuery(
-          s"select avg(cast(rating as decimal($precision, $scale))) filter (where rating < pow(10.0, ${precision - scale})) as rs from reviews")
+          s"select avg(cast(rating as decimal($precision, $scale))) as rs from reviews")
       }
     }
 
@@ -3281,7 +3287,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
            // If rating >= 10^(precision - scale) then rating will overflow during the casting
            // JDBC returns null on overflow if !ansiEnabled and errors otherwise
            // MemSQL truncates the value on overflow
-           // Window aggregate function with filter predicate is not supported by spark yet
            // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
            scale <- 1 until precision) {
         testSingleReadQuery(
@@ -3367,11 +3372,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("null") {
         testQuery("select critic_review like null from movies")
       }
-      it("with escape char") {
+      it("with escape char", OnlySpark3) {
         testQuery(
           "select first_name like last_name escape '^', last_name like first_name escape '^' from users")
       }
-      it("with escape char equal to '/'") {
+      it("with escape char equal to '/'", OnlySpark3) {
         testQuery(
           "select first_name like last_name escape '/', last_name like first_name escape '/' from users")
       }

@@ -1,3 +1,20 @@
+2020-09-29 Version 3.1.0
+        * Added Spark 3.0 support
+        * Fixed bugs in pushdowns
+        * Fixed bug with wrong SQL code generation of attribute names that contains special characters
+        * Added methods that allow you to run SQL queries on a MemSQL database directly
+
+2020-08-20 Version 3.0.4
+	* Added trim pushdown
+
+2020-08-14 Version 3.0.3
+	* Fixed bug with pushdown of the join condition
+
+2020-08-03 Version 3.0.2
+	* added maxErrors option
+	* changed aliases in SQL queries to be more deterministic
+	* disabled comments inside of the SQL queries when logging level is not TRACE
+
 2020-06-12 Version 3.0.1
 	* The connector now updates task metrics with the number of records written during write operations
 
