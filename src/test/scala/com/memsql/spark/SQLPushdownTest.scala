@@ -1455,23 +1455,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     describe("Conv") {
       // memsql and spark behaviour differs when num contains non alphanumeric characters
       val bases = Seq(2, 5, 23, 36)
-      it("works with all supported by memsql fromBase") {
-        for (fromBase <- 2 to 36; toBase <- bases) {
+      it("works") {
+        for (fromBase <- bases; toBase <- bases) {
           log.debug(s"testing conv $fromBase -> $toBase")
-          testQuery(s"""select 
-               |first_name, 
-               |conv(first_name, $fromBase, $toBase) 
-               |from users 
-               |where first_name rlike '^[a-zA-Z0-9]*$$'""".stripMargin)
-        }
-      }
-      it("works with all supported by memsql toBase") {
-        for (fromBase <- bases; toBase <- 2 to 36) {
-          log.debug(s"testing conv $fromBase -> $toBase")
-          testQuery(s"""select 
-               |first_name, 
-               |conv(first_name, $fromBase, $toBase) 
-               |from users 
+          testQuery(s"""select
+               |first_name,
+               |conv(first_name, $fromBase, $toBase)
+               |from users
                |where first_name rlike '^[a-zA-Z0-9]*$$'""".stripMargin)
         }
       }
@@ -3242,27 +3232,30 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("decimalExpressions") {
+    val precisions = List(2, 5, Decimal.MAX_LONG_DIGITS - 10)
+    val scales     = List(1, 4, Decimal.MAX_LONG_DIGITS - 11)
     it("sum of decimals") {
       // If precision + 10 <= Decimal.MAX_LONG_DIGITS then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
-      for (precision <- 0 to Decimal.MAX_LONG_DIGITS - 10;
-           // If rating >= 10^(precision - scale) then rating will overflow during the casting
-           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
-           // Me  mSQL truncates the value on overflow
-           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
-           scale <- 1 until precision) {
-        testSingleReadQuery(
-          s"select sum(cast(rating as decimal($precision, $scale))) as rs from reviews")
-      }
-    }
-
-    it("window expression with sum of decimals") {
-      // If precision + 10 <= Decimal.MAX_LONG_DIGITS then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
-      for (precision <- 1 to Decimal.MAX_LONG_DIGITS - 10;
+      for (precision <- precisions;
            // If rating >= 10^(precision - scale) then rating will overflow during the casting
            // JDBC returns null on overflow if !ansiEnabled and errors otherwise
            // MemSQL truncates the value on overflow
            // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
-           scale <- 1 until precision) {
+           scale <- scales if scale < precision) {
+        testSingleReadQuery(
+          s"select sum(cast(rating as decimal($precision, $scale))) as rs from reviews")
+      }
+
+    }
+
+    it("window expression with sum of decimals") {
+      // If precision + 10 <= Decimal.MAX_LONG_DIGITS then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
+      for (precision <- precisions;
+           // If rating >= 10^(precision - scale) then rating will overflow during the casting
+           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
+           // MemSQL truncates the value on overflow
+           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
+           scale <- scales if scale < precision) {
         testSingleReadQuery(
           s"select sum(cast(rating as decimal($precision, $scale))) over (order by rating) as out from reviews")
       }
@@ -3270,12 +3263,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     it("avg of decimals") {
       // If precision + 4 <= MAX_DOUBLE_DIGITS (15) then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
-      for (precision <- 1 to 11;
+      for (precision <- precisions;
            // If rating >= 10^(precision - scale) then rating will overflow during the casting
            // JDBC returns null on overflow if !ansiEnabled and errors otherwise
            // MemSQL truncates the value on overflow
            // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
-           scale <- 1 until precision) {
+           scale <- scales if scale < precision) {
         testSingleReadQuery(
           s"select avg(cast(rating as decimal($precision, $scale))) as rs from reviews")
       }
@@ -3283,12 +3276,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     it("window expression with avg of decimals") {
       // If precision + 4 <= MAX_DOUBLE_DIGITS (15) then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
-      for (precision <- 1 to 11;
+      for (precision <- precisions;
            // If rating >= 10^(precision - scale) then rating will overflow during the casting
            // JDBC returns null on overflow if !ansiEnabled and errors otherwise
            // MemSQL truncates the value on overflow
            // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
-           scale <- 1 until precision) {
+           scale <- scales if scale < precision) {
         testSingleReadQuery(
           s"select avg(cast(rating as decimal($precision, $scale))) over (order by rating) as out from reviews")
       }
