@@ -50,6 +50,7 @@ if [[ "${EXISTS}" -eq 0 ]]; then
     docker exec -it ${CONTAINER_NAME} memsqlctl create-node --yes --no-start --port 3308
     docker exec -it ${CONTAINER_NAME} memsqlctl update-config --yes --all --key minimum_core_count --value 0
     docker exec -it ${CONTAINER_NAME} memsqlctl update-config --yes --all --key minimum_memory_mb --value 0
+    docker exec -it ${CONTAINER_NAME} memsqlctl update-config --yes --all --key maximum_memory --value 2048
     docker exec -it ${CONTAINER_NAME} memsqlctl start-node --yes --all
     docker exec -it ${CONTAINER_NAME} memsqlctl add-aggregator --yes --host 127.0.0.1 --port 3308
 fi
