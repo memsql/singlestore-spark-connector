@@ -267,7 +267,10 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
         rows.zipWithIndex,
         List(("data", BinaryType, true), ("id", IntegerType, true))
       )
+      testBinaryTypeDf(df)
+    }
 
+    def testBinaryTypeDf(df: DataFrame) = {
       writeRead(df, df, Map.empty, "BinaryTypeLoad")
       writeRead(df, df, Map(MemsqlOptions.LOAD_DATA_FORMAT -> "avro"), "BinaryTypeLoad")
       writeRead(df,
@@ -325,13 +328,39 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
       testBinaryType(List.fill(100)(genRandomRow()))
     }
 
+    def genRandomByte(): Byte = (Random.nextInt(256) - 128).toByte
+
+    def genRandomRow(): Array[Byte] =
+      Array.fill(1000)(genRandomByte())
+
     it("big random table") {
-      def genRandomByte(): Byte = (Random.nextInt(256) - 128).toByte
-
-      def genRandomRow(): Array[Byte] =
-        Array.fill(1000)(genRandomByte())
-
       testBinaryType(List.fill(1000)(genRandomRow()))
+    }
+
+    it("two binary types") {
+      val df = spark.createDF(
+        List((genRandomRow(), genRandomRow(), 1), (genRandomRow(), genRandomRow(), 2)),
+        List(("data1", BinaryType, true), ("data2", BinaryType, true), ("id", IntegerType, true))
+      )
+      testBinaryTypeDf(df)
+    }
+
+    it("multiple binary types") {
+      val df = spark.createDF(
+        List(
+          (genRandomRow(), genRandomRow(), genRandomRow(), genRandomRow(), genRandomRow(), 1),
+          (genRandomRow(), genRandomRow(), genRandomRow(), genRandomRow(), genRandomRow(), 2)
+        ),
+        List(
+          ("data1", BinaryType, true),
+          ("data2", BinaryType, true),
+          ("data3", BinaryType, true),
+          ("data4", BinaryType, true),
+          ("data5", BinaryType, true),
+          ("id", IntegerType, true)
+        )
+      )
+      testBinaryTypeDf(df)
     }
   }
 

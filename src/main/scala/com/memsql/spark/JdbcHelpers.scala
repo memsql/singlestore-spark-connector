@@ -31,7 +31,7 @@ object JdbcHelpers extends LazyLogging {
 
   def getJDBCOptions(conf: MemsqlOptions, hostPorts: String*): JDBCOptions = {
     val url: String = {
-      val base = s"jdbc:mysql://${hostPorts.mkString(",")}"
+      val base = s"jdbc:mysql:loadbalance://${hostPorts.mkString(",")}"
       conf.database match {
         case Some(d) => s"$base/$d"
         case None    => base

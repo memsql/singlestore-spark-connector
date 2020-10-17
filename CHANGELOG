@@ -1,3 +1,6 @@
+2020-10-19 Version 3.0.5
+	* Fixed bug with load balance connections to dml endpoint
+
 2020-09-29 Version 3.1.0
         * Added Spark 3.0 support
         * Fixed bugs in pushdowns

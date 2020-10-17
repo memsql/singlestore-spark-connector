@@ -92,7 +92,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: MemsqlOptions)
           val operations = binaryColumns
             .map(s =>
               s"${MemsqlDialect.quoteIdentifier(s.name)} = FROM_BASE64(${tempColName(s.name)})")
-          s"SET ${operations.mkString(" ")}"
+          s"SET ${operations.mkString(", ")}"
         }
       }
 
