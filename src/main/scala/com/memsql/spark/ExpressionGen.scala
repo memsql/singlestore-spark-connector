@@ -6,6 +6,8 @@ import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 
+import scala.reflect.ClassTag
+
 object ExpressionGen extends LazyLogging {
   import SQLGen._
 
@@ -103,12 +105,14 @@ object ExpressionGen extends LazyLogging {
   }
 
   case class FoldableExtractor[T]() {
-    def unapply(e: Expression): Option[T] =
-      if (e.foldable && e.eval().isInstanceOf[T]) {
-        Some(e.eval().asInstanceOf[T])
-      } else {
-        None
-      }
+    def unapply(e: Expression)(implicit tag: ClassTag[T]): Option[T] =
+      if (e.foldable) {
+        e.eval() match {
+          case expr: T =>
+            tag.unapply(expr)
+          case _ => None
+        }
+      } else None
   }
 
   case class DecimalExpressionExtractor(expressionExtractor: ExpressionExtractor) {
