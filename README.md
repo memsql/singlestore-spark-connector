@@ -1,5 +1,5 @@
 # MemSQL Spark Connector
-## Version: 3.0.4 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## Version: 3.0.5 [![Continuous Integration](https://circleci.com/gh/memsql/memsql-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/memsql-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 ## Getting Started
 
@@ -12,11 +12,11 @@ spark-packages.org.  The group is `com.memsql` and the artifact is
 
 You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
 ```
-$SPARK_HOME/bin/spark-shell --packages com.memsql:memsql-spark-connector_2.11:3.0.4-spark-2.4.4
+$SPARK_HOME/bin/spark-shell --packages com.memsql:memsql-spark-connector_2.11:3.0.5-spark-2.4.4
 ```
 
 We release two versions of the `memsql-spark-connector`, one per Spark version.
-An example version number is: `3.0.4-spark-2.3.4` which is the 3.0.4
+An example version number is: `3.0.5-spark-2.3.4` which is the 3.0.5
 version of the connector, compiled and tested against Spark 2.3.4. Make sure
 you are using the most recent version of the connector.
 
@@ -352,7 +352,7 @@ import com.memsql.spark.SQLHelper.QueryMethods
 // You can pass an empty database to executeMemsqlQueryDB to connect to MemSQL without specifying a database.
 // This allows you to create a database which is defined in the SparkSession config for example.
 spark.executeMemsqlQueryDB("", "CREATE DATABASE foo")
-// the next query can be used if the database field has been specified in spark object   
+// the next query can be used if the database field has been specified in spark object
 s = spark.executeMemsqlQuery("CREATE TABLE user(id INT, name VARCHAR(30), status BOOLEAN)")
 
 // you can create another database
@@ -498,10 +498,10 @@ Happy querying!
  * `Conv` works differently if the number contains non alphanumeric characters
  * `ShiftLeft`, `ShiftRight` and `ShiftRightUnsigned` converts the value to the UNSIGNED BIGINT and then produces the shift
  In the case of overflow, it returns 0 (`1<<64` = `0` and `10>>20` = `0`)
- 
+
 ## Major changes from the 2.0.0 connector
 
-The MemSQL Spark Connector 3.0.4 has a number of key features and enhancements:
+The MemSQL Spark Connector 3.0.5 has a number of key features and enhancements:
 
 * Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
 * Implemented as a native Spark SQL plugin
