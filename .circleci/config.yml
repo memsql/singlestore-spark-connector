@@ -27,12 +27,18 @@ jobs:
         type: string
       memsql_image:
         type: string
+      memsql_password:
+        type: string
+      machine_class:
+        type: string
     machine: true
+    resource_class: << parameters.machine_class >>
     environment:
       MEMSQL_IMAGE: << parameters.memsql_image >>
       MEMSQL_PORT: 5506
       MEMSQL_USER: root
       MEMSQL_DB: test
+      MEMSQL_PASSWORD: << parameters.memsql_password >>
       JAVA_HOME: /usr/lib/jvm/jdk1.8.0
       CONTINUOUS_INTEGRATION: true
       SBT_OPTS: "-Xmx256M"
@@ -41,13 +47,18 @@ jobs:
       - checkout
       - run:
           name: Setup test cluster
-          command: ./scripts/ensure-test-memsql-cluster.sh
+          command: |
+            if [ "$MEMSQL_PASSWORD" = "" ]
+            then
+              ./scripts/ensure-test-memsql-cluster.sh
+            else
+              ./scripts/ensure-test-memsql-cluster-password.sh
+            fi
       - run:
           name: Run tests
           command: |
             export MEMSQL_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' memsql-integration)
             sbt ++2.11.11 test -Dspark.version=<< parameters.spark_version >>
-
   publish:
     machine: true
     environment:
@@ -79,6 +90,10 @@ workflows:
               only: /^v.*/
           matrix:
             parameters:
+              machine_class:
+                - medium
+              memsql_password:
+                - ""
               spark_version:
                 - 2.3.4
                 - 2.4.4
@@ -86,6 +101,22 @@ workflows:
                 - memsql/cluster-in-a-box:centos-7.0.15-619d118712-1.9.5-1.5.0
                 - memsql/cluster-in-a-box:centos-6.8.15-029542cbf3-1.9.3-1.4.1
                 - memsql/cluster-in-a-box:6.7.18-db1caffe94-1.6.1-1.1.1
+      - test:
+          filters:
+            tags:
+              only: /^v.*/
+          matrix:
+            parameters:
+              machine_class:
+                - large
+              memsql_password:
+                - password
+              spark_version:
+                - 2.3.4
+                - 2.4.4
+              memsql_image:
+                - memsql/cluster-in-a-box:centos-7.3.2-a364d4b31f-3.0.0-1.9.3
+                - memsql/cluster-in-a-box:centos-7.1.13-11ddea2a3a-3.0.0-1.9.3
   publish:
     jobs:
       - approve-publish:

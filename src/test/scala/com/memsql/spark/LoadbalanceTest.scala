@@ -26,7 +26,7 @@ class LoadbalanceTest extends IntegrationSuiteBase {
       Map("url"      -> s"jdbc:mysql://$hostport",
           "dbtable"  -> "testdb",
           "user"     -> "root",
-          "password" -> ""))
+          "password" -> masterPassword))
     val conn = JdbcUtils.createConnectionFactory(opts)()
     try {
       // we only use write queries since read queries are always increasing due to internal status checks

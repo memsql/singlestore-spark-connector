@@ -1,16 +1,15 @@
 package com.memsql.spark
 
-import java.sql.{Connection, DriverManager}
-import java.util.{Properties, TimeZone}
+import java.util.TimeZone
 
 import com.github.mrpowers.spark.fast.tests.DataFrameComparer
+import com.memsql.spark.JdbcHelpers.executeQuery
+import com.memsql.spark.SQLHelper._
 import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.scalatest._
 import org.scalatest.funspec.AnyFunSpec
-import com.memsql.spark.JdbcHelpers.executeQuery
-import com.memsql.spark.SQLHelper._
 
 import scala.util.Random
 
@@ -26,6 +25,8 @@ trait IntegrationSuiteBase
   final val continuousIntegration: Boolean = sys.env
     .getOrElse("CONTINUOUS_INTEGRATION", "false") == "true"
 
+  final val masterPassword: String = sys.env.getOrElse("MEMSQL_PASSWORD", "")
+
   var spark: SparkSession = _
 
   var jdbcOptsDefault = new JDBCOptions(
@@ -33,7 +34,8 @@ trait IntegrationSuiteBase
       JDBCOptions.JDBC_URL          -> s"jdbc:mysql://$masterHost:$masterPort",
       JDBCOptions.JDBC_TABLE_NAME   -> "XXX",
       JDBCOptions.JDBC_DRIVER_CLASS -> "org.mariadb.jdbc.Driver",
-      "user"                        -> "root"
+      "user"                        -> "root",
+      "password"                    -> masterPassword
     )
   )
 
@@ -126,7 +128,7 @@ trait IntegrationSuiteBase
     "url"      -> s"jdbc:mysql://$masterHost:$masterPort",
     "dbtable"  -> dbtable,
     "user"     -> "root",
-    "password" -> ""
+    "password" -> masterPassword
   )
 
   def jdbcOptionsSQL(dbtable: String): String =
