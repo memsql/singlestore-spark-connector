@@ -28,6 +28,8 @@ trait IntegrationSuiteBase
   final val continuousIntegration: Boolean = sys.env
     .getOrElse("CONTINUOUS_INTEGRATION", "false") == "true"
 
+  final val masterPassword: String = sys.env.getOrElse("MEMSQL_PASSWORD", "")
+
   var spark: SparkSession = _
 
   var jdbcOptsDefault = new JDBCOptions(
@@ -35,7 +37,8 @@ trait IntegrationSuiteBase
       JDBCOptions.JDBC_URL          -> s"jdbc:mysql://$masterHost:$masterPort",
       JDBCOptions.JDBC_TABLE_NAME   -> "XXX",
       JDBCOptions.JDBC_DRIVER_CLASS -> "org.mariadb.jdbc.Driver",
-      "user"                        -> "root"
+      "user"                        -> "root",
+      "password"                    -> masterPassword
     )
   )
 
@@ -128,7 +131,7 @@ trait IntegrationSuiteBase
     "url"      -> s"jdbc:mysql://$masterHost:$masterPort",
     "dbtable"  -> dbtable,
     "user"     -> "root",
-    "password" -> ""
+    "password" -> masterPassword
   )
 
   def jdbcOptionsSQL(dbtable: String): String =

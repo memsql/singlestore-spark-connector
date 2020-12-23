@@ -37,9 +37,9 @@ SECRET ENV LICENSE_KEY
 MEMORY 4G
 MEMORY 8G
 
-# split to 9 states
+# split to 15 states
 # each of them will run different version of the memsql and spark
-SPLIT 9
+SPLIT 15
 
 # copy the entire git repository
 COPY . .
@@ -48,7 +48,7 @@ COPY . .
 RUN scripts/define-layerci-matrix.sh >> ~/.profile
 
 # start memsql cluster
-RUN ./scripts/ensure-test-memsql-cluster.sh
+RUN ./scripts/setup-cluster.sh
 
 # run tests
 RUN sbt ++$SCALA_VERSION -Dspark.version=$SPARK_VERSION "${TEST_FILTER}"
