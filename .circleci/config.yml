@@ -25,14 +25,14 @@ jobs:
     parameters:
       spark_version:
         type: string
-      memsql_image:
+      singlestore_image:
         type: string
     machine: true
     environment:
-      MEMSQL_IMAGE: << parameters.memsql_image >>
-      MEMSQL_PORT: 5506
-      MEMSQL_USER: root
-      MEMSQL_DB: test
+      SINGLESTORE_IMAGE: << parameters.singlestore_image >>
+      SINGLESTORE_PORT: 5506
+      SINGLESTORE_USER: root
+      SINGLESTORE_DB: test
       JAVA_HOME: /usr/lib/jvm/jdk1.8.0
       CONTINUOUS_INTEGRATION: true
       SBT_OPTS: "-Xmx256M"
@@ -41,11 +41,11 @@ jobs:
       - checkout
       - run:
           name: Setup test cluster
-          command: ./scripts/ensure-test-memsql-cluster.sh
+          command: ./scripts/ensure-test-singlestore-cluster.sh
       - run:
           name: Run tests
           command: |
-            export MEMSQL_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' memsql-integration)
+            export SINGLESTORE_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' singlestore-integration)
             if [ << parameters.spark_version >> == '3.0.0' ]
             then
               sbt ++2.12.12 test -Dspark.version=<< parameters.spark_version >>
@@ -94,7 +94,7 @@ workflows:
                 - 2.3.4
                 - 2.4.4
                 - 3.0.0
-              memsql_image:
+              singlestore_image:
                 - memsql/cluster-in-a-box:centos-7.0.15-619d118712-1.9.5-1.5.0
                 - memsql/cluster-in-a-box:centos-6.8.15-029542cbf3-1.9.3-1.4.1
                 - memsql/cluster-in-a-box:6.7.18-db1caffe94-1.6.1-1.1.1

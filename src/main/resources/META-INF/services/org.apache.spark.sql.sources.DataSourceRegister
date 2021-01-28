@@ -1,1 +1,2 @@
-com.memsql.spark.DefaultSource
+com.singlestore.spark.DefaultSource
+com.singlestore.spark.MemsqlDefaultSource

@@ -12,18 +12,18 @@ val scalaVersionStr = sparkVersion match {
 val scalaVersionPrefix = scalaVersionStr.substring(0, 4)
 
 lazy val root = project
-  .withId("memsql-spark-connector")
+  .withId("singlestore-spark-connector")
   .in(file("."))
   .settings(
-    name := "memsql-spark-connector",
-    organization := "com.memsql",
+    name := "singlestore-spark-connector",
+    organization := "com.singlestore",
     scalaVersion := scalaVersionStr,
     Compile / unmanagedSourceDirectories += (Compile / sourceDirectory).value / (sparkVersion match {
       case "2.3.4" => "scala-sparkv2"
       case "2.4.4" => "scala-sparkv2"
       case _       => "scala-sparkv3"
     }),
-    version := s"3.1.0-beta1-spark-${sparkVersion}",
+    version := s"3.1.0-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
     ),

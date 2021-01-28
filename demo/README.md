@@ -1,7 +1,7 @@
-## memsql-spark-connector demo
+## singlestore-spark-connector demo
 
 This is Dockerfile which uses the upstream [Zeppelin Image](https://hub.docker.com/r/apache/zeppelin/) as it's base
-and has two notebooks with examples of memsql-spark-connector.
+and has two notebooks with examples of singlestore-spark-connector.
 
 To run this docker with [MemSQL CIAB](https://hub.docker.com/r/memsql/cluster-in-a-box) follow the instructions
 
@@ -15,23 +15,23 @@ docker network create zeppelin-ciab-network
 docker pull memsql/cluster-in-a-box
 ```
 
-* Run and start the MemSQL Cluster in a Box docker container
+* Run and start the SingleStore Cluster in a Box docker container
 
 ```
 docker run -i --init \
---name memsql-ciab-for-zeppelin \
+--name singlestore-ciab-for-zeppelin \
 -e LICENSE_KEY=[INPUT_YOUR_LICENSE_KEY] \
 -p 3306:3306 -p 8080:8080 \
 --net=zeppelin-ciab-network \
 memsql/cluster-in-a-box
 ```
 ```
-docker start memsql-ciab-for-zeppelin
+docker start singlestore-ciab-for-zeppelin
 ```
 > :note: in this step you can hit a port collision error
 >
 > ```
-> docker: Error response from daemon: driver failed programming external connectivity on endpoint memsql-ciab-for-zeppelin
+> docker: Error response from daemon: driver failed programming external connectivity on endpoint singlestore-ciab-for-zeppelin
 > (38b0df3496f1ec83f120242a53a7023d8a0b74db67f5e487fb23641983c67a76):
 > Bind for 0.0.0.0:8080 failed: port is already allocated.
 > ERRO[0000] error waiting for container: context canceled
@@ -39,11 +39,11 @@ docker start memsql-ciab-for-zeppelin
 >
 > If it happened then remove the container
 >
->`docker rm memsql-ciab-for-zeppelin`
+>`docker rm singlestore-ciab-for-zeppelin`
 >
 > and run the first command with other ports `-p {new_port1}:3306 -p {new_port2}:8080`
 
-* Build zeppelin docker image in `memsql-spark-connector/demo` folder
+* Build zeppelin docker image in `singlestore-spark-connector/demo` folder
 
 ```
 docker build -t zeppelin .
@@ -80,4 +80,4 @@ zeppelin
 [pyspark](http://localhost:8082/next/#/notebook/2F6Y3APTX)
 and [spark sql](http://localhost:8082/next/#/notebook/2F7PZ81H6) notebooks
 
-For setting up more powerful MemSQL trial cluster use [Helios](https://www.memsql.com/helios/)
+For setting up more powerful SingleStore trial cluster use [Helios](https://www.singlestore.com/helios/)

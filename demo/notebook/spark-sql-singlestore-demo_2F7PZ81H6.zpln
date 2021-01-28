@@ -1,0 +1,387 @@
+{
+  "paragraphs": [
+    {
+      "text": "%md\n## This is a small demo that illustrates the usage of the SingleStore-Spark connector. \n#### It connects to the ciab docker container (https://hub.docker.com/r/memsql/cluster-in-a-box) and runs some basic queries on it.",
+      "user": "anonymous",
+      "dateUpdated": "2021-01-18 10:48:25.545",
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 13.0,
+        "enabled": true,
+        "results": {},
+        "editorSetting": {
+          "language": "markdown",
+          "editOnDblClick": true,
+          "completionKey": "TAB",
+          "completionSupport": false
+        },
+        "editorMode": "ace/mode/markdown",
+        "editorHide": false
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "HTML",
+            "data": "\u003cdiv class\u003d\"markdown-body\"\u003e\n\u003ch2\u003eThis is a small demo that illustrates the usage of the SingleStore-Spark connector.\u003c/h2\u003e\n\u003ch4\u003eIt connects to the ciab docker container (\u003ca href\u003d\"https://hub.docker.com/r/memsql/cluster-in-a-box\"\u003ehttps://hub.docker.com/r/memsql/cluster-in-a-box\u003c/a\u003e) and runs some basic queries on it.\u003c/h4\u003e\n\n\u003c/div\u003e"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1587645478876_994795668",
+      "id": "paragraph_1587645478876_994795668",
+      "dateCreated": "2020-04-23 12:37:58.876",
+      "dateStarted": "2021-01-18 10:48:25.555",
+      "dateFinished": "2021-01-18 10:48:25.577",
+      "status": "FINISHED"
+    },
+    {
+      "title": "Configure Spark",
+      "text": "%spark.conf\n\n// Comma-separated list of Maven coordinates of jars to include on the driver and executor classpaths\nspark.jars.packages com.memsql:memsql-spark-connector_2.11:3.0.5-spark-2.4.4\n\n// Hostname or IP address of the SingleStore Master Aggregator in the format host[:port] (port is optional). \n// singlestore-ciab-for-zeppelin - hostname of the docker created by https://hub.docker.com/r/memsql/cluster-in-a-box\n// 3306 - port on which SingleStore Master Aggregator is started\nspark.datasource.memsql.ddlEndpoint singlestore-ciab-for-zeppelin:3306\n\n// Hostname or IP address of SingleStore Aggregator nodes to run queries against in the format host[:port],host[:port],...\n// (port is optional, multiple hosts separated by comma) (default: ddlEndpoint)\n// Example\n// spark.datasource.memsql.dmlEndpoints child-agg:3308,child-agg2\nspark.datasource.memsql.dmlEndpoints singlestore-ciab-for-zeppelin:3306\n\n// SingleStore username (default: root)\nspark.datasource.memsql.user root\n\n// SingleStore password (default: no password)\n// Example\n// spark.datasource.memsql.passowrd s3cur3-pa$$word\nspark.datasource.memsql.password\n\n// If set, all connections will default to using this database (default: empty)\n// Example\n// spark.datasource.memsql.database demoDB\nspark.datasource.memsql.database\n\n// Disable SQL Pushdown when running queries (default: false)\nspark.datasource.memsql.disablePushdown false\n\n// Enable reading data in parallel for some query shapes (default: false)\nspark.datasource.memsql.enableParallelRead false\n\n// Truncate instead of drop an existing table during Overwrite (default: false)\nspark.datasource.memsql.truncate false\n\n// Compress data on load; one of (GZip, LZ4, Skip) (default: GZip)\nspark.datasource.memsql.loadDataCompression GZip\n\n// Specify additional keys to add to tables created by the connector\n// Examples\n// * A primary key on the id column\n// spark.datasource.memsql.tableKey.primary id\n// * A regular key on the columns created, firstname with the key name created_firstname\n// spark.datasource.memsql.tableKey.key.created_firstname created, firstName\n// * A unique key on the username column\n// spark.datasource.memsql.tableKey.unique username\nspark.datasource.memsql.tableKey",
+      "user": "anonymous",
+      "dateUpdated": "2021-01-18 10:48:25.653",
+      "config": {
+        "colWidth": 12.0,
+        "fontSize": 13.0,
+        "enabled": true,
+        "results": {},
+        "editorSetting": {
+          "language": "text",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "editorMode": "ace/mode/text",
+        "title": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": []
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1587645537976_1278581633",
+      "id": "paragraph_1587645537976_1278581633",
+      "dateCreated": "2020-04-23 12:38:57.976",
+      "dateStarted": "2021-01-18 10:48:25.660",
+      "dateFinished": "2021-01-18 10:48:25.669",
+      "status": "FINISHED"
+    },
+    {
+      "title": "Create a database and table using JDBC",
+      "text": "import java.sql.{Connection, DriverManager}\nimport java.util.{Properties, TimeZone}\n\nval connProperties \u003d new Properties()\nconnProperties.put(\"user\", \"root\")\n\nval conn \u003d DriverManager.getConnection(\n        s\"jdbc:mysql://singlestore-ciab-for-zeppelin\",\n        connProperties\n      )\n\nval statement \u003d conn.createStatement()\nstatement.execute(\"create database if not exists demoDB\")\nstatement.execute(\"create table if not exists demoDB.people (id int, name varchar(10), age int, country varchar(10))\")\nstatement.close()\nconn.close()",
+      "user": "anonymous",
+      "dateUpdated": "2021-01-18 10:48:25.757",
+      "config": {
+        "colWidth": 6.0,
+        "fontSize": 13.0,
+        "enabled": true,
+        "results": {},
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "editorMode": "ace/mode/scala",
+        "title": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "import java.sql.{Connection, DriverManager}\nimport java.util.{Properties, TimeZone}\n\u001b[1m\u001b[34mconnProperties\u001b[0m: \u001b[1m\u001b[32mjava.util.Properties\u001b[0m \u003d {user\u003droot}\n\u001b[1m\u001b[34mconn\u001b[0m: \u001b[1m\u001b[32mjava.sql.Connection\u001b[0m \u003d org.mariadb.jdbc.MariaDbConnection@55040a39\n\u001b[1m\u001b[34mstatement\u001b[0m: \u001b[1m\u001b[32mjava.sql.Statement\u001b[0m \u003d org.mariadb.jdbc.MariaDbStatement@2e7a8b13\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1587645590204_-1422944272",
+      "id": "paragraph_1587645590204_-1422944272",
+      "dateCreated": "2020-04-23 12:39:50.204",
+      "dateStarted": "2021-01-18 10:48:25.761",
+      "dateFinished": "2021-01-18 10:48:26.121",
+      "status": "FINISHED"
+    },
+    {
+      "title": "Insert data to the table",
+      "text": "import org.apache.spark.sql.{SaveMode}\n\nval people1 \u003d spark.createDataFrame(Seq(\n    (1, \"andy\", 5, \"USA\"), \n    (2, \"jeff\", 23, \"China\"), \n    (3, \"james\", 62, \"USA\"),\n    (4, \"clara\", 82, \"USA\"),\n    (5, \"emmy\", 9, \"Canada\")\n    )).toDF(\"id\", \"name\", \"age\", \"country\")\npeople1.show()\n\npeople1.write\n    .format(\"memsql\")\n    .mode(SaveMode.Overwrite) // recreate table if it exists\n    .save(\"demoDB.people\") // write to table `people` in database `demoDB`\n",
+      "user": "anonymous",
+      "dateUpdated": "2021-01-18 10:48:26.162",
+      "config": {
+        "colWidth": 6.0,
+        "fontSize": 13.0,
+        "enabled": true,
+        "results": {},
+        "editorSetting": {
+          "language": "scala",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "editorMode": "ace/mode/scala",
+        "title": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TEXT",
+            "data": "+---+-----+---+-------+\n| id| name|age|country|\n+---+-----+---+-------+\n|  1| andy|  5|    USA|\n|  2| jeff| 23|  China|\n|  3|james| 62|    USA|\n|  4|clara| 82|    USA|\n|  5| emmy|  9| Canada|\n+---+-----+---+-------+\n\nimport org.apache.spark.sql.SaveMode\n\u001b[1m\u001b[34mpeople1\u001b[0m: \u001b[1m\u001b[32morg.apache.spark.sql.DataFrame\u001b[0m \u003d [id: int, name: string ... 2 more fields]\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://91b6e71e5776:4040/jobs/job?id\u003d4"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1587646718045_-758896661",
+      "id": "paragraph_1587646718045_-758896661",
+      "dateCreated": "2020-04-23 12:58:38.045",
+      "dateStarted": "2021-01-18 10:48:26.182",
+      "dateFinished": "2021-01-18 10:48:27.238",
+      "status": "FINISHED"
+    },
+    {
+      "title": "Create a Spark SQL table backed by a SingleStore table",
+      "text": "%sql\nCREATE DATABASE IF NOT EXISTS demoDB;\nCREATE TABLE IF NOT EXISTS demoDB.people USING memsql OPTIONS (\u0027dbtable\u0027\u003d\u0027demoDB.people\u0027);",
+      "user": "anonymous",
+      "dateUpdated": "2021-01-18 10:48:27.271",
+      "config": {
+        "colWidth": 6.0,
+        "fontSize": 13.0,
+        "enabled": true,
+        "results": {},
+        "editorSetting": {
+          "language": "sql",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "editorMode": "ace/mode/sql",
+        "title": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": []
+      },
+      "apps": [],
+      "runtimeInfos": {},
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1587645780167_-228404075",
+      "id": "paragraph_1587645780167_-228404075",
+      "dateCreated": "2020-04-23 12:43:00.167",
+      "dateStarted": "2021-01-18 10:48:27.306",
+      "dateFinished": "2021-01-18 10:48:27.761",
+      "status": "FINISHED"
+    },
+    {
+      "title": "Run a raw Spark SQL query over a Spark SQL table",
+      "text": "%sql\nSELECT * FROM demoDB.people;\nSELECT * FROM demoDB.people WHERE people.age \u003c 10;\nSELECT country, MAX(age) FROM demoDB.people GROUP BY country;",
+      "user": "anonymous",
+      "dateUpdated": "2021-01-18 10:48:27.786",
+      "config": {
+        "colWidth": 6.0,
+        "fontSize": 13.0,
+        "enabled": true,
+        "results": {
+          "0": {
+            "graph": {
+              "mode": "table",
+              "height": 300.0,
+              "optionOpen": false,
+              "setting": {
+                "table": {
+                  "tableGridState": {},
+                  "tableColumnTypeState": {
+                    "names": {
+                      "id": "string",
+                      "name": "string",
+                      "age": "string",
+                      "country": "string"
+                    },
+                    "updated": false
+                  },
+                  "tableOptionSpecHash": "[{\"name\":\"useFilter\",\"valueType\":\"boolean\",\"defaultValue\":false,\"widget\":\"checkbox\",\"description\":\"Enable filter for columns\"},{\"name\":\"showPagination\",\"valueType\":\"boolean\",\"defaultValue\":false,\"widget\":\"checkbox\",\"description\":\"Enable pagination for better navigation\"},{\"name\":\"showAggregationFooter\",\"valueType\":\"boolean\",\"defaultValue\":false,\"widget\":\"checkbox\",\"description\":\"Enable a footer for displaying aggregated values\"}]",
+                  "tableOptionValue": {
+                    "useFilter": false,
+                    "showPagination": false,
+                    "showAggregationFooter": false
+                  },
+                  "updated": false,
+                  "initialized": false
+                }
+              },
+              "commonSetting": {}
+            }
+          },
+          "1": {
+            "graph": {
+              "mode": "table",
+              "height": 300.0,
+              "optionOpen": false,
+              "setting": {
+                "table": {
+                  "tableGridState": {},
+                  "tableColumnTypeState": {
+                    "names": {
+                      "id": "string",
+                      "name": "string",
+                      "age": "string",
+                      "country": "string"
+                    },
+                    "updated": false
+                  },
+                  "tableOptionSpecHash": "[{\"name\":\"useFilter\",\"valueType\":\"boolean\",\"defaultValue\":false,\"widget\":\"checkbox\",\"description\":\"Enable filter for columns\"},{\"name\":\"showPagination\",\"valueType\":\"boolean\",\"defaultValue\":false,\"widget\":\"checkbox\",\"description\":\"Enable pagination for better navigation\"},{\"name\":\"showAggregationFooter\",\"valueType\":\"boolean\",\"defaultValue\":false,\"widget\":\"checkbox\",\"description\":\"Enable a footer for displaying aggregated values\"}]",
+                  "tableOptionValue": {
+                    "useFilter": false,
+                    "showPagination": false,
+                    "showAggregationFooter": false
+                  },
+                  "updated": false,
+                  "initialized": false
+                }
+              },
+              "commonSetting": {}
+            }
+          },
+          "2": {
+            "graph": {
+              "mode": "table",
+              "height": 300.0,
+              "optionOpen": false,
+              "setting": {
+                "table": {
+                  "tableGridState": {},
+                  "tableColumnTypeState": {
+                    "names": {
+                      "country": "string",
+                      "max(age)": "string"
+                    },
+                    "updated": false
+                  },
+                  "tableOptionSpecHash": "[{\"name\":\"useFilter\",\"valueType\":\"boolean\",\"defaultValue\":false,\"widget\":\"checkbox\",\"description\":\"Enable filter for columns\"},{\"name\":\"showPagination\",\"valueType\":\"boolean\",\"defaultValue\":false,\"widget\":\"checkbox\",\"description\":\"Enable pagination for better navigation\"},{\"name\":\"showAggregationFooter\",\"valueType\":\"boolean\",\"defaultValue\":false,\"widget\":\"checkbox\",\"description\":\"Enable a footer for displaying aggregated values\"}]",
+                  "tableOptionValue": {
+                    "useFilter": false,
+                    "showPagination": false,
+                    "showAggregationFooter": false
+                  },
+                  "updated": false,
+                  "initialized": false
+                }
+              },
+              "commonSetting": {}
+            }
+          }
+        },
+        "editorSetting": {
+          "language": "sql",
+          "editOnDblClick": false,
+          "completionKey": "TAB",
+          "completionSupport": true
+        },
+        "editorMode": "ace/mode/sql",
+        "title": true
+      },
+      "settings": {
+        "params": {},
+        "forms": {}
+      },
+      "results": {
+        "code": "SUCCESS",
+        "msg": [
+          {
+            "type": "TABLE",
+            "data": "id\tname\tage\tcountry\n5\temmy\t9\tCanada\n1\tandy\t5\tUSA\n2\tjeff\t23\tChina\n3\tjames\t62\tUSA\n4\tclara\t82\tUSA\n"
+          },
+          {
+            "type": "TABLE",
+            "data": "id\tname\tage\tcountry\n5\temmy\t9\tCanada\n1\tandy\t5\tUSA\n"
+          },
+          {
+            "type": "TABLE",
+            "data": "country\tmax(age)\nChina\t23\nCanada\t9\nUSA\t82\n"
+          }
+        ]
+      },
+      "apps": [],
+      "runtimeInfos": {
+        "jobUrl": {
+          "propertyName": "jobUrl",
+          "label": "SPARK JOB",
+          "tooltip": "View in Spark web UI",
+          "group": "spark",
+          "values": [
+            {
+              "jobUrl": "http://91b6e71e5776:4040/jobs/job?id\u003d5"
+            },
+            {
+              "jobUrl": "http://91b6e71e5776:4040/jobs/job?id\u003d6"
+            },
+            {
+              "jobUrl": "http://91b6e71e5776:4040/jobs/job?id\u003d7"
+            }
+          ],
+          "interpreterSettingId": "spark"
+        }
+      },
+      "progressUpdateIntervalMs": 500,
+      "jobName": "paragraph_1587646114445_960936248",
+      "id": "paragraph_1587646114445_960936248",
+      "dateCreated": "2020-04-23 12:48:34.446",
+      "dateStarted": "2021-01-18 10:48:27.802",
+      "dateFinished": "2021-01-18 10:48:31.155",
+      "status": "FINISHED"
+    }
+  ],
+  "name": "spark-sql-singlestore-demo",
+  "id": "2F7PZ81H6",
+  "defaultInterpreterGroup": "spark",
+  "version": "0.9.0-preview1",
+  "noteParams": {},
+  "noteForms": {},
+  "angularObjects": {},
+  "config": {
+    "isZeppelinNotebookCronEnable": false
+  },
+  "info": {
+    "isRunning": true
+  }
+}
