@@ -17,6 +17,6 @@
       <option name="featureWarnings" value="true" />
       <option name="explainTypeErrors" value="true" />
     </profile>
-    <profile name="sbt 3" modules="memsql-spark-connector" />
+    <profile name="sbt 3" modules="memsql-spark-connector,singlestore-spark-connector" />
   </component>
 </project>

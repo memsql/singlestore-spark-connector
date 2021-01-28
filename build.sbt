@@ -7,11 +7,11 @@ import xerial.sbt.Sonatype._
 val sparkVersion = sys.props.get("spark.version").getOrElse("2.4.4")
 
 lazy val root = project
-  .withId("memsql-spark-connector")
+  .withId("singlestore-spark-connector")
   .in(file("."))
   .settings(
-    name := "memsql-spark-connector",
-    organization := "com.memsql",
+    name := "singlestore-spark-connector",
+    organization := "com.singlestore",
     scalaVersion := "2.11.11",
     version := s"3.0.5-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(
