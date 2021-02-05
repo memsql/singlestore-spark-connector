@@ -13,7 +13,7 @@ lazy val root = project
     name := "singlestore-spark-connector",
     organization := "com.singlestore",
     scalaVersion := "2.11.11",
-    version := s"3.0.6-spark-${sparkVersion}",
+    version := s"3.0.7-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
     ),

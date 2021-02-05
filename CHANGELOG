@@ -1,7 +1,10 @@
+2020-02-05 Version 3.0.7
+	* Added support of `com.memsql.spark` data source name for backward compatibility
+
 2020-01-22 Version 3.0.6
-    * Rebranded `memsql-spark-connector` to `singlestore-spark-connector`
-    * Spark data source format changed from `memsql` to `singlestore`
-    * Configuration prefix changed from `spark.datasource.memsql.<config_name>` to `spark.datasource.singlestore.<config_name>`
+	* Rebranded `memsql-spark-connector` to `singlestore-spark-connector`
+	* Spark data source format changed from `memsql` to `singlestore`
+	* Configuration prefix changed from `spark.datasource.memsql.<config_name>` to `spark.datasource.singlestore.<config_name>`
 
 2020-10-19 Version 3.0.5
 	* Fixed bug with load balance connections to dml endpoint
