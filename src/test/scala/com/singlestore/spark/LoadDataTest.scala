@@ -210,15 +210,23 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
     assertLargeDataFrameEquality(actualDF, df)
   }
 
-  it("should work with `memsql` source") {
+  it("should work with `memsql` and `com.memsql.spark` source") {
     df = spark.createDF(
       List((5, "E", 50)),
       List(("id", IntegerType, true), ("name", StringType, true), ("age", IntegerType, true))
     )
     writeTable("testdb.loaddata", df, SaveMode.Append)
 
-    val actualDF =
+    val actualDFShort =
       spark.read.format(DefaultSource.MEMSQL_SOURCE_NAME_SHORT).load("testdb.loaddata")
+    assertSmallDataFrameEquality(
+      actualDFShort,
+      spark.createDF(
+        List((5, "E", 50)),
+        List(("id", IntegerType, true), ("name", StringType, true), ("age", IntegerType, true))
+      ))
+    val actualDF =
+      spark.read.format(DefaultSource.MEMSQL_SOURCE_NAME).load("testdb.loaddata")
     assertSmallDataFrameEquality(
       actualDF,
       spark.createDF(
