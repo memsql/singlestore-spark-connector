@@ -67,14 +67,6 @@ jobs:
             openssl enc -d -aes-256-cbc -K ${ENCRYPTION_KEY} -iv ${ENCRYPTION_IV} -in ci/secring.asc.enc -out ci/secring.asc
             gpg --import ci/secring.asc
       - run:
-          name: Publish Spark 2.3.4
-          command: |
-            sbt ++2.11.11 -Dspark.version=2.3.4 publish sonatypePrepare sonatypeBundleUpload sonatypeRelease
-      - run:
-          name: Publish Spark 2.4.4
-          command: |
-            sbt ++2.11.11 -Dspark.version=2.4.4 publish sonatypePrepare sonatypeBundleUpload sonatypeRelease
-      - run:
           name: Publish Spark 3.0.0
           command: |
             sbt ++2.12.12 -Dspark.version=3.0.0 publish sonatypePrepare sonatypeBundleUpload sonatypeRelease
