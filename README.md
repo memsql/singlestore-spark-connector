@@ -49,6 +49,7 @@ global options have the prefix `spark.datasource.singlestore.`.
 | `database`                | If set, all connections will default to using this database (default: empty)
 | `disablePushdown`         | Disable SQL Pushdown when running queries (default: false)
 | `enableParallelRead`      | Enable reading data in parallel for some query shapes (default: false)
+| `useExternalHost`         | Enable using external host and port from `information_schema.mv_nodes` table for direct connection to leaves (default: false)
 | `overwriteBehavior`       | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
 | `truncate`                | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
 | `loadDataCompression`     | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
@@ -336,6 +337,11 @@ In order to use parallel reads, the username and password provided to the
 
 In addition, the hostnames and ports listed by `SHOW LEAVES` must be directly
 connectible from Spark.
+
+`useExternalHost` option allows you to use external hosts and ports from `information_schema.mv_nodes` table
+for direct connection to leaves.
+
+**:warning: `useExternalHost` feature works only with a SingleStore version `7.1.0` or above
 
 ## Running SQL queries
 The methods `executeSinglestoreQuery(query: String, variables: Any*)` and `executeSinglestoreQueryDB(db: String, query: String, variables: Any*)`

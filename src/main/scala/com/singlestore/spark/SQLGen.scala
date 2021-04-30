@@ -564,6 +564,8 @@ object SQLGen extends LazyLogging {
     def atLeast(version: String): Boolean = {
       atLeast(SinglestoreVersion(version))
     }
+
+    override def toString: String = s"${this.major}.${this.minor}.${this.patch}"
   }
   object SinglestoreVersion {
 

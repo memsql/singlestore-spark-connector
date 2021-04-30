@@ -185,6 +185,47 @@ object JdbcHelpers extends LazyLogging {
     }
   }
 
+  /**
+    * Return map from original host/port to external host/port
+    * @param conf options
+    * @return Map `host:port` -> `externalHost:externalPort`
+    */
+  def externalHostPorts(conf: SinglestoreOptions): Map[String, String] = {
+    val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+    try {
+      val statement = conn.prepareStatement(s"""
+        SELECT IP_ADDR,    
+        PORT,
+        EXTERNAL_HOST,         
+        EXTERNAL_PORT
+        FROM INFORMATION_SCHEMA.MV_NODES 
+        WHERE TYPE = "LEAF";
+      """)
+      try {
+        val rs = statement.executeQuery()
+        try {
+          var out = Map.empty[String, String]
+          while (rs.next) {
+            val host         = rs.getString(1)
+            val port         = rs.getInt(2)
+            val externalHost = rs.getString(3)
+            val externalPort = rs.getInt(4)
+            if (externalHost != null) {
+              out = out + (s"$host:$port" -> s"$externalHost:$externalPort")
+            }
+          }
+          out
+        } finally {
+          rs.close()
+        }
+      } finally {
+        statement.close()
+      }
+    } finally {
+      conn.close()
+    }
+  }
+
   def fillStatement(stmt: PreparedStatement, variables: VariableList): Unit = {
     import SQLGen._
     if (variables.isEmpty) { return }

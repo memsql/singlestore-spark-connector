@@ -38,10 +38,11 @@ lazy val root = project
       "org.mariadb.jdbc"       % "mariadb-java-client" % "2.+",
       "io.spray"               %% "spray-json"         % "1.3.5",
       // test dependencies
-      "org.scalatest"       %% "scalatest"        % "3.1.0"  % Test,
-      "org.scalacheck"      %% "scalacheck"       % "1.14.1" % Test,
-      "com.github.mrpowers" %% "spark-fast-tests" % "0.21.3" % Test,
-      "com.github.mrpowers" %% "spark-daria"      % "0.38.2" % Test
+      "org.scalatest"       %% "scalatest"        % "3.1.0"   % Test,
+      "org.scalacheck"      %% "scalacheck"       % "1.14.1"  % Test,
+      "org.mockito"         %% "mockito-scala"    % "1.16.37" % Test,
+      "com.github.mrpowers" %% "spark-fast-tests" % "0.21.3"  % Test,
+      "com.github.mrpowers" %% "spark-daria"      % "0.38.2"  % Test
     ),
     Test / testOptions += Tests.Argument("-oF"),
     Test / fork := true
