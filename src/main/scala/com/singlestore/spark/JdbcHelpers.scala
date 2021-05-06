@@ -206,11 +206,12 @@ object JdbcHelpers extends LazyLogging {
         try {
           var out = Map.empty[String, String]
           while (rs.next) {
-            val host         = rs.getString(1)
-            val port         = rs.getInt(2)
-            val externalHost = rs.getString(3)
-            val externalPort = rs.getInt(4)
-            if (externalHost != null) {
+            val host               = rs.getString(1)
+            val port               = rs.getInt(2)
+            val externalHost       = rs.getString(3)
+            val externalPortString = rs.getString(4)
+            if (externalHost != null && externalPortString != null) {
+              val externalPort = externalPortString.toInt
               out = out + (s"$host:$port" -> s"$externalHost:$externalPort")
             }
           }

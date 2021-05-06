@@ -3,7 +3,10 @@ package com.singlestore.spark
 import java.sql.{PreparedStatement, SQLException}
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
+import com.singlestore.spark.JdbcHelpers.getDDLJDBCOptions
 import com.singlestore.spark.SQLGen.VariableList
+import org.apache.spark.sql.DataFrame
+import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.types.{IntegerType, StringType}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.MockitoSugar
@@ -15,8 +18,21 @@ class ExternalHostTest
     with BeforeAndAfterAll
     with MockitoSugar {
 
-  val testDb         = "testdb"
-  val testCollection = "externalHost"
+  val testDb            = "testdb"
+  val testCollection    = "externalHost"
+  val mvNodesCollection = "mv_nodes"
+
+  var df: DataFrame = _
+
+  override def beforeEach(): Unit = {
+    super.beforeEach()
+
+    df = spark.createDF(
+      List((2, "B")),
+      List(("id", IntegerType, true), ("name", StringType, true))
+    )
+    writeTable(s"$testDb.$testCollection", df)
+  }
 
   def setupMockJdbcHelper(): Unit = {
     when(JdbcHelpers.loadSchema(any[SinglestoreOptions], any[String], any[SQLGen.VariableList]))
@@ -34,11 +50,6 @@ class ExternalHostTest
 
   describe("success tests") {
     it("low SingleStore version") {
-      val df = spark.createDF(
-        List((2, "B")),
-        List(("id", IntegerType, true), ("name", StringType, true))
-      )
-      writeTable(s"$testDb.$testCollection", df)
 
       withObjectMocked[JdbcHelpers.type] {
 
@@ -59,11 +70,6 @@ class ExternalHostTest
     }
 
     it("valid external host") {
-      val df = spark.createDF(
-        List((2, "B")),
-        List(("id", IntegerType, true), ("name", StringType, true))
-      )
-      writeTable(s"$testDb.$testCollection", df)
 
       withObjectMocked[JdbcHelpers.type] {
 
@@ -88,15 +94,74 @@ class ExternalHostTest
         )
       }
     }
+
+    it("valid external host function") {
+
+      val mvNodesDf = spark.createDF(
+        List(("172.17.0.2", 3307, "172.17.0.10", 3310),
+             ("172.17.0.20", 3312, "172.17.0.100", null),
+             ("172.17.0.2", 3308, null, 3310),
+             ("172.17.0.15", 3311, null, null)),
+        List(("IP_ADDR", StringType, true),
+             ("PORT", IntegerType, true),
+             ("EXTERNAL_HOST", StringType, true),
+             ("EXTERNAL_PORT", IntegerType, true))
+      )
+      writeTable(s"$testDb.$mvNodesCollection", mvNodesDf)
+
+      val conf = new SinglestoreOptions(
+        s"$masterHost:$masterPort",
+        List.empty[String],
+        "root",
+        masterPassword,
+        None,
+        Map.empty[String, String],
+        false,
+        false,
+        true,
+        true,
+        Truncate,
+        SinglestoreOptions.CompressionType.GZip,
+        SinglestoreOptions.LoadDataFormat.CSV,
+        List.empty[SinglestoreOptions.TableKey],
+        None,
+        10,
+        10
+      )
+
+      val conn         = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+      val statement    = conn.prepareStatement(s"""
+        SELECT IP_ADDR,    
+        PORT,
+        EXTERNAL_HOST,         
+        EXTERNAL_PORT
+        FROM testdb.mv_nodes;
+      """)
+      val spyConn      = spy(conn)
+      val spyStatement = spy(statement)
+      when(spyConn.prepareStatement(s"""
+        SELECT IP_ADDR,    
+        PORT,
+        EXTERNAL_HOST,         
+        EXTERNAL_PORT
+        FROM INFORMATION_SCHEMA.MV_NODES 
+        WHERE TYPE = "LEAF";
+      """)).thenReturn(spyStatement)
+
+      withObjectMocked[JdbcUtils.type] {
+
+        when(JdbcUtils.createConnectionFactory(any[JDBCOptions])).thenReturn(() => spyConn)
+        val externalHostPorts = JdbcHelpers.externalHostPorts(conf)
+        val expectedResult = Map(
+          "172.17.0.2:3307" -> "172.17.0.10:3310"
+        )
+        assert(externalHostPorts.equals(expectedResult))
+      }
+    }
   }
 
   describe("failed tests") {
     it("empty external host map") {
-      val df = spark.createDF(
-        List((2, "B")),
-        List(("id", IntegerType, true), ("name", StringType, true))
-      )
-      writeTable(s"$testDb.$testCollection", df)
 
       withObjectMocked[JdbcHelpers.type] {
 
@@ -122,11 +187,6 @@ class ExternalHostTest
     }
 
     it("wrong external host") {
-      val df = spark.createDF(
-        List((2, "B")),
-        List(("id", IntegerType, true), ("name", StringType, true))
-      )
-      writeTable(s"$testDb.$testCollection", df)
 
       withObjectMocked[JdbcHelpers.type] {
 
