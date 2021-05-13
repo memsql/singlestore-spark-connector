@@ -52,8 +52,6 @@ object SinglestoreQueryHelpers extends LazyLogging {
             } else {
               isValid = false
               None
-//              throw new IllegalArgumentException(
-//                s"No external host/port provided for the host ${p.hostport}")
             }
           })
           if (isValid) externalPartitions
