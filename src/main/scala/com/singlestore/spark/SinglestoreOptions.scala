@@ -15,7 +15,6 @@ case class SinglestoreOptions(
     enableAsserts: Boolean,
     disablePushdown: Boolean,
     enableParallelRead: Boolean,
-    useExternalHost: Boolean,
     // write options
     overwriteBehavior: OverwriteBehavior,
     loadDataCompression: SinglestoreOptions.CompressionType.Value,
@@ -101,7 +100,6 @@ object SinglestoreOptions extends LazyLogging {
   final val ENABLE_ASSERTS       = newOption("enableAsserts")
   final val DISABLE_PUSHDOWN     = newOption("disablePushdown")
   final val ENABLE_PARALLEL_READ = newOption("enableParallelRead")
-  final val USE_EXTERNAL_HOST    = newOption("useExternalHost")
 
   def getTable(options: CaseInsensitiveMap[String]): Option[TableIdentifier] =
     options
@@ -182,7 +180,6 @@ object SinglestoreOptions extends LazyLogging {
       enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean,
       disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean,
       enableParallelRead = options.get(ENABLE_PARALLEL_READ).getOrElse("false").toBoolean,
-      useExternalHost = options.get(USE_EXTERNAL_HOST).getOrElse("false").toBoolean,
       overwriteBehavior = {
         val truncateOption          = options.get(TRUNCATE)
         val overwriteBehaviorOption = options.get(OVERWRITE_BEHAVIOR)

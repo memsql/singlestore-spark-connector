@@ -95,6 +95,48 @@ class ExternalHostTest
       }
     }
 
+    it("empty external host map") {
+
+      withObjectMocked[JdbcHelpers.type] {
+
+        setupMockJdbcHelper()
+        when(JdbcHelpers.getSinglestoreVersion(any[SinglestoreOptions])).thenReturn("7.1.0")
+        when(JdbcHelpers.externalHostPorts(any[SinglestoreOptions]))
+          .thenReturn(Map.empty[String, String])
+
+        val actualDf = spark.read
+          .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+          .option("useExternalHost", "true")
+          .load(s"$testDb.$testCollection")
+
+        assertSmallDataFrameEquality(df, actualDf)
+      }
+    }
+
+    it("wrong external host map") {
+
+      withObjectMocked[JdbcHelpers.type] {
+
+        setupMockJdbcHelper()
+        when(JdbcHelpers.getSinglestoreVersion(any[SinglestoreOptions])).thenReturn("7.1.0")
+
+        val externalHostMap = Map(
+          "172.17.0.3:3307" -> "172.17.0.100:3307",
+          "172.17.0.4:3307" -> "172.17.0.200:3307"
+        )
+
+        when(JdbcHelpers.externalHostPorts(any[SinglestoreOptions]))
+          .thenReturn(externalHostMap)
+
+        val actualDf = spark.read
+          .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+          .option("useExternalHost", "true")
+          .load(s"$testDb.$testCollection")
+
+        assertSmallDataFrameEquality(df, actualDf)
+      }
+    }
+
     it("valid external host function") {
 
       val mvNodesDf = spark.createDF(
@@ -118,7 +160,6 @@ class ExternalHostTest
         Map.empty[String, String],
         false,
         false,
-        true,
         true,
         Truncate,
         SinglestoreOptions.CompressionType.GZip,
@@ -161,30 +202,6 @@ class ExternalHostTest
   }
 
   describe("failed tests") {
-    it("empty external host map") {
-
-      withObjectMocked[JdbcHelpers.type] {
-
-        setupMockJdbcHelper()
-        when(JdbcHelpers.getSinglestoreVersion(any[SinglestoreOptions])).thenReturn("7.1.0")
-        when(JdbcHelpers.externalHostPorts(any[SinglestoreOptions]))
-          .thenReturn(Map.empty[String, String])
-
-        try {
-          spark.read
-            .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
-            .option("useExternalHost", "true")
-            .load(s"$testDb.$testCollection")
-            .collect()
-          fail("Exception expected")
-        } catch {
-          case ex: IllegalArgumentException =>
-            assert(
-              ex.getMessage equals "No external host/port provided for the host 172.17.0.2:3307")
-          case _ => fail("IllegalArgumentException expected")
-        }
-      }
-    }
 
     it("wrong external host") {
 

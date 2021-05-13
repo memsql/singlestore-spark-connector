@@ -40,26 +40,27 @@ object SinglestoreQueryHelpers extends LazyLogging {
       val minimalExternalHostVersion = "7.1.0"
       val explainJSON                = JdbcHelpers.explainJSONQuery(options, query, variables).parseJson
       val partitions                 = JdbcHelpers.partitionHostPorts(options, options.database.head)
-      val partitionHostPorts = if (options.useExternalHost) {
+      val partitionHostPorts = {
         val singlestoreVersion = SinglestoreVersion(JdbcHelpers.getSinglestoreVersion(options))
         if (singlestoreVersion.atLeast(minimalExternalHostVersion)) {
           val externalHostMap = JdbcHelpers.externalHostPorts(options)
-          partitions.map(p => {
+          var isValid         = true
+          val externalPartitions = partitions.flatMap(p => {
             val externalHost = externalHostMap.get(p.hostport)
             if (externalHost.isDefined) {
-              SinglestorePartitionInfo(p.ordinal, p.name, externalHost.get)
+              Some(SinglestorePartitionInfo(p.ordinal, p.name, externalHost.get))
             } else {
-              throw new IllegalArgumentException(
-                s"No external host/port provided for the host ${p.hostport}")
+              isValid = false
+              None
+//              throw new IllegalArgumentException(
+//                s"No external host/port provided for the host ${p.hostport}")
             }
           })
+          if (isValid) externalPartitions
+          else partitions
         } else {
-          log.warn(
-            s"To use `External host` feature, your SingleStore version should be $minimalExternalHostVersion or above, your current version is $singlestoreVersion")
           partitions
         }
-      } else {
-        partitions
       }
       try {
         partitionsFromExplainJSON(options, options.database.head, partitionHostPorts, explainJSON)
