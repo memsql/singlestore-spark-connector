@@ -336,6 +336,10 @@ In order to use parallel reads, the username and password provided to the
 In addition, the hostnames and ports listed by `SHOW LEAVES` must be directly
 connectible from Spark.
 
+**:warning: When parallel read enabled, connector will try to use external hosts and ports from `information_schema.mv_nodes` table
+for direct connection to leaves, if they don't exist, connector will use internal ones. 
+This feature works only with a SingleStore version `7.1.0` or above.
+
 ## Running SQL queries
 The methods `executeSinglestoreQuery(query: String, variables: Any*)` and `executeSinglestoreQueryDB(db: String, query: String, variables: Any*)`
 allow you to run SQL queries on a SingleStore database directly using the existing `SparkSession` object. The method `executeSinglestoreQuery`

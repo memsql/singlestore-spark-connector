@@ -530,6 +530,37 @@ object SQLGen extends LazyLogging {
     def apply(): SQLGenContext = new SQLGenContext(HashMap.empty)
   }
 
+  case class SinglestoreVersion(major: Int, minor: Int, patch: Int) {
+
+    implicit val ordering: Ordering[SinglestoreVersion] =
+      Ordering.by(v => (v.major, v.minor, v.patch))
+
+    import Ordering.Implicits.infixOrderingOps
+
+    def atLeast(version: SinglestoreVersion): Boolean = {
+      this >= version
+    }
+
+    def atLeast(version: String): Boolean = {
+      atLeast(SinglestoreVersion(version))
+    }
+
+    override def toString: String = s"${this.major}.${this.minor}.${this.patch}"
+  }
+
+  object SinglestoreVersion {
+
+    def apply(version: String): SinglestoreVersion = {
+      val versionParts = version.split("\\.")
+      if (versionParts.size != 3)
+        throw new IllegalArgumentException(
+          "Singlestore version should contain three parts (major, minor, patch)")
+      new SinglestoreVersion(Integer.parseInt(versionParts(0)),
+                             Integer.parseInt(versionParts(1)),
+                             Integer.parseInt(versionParts(2)))
+    }
+  }
+
   case class ExpressionExtractor(context: SQLGenContext) {
 
     protected lazy val log: Logger = LoggerFactory.getLogger(getClass.getName)

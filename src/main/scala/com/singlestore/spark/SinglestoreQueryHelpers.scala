@@ -1,6 +1,6 @@
 package com.singlestore.spark
 
-import com.singlestore.spark.SQLGen.VariableList
+import com.singlestore.spark.SQLGen.{SinglestoreVersion, VariableList}
 import org.apache.spark.Partition
 import org.apache.spark.sql.execution.datasources.jdbc.JDBCOptions
 import spray.json.DefaultJsonProtocol._
@@ -37,8 +37,29 @@ object SinglestoreQueryHelpers extends LazyLogging {
     // currently we require the database name to be provided in order to do partition pushdown
     // this is because we need to replace the database name in the generated query from SingleStore explain
     val partitions = if (options.enableParallelRead && options.database.isDefined) {
-      val explainJSON        = JdbcHelpers.explainJSONQuery(options, query, variables).parseJson
-      val partitionHostPorts = JdbcHelpers.partitionHostPorts(options, options.database.head)
+      val minimalExternalHostVersion = "7.1.0"
+      val explainJSON                = JdbcHelpers.explainJSONQuery(options, query, variables).parseJson
+      val partitions                 = JdbcHelpers.partitionHostPorts(options, options.database.head)
+      val partitionHostPorts = {
+        val singlestoreVersion = SinglestoreVersion(JdbcHelpers.getSinglestoreVersion(options))
+        if (singlestoreVersion.atLeast(minimalExternalHostVersion)) {
+          val externalHostMap = JdbcHelpers.externalHostPorts(options)
+          var isValid         = true
+          val externalPartitions = partitions.flatMap(p => {
+            val externalHost = externalHostMap.get(p.hostport)
+            if (externalHost.isDefined) {
+              Some(SinglestorePartitionInfo(p.ordinal, p.name, externalHost.get))
+            } else {
+              isValid = false
+              None
+            }
+          })
+          if (isValid) externalPartitions
+          else partitions
+        } else {
+          partitions
+        }
+      }
       try {
         partitionsFromExplainJSON(options, options.database.head, partitionHostPorts, explainJSON)
       } catch {

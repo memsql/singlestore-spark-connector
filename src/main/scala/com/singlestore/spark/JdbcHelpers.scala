@@ -1,6 +1,6 @@
 package com.singlestore.spark
 
-import java.sql.{Connection, PreparedStatement, Statement}
+import java.sql.{Connection, PreparedStatement, SQLException, Statement}
 
 import com.singlestore.spark.SQLGen.{StringVar, VariableList}
 import com.singlestore.spark.SinglestoreOptions.{TableKey, TableKeyType}
@@ -185,6 +185,48 @@ object JdbcHelpers extends LazyLogging {
     }
   }
 
+  /**
+    * Return map from original host/port to external host/port
+    * @param conf options
+    * @return Map `host:port` -> `externalHost:externalPort`
+    */
+  def externalHostPorts(conf: SinglestoreOptions): Map[String, String] = {
+    val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+    try {
+      val statement = conn.prepareStatement(s"""
+        SELECT IP_ADDR,    
+        PORT,
+        EXTERNAL_HOST,         
+        EXTERNAL_PORT
+        FROM INFORMATION_SCHEMA.MV_NODES 
+        WHERE TYPE = "LEAF";
+      """)
+      try {
+        val rs = statement.executeQuery()
+        try {
+          var out = Map.empty[String, String]
+          while (rs.next) {
+            val host               = rs.getString(1)
+            val port               = rs.getInt(2)
+            val externalHost       = rs.getString(3)
+            val externalPortString = rs.getString(4)
+            if (externalHost != null && externalPortString != null) {
+              val externalPort = externalPortString.toInt
+              out = out + (s"$host:$port" -> s"$externalHost:$externalPort")
+            }
+          }
+          out
+        } finally {
+          rs.close()
+        }
+      } finally {
+        statement.close()
+      }
+    } finally {
+      conn.close()
+    }
+  }
+
   def fillStatement(stmt: PreparedStatement, variables: VariableList): Unit = {
     import SQLGen._
     if (variables.isEmpty) { return }
@@ -270,6 +312,26 @@ object JdbcHelpers extends LazyLogging {
           }
         }.isSuccess
     )
+  }
+
+  def getSinglestoreVersion(conf: SinglestoreOptions): String = {
+    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
+    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    val sql      = "select @@memsql_version"
+    log.trace(s"Executing SQL:\n$sql")
+    val resultSet = conn.withStatement(stmt => {
+      try {
+        stmt.executeQuery(sql)
+      } catch {
+        case _: SQLException => throw new IllegalArgumentException("Can't get SingleStore version")
+      } finally {
+        stmt.close()
+        conn.close()
+      }
+    })
+    if (resultSet.next()) {
+      resultSet.getString("@@memsql_version")
+    } else throw new IllegalArgumentException("Can't get SingleStore version")
   }
 
   def createTable(conn: Connection,
