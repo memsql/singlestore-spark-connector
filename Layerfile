@@ -21,7 +21,7 @@ RUN apt-get update &&                                                           
 
 # install java
 RUN apt-get update && \
-    sudo apt-get install openjdk-8-jre
+    sudo apt-get install openjdk-8-jdk
 
 # set environment variables
 ENV MEMSQL_PORT=5506
