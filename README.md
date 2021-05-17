@@ -1,5 +1,5 @@
 # SingleStore Spark Connector
-## Version: 3.0.7 [![Continuous Integration](https://circleci.com/gh/memsql/singlestore-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/singlestore-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## Version: 3.0.8 [![Continuous Integration](https://circleci.com/gh/memsql/singlestore-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/singlestore-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 ## Getting Started
 
@@ -12,11 +12,11 @@ spark-packages.org.  The group is `com.singlestore` and the artifact is
 
 You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
 ```
-$SPARK_HOME/bin/spark-shell --packages com.singlestore:singlestore-spark-connector_2.11:3.0.7-spark-2.4.4
+$SPARK_HOME/bin/spark-shell --packages com.singlestore:singlestore-spark-connector_2.11:3.0.8-spark-2.4.4
 ```
 
 We release two versions of the `singlestore-spark-connector`, one per Spark version.
-An example version number is: `3.0.7-spark-2.3.4` which is the 3.0.7
+An example version number is: `3.0.8-spark-2.3.4` which is the 3.0.8
 version of the connector, compiled and tested against Spark 2.3.4. Make sure
 you are using the most recent version of the connector.
 
@@ -505,7 +505,7 @@ Happy querying!
 
 ## Major changes from the 2.0.0 connector
 
-The SingleStore Spark Connector 3.0.7 has a number of key features and enhancements:
+The SingleStore Spark Connector 3.0.8 has a number of key features and enhancements:
 
 * Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
 * Implemented as a native Spark SQL plugin
