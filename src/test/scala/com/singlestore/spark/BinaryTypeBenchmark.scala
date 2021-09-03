@@ -66,7 +66,7 @@ object BinaryTypeBenchmark extends App {
   df.write
     .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
     .option("tableKey.primary", "id")
-    .option("onDuplicateKeySQL", "id = id")
+    .option("onDuplicateKeySQL", "data = data")
     .mode(SaveMode.Overwrite)
     .save("testdb.BatchInsert")
 

@@ -59,7 +59,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     }
     it("BatchInsertWriter") {
       testBooleanType(
-        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
         "BooleanTypeInsert"
       )
     }
@@ -91,7 +91,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     }
     it("BatchInsertWriter") {
       testByteType(
-        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
         "ByteTypeInsert"
       )
     }
@@ -116,7 +116,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     }
     it("BatchInsertWriter") {
       testShortType(
-        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
         "ShortTypeInsert"
       )
     }
@@ -141,7 +141,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     }
     it("BatchInsertWriter") {
       testIntegerType(
-        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
         "IntegerTypeInsert"
       )
     }
@@ -166,7 +166,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     }
     it("BatchInsertWriter") {
       testLongType(
-        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
         "LongTypeInsert"
       )
     }
@@ -191,7 +191,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     }
     it("BatchInsertWriter") {
       testFloatType(
-        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
         "FloatTypeInsert"
       )
     }
@@ -223,7 +223,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     }
     it("BatchInsertWriter") {
       testDoubleType(
-        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
         "DoubleTypeInsert"
       )
     }
@@ -253,7 +253,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     }
     it("BatchInsertWriter") {
       testStringType(
-        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
         "StringTypeInsert"
       )
     }
@@ -275,7 +275,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
       writeRead(df, df, Map(SinglestoreOptions.LOAD_DATA_FORMAT -> "avro"), "BinaryTypeLoad")
       writeRead(df,
                 df,
-                Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+                Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
                 "BinaryTypeInsert")
     }
 
@@ -340,7 +340,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     it("two binary types") {
       val df = spark.createDF(
         List((genRandomRow(), genRandomRow(), 1), (genRandomRow(), genRandomRow(), 2)),
-        List(("data1", BinaryType, true), ("data2", BinaryType, true), ("id", IntegerType, true))
+        List(("data", BinaryType, true), ("data2", BinaryType, true), ("id", IntegerType, true))
       )
       testBinaryTypeDf(df)
     }
@@ -352,7 +352,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
           (genRandomRow(), genRandomRow(), genRandomRow(), genRandomRow(), genRandomRow(), 2)
         ),
         List(
-          ("data1", BinaryType, true),
+          ("data", BinaryType, true),
           ("data2", BinaryType, true),
           ("data3", BinaryType, true),
           ("data4", BinaryType, true),
@@ -391,7 +391,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     }
     it("BatchInsertWriter") {
       testDateType(
-        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
         "DateTypeInsert"
       )
     }
@@ -428,7 +428,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     }
     it("BatchInsertWriter") {
       testTimestampType(
-        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
         "TimestampTypeInsert"
       )
     }
@@ -463,7 +463,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
 
     it("BatchInsertWriter") {
       testDecimalType(
-        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "id = id"),
+        Map("tableKey.primary" -> "id", "onDuplicateKeySQL" -> "data = data"),
         "DecimalTypeInsert"
       )
     }

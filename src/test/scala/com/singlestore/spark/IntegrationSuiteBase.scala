@@ -20,7 +20,8 @@ trait IntegrationSuiteBase
     with BeforeAndAfterAll
     with DataFrameComparer
     with LazyLogging {
-  object OnlySpark3 extends Tag("OnlySpark3")
+  object OnlySpark31 extends Tag("OnlySpark31")
+  object OnlySpark30 extends Tag("OnlySpark30")
 
   final val masterHost: String = sys.props.getOrElse("singlestore.host", "localhost")
   final val masterPort: String = sys.props.getOrElse("singlestore.port", "5506")

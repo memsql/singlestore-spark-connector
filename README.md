@@ -13,12 +13,12 @@ spark-packages.org.  The group is `com.singlestore` and the artifact is
 
 You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
 ```
-$SPARK_HOME/bin/spark-shell --packages com.singlestore:singlestore-spark-connector_2.12:3.1.2-spark-3.0.0
+$SPARK_HOME/bin/spark-shell --packages com.singlestore:singlestore-spark-connector_2.12:3.1.2-spark-3.1.0
 ```
 
-We release three versions of the `singlestore-spark-connector`, one per Spark version.
-An example version number is: `3.1.2-spark-3.0.0` which is the 3.1.2
-version of the connector, compiled and tested against Spark 3.0.0. Make sure
+We release two versions of the `singlestore-spark-connector`, one per Spark version.
+An example version number is: `3.1.2-spark-3.1.0` which is the 3.1.2
+version of the connector, compiled and tested against Spark 3.1.0. Make sure
 you are using the most recent version of the connector.
 
 In addition to adding the `singlestore-spark-connector`, you will also need to have the
@@ -514,7 +514,7 @@ The SingleStore Spark Connector 3.1.2 has a number of key features and enhanceme
 * Implemented as a native Spark SQL plugin
 * Supports both the DataSource and DataSourceV2 API for maximum support of current and future functionality
 * Contains deep integrations with the Catalyst query optimizer
-* Is compatible with Spark 2.3, 2.4 and 3.0
+* Is compatible with Spark 3.0 and 3.1
 * Leverages SingleStore LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
 * Takes advantage of all the latest and greatest features in SingleStore 7.x
 

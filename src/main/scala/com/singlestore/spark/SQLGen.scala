@@ -69,9 +69,10 @@ object SQLGen extends LazyLogging {
       case c: Chunk                => copy(c :: list)
     }
 
+    private val MAX_PLAN_FIELDS: Int = Int.MaxValue
     def withLogicalPlanComment(plan: LogicalPlan): Statement =
       if (log.isTraceEnabled()) {
-        this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${PlanToCommentSQL.convert(plan)}"
+        this + s"${newlineIfEmpty}-- Spark LogicalPlan: ${plan.simpleString(MAX_PLAN_FIELDS).replace("\n", "\n-- ")}"
       } else {
         this
       }
@@ -389,10 +390,11 @@ object SQLGen extends LazyLogging {
       }
       // the last parameter is a spark hint for join
       // SingleStore does its own optimizations under the hood, so we can safely ignore this parameter
-      case plan @ JoinExtractor(Relation(left),
-                                Relation(right),
-                                joinType @ (Inner | Cross),
-                                sortPredicates(condition))
+      case plan @ Join(Relation(left),
+                       Relation(right),
+                       joinType @ (Inner | Cross),
+                       sortPredicates(condition),
+                       _)
           if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
             right.reader.options).asProperties =>
         newStatement(plan)
@@ -405,10 +407,11 @@ object SQLGen extends LazyLogging {
       // condition is required for {Left, Right, Full} outer joins
       // the last parameter is a spark hint for join
       // SingleStore does its own optimizations under the hood, so we can safely ignore this parameter
-      case plan @ JoinExtractor(Relation(left),
-                                Relation(right),
-                                joinType @ (LeftOuter | RightOuter | FullOuter),
-                                Some(sortPredicates(condition)))
+      case plan @ Join(Relation(left),
+                       Relation(right),
+                       joinType @ (LeftOuter | RightOuter | FullOuter),
+                       Some(sortPredicates(condition)),
+                       _)
           if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
             right.reader.options).asProperties =>
         newStatement(plan)
@@ -421,7 +424,7 @@ object SQLGen extends LazyLogging {
       // condition is not allowed for natural joins
       // the last parameter is a spark hint for join
       // SingleStore does its own optimizations under the hood, so we can safely ignore this parameter
-      case plan @ JoinExtractor(Relation(left), Relation(right), NaturalJoin(joinType), None)
+      case plan @ Join(Relation(left), Relation(right), NaturalJoin(joinType), None, _)
           if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
             right.reader.options).asProperties =>
         newStatement(plan)

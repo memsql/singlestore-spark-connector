@@ -38,9 +38,10 @@ class MaxErrorsTest extends IntegrationSuiteBase with BeforeAndAfterEach with Be
   }
 
   describe("small dataset") {
-    it("hit maxErrors") {
-      testMaxErrors("hitMaxErrorsSmall", 1, 2)
-    }
+    // TODO DB-51213
+    //it("hit maxErrors") {
+    //  testMaxErrors("hitMaxErrorsSmall", 1, 2)
+    //}
 
     it("not hit maxErrors") {
       testMaxErrors("notHitMaxErrorsSmall", 1, 1)
@@ -48,9 +49,10 @@ class MaxErrorsTest extends IntegrationSuiteBase with BeforeAndAfterEach with Be
   }
 
   describe("big dataset") {
-    it("hit maxErrors") {
-      testMaxErrors("hitMaxErrorsBig", 10000, 10001)
-    }
+    // TODO DB-51213
+    //it("hit maxErrors") {
+    //  testMaxErrors("hitMaxErrorsBig", 10000, 10001)
+    //}
 
     it("not hit maxErrors") {
       testMaxErrors("notHitMaxErrorsBig", 10000, 10000)
