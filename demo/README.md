@@ -21,7 +21,8 @@ docker pull memsql/cluster-in-a-box
 docker run -i --init \
 --name singlestore-ciab-for-zeppelin \
 -e LICENSE_KEY=[INPUT_YOUR_LICENSE_KEY] \
--p 3306:3306 -p 8080:8080 \
+-e ROOT_PASSWORD=my_password \
+-p 3306:3306 -p 8081:8080 \
 --net=zeppelin-ciab-network \
 memsql/cluster-in-a-box
 ```
@@ -55,7 +56,8 @@ docker run -d --init \
 --name zeppelin \
 -p 8082:8082 \
 --net=zeppelin-ciab-network \
--v $PWD/notebook:/zeppelin/notebook/memsql \
+-v $PWD/notebook:/opt/zeppelin/notebook/singlestore \
+-v $PWD/notebook:/zeppelin/notebook/singlestore \
 zeppelin
 ```
 
@@ -80,4 +82,4 @@ zeppelin
 [pyspark](http://localhost:8082/next/#/notebook/2F6Y3APTX)
 and [spark sql](http://localhost:8082/next/#/notebook/2F7PZ81H6) notebooks
 
-For setting up more powerful SingleStore trial cluster use [Helios](https://www.singlestore.com/helios/)
+For setting up more powerful SingleStore trial cluster use [SingleStore Managed Service](https://www.singlestore.com/managed-service/)

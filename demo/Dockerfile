@@ -1,6 +1,6 @@
 FROM apache/zeppelin:0.9.0
 
-ENV SPARK_VERSION=3.0.1
+ENV SPARK_VERSION=3.0.3
 
 USER root
 
