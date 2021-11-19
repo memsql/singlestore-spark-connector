@@ -1,5 +1,5 @@
 # SingleStore Spark Connector
-## Version: 3.1.3 [![Continuous Integration](https://circleci.com/gh/memsql/singlestore-spark-connector/tree/master.svg?style=shield)](https://circleci.com/gh/memsql/singlestore-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## Version: 3.1.3 [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 ## Getting Started
 
@@ -38,25 +38,29 @@ The `singlestore-spark-connector` is configurable globally via Spark options and
 locally when constructing a DataFrame.  The options are named the same, however
 global options have the prefix `spark.datasource.singlestore.`.
 
-| Option                    | Description
-| -                         | -
-| `ddlEndpoint`  (required) | Hostname or IP address of the SingleStore Master Aggregator in the format `host[:port]` (port is optional). Ex. `master-agg.foo.internal:3308` or `master-agg.foo.internal`
-| `dmlEndpoints`            | Hostname or IP address of SingleStore Aggregator nodes to run queries against in the format `host[:port],host[:port],...` (port is optional, multiple hosts separated by comma). Ex. `child-agg:3308,child-agg2` (default: `ddlEndpoint`)
-| `user`                    | SingleStore username (default: `root`)
-| `password`                | SingleStore password (default: no password)
-| `query`                   | The query to run (mutually exclusive with dbtable)
-| `dbtable`                 | The table to query (mutually exclusive with query)
-| `database`                | If set, all connections will default to using this database (default: empty)
-| `disablePushdown`         | Disable SQL Pushdown when running queries (default: false)
-| `enableParallelRead`      | Enable reading data in parallel for some query shapes (default: false)
-| `overwriteBehavior`       | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
-| `truncate`                | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
-| `loadDataCompression`     | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
-| `loadDataFormat`          | Serialize data on load; one of (`Avro`, `CSV`) (default: CSV)
-| `tableKey`                | Specify additional keys to add to tables created by the connector (See below for more details)
-| `onDuplicateKeySQL`       | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, SingleStore will instead perform an UPDATE of the old row. See examples below
-| `insertBatchSize`         | Size of the batch for row insertion (default: `10000`)
-| `maxErrors`               | The maximum number of errors in a single `LOAD DATA` request. When this limit is reached, the load fails. If this property equals to `0`, no error limit exists (Default: `0`)
+| Option                                            | Description
+| -                                                 | -
+| `ddlEndpoint`  (required)                         | Hostname or IP address of the SingleStore Master Aggregator in the format `host[:port]` (port is optional). Ex. `master-agg.foo.internal:3308` or `master-agg.foo.internal`
+| `dmlEndpoints`                                    | Hostname or IP address of SingleStore Aggregator nodes to run queries against in the format `host[:port],host[:port],...` (port is optional, multiple hosts separated by comma). Ex. `child-agg:3308,child-agg2` (default: `ddlEndpoint`)
+| `user`                                            | SingleStore username (default: `root`)
+| `password`                                        | SingleStore password (default: no password)
+| `query`                                           | The query to run (mutually exclusive with dbtable)
+| `dbtable`                                         | The table to query (mutually exclusive with query)
+| `database`                                        | If set, all connections will default to using this database (default: empty)
+| `disablePushdown`                                 | Disable SQL Pushdown when running queries (default: false)
+| `enableParallelRead`                              | Enable reading data in parallel for some query shapes; one of (`disabled`, `automaticLite`, `automatic`, `forced`) (default: `disabled`)
+| `parallelRead.Features`                           | Specify comma separated list of parallel read features that will be tried. The order in which features are listed determines their priority. Supported features: `ReadFromLeaves`, `ReadFromAggregators`, `ReadFromAggregatorsMaterialized`. Ex. `ReadFromLeaves,ReadFromAggregators` (default: `ReadFromAggregators`).
+| `parallelRead.tableCreationTimeoutMS`             | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregators` feature is used; 0 means no timeout (default: `0`)
+| `parallelRead.tableCreationTimeoutMaterializedMS` | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregatorsMaterialized` feature is used; 0 means no timeout (default: `0`)
+| `parallelRead.repartition`                        | Repartition data before reading it (default: `false`)
+| `overwriteBehavior`                               | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
+| `truncate`                                        | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
+| `loadDataCompression`                             | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
+| `loadDataFormat`                                  | Serialize data on load; one of (`Avro`, `CSV`) (default: CSV)
+| `tableKey`                                        | Specify additional keys to add to tables created by the connector (See below for more details)
+| `onDuplicateKeySQL`                               | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, SingleStore will instead perform an UPDATE of the old row. See examples below
+| `insertBatchSize`                                 | Size of the batch for row insertion (default: `10000`)
+| `maxErrors`                                       | The maximum number of errors in a single `LOAD DATA` request. When this limit is reached, the load fails. If this property equals to `0`, no error limit exists (Default: `0`)
 
 ## Examples
 
@@ -178,16 +182,16 @@ When you use ON DUPLICATE KEY UPDATE, all rows of the data frame are split into 
 
 ## Save Modes
 
-Save operations can optionally take a SaveMode, that specifies how to handle existing data if present. 
-It is important to realize that these save modes do not utilize any locking and are not atomic. 
+Save operations can optionally take a SaveMode, that specifies how to handle existing data if present.
+It is important to realize that these save modes do not utilize any locking and are not atomic.
 Additionally, when performing an Overwrite, the data will be deleted before writing out the new data.
 
 1. `SaveMode.Append` means that when saving a DataFrame to a data source, if data/table already exists,
 contents of the DataFrame are expected to be appended to existing data.
 2. `SaveMode.Overwrite` means that when saving a DataFrame to a data source,
-if data/table already exists, existing data is expected to be overwritten by the contents of the DataFrame.    
+if data/table already exists, existing data is expected to be overwritten by the contents of the DataFrame.
 > `Overwrite` mode depends on `overwriteBehavior` option, for better understanding look at the section ["Merging on save"](#merging-on-save)
-3. `SaveMode.ErrorIfExists` means that when saving a DataFrame to a data source, 
+3. `SaveMode.ErrorIfExists` means that when saving a DataFrame to a data source,
 if data already exists, an exception is expected to be thrown.
 4. `SaveMode.Ignore` means that when saving a DataFrame to a data source, if data already exists,
 the save operation is expected to not save the contents of the DataFrame and to not change the existing data.
@@ -304,42 +308,99 @@ Make sure not to leave it in place since it generates a huge amount of tracing
 output.
 
 ## Parallel Read Support
+Parallel read can be enabled using `enableParallelRead` option. This can drastically improve performance in some cases.
 
-If you enable parallel reads via the `enableParallelRead` option, the
-`singlestore-spark-connector` will attempt to read results directly from SingleStore leaf
-nodes.  This can drastically improve performance in some cases.
+`enableParallelRead` option can take one of the following values:
+ * `disabled` - do non-parallel read.
+ * `automaticLite` - check if at least one parallel read feature specified in `parallelRead.Features` can be used and if it is,
+ use parallel read, otherwise do non-parallel read.
+ When this option is used and push down of outer sorting operation is done, non-parallel read is used.
+ * `automatic` - check if at least one parallel read feature specified in `parallelRead.Features` can be used and if it is,
+ use parallel read, otherwise do non-parallel read.
+ When parallel read is performed with this option, we are unable to push down an outer sorting operation into SingleStore.
+ Final sorting is done on the Spark side.
+ * `forced` - check if at least one parallel read feature specified in `parallelRead.Features` can be used and if it is,
+ use parallel read, otherwise throw an error.
+ When parallel read is performed with this option, we are unable to push down an outer sorting operation into SingleStore.
+ Final sorting is done on the Spark side.
 
-**:warning: Parallel reads are not consistent**
+The default value is `automaticLite`
 
-Parallel reads read directly from partitions on the leaf nodes which skips our
-entire transaction layer. This means that the individual reads will see an
-independent version of the databases distributed state. Make sure to take this
-into account when enabling parallel read.
+### Parallel read features
+`singlestore-spark-connector` supports three parallel read features:
+ * `readFromAggregators`
+ * `readFromAggregatorsMaterialized`
+ * `readFromLeaves`
 
-**:warning: Parallel reads transparently fallback to single stream reads**
+You can specify what features connector should try to use by setting the `parallelRead.Features` option.
+By default, it is `readFromAggregators`. Connector will use the first feature specified in `parallelRead.Features`
+for which all requirements are satisfied.
 
-Parallel reads currently only work for query-shapes which do no work on the
-Aggregator and thus can be pushed entirely down to the leaf nodes. To determine
-if a particular query is being pushed down you can ask the dataframe how many
-partitions it has like so:
+#### readFromAggregators
+When this feature is used, `singlestore-spark-connector` will use [SingleStore parallel read functionality](https://docs.singlestore.com/db/latest/en/query-data/query-procedures/read-query-results-in-parallel.html).
+The number of partitions in the resulting DataFrame will be equal to the number of partitions in the SingleStore database.
+Each partition will be read by the separate spark task. All tasks must start reading at the same time. So, in order to use this
+feature, parallelism level in the spark cluster must be enough to start all these tasks at the same time - i.e., sum of
+`(spark.executor.cores/spark.task.cpus)` for all executors should not be less than number of partitions in your database.
 
-```scala
-df.rdd.getNumPartitions
-```
+You can set a timeout for result table creation using the `parallelRead.tableCreationTimeoutMS` option.
 
-If this value is > 1 then we are reading in parallel from leaf nodes.
+Requirements:
+ * SingleStore version is 7.5 or above
+ * `database` option is set, or database name is provided in `load`
+ * Generated query is supported by SingleStore parallel read functionality
+ * Parallelism level on Spark cluster is enough to start reading from all database partitions at the same time
 
-**:warning: Parallel reads require consistent authentication and connectible leaf nodes**
+#### readFromAggregatorsMaterialized
+This feature is very similar to `readFromAggregators`. The only difference is that the result table is created using
+the `MATERIALIZED` option. For this feature, reading tasks don't need to be started at the same time, so parallelism level on
+spark cluster doesn't matter. On the other side, the `MATERIALIZED` option may cause the query to fail if SingleStore
+doesn't have enough memory to materialize the result set.
 
-In order to use parallel reads, the username and password provided to the
+You can set a timeout for materialized result table creation using the `parallelRead.tableCreationTimeoutMaterializedMS` option.
+
+Requirements:
+ * SingleStore version is 7.5 or above
+ * `database` option is set, or database name is provided in `load`
+ * Generated query is supported by SingleStore parallel read functionality
+
+#### readFromLeaves
+When this feature is used, `singlestore-spark-connector` reads directly from partitions
+on the leaf nodes, which skips our entire transaction layer.
+This means that the individual reads will see an independent version of the database's distributed state.
+Make sure to take this into account when using `readFromLeaves` feature.
+
+It supports only query-shapes which do not perform work on the Aggregator and thus can be pushed entirely down to the leaf nodes.
+
+In order to use `readFromLeaves` feature, the username and password provided to the
 `singlestore-spark-connector` must be the same across all nodes in the cluster.
 
-In addition, the hostnames and ports listed by `SHOW LEAVES` must be directly
-connectible from Spark.
+Requirements:
+ * `database` option is set, or database name is provided in `load`
+ * Consistent authentication and connectible leaf nodes
+ * Generated query can be pushed entirely down to the leaf nodes
 
-**:warning: When parallel read enabled, connector will try to use external hosts and ports from `information_schema.mv_nodes` table
-for direct connection to leaves, if they don't exist, connector will use internal ones. 
-This feature works only with a SingleStore version `7.1.0` or above.
+### Parallel read repartitioning
+For `readFromAggregators` and `readFromAggregatorsMaterialized` you can repartition the result using `parallelRead.repartition`
+to be sure that all tasks will read approximately the same amount of data. This option is very useful for queries with top level
+limit clauses as without repartitioning it is possible that all rows will belong to one partition.
+
+### Example
+```scala
+spark.read.format("singlestore")
+.option("enableParallelRead", "automatic")
+.option("parallelRead.Features", "readFromAggregators,readFromLeaves")
+.option("parallelRead.repartition", "true")
+.option("parallelRead.TableCreationTimeout", "1000")
+.load("db.table")
+```
+
+In the following example, connector will check requirements for `readFromAggregators`.
+If they are satisfied, it will use this feature.
+Otherwise, it will check requirements for `readFromLeaves`.
+If they are satisfied, connector will use this feature. Otherwise, it will use non-parallel read.
+If the connector uses `readFromAggregators`, it will repartition the result on the SingleStore side before reading it
+and it will fail if creation of the result table will take longer than `1000` milliseconds.
 
 ## Running SQL queries
 The methods `executeSinglestoreQuery(query: String, variables: Any*)` and `executeSinglestoreQueryDB(db: String, query: String, variables: Any*)`
@@ -357,7 +418,7 @@ import com.singlestore.spark.SQLHelper.QueryMethods
 // You can pass an empty database to executeSinglestoreQueryDB to connect to SingleStore without specifying a database.
 // This allows you to create a database which is defined in the SparkSession config for example.
 spark.executeSinglestoreQueryDB("", "CREATE DATABASE foo")
-// the next query can be used if the database field has been specified in spark object   
+// the next query can be used if the database field has been specified in spark object
 s = spark.executeSinglestoreQuery("CREATE TABLE user(id INT, name VARCHAR(30), status BOOLEAN)")
 
 // you can create another database
@@ -400,9 +461,9 @@ spark = SparkSession.builder()
     .getOrCreate()
 ```
 
-You do not need to provide a password when configuring a Spark Connector user that is Kerberized. 
-The connector driver (MariaDB) will be able to authenticate the Kerberos user from the cache by the provided username. 
-Other than omitting a password with this configuration, using a Kerberized user with the Connector is no different than using a standard user. 
+You do not need to provide a password when configuring a Spark Connector user that is Kerberized.
+The connector driver (MariaDB) will be able to authenticate the Kerberos user from the cache by the provided username.
+Other than omitting a password with this configuration, using a Kerberized user with the Connector is no different than using a standard user.
 Note that if you do provide a password, it will be ignored.
 
 ### SQL Permissions
