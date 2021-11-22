@@ -590,7 +590,9 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
 
       val actualDF =
         spark.read.format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT).load(s"testdb.$tableName")
-      assertLargeDataFrameEquality(actualDF, expectedDataFrame)
+      assertLargeDataFrameEquality(actualDF,
+                                   expectedDataFrame,
+                                   orderedComparison = !canDoParallelReadFromAggregators)
     }
 
     it("should write StringType nullable") {

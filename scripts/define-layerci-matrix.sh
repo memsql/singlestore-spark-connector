@@ -19,6 +19,12 @@ else
   echo 'export SINGLESTORE_PASSWORD="password"'
 fi
 
+if [ "$TEST_NUM" == '9' ]
+then
+  echo 'export FORCE_READ_FROM_LEAVES=TRUE'
+else
+  echo 'export FORCE_READ_FROM_LEAVES=FALSE'
+fi
 
 if [ "$TEST_NUM" == '0' ] || [ "$TEST_NUM" == '2' ] || [ "$TEST_NUM" == '4' ] || [ "$TEST_NUM" == '6' ]
 then

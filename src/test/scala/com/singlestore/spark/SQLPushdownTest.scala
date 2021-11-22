@@ -121,7 +121,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                 expectSameResult: Boolean = true,
                 expectCodegenDeterminism: Boolean = true,
                 pushdown: Boolean = true,
+                disableParallelRead: Boolean = false,
                 filterDF: DataFrame => DataFrame = x => x): Unit = {
+    if (disableParallelRead) {
+      spark.sqlContext.setConf("spark.datasource.singlestore.enableParallelRead", "disabled")
+    } else {
+      spark.sqlContext.setConf("spark.datasource.singlestore.enableParallelRead", "automatic")
+    }
+
     spark.sql("use testdb_jdbc")
     val jdbcDF = filterDF(spark.sql(q))
 
@@ -192,15 +199,21 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  def testOrderedQuery(q: String,
-                       expectPartialPushdown: Boolean = false,
-                       pushdown: Boolean = true): Unit = {
+  def testOrderedQuery(q: String, pushdown: Boolean = true): Unit = {
     // order by in SingleStore requires single read
     testQuery(q,
               alreadyOrdered = true,
-              expectPartialPushdown = expectPartialPushdown,
+              expectPartialPushdown = true,
               expectSingleRead = true,
               pushdown = pushdown)
+    afterEach()
+    beforeEach()
+    testQuery(q,
+              alreadyOrdered = true,
+              expectSingleRead = true,
+              pushdown = pushdown,
+              disableParallelRead = true)
+
   }
 
   def testSingleReadQuery(q: String,
@@ -214,6 +227,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
               pushdown = pushdown)
   }
 
+  def testSingleReadForReadFromLeaves(q: String): Unit = {
+    if (canDoParallelReadFromAggregators) {
+      testQuery(q)
+    } else {
+      testSingleReadQuery(q)
+    }
+  }
+
   describe("Attributes") {
     describe("successful pushdown") {
       it("Attribute") { testQuery("select id from users") }
@@ -222,10 +243,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("Alias with hyphen") { testQuery("select id as `user-id` from users") }
       // DatasetComparer fails to sort a DataFrame with weird names, because of it following queries are ran as alreadyOrdered
       it("Alias with dot") {
-        testSingleReadQuery("select id as `user.id` from users order by id", alreadyOrdered = true)
+        testOrderedQuery("select id as `user.id` from users order by id")
       }
       it("Alias with backtick") {
-        testSingleReadQuery("select id as `user``id` from users order by id", alreadyOrdered = true)
+        testOrderedQuery("select id as `user``id` from users order by id")
       }
     }
     describe("unsuccessful pushdown") {
@@ -237,8 +258,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("Literals") {
     describe("successful pushdown") {
-      it("string") { testSingleReadQuery("select 'string' from users") }
-      it("null") { testSingleReadQuery("select null from users") }
+      it("string") {
+        testSingleReadForReadFromLeaves("select 'string' from users")
+      }
+      it("null") {
+        testSingleReadForReadFromLeaves("select null from users")
+      }
       describe("boolean") {
         it("true") { testQuery("select true from users") }
         it("false") { testQuery("select false from users") }
@@ -247,7 +272,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("byte") { testQuery("select 100Y from users") }
       it("short") { testQuery("select 100S from users") }
       it("integer") { testQuery("select 100 from users") }
-      it("long") { testSingleReadQuery("select 100L from users") }
+      it("long") {
+        testSingleReadForReadFromLeaves("select 100L from users")
+      }
 
       it("float") { testQuery("select 1.1 as x from users") }
       it("double") { testQuery("select 1.1D as x from users") }
@@ -554,7 +581,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         // singlestore round to the closest value
         // spark round to the smaller one
         testQuery(
-          "select to_unix_timestamp(cast(critic_rating as timestamp)) from movies where critic_rating - floor(critic_rating) < 0.5")
+          "select to_unix_timestamp(cast(critic_rating as timestamp)) as x from movies where critic_rating - floor(critic_rating) < 0.5")
       }
       it("date") {
         testQuery("select cast(birthday as timestamp) from users")
@@ -571,9 +598,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   describe("Variable Expressions") {
     describe("Coalesce") {
       it("one non-null value") { testQuery("select coalesce(id) from users") }
-      it("one null value") { testSingleReadQuery("select coalesce(null) from users") }
+      it("one null value") {
+        testSingleReadForReadFromLeaves("select coalesce(null) from users")
+      }
       it("a lot of values") { testQuery("select coalesce(null, id, null, id+1) from users") }
-      it("a lot of nulls") { testSingleReadQuery("select coalesce(null, null, null) from users") }
+      it("a lot of nulls") {
+        testSingleReadForReadFromLeaves("select coalesce(null, null, null) from users")
+      }
       it("partial pushdown with udf") {
         testQuery(
           "select coalesce('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
@@ -588,7 +619,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       // SingleStore returns NULL if at least one argument is NULL, when spark skips nulls
       // it("ints with null") { testQuery("select least(null, id, null, id+1) from users") }
-      it("a lot of nulls") { testSingleReadQuery("select least(null, null, null) from users") }
+      it("a lot of nulls") {
+        testSingleReadForReadFromLeaves("select least(null, null, null) from users")
+      }
       it("partial pushdown with udf") {
         testQuery("select least('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
                   expectPartialPushdown = true)
@@ -602,7 +635,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       // SingleStore returns NULL if at least one argument is NULL, when spark skips nulls
       // it("ints with null") { testQuery("select greatest(null, id, null, id+1) from users") }
-      it("a lot of nulls") { testSingleReadQuery("select greatest(null, null, null) from users") }
+      it("a lot of nulls") {
+        testSingleReadForReadFromLeaves("select greatest(null, null, null) from users")
+      }
       it("partial pushdown with udf") {
         testQuery(
           "select greatest('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
@@ -616,7 +651,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery("select concat('qwerty', 'bob', first_name, 'alice') from users")
       }
       it("ints with null") { testQuery("select concat(null, id, null, id+1) from users") }
-      it("a lot of nulls") { testSingleReadQuery("select concat(null, null, null) from users") }
+      it("a lot of nulls") {
+        testSingleReadForReadFromLeaves("select concat(null, null, null) from users")
+      }
       it("int and string") { testQuery("select concat(id, first_name) from users") }
       it("partial pushdown with udf") {
         testQuery("select concat('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
@@ -677,7 +714,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
     describe("Nvl2") {
       it("returns the second argument") {
-        testSingleReadQuery("select Nvl2(null, id, 0) as id1 from users")
+        testSingleReadForReadFromLeaves("select Nvl2(null, id, 0) as id1 from users")
       }
       it("returns the first argument") {
         testQuery("select Nvl2(id, 10, id+1) as id1 from users")
@@ -1276,7 +1313,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           expectPartialPushdown = true)
       }
       it("works with null") {
-        testSingleReadQuery("select bin(null) as bin from reviews")
+        testSingleReadForReadFromLeaves("select bin(null) as bin from reviews")
       }
     }
     describe("hex") {
@@ -1292,7 +1329,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           expectPartialPushdown = true)
       }
       it("works with null") {
-        testSingleReadQuery("select hex(null) as hex from reviews")
+        testSingleReadForReadFromLeaves("select hex(null) as hex from reviews")
       }
     }
     describe("unhex") {
@@ -1578,7 +1615,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("text") { testQuery("select first_name from users") }
 
     it("typeof") {
-      testSingleReadQuery("SELECT typeof(user_id), typeof(created), typeof(review) FROM reviews")
+      testSingleReadForReadFromLeaves(
+        "SELECT typeof(user_id), typeof(created), typeof(review) FROM reviews")
     }
   }
 
@@ -1699,24 +1737,28 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
     describe("First") {
-      it("succeeds") { testSingleReadQuery("select first(first_name) from users group by id") }
+      it("succeeds") {
+        testSingleReadForReadFromLeaves("select first(first_name) from users group by id")
+      }
       it("partial pushdown with udf") {
         testSingleReadQuery("select first(stringIdentity(first_name)) from users group by id",
                             expectPartialPushdown = true)
       }
       it("filter") {
-        testSingleReadQuery(
+        testSingleReadForReadFromLeaves(
           "select first(first_name) filter (where age % 2 = 0) from users group by id")
       }
     }
     describe("Last") {
-      it("succeeds") { testSingleReadQuery("select last(first_name) from users group by id") }
+      it("succeeds") {
+        testSingleReadForReadFromLeaves("select last(first_name) from users group by id")
+      }
       it("partial pushdown with udf") {
         testSingleReadQuery("select last(stringIdentity(first_name)) from users group by id",
                             expectPartialPushdown = true)
       }
       it("filter") {
-        testSingleReadQuery(
+        testSingleReadForReadFromLeaves(
           "select last(first_name) filter (where age % 2 = 0) from users group by id")
       }
     }
@@ -1764,39 +1806,43 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("window functions") {
     it("rank order by") {
-      testSingleReadQuery(
+      testSingleReadForReadFromLeaves(
         "select out as a from (select rank() over (order by first_name) as out from users)")
     }
     it("rank partition order by") {
-      testSingleReadQuery(
+      testSingleReadForReadFromLeaves(
         "select rank() over (partition by first_name order by first_name) as out from users")
     }
     it("row_number order by") {
-      testSingleReadQuery("select row_number() over (order by first_name) as out from users")
+      testSingleReadForReadFromLeaves(
+        "select row_number() over (order by first_name) as out from users")
     }
     it("dense_rank order by") {
-      testSingleReadQuery("select dense_rank() over (order by first_name) as out from users")
+      testSingleReadForReadFromLeaves(
+        "select dense_rank() over (order by first_name) as out from users")
     }
     it("lag order by") {
-      testSingleReadQuery(
+      testSingleReadForReadFromLeaves(
         "select first_name, lag(first_name) over (order by first_name) as out from users")
     }
     it("lead order by") {
-      testSingleReadQuery(
+      testSingleReadForReadFromLeaves(
         "select first_name, lead(first_name) over (order by first_name) as out from users")
     }
     it("ntile(3) order by") {
-      testSingleReadQuery(
+      testSingleReadForReadFromLeaves(
         "select first_name, ntile(3) over (order by first_name) as out from users")
     }
     it("percent_rank order by") {
-      testSingleReadQuery(
+      testSingleReadForReadFromLeaves(
         "select first_name, percent_rank() over (order by first_name) as out from users")
     }
   }
 
   describe("sort/limit") {
-    it("numeric order") { testOrderedQuery("select * from users order by id asc") }
+    it("numeric order") {
+      testOrderedQuery("select * from users order by id asc")
+    }
     it("text order") {
       testOrderedQuery("select * from users order by first_name desc, last_name asc, id asc")
     }
@@ -1809,20 +1855,28 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         "select * from users where first_name in ('Abbey', 'a') order by first_name desc, id asc")
     }
 
-    it("simple limit") { testOrderedQuery("select 'a' from users limit 10") }
-    it("limit with sort") { testOrderedQuery("select * from users order by id limit 10") }
+    it("simple limit") {
+      testSingleReadForReadFromLeaves("select 'a' from users limit 10")
+    }
+    it("limit with sort") {
+      testOrderedQuery("select * from users order by id limit 10")
+    }
     it("limit with sort on inside") {
       testOrderedQuery("select * from (select * from users order by id) limit 10")
     }
     it("limit with sort on outside") {
-      testOrderedQuery("select * from (select * from users order by id limit 10) order by id")
+      testOrderedQuery(
+        "select * from (select id from (select id, email from users order by id limit 10) limit 100) order by id"
+      )
     }
   }
 
   describe("hashes") {
     describe("sha1") {
       it("works with text") { testQuery("select sha1(first_name) from users") }
-      it("works with null") { testSingleReadQuery("select sha1(null) from users") }
+      it("works with null") {
+        testSingleReadForReadFromLeaves("select sha1(null) from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select sha1(stringIdentity(first_name)) as sha1, stringIdentity(first_name) as first_name from users",
@@ -1836,7 +1890,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("384 bit length") { testQuery("select sha2(first_name, 384) from users") }
       it("512 bit length") { testQuery("select sha2(first_name, 512) from users") }
       it("works with null") {
-        testSingleReadQuery("select sha2(null, 256) from users")
+        testSingleReadForReadFromLeaves("select sha2(null, 256) from users")
       }
       it("224 bit length partial pushdown") {
         testQuery("select sha2(first_name, 224) from users", expectPartialPushdown = true)
@@ -1856,7 +1910,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("md5") {
       it("works with text") { testQuery("select md5(first_name) from users") }
-      it("works with null") { testSingleReadQuery("select md5(null) from users") }
+      it("works with null") {
+        testSingleReadForReadFromLeaves("select md5(null) from users")
+      }
       it("partial pushdown") {
         testQuery(
           "select md5(stringIdentity(first_name)) as md5, stringIdentity(first_name) as first_name from users",
@@ -1868,44 +1924,55 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   describe("joins") {
     describe("successful pushdown") {
       it("implicit inner join") {
-        testSingleReadQuery("select * from users as a, reviews where a.id = reviews.user_id")
+        testSingleReadForReadFromLeaves(
+          "select * from users as a, reviews where a.id = reviews.user_id")
       }
       it("explicit inner join") {
-        testSingleReadQuery("select * from users inner join reviews on users.id = reviews.user_id")
+        testSingleReadForReadFromLeaves(
+          "select * from users inner join reviews on users.id = reviews.user_id")
       }
       it("cross join") {
-        testSingleReadQuery("select * from users cross join reviews on users.id = reviews.user_id")
+        testSingleReadForReadFromLeaves(
+          "select * from users cross join reviews on users.id = reviews.user_id")
+      }
+      it("cross join with sort and limit") {
+        testSingleReadForReadFromLeaves(
+          """select * from 
+                      |  (select * from users order by id limit 10) as users cross join 
+                      |  (select * from reviews order by user_id limit 10) as reviews 
+                      |on users.id = reviews.user_id""".stripMargin)
       }
       it("left outer join") {
-        testSingleReadQuery(
+        testSingleReadForReadFromLeaves(
           "select * from users left outer join reviews on users.id = reviews.user_id")
       }
       it("right outer join") {
-        testSingleReadQuery(
+        testSingleReadForReadFromLeaves(
           "select * from users right outer join reviews on users.id = reviews.user_id")
       }
       it("full outer join") {
-        testSingleReadQuery(
+        testSingleReadForReadFromLeaves(
           "select * from users full outer join reviews on users.id = reviews.user_id")
       }
       it("natural join") {
-        testSingleReadQuery(
+        testSingleReadForReadFromLeaves(
           "select users.id, rating from users natural join (select user_id as id, rating from reviews)")
       }
       it("complex join") {
-        testSingleReadQuery(
+        testSingleReadForReadFromLeaves(
           """
-            |  select users.id, round(avg(rating), 2) as rating, count(*) as num_reviews
-            |  from users inner join reviews on users.id = reviews.user_id
-            | group by users.id
-            |""".stripMargin)
+                      |  select users.id, round(avg(rating), 2) as rating, count(*) as num_reviews
+                      |  from users inner join reviews on users.id = reviews.user_id
+                      | group by users.id
+                      |""".stripMargin)
       }
       it("inner join without condition") {
-        testSingleReadQuery(
+        testOrderedQuery(
           "select * from users inner join reviews order by concat(users.id, ' ', reviews.user_id, ' ', reviews.movie_id) limit 10")
       }
+
       it("cross join without condition") {
-        testSingleReadQuery(
+        testOrderedQuery(
           "select * from users cross join reviews order by concat(users.id, ' ', reviews.user_id, ' ', reviews.movie_id) limit 10")
       }
     }
@@ -2504,11 +2571,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("DateDiff") {
       it("works") {
-        testSingleReadQuery(
+        testSingleReadForReadFromLeaves(
           """
-            | select birthday, created, DateDiff(birthday, created), DateDiff(created, birthday), DateDiff(created, created)
-            | from users inner join reviews on users.id = reviews.user_id
-            | """.stripMargin)
+              | select birthday, created, DateDiff(birthday, created), DateDiff(created, birthday), DateDiff(created, created)
+              | from users inner join reviews on users.id = reviews.user_id
+              | """.stripMargin)
       }
       it("partial pushdown because of udf in the left argument") {
         testQuery("select DateDiff(stringIdentity(created), created) from reviews",
@@ -3257,7 +3324,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
            // SingleStore truncates the value on overflow
            // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
            scale <- scales if scale < precision) {
-        testSingleReadQuery(
+        testSingleReadForReadFromLeaves(
           s"select sum(cast(rating as decimal($precision, $scale))) over (order by rating) as out from reviews")
       }
     }
@@ -3283,7 +3350,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
            // SingleStore truncates the value on overflow
            // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
            scale <- scales if scale < precision) {
-        testSingleReadQuery(
+        testSingleReadForReadFromLeaves(
           s"select avg(cast(rating as decimal($precision, $scale))) over (order by rating) as out from reviews")
       }
     }
@@ -3291,10 +3358,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("SortOrder") {
     it("works asc, nulls first") {
-      testSingleReadQuery("select * from movies order by critic_rating asc nulls first")
+      testOrderedQuery("select * from movies order by critic_rating asc nulls first, id")
     }
     it("works desc, nulls last") {
-      testSingleReadQuery("select * from movies order by critic_rating desc nulls last")
+      testOrderedQuery("select * from movies order by critic_rating desc nulls last, id")
     }
     it("partial pushdown asc, nulls last") {
       testSingleReadQuery("select * from movies order by critic_rating asc nulls last",

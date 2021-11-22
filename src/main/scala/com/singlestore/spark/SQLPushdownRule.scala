@@ -47,12 +47,11 @@ class SQLPushdownRule extends Rule[LogicalPlan] {
     val expressionExtractor = ExpressionExtractor(context)
     val transforms =
       List(
-        // do single node rewrites, e.g. Project([a,b,c], Relation(select * from foo))
+        // do all rewrites except top-level sort, e.g. Project([a,b,c], Relation(select * from foo))
         SQLGen.fromLogicalPlan(expressionExtractor).andThen(_.asLogicalPlan()),
-        // do multi node rewrites, e.g. Sort(a, Limit(10, Relation(select * from foo)))
-        SQLGen.fromNestedLogicalPlan(expressionExtractor).andThen(_.asLogicalPlan()),
-        // do single node rewrites of sort & limit (so the multi-node rewrite can match first)
-        SQLGen.fromSingleLimitSort(expressionExtractor).andThen(_.asLogicalPlan())
+        // do rewrites with top-level Sort, e.g. Sort(a, Limit(10, Relation(select * from foo))
+        // won't be done for relations with parallel read enabled
+        SQLGen.fromTopLevelSort(expressionExtractor),
       )
 
     // Run our transforms in a loop until the tree converges

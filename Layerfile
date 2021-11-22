@@ -35,9 +35,9 @@ SECRET ENV LICENSE_KEY
 MEMORY 4G
 MEMORY 8G
 
-# split to 8 states
+# split to 9 states
 # each of them will run different version of the singlestore and spark
-SPLIT 8
+SPLIT 9
 
 # copy the entire git repository
 COPY . .

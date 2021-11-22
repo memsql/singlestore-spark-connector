@@ -14,7 +14,7 @@ case class SinglestoreOptions(
     jdbcExtraOptions: Map[String, String],
     enableAsserts: Boolean,
     disablePushdown: Boolean,
-    enableParallelRead: Boolean,
+    enableParallelRead: ParallelReadEnablement,
     // write options
     overwriteBehavior: OverwriteBehavior,
     loadDataCompression: SinglestoreOptions.CompressionType.Value,
@@ -22,7 +22,11 @@ case class SinglestoreOptions(
     tableKeys: List[TableKey],
     onDuplicateKeySQL: Option[String],
     maxErrors: Int,
-    insertBatchSize: Int
+    insertBatchSize: Int,
+    parallelReadFeatures: List[ParallelReadType],
+    parallelReadTableCreationTimeoutMS: Long,
+    parallelReadMaterializedTableCreationTimeoutMS: Long,
+    parallelReadRepartition: Boolean
 ) extends LazyLogging {
 
   def assert(condition: Boolean, message: String) = {
@@ -88,8 +92,15 @@ object SinglestoreOptions extends LazyLogging {
   final val PATH       = newOption("path")
 
   // Write options
-  final val TRUNCATE              = newOption("truncate")
-  final val OVERWRITE_BEHAVIOR    = newOption("overwriteBehavior")
+  final val TRUNCATE               = newOption("truncate")
+  final val OVERWRITE_BEHAVIOR     = newOption("overwriteBehavior")
+  final val PARALLEL_READ_FEATURES = newOption("parallelRead.features")
+  final val PARALLEL_READ_TABLE_CREATION_TIMEOUT_MS = newOption(
+    "parallelRead.tableCreationTimeoutMS")
+  final val PARALLEL_READ_MATERIALIZED_TABLE_CREATION_TIMEOUT_MS = newOption(
+    "parallelRead.materializedTableCreationTimeoutMS")
+  final val PARALLEL_READ_REPARTITION = newOption("parallelRead.repartition")
+
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
   final val TABLE_KEYS            = newOption("tableKey")
   final val LOAD_DATA_FORMAT      = newOption("loadDataFormat")
@@ -179,7 +190,8 @@ object SinglestoreOptions extends LazyLogging {
         .map(identity),
       enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean,
       disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean,
-      enableParallelRead = options.get(ENABLE_PARALLEL_READ).getOrElse("false").toBoolean,
+      enableParallelRead =
+        ParallelReadEnablement(options.get(ENABLE_PARALLEL_READ).getOrElse("disabled")),
       overwriteBehavior = {
         val truncateOption          = options.get(TRUNCATE)
         val overwriteBehaviorOption = options.get(OVERWRITE_BEHAVIOR)
@@ -213,7 +225,22 @@ object SinglestoreOptions extends LazyLogging {
         } else {
           maxErrorsOption.getOrElse("0").toInt
         }
-      }
+      },
+      parallelReadFeatures = {
+        options
+          .get(PARALLEL_READ_FEATURES)
+          .getOrElse("ReadFromAggregators")
+          .split(",")
+          .map(feature => ParallelReadType(feature.trim))
+          .toList
+      },
+      parallelReadTableCreationTimeoutMS = {
+        options.getOrElse(PARALLEL_READ_TABLE_CREATION_TIMEOUT_MS, "0").toInt
+      },
+      parallelReadMaterializedTableCreationTimeoutMS = {
+        options.getOrElse(PARALLEL_READ_MATERIALIZED_TABLE_CREATION_TIMEOUT_MS, "0").toInt
+      },
+      parallelReadRepartition = options.get(PARALLEL_READ_REPARTITION).getOrElse("true").toBoolean,
     )
   }
 }

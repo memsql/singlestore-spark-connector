@@ -1,16 +1,17 @@
 package com.singlestore.spark
 
-import java.sql.{Connection, PreparedStatement, Statement, SQLException}
+import java.sql.{Connection, PreparedStatement, SQLException, Statement}
+import java.util.UUID.randomUUID
 
 import com.singlestore.spark.SinglestoreOptions.{TableKey, TableKeyType}
 import com.singlestore.spark.SQLGen.{StringVar, VariableList}
 import org.apache.spark.sql.{Row, SaveMode}
-import org.apache.spark.sql.catalyst.TableIdentifier
+import org.apache.spark.sql.catalyst.{QualifiedTableName, TableIdentifier}
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.jdbc.JdbcDialects
 import org.apache.spark.sql.types.{StringType, StructType}
 
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 case class SinglestorePartitionInfo(ordinal: Int, name: String, hostport: String)
 
@@ -341,6 +342,83 @@ object JdbcHelpers extends LazyLogging {
     val sql = s"CREATE TABLE ${table.quotedString} ${schemaToString(schema, tableKeys)}"
     log.trace(s"Executing SQL:\n$sql")
     conn.withStatement(stmt => stmt.executeUpdate(sql))
+  }
+
+  def getPartitionsCount(conn: Connection, database: String): Int = {
+    val sql =
+      s"SELECT num_partitions FROM information_schema.DISTRIBUTED_DATABASES WHERE database_name = '$database'"
+    log.trace(s"Executing SQL:\n$sql")
+    val resultSet = conn.withStatement(stmt => stmt.executeQuery(sql))
+
+    if (resultSet.next()) {
+      resultSet.getInt("num_partitions")
+    } else {
+      throw new IllegalArgumentException(
+        s"Failed to get number of partitions for '$database' database")
+    }
+  }
+
+  def getResultTableName(applicationId: String, stageId: Int, rddId: Int): String = {
+    s"rt_${applicationId.replace("-", "")}_${stageId}_${rddId}"
+  }
+
+  def getCreateResultTableQuery(tableName: String,
+                                query: String,
+                                schema: StructType,
+                                materialized: Boolean,
+                                needsRepartition: Boolean): String = {
+    val materializedStr = { if (materialized) { "MATERIALIZED" } else "" }
+    if (needsRepartition) {
+      val randColName = s"randColumn${randomUUID().toString.replace("-", "")}"
+      s"CREATE $materializedStr RESULT TABLE $tableName PARTITION BY ($randColName) AS SELECT *, RAND() AS $randColName FROM ($query)"
+    } else {
+      s"CREATE $materializedStr RESULT TABLE $tableName AS $query"
+    }
+  }
+
+  def getSelectFromResultTableQuery(tableName: String, partition: Int): String = {
+    s"SELECT * FROM ::$tableName WHERE partition_id() = $partition"
+  }
+
+  def createResultTable(conn: Connection,
+                        tableName: String,
+                        query: String,
+                        schema: StructType,
+                        variables: VariableList,
+                        materialized: Boolean,
+                        needsRepartition: Boolean): Unit = {
+    val sql =
+      getCreateResultTableQuery(tableName, query, schema, materialized, needsRepartition)
+    log.trace(s"Executing SQL:\n$sql")
+
+    conn.withPreparedStatement(sql, stmt => {
+      JdbcHelpers.fillStatement(stmt, variables)
+      stmt.executeUpdate()
+    })
+  }
+
+  def dropResultTable(conn: Connection, tableName: String): Unit = {
+    val sql = s"DROP RESULT TABLE $tableName"
+    log.trace(s"Executing SQL:\n$sql")
+
+    conn.withStatement(stmt => {
+      stmt.executeUpdate(sql)
+    })
+  }
+
+  def isValidQuery(conn: Connection, query: String, variables: VariableList): Boolean = {
+    val sql = s"EXPLAIN $query"
+    log.trace(s"Executing SQL:\n$sql")
+
+    Try {
+      conn.withPreparedStatement(sql, stmt => {
+        JdbcHelpers.fillStatement(stmt, variables)
+        stmt.execute()
+      })
+    } match {
+      case Success(_) => true
+      case Failure(_) => false
+    }
   }
 
   def truncateTable(conn: Connection, table: TableIdentifier): Unit = {

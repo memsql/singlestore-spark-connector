@@ -1,6 +1,6 @@
 package com.singlestore.spark
 
-import java.sql.{Connection, PreparedStatement, ResultSet}
+import java.sql.{Connection, PreparedStatement, ResultSet, SQLTransientConnectionException}
 
 import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.rdd.RDD
@@ -18,9 +18,30 @@ case class SinglestoreRDD(query: String,
                           expectedOutput: Seq[Attribute],
                           @transient val sc: SparkContext)
     extends RDD[Row](sc, Nil) {
+  val (parallelReadType, partitions_) = SinglestorePartitioner(this).getPartitions
 
-  override protected def getPartitions: Array[Partition] =
-    SinglestoreQueryHelpers.GetPartitions(options, query, variables)
+  // Spark serializes RDD object and sends it to executor
+  // On executor sc value will be null as it is marked as transient
+  def isRunOnExecutor: Boolean = sc == null
+
+  val applicationId: String = sc.applicationId
+
+  val aggregatorParallelReadUsed: Boolean =
+    parallelReadType.contains(ReadFromAggregators) ||
+      parallelReadType.contains(ReadFromAggregatorsMaterialized)
+
+  if (!isRunOnExecutor && aggregatorParallelReadUsed) {
+    AggregatorParallelReadListenerAdder.addRDD(this)
+  }
+
+  override def finalize(): Unit = {
+    if (!isRunOnExecutor && aggregatorParallelReadUsed) {
+      AggregatorParallelReadListenerAdder.deleteRDD(this)
+    }
+    super.finalize()
+  }
+
+  override protected def getPartitions: Array[Partition] = partitions_
 
   override def compute(rawPartition: Partition, context: TaskContext): Iterator[Row] = {
     var closed                          = false
@@ -37,6 +58,8 @@ case class SinglestoreRDD(query: String,
       }
     }
 
+    val ErrResultTableNotExistCode = 2318
+
     def close(): Unit = {
       if (closed) { return }
       tryClose("resultset", rs)
@@ -52,9 +75,41 @@ case class SinglestoreRDD(query: String,
     }
 
     conn = JdbcUtils.createConnectionFactory(partition.connectionInfo)()
-    stmt = conn.prepareStatement(partition.query)
-    JdbcHelpers.fillStatement(stmt, partition.variables)
-    rs = stmt.executeQuery()
+    if (aggregatorParallelReadUsed) {
+      val tableName = JdbcHelpers.getResultTableName(applicationId, context.stageId(), id)
+
+      stmt =
+        conn.prepareStatement(JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index))
+
+      val startTime = System.currentTimeMillis()
+      val timeout = parallelReadType match {
+        case Some(ReadFromAggregators) =>
+          options.parallelReadTableCreationTimeoutMS
+        case Some(ReadFromAggregatorsMaterialized) =>
+          options.parallelReadMaterializedTableCreationTimeoutMS
+        case _ =>
+          0
+      }
+
+      var lastError: java.sql.SQLException = null
+      while (rs == null && (timeout == 0 || System.currentTimeMillis() - startTime < timeout)) {
+        try {
+          rs = stmt.executeQuery()
+        } catch {
+          case e: java.sql.SQLException if e.getErrorCode == ErrResultTableNotExistCode =>
+            lastError = e
+            Thread.sleep(10)
+        }
+      }
+
+      if (rs == null) {
+        throw new java.sql.SQLException("Failed to read data from result table", lastError)
+      }
+    } else {
+      stmt = conn.prepareStatement(partition.query)
+      JdbcHelpers.fillStatement(stmt, partition.variables)
+      rs = stmt.executeQuery()
+    }
 
     var rowsIter = JdbcUtils.resultSetToRows(rs, schema)
 

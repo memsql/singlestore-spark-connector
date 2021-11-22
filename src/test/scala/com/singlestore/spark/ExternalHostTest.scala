@@ -26,7 +26,8 @@ class ExternalHostTest
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-
+    spark.sqlContext.setConf("spark.datasource.singlestore.enableParallelRead", "forced")
+    spark.sqlContext.setConf("spark.datasource.singlestore.parallelRead.Features", "ReadFromLeaves")
     df = spark.createDF(
       List((2, "B")),
       List(("id", IntegerType, true), ("name", StringType, true))
@@ -160,14 +161,18 @@ class ExternalHostTest
         Map.empty[String, String],
         false,
         false,
-        true,
+        Automatic,
         Truncate,
         SinglestoreOptions.CompressionType.GZip,
         SinglestoreOptions.LoadDataFormat.CSV,
         List.empty[SinglestoreOptions.TableKey],
         None,
         10,
-        10
+        10,
+        List(ReadFromLeaves),
+        0,
+        0,
+        true
       )
 
       val conn         = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
@@ -220,16 +225,18 @@ class ExternalHostTest
           spark.read
             .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
             .option("useExternalHost", "true")
+            .option("enableParallelRead", "forced")
+            .option("parallelRead.Features", "ReadFromLeaves")
             .load(s"$testDb.$testCollection")
             .collect()
           fail("Exception expected")
         } catch {
           case ex: Throwable =>
-            ex.getCause match {
-              case sqlEx: SQLException =>
+            ex match {
+              case sqlEx: ParallelReadFailedException =>
                 assert(
-                  sqlEx.getMessage startsWith "No active connection found for master : Could not connect to HostAddress{host='somehost', port=3307, type='master'}. ")
-              case _ => fail("SQLException expected")
+                  sqlEx.getMessage startsWith "Failed to read data in parallel. Tried following parallel read features:")
+              case _ => fail("ParallelReadFailedException expected")
             }
         }
       }

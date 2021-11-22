@@ -10,6 +10,7 @@ import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.scalatest._
 import org.scalatest.funspec.AnyFunSpec
 import com.singlestore.spark.JdbcHelpers.executeQuery
+import com.singlestore.spark.SQLGen.SinglestoreVersion
 import com.singlestore.spark.SQLHelper._
 
 import scala.util.Random
@@ -30,6 +31,8 @@ trait IntegrationSuiteBase
     .getOrElse("CONTINUOUS_INTEGRATION", "false") == "true"
 
   final val masterPassword: String = sys.env.getOrElse("SINGLESTORE_PASSWORD", "")
+  final val forceReadFromLeaves: Boolean =
+    sys.env.getOrElse("FORCE_READ_FROM_LEAVES", "FALSE").equalsIgnoreCase("TRUE")
 
   var spark: SparkSession = _
 
@@ -42,6 +45,15 @@ trait IntegrationSuiteBase
       "password"                    -> masterPassword
     )
   )
+
+  val version: SinglestoreVersion = {
+    val conn      = JdbcUtils.createConnectionFactory(jdbcOptsDefault)()
+    val resultSet = executeQuery(conn, "select @@memsql_version")
+
+    SinglestoreVersion(resultSet.next().getString(0))
+  }
+
+  val canDoParallelReadFromAggregators: Boolean = version.atLeast("7.5.0") && !forceReadFromLeaves
 
   override def beforeAll(): Unit = {
     // override global JVM timezone to GMT
@@ -97,7 +109,7 @@ trait IntegrationSuiteBase
 
     spark = SparkSession
       .builder()
-      .master("local")
+      .master(if (canDoParallelReadFromAggregators) "local[2]" else "local")
       .appName("singlestore-integration-tests")
       .config("spark.sql.shuffle.partitions", "1")
       .config("spark.driver.bindAddress", "localhost")
@@ -108,7 +120,9 @@ trait IntegrationSuiteBase
       .config("spark.datasource.singlestore.user", "root-ssl")
       .config("spark.datasource.singlestore.password", "")
       .config("spark.datasource.singlestore.enableAsserts", "true")
-      .config("spark.datasource.singlestore.enableParallelRead", "true")
+      .config("spark.datasource.singlestore.enableParallelRead", "automatic")
+      .config("spark.datasource.singlestore.parallelRead.Features",
+              if (forceReadFromLeaves) "ReadFromLeaves" else "ReadFromAggregators,ReadFromLeaves")
       .config("spark.datasource.singlestore.database", "testdb")
       .config("spark.datasource.singlestore.useSSL", "true")
       .config("spark.datasource.singlestore.serverSslCert",

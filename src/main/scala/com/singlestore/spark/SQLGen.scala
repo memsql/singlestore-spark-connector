@@ -355,9 +355,70 @@ object SQLGen extends LazyLogging {
     }
   }
 
+  case class StatementWithOrder(expressionExtractor: ExpressionExtractor) {
+    def unapply(source: LogicalPlan): Option[(LogicalPlan, Seq[SortOrder])] = {
+      val limitWithOrder = LimitWithOrder(expressionExtractor)
+
+      source match {
+        case plan @ Sort(expressionExtractor(expr), true, Relation(relation)) =>
+          Some(
+            newStatement(plan)
+              .selectAll()
+              .from(relation)
+              .orderby(expr)
+              // For now - we add a huge limit to all sort queries which forces SingleStore to preserve the order by.
+              // fromTopLevelSort and fromLimit will handle pushing down sort without a max-int limit.
+              .limit(Long.MaxValue.toString)
+              .output(plan.output)
+              .asLogicalPlan(),
+            plan.order
+          )
+
+        case limitWithOrder(logicalPlan, order) => Some(logicalPlan, order)
+
+        case _ => None
+      }
+    }
+  }
+
+  case class LimitWithOrder(expressionExtractor: ExpressionExtractor) {
+    def unapply(source: LogicalPlan): Option[(LogicalPlan, Seq[SortOrder])] = {
+      source match {
+        case plan @ Limit(
+              expressionExtractor(limitExpr),
+              innerPlan @ Sort(order @ expressionExtractor(sortExpr), true, Relation(relation))) =>
+          Some(
+            newStatement(plan)
+              .withLogicalPlanComment(innerPlan)
+              .selectAll()
+              .from(relation)
+              .orderby(sortExpr)
+              .limit(limitExpr)
+              .output(plan.output)
+              .asLogicalPlan(),
+            order
+          )
+
+        case _ => None
+      }
+    }
+  }
+
+  case class RelationOrSort(expressionExtractor: ExpressionExtractor) {
+    def unapply(source: LogicalPlan): Option[Relation] = {
+      val statementWithOrder = StatementWithOrder(expressionExtractor)
+      source match {
+        case Relation(relation)                        => Some(relation)
+        case statementWithOrder(Relation(relation), _) => Some(relation)
+        case _                                         => None
+      }
+    }
+  }
+
   def fromLogicalPlan(
       expressionExtractor: ExpressionExtractor): PartialFunction[LogicalPlan, Statement] = {
     val sortPredicates = SortPredicates(expressionExtractor)
+    val relationOrSort = RelationOrSort(expressionExtractor)
     return {
       case plan @ Project(expressionExtractor(expr), Relation(relation)) =>
         newStatement(plan)
@@ -365,7 +426,14 @@ object SQLGen extends LazyLogging {
           .from(relation)
           .output(plan.output)
 
-      case plan @ Filter(sortPredicates(filter), Relation(relation)) => {
+      case plan @ Limit(expressionExtractor(expr), Relation(relation)) =>
+        newStatement(plan)
+          .selectAll()
+          .from(relation)
+          .limit(expr)
+          .output(plan.output)
+
+      case plan @ Filter(sortPredicates(filter), relationOrSort(relation)) => {
         newStatement(plan)
           .selectAll()
           .from(relation)
@@ -375,14 +443,14 @@ object SQLGen extends LazyLogging {
 
       case plan @ Aggregate(expressionExtractor(groupingExpr),
                             expressionExtractor(aggregateExpr),
-                            Relation(relation)) =>
+                            relationOrSort(relation)) =>
         newStatement(plan)
           .select(aggregateExpr)
           .from(relation)
           .groupby(groupingExpr)
           .output(plan.output)
 
-      case plan @ Window(expressionExtractor(windowExpressions), _, _, Relation(relation)) => {
+      case plan @ Window(expressionExtractor(windowExpressions), _, _, relationOrSort(relation)) => {
         newStatement(plan)
           .select(windowExpressions.map(exp => Raw("*,") + exp))
           .from(relation)
@@ -390,8 +458,8 @@ object SQLGen extends LazyLogging {
       }
       // the last parameter is a spark hint for join
       // SingleStore does its own optimizations under the hood, so we can safely ignore this parameter
-      case plan @ Join(Relation(left),
-                       Relation(right),
+      case plan @ Join(relationOrSort(left),
+                       relationOrSort(right),
                        joinType @ (Inner | Cross),
                        sortPredicates(condition),
                        _)
@@ -407,8 +475,8 @@ object SQLGen extends LazyLogging {
       // condition is required for {Left, Right, Full} outer joins
       // the last parameter is a spark hint for join
       // SingleStore does its own optimizations under the hood, so we can safely ignore this parameter
-      case plan @ Join(Relation(left),
-                       Relation(right),
+      case plan @ Join(relationOrSort(left),
+                       relationOrSort(right),
                        joinType @ (LeftOuter | RightOuter | FullOuter),
                        Some(sortPredicates(condition)),
                        _)
@@ -424,7 +492,7 @@ object SQLGen extends LazyLogging {
       // condition is not allowed for natural joins
       // the last parameter is a spark hint for join
       // SingleStore does its own optimizations under the hood, so we can safely ignore this parameter
-      case plan @ Join(Relation(left), Relation(right), NaturalJoin(joinType), None, _)
+      case plan @ Join(relationOrSort(left), relationOrSort(right), NaturalJoin(joinType), None, _)
           if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
             right.reader.options).asProperties =>
         newStatement(plan)
@@ -435,75 +503,20 @@ object SQLGen extends LazyLogging {
     }
   }
 
-  def fromSingleLimitSort(
-      expressionExtractor: ExpressionExtractor): PartialFunction[LogicalPlan, Statement] = {
+  def fromTopLevelSort(
+      expressionExtractor: ExpressionExtractor): PartialFunction[LogicalPlan, LogicalPlan] = {
+    val statementWithOrder = StatementWithOrder(expressionExtractor)
+    val limitWithOrder     = LimitWithOrder(expressionExtractor)
+    return {
+      case statementWithOrder(plan @ Relation(relation), _)
+          if relation.reader.options.enableParallelRead == Disabled =>
+        plan
 
-    case plan @ Limit(expressionExtractor(expr), Relation(relation)) =>
-      newStatement(plan)
-        .selectAll()
-        .from(relation)
-        .limit(expr)
-        .output(plan.output)
-
-    case plan @ Sort(expressionExtractor(expr), true, Relation(relation)) =>
-      newStatement(plan)
-        .selectAll()
-        .from(relation)
-        .orderby(expr)
-        // For now - we add a huge limit to all sort queries which forces SingleStore to preserve the order by.
-        // fromNestedLogicalPlan will handle pushing down sort without a max-int limit)
-        .limit(Long.MaxValue.toString)
-        .output(plan.output)
-
-  }
-
-  def fromNestedLogicalPlan(
-      expressionExtractor: ExpressionExtractor): PartialFunction[LogicalPlan, Statement] = {
-
-    case plan @ Limit(expressionExtractor(limitExpr),
-                      innerPlan @ Project(expressionExtractor(projectExpr), Relation(relation))) =>
-      newStatement(plan)
-        .withLogicalPlanComment(innerPlan)
-        .select(projectExpr)
-        .from(relation)
-        .limit(limitExpr)
-        .output(plan.output)
-
-    case plan @ Limit(
-          expressionExtractor(limitExpr),
-          innerPlan1 @ Project(
-            expressionExtractor(projectExpr),
-            innerPlan2 @ Sort(expressionExtractor(sortExpr), true, Relation(relation)))) =>
-      newStatement(plan)
-        .withLogicalPlanComment(innerPlan1)
-        .withLogicalPlanComment(innerPlan2)
-        .select(projectExpr)
-        .from(relation)
-        .orderby(sortExpr)
-        .limit(limitExpr)
-        .output(plan.output)
-
-    case plan @ Limit(expressionExtractor(limitExpr),
-                      innerPlan @ Sort(expressionExtractor(sortExpr), true, Relation(relation))) =>
-      newStatement(plan)
-        .withLogicalPlanComment(innerPlan)
-        .selectAll()
-        .from(relation)
-        .orderby(sortExpr)
-        .limit(limitExpr)
-        .output(plan.output)
-
-    case plan @ Sort(expressionExtractor(sortExpr),
-                     true,
-                     innerPlan @ Limit(expressionExtractor(limitExpr), Relation(relation))) =>
-      newStatement(plan)
-        .withLogicalPlanComment(innerPlan)
-        .selectAll()
-        .from(relation)
-        .orderby(sortExpr)
-        .limit(limitExpr)
-        .output(plan.output)
-
+      case limitWithOrder(plan @ Relation(relation), order)
+          if relation.reader.options.enableParallelRead == Automatic ||
+            relation.reader.options.enableParallelRead == Forced =>
+        Sort(order, global = true, plan)
+    }
   }
 
   // SQLGenContext is used to generate aliases during the codegen
@@ -519,9 +532,9 @@ object SQLGen extends LazyLogging {
 
     def ident(name: String, exprId: ExprId): String =
       if (normalizedExprIdMap.contains(exprId)) {
-        Ident(s"${name}#${normalizedExprIdMap(exprId)}").sql
+        Ident(s"${name.substring(0, Math.min(name.length, 10))}#${normalizedExprIdMap(exprId)}").sql
       } else {
-        Ident(s"${name}#${exprId.id}").sql
+        Ident(s"${name.substring(0, Math.min(name.length, 10))}#${exprId.id}").sql
       }
   }
 

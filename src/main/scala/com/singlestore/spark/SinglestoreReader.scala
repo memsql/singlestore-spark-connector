@@ -17,7 +17,18 @@ case class SinglestoreReaderNoPushdown(query: String,
   override lazy val schema = JdbcHelpers.loadSchema(options, query, Nil)
 
   override def buildScan: RDD[Row] = {
-    SinglestoreRDD(query, Nil, options, schema, Nil, sqlContext.sparkContext)
+    val rdd =
+      SinglestoreRDD(query, Nil, options, schema, Nil, sqlContext.sparkContext)
+    if (rdd.parallelReadType.contains(ReadFromAggregators)) {
+      // Wrap an RDD with barrier stage, to force all readers start reading at the same time.
+      // Repartition it to force spark to read data and do all other computations in different stages.
+      // Otherwise we will likely get the following error:
+      // [SPARK-24820][SPARK-24821]: Barrier execution mode does not allow the following
+      // pattern of RDD chain within a barrier stage...
+      rdd.barrier().mapPartitions(v => v).repartition(rdd.getNumPartitions)
+    } else {
+      rdd
+    }
   }
 }
 
@@ -36,7 +47,18 @@ case class SinglestoreReader(query: String,
   override lazy val schema = JdbcHelpers.loadSchema(options, query, variables)
 
   override def buildScan: RDD[Row] = {
-    SinglestoreRDD(query, variables, options, schema, expectedOutput, sqlContext.sparkContext)
+    val rdd =
+      SinglestoreRDD(query, variables, options, schema, expectedOutput, sqlContext.sparkContext)
+    if (rdd.parallelReadType.contains(ReadFromAggregators)) {
+      // Wrap an RDD with barrier stage, to force all readers start reading at the same time.
+      // Repartition it to force spark to read data and do all other computations in different stages.
+      // Otherwise we will likely get the following error:
+      // [SPARK-24820][SPARK-24821]: Barrier execution mode does not allow the following
+      // pattern of RDD chain within a barrier stage...
+      rdd.barrier().mapPartitions(v => v).repartition(rdd.getNumPartitions)
+    } else {
+      rdd
+    }
   }
 
   override def buildScan(rawColumns: Seq[Attribute],

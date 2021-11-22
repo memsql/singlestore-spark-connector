@@ -27,7 +27,8 @@ class IssuesTest extends IntegrationSuiteBase {
                                  spark.createDF(
                                    List(1, 2, 3, 4),
                                    List(("start_video_pos", IntegerType, true))
-                                 ))
+                                 ),
+                                 orderedComparison = !canDoParallelReadFromAggregators)
   }
 
   it("https://memsql.zendesk.com/agent/tickets/10451") {
