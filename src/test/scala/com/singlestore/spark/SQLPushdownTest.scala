@@ -121,13 +121,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                 expectSameResult: Boolean = true,
                 expectCodegenDeterminism: Boolean = true,
                 pushdown: Boolean = true,
-                disableParallelRead: Boolean = false,
+                enableParallelRead: String = "automaticLite",
                 filterDF: DataFrame => DataFrame = x => x): Unit = {
-    if (disableParallelRead) {
-      spark.sqlContext.setConf("spark.datasource.singlestore.enableParallelRead", "disabled")
-    } else {
-      spark.sqlContext.setConf("spark.datasource.singlestore.enableParallelRead", "automatic")
-    }
+    spark.sqlContext.setConf("spark.datasource.singlestore.enableParallelRead", enableParallelRead)
 
     spark.sql("use testdb_jdbc")
     val jdbcDF = filterDF(spark.sql(q))
@@ -201,18 +197,22 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   def testOrderedQuery(q: String, pushdown: Boolean = true): Unit = {
     // order by in SingleStore requires single read
+    testQuery(q, alreadyOrdered = true, expectSingleRead = true, pushdown = pushdown)
+    afterEach()
+    beforeEach()
     testQuery(q,
               alreadyOrdered = true,
               expectPartialPushdown = true,
               expectSingleRead = true,
-              pushdown = pushdown)
+              pushdown = pushdown,
+              enableParallelRead = "automatic")
     afterEach()
     beforeEach()
     testQuery(q,
               alreadyOrdered = true,
               expectSingleRead = true,
               pushdown = pushdown,
-              disableParallelRead = true)
+              enableParallelRead = "disabled")
 
   }
 
@@ -3522,6 +3522,23 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("big position", OnlySpark31) {
         testQuery("select regexp_replace(first_name, 'a', 'd', 100) from users")
       }
+    }
+  }
+
+  describe("automaticLite parallel read") {
+    it("no sort in the query") {
+      testQuery("select id from users")
+    }
+
+    it("non top-level sort") {
+      testQuery(
+        "select id from (select id from users order by id) group by id",
+        expectSingleRead = !canDoParallelReadFromAggregators
+      )
+    }
+
+    it("top-level sort") {
+      testQuery("select id from users order by id", expectSingleRead = true, alreadyOrdered = true)
     }
   }
 }

@@ -18,7 +18,13 @@ case class SinglestoreReaderNoPushdown(query: String,
 
   override def buildScan: RDD[Row] = {
     val rdd =
-      SinglestoreRDD(query, Nil, options, schema, Nil, sqlContext.sparkContext)
+      SinglestoreRDD(query,
+                     Nil,
+                     options,
+                     schema,
+                     Nil,
+                     resultMustBeSorted = false,
+                     sqlContext.sparkContext)
     if (rdd.parallelReadType.contains(ReadFromAggregators)) {
       // Wrap an RDD with barrier stage, to force all readers start reading at the same time.
       // Repartition it to force spark to read data and do all other computations in different stages.
@@ -38,6 +44,7 @@ case class SinglestoreReader(query: String,
                              @transient val sqlContext: SQLContext,
                              isFinal: Boolean = false,
                              expectedOutput: Seq[Attribute] = Nil,
+                             var resultMustBeSorted: Boolean = false,
                              context: SQLGenContext)
     extends BaseRelation
     with LazyLogging
@@ -48,7 +55,13 @@ case class SinglestoreReader(query: String,
 
   override def buildScan: RDD[Row] = {
     val rdd =
-      SinglestoreRDD(query, variables, options, schema, expectedOutput, sqlContext.sparkContext)
+      SinglestoreRDD(query,
+                     variables,
+                     options,
+                     schema,
+                     expectedOutput,
+                     resultMustBeSorted,
+                     sqlContext.sparkContext)
     if (rdd.parallelReadType.contains(ReadFromAggregators)) {
       // Wrap an RDD with barrier stage, to force all readers start reading at the same time.
       // Repartition it to force spark to read data and do all other computations in different stages.

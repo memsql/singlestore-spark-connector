@@ -191,7 +191,7 @@ object SinglestoreOptions extends LazyLogging {
       enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean,
       disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean,
       enableParallelRead =
-        ParallelReadEnablement(options.get(ENABLE_PARALLEL_READ).getOrElse("disabled")),
+        ParallelReadEnablement(options.get(ENABLE_PARALLEL_READ).getOrElse("automaticLite")),
       overwriteBehavior = {
         val truncateOption          = options.get(TRUNCATE)
         val overwriteBehaviorOption = options.get(OVERWRITE_BEHAVIOR)
@@ -240,7 +240,7 @@ object SinglestoreOptions extends LazyLogging {
       parallelReadMaterializedTableCreationTimeoutMS = {
         options.getOrElse(PARALLEL_READ_MATERIALIZED_TABLE_CREATION_TIMEOUT_MS, "0").toInt
       },
-      parallelReadRepartition = options.get(PARALLEL_READ_REPARTITION).getOrElse("true").toBoolean,
+      parallelReadRepartition = options.get(PARALLEL_READ_REPARTITION).getOrElse("false").toBoolean,
     )
   }
 }

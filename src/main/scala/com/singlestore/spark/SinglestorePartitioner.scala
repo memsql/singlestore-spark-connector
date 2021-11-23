@@ -258,6 +258,8 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     val readType = options.enableParallelRead match {
       case Disabled =>
         None
+      case AutomaticLite if rdd.resultMustBeSorted =>
+        None
       case _ =>
         rdd.options.parallelReadFeatures
           .collectFirst { case readType if getPartitions(readType).isDefined => readType }

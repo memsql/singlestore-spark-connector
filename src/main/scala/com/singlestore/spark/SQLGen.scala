@@ -508,10 +508,17 @@ object SQLGen extends LazyLogging {
     val statementWithOrder = StatementWithOrder(expressionExtractor)
     val limitWithOrder     = LimitWithOrder(expressionExtractor)
     return {
+      // for Disabled and AutomaticLite option do pushdown of the top-level sort expression
+      // parallel read won't be done in this case
       case statementWithOrder(plan @ Relation(relation), _)
-          if relation.reader.options.enableParallelRead == Disabled =>
+          if relation.reader.options.enableParallelRead == Disabled ||
+            relation.reader.options.enableParallelRead == AutomaticLite => {
+        relation.reader.resultMustBeSorted = true
         plan
+      }
 
+      // for Automatic and Forced option pushdown sort with limit but add top-level sort
+      // which will be done on a spark side
       case limitWithOrder(plan @ Relation(relation), order)
           if relation.reader.options.enableParallelRead == Automatic ||
             relation.reader.options.enableParallelRead == Forced =>

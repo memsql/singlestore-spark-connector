@@ -120,7 +120,7 @@ trait IntegrationSuiteBase
       .config("spark.datasource.singlestore.user", "root-ssl")
       .config("spark.datasource.singlestore.password", "")
       .config("spark.datasource.singlestore.enableAsserts", "true")
-      .config("spark.datasource.singlestore.enableParallelRead", "automatic")
+      .config("spark.datasource.singlestore.enableParallelRead", "automaticLite")
       .config("spark.datasource.singlestore.parallelRead.Features",
               if (forceReadFromLeaves) "ReadFromLeaves" else "ReadFromAggregators,ReadFromLeaves")
       .config("spark.datasource.singlestore.database", "testdb")
