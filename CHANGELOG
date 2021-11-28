@@ -1,3 +1,6 @@
+2021-12-29 Version 3.2.0
+    * Added support of the parallel read from aggregators
+
 2021-09-16 Version 3.1.3
     * Added Spark 3.1 support
     * Deleted Spark 2.3 and 2.4 support
