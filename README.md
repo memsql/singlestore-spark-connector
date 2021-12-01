@@ -9,7 +9,7 @@ spark-packages.org.  The group is `com.singlestore` and the artifact is
 
 * [Maven Central](https://search.maven.org/artifact/com.singlestore/singlestore-spark-connector_2.11)
 * [Maven Central (Spark 3)](https://search.maven.org/artifact/com.singlestore/singlestore-spark-connector_2.12)
-* [spark-packages.org](https://spark-packages.org/package/memsql/singlestore-spark-connector)
+* [spark-packages.org](https://spark-packages.org/package/memsql/memsql-spark-connector)
 
 You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
 ```
@@ -165,7 +165,7 @@ df.write
 ## Inserting rows into the table with ON DUPLICATE KEY UPDATE
 
 When updating a rowstore table it is possible to insert rows with `ON DUPLICATE KEY UPDATE` option.
-See [sql reference](https://docs.singlestore.com/latest/reference/sql-reference/data-manipulation-language-dml/insert/) for more details.
+See [sql reference](https://docs.singlestore.com/db/latest/en/reference/sql-reference/data-manipulation-language-dml/insert.html) for more details.
 
 ```scala
 df.write
@@ -450,7 +450,7 @@ var s = executeSinglestoreQueryDB(spark, "foo", "SHOW TABLES")
 
 You can use the SingleStore Spark Connector with a Kerberized user without any additional configuration.
 To use a Kerberized user, you need to configure the connector with the given SingleStore database user that is authenticated with Kerberos
-(via the `user` option). Please visit our documentation [here](https://docs.singlestore.com/latest/guides/security/authentication/kerberos-authentication)
+(via the `user` option). Please visit our documentation [here](https://docs.singlestore.com/db/latest/en/security/authentication/kerberos-authentication.html)
 to learn about how to configure SingleStore users with Kerberos.
 
 Here is an example of configuring the Spark connector globally with a Kerberized SingleStore user called `krb_user`.
@@ -468,7 +468,7 @@ Note that if you do provide a password, it will be ignored.
 
 ### SQL Permissions
 
-SingleStore has a [permission matrix](https://docs.singlestore.com/latest/reference/sql-reference/security-management-commands/permissions-matrix/)
+SingleStore has a [permission matrix](https://docs.singlestore.com/db/latest/en/reference/sql-reference/security-management-commands/permissions-matrix.html)
 which describes the permissions required to run each command.
 
 To make any SQL operations through Spark connector you should have different
@@ -483,7 +483,7 @@ minimum required permissions, `ALL PRIVILEGES` allow you to perform any operatio
 | `DROP` database or collection   | `SELECT, INSERT, DROP`   | `ALL PRIVILEGES`       |
 | `CREATE` database or collection | `SELECT, INSERT, CREATE` | `ALL PRIVILEGES`       |
 
-For more information on GRANTING privileges, see this [documentation](https://docs.singlestore.com/latest/reference/sql-reference/security-management-commands/grant/)
+For more information on GRANTING privileges, see this [documentation](https://docs.singlestore.com/db/latest/en/reference/sql-reference/security-management-commands/grant.html)
 
 ### SSL Support
 
