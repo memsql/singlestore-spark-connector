@@ -47,7 +47,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
   final val BUFFER_SIZE = 524288
 
   type ImplementsSetInfileStream = {
-    def setLocalInfileInputStream(input: InputStream)
+    def setNextLocalInfileInputStream(input: InputStream)
   }
 
   def createDataWriter(schema: StructType,
@@ -149,7 +149,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
         try {
           stmt
             .asInstanceOf[ImplementsSetInfileStream]
-            .setLocalInfileInputStream(inputstream)
+            .setNextLocalInfileInputStream(inputstream)
 
           log.debug(s"Executing SQL:\n$query")
           stmt.executeUpdate(query)

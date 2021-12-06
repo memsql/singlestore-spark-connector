@@ -1,7 +1,7 @@
 package com.singlestore.spark
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import org.apache.spark.sql.SaveMode
+import org.apache.spark.sql.{SaveMode, SparkSession}
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.types.IntegerType
 
@@ -20,7 +20,7 @@ class LoadbalanceTest extends IntegrationSuiteBase {
 
   def countQueries(hostport: String): Int = {
     val opts = new JDBCOptions(
-      Map("url"      -> s"jdbc:mysql://$hostport",
+      Map("url"      -> s"jdbc:singlestore://$hostport",
           "dbtable"  -> "testdb",
           "user"     -> "root",
           "password" -> masterPassword))
@@ -43,7 +43,7 @@ class LoadbalanceTest extends IntegrationSuiteBase {
 
     it("queries both aggregators eventually") {
 
-      val df = spark.createDF(
+      var df = spark.createDF(
         List(4, 5, 6),
         List(("id", IntegerType, true))
       )
@@ -53,6 +53,8 @@ class LoadbalanceTest extends IntegrationSuiteBase {
       // 50/50 chance of picking either agg, 10 tries should be enough to ensure we hit both aggs with write queries
       for (i <- 0 to 10) {
         writeTable("test", df, SaveMode.Overwrite)
+        // Wait while connection in the pool die
+        Thread.sleep(3000);
       }
 
       val endCounters = counters

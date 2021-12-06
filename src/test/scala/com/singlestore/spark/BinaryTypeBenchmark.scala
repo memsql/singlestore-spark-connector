@@ -32,7 +32,7 @@ object BinaryTypeBenchmark extends App {
 
     Loan(
       DriverManager.getConnection(
-        s"jdbc:mysql://$masterHost:$masterPort",
+        s"jdbc:singlestore://$masterHost:$masterPort",
         connProperties
       ))
   }

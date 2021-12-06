@@ -37,6 +37,7 @@ case object SinglestoreDialect extends JdbcDialect {
       case (Types.BIT, "BIT")           => Option(BinaryType)
       case (Types.TINYINT, "TINYINT")   => Option(ShortType)
       case (Types.SMALLINT, "SMALLINT") => Option(ShortType)
+      case (Types.INTEGER, "SMALLINT")  => Option(IntegerType)
       case (Types.DECIMAL, "DECIMAL") => {
         if (size > DecimalType.MAX_PRECISION) {
           throw new IllegalArgumentException(

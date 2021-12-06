@@ -32,7 +32,7 @@ object JdbcHelpers extends LazyLogging {
 
   def getJDBCOptions(conf: SinglestoreOptions, hostPorts: String*): JDBCOptions = {
     val url: String = {
-      val base = s"jdbc:mysql:loadbalance://${hostPorts.mkString(",")}"
+      val base = s"jdbc:singlestore:loadbalance://${hostPorts.mkString(",")}"
       conf.database match {
         case Some(d) => s"$base/$d"
         case None    => base
@@ -50,13 +50,19 @@ object JdbcHelpers extends LazyLogging {
       Map(
         JDBCOptions.JDBC_URL          -> url,
         JDBCOptions.JDBC_TABLE_NAME   -> "XXX",
-        JDBCOptions.JDBC_DRIVER_CLASS -> "org.mariadb.jdbc.Driver",
+        JDBCOptions.JDBC_DRIVER_CLASS -> "com.singlestore.jdbc.Driver",
         "user"                        -> conf.user,
         "password"                    -> conf.password,
         "zeroDateTimeBehavior"        -> "convertToNull",
         "allowLoadLocalInfile"        -> "true",
         "connectTimeout"              -> SINGLESTORE_CONNECT_TIMEOUT,
-        "sessionVariables"            -> sessionVariables
+        "sessionVariables"            -> sessionVariables,
+        "pool"                        -> "true",
+        "maxIdleTime"                 -> "2",
+        "maxPoolSize"                 -> "100001",
+        "minPoolSize"                 -> "0",
+        "tinyInt1isBit"               -> "false",
+        "allowLocalInfile"            -> "true"
       ) ++ conf.jdbcExtraOptions
     )
   }

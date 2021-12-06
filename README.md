@@ -22,11 +22,11 @@ version of the connector, compiled and tested against Spark 3.1.0. Make sure
 you are using the most recent version of the connector.
 
 In addition to adding the `singlestore-spark-connector`, you will also need to have the
-MariaDB JDBC driver installed.  This library is tested against the following
-MariaDB driver version:
+SingleStore JDBC driver installed.  This library is tested against the following
+SingleStore driver version:
 
 ```
-"org.mariadb.jdbc" % "mariadb-java-client"  % "2.+"
+"com.singlestore" % "singlestore-jdbc-client"  % "1.0.1"
 ```
 
 Once you have everything installed, you're almost ready to run your first
@@ -462,7 +462,7 @@ spark = SparkSession.builder()
 ```
 
 You do not need to provide a password when configuring a Spark Connector user that is Kerberized.
-The connector driver (MariaDB) will be able to authenticate the Kerberos user from the cache by the provided username.
+The connector driver (SingleStore JDBC driver) will be able to authenticate the Kerberos user from the cache by the provided username.
 Other than omitting a password with this configuration, using a Kerberized user with the Connector is no different than using a standard user.
 Note that if you do provide a password, it will be ignored.
 
@@ -487,7 +487,7 @@ For more information on GRANTING privileges, see this [documentation](https://do
 
 ### SSL Support
 
-The SingleStore Spark Connector uses the MariaDB JDBC Driver under the hood and thus
+The SingleStore Spark Connector uses the SingleStore JDBC Driver under the hood and thus
 supports SSL configuration out of the box. In order to configure SSL, first
 ensure that your SingleStore cluster has SSL configured. Documentation on how to set
 this up can be found here:
@@ -514,9 +514,8 @@ spark.conf.set("spark.datasource.singlestore.trustServerCertificate", "true")
 spark.conf.set("spark.datasource.singlestore.disableSslHostnameVerification", "true")
 ```
 
-More information on the above parameters can be found at MariaDB's documentation
-for their JDBC driver here:
-https://mariadb.com/kb/en/about-mariadb-connector-j/#tls-parameters
+More information on the above parameters can be found at SingleStore JDBC driver documentation here:
+https://docs.singlestore.com/db/latest/en/developer-resources/connect-with-application-development-tools/connect-with-java-jdbc/the-singlestore-jdbc-driver.html#tls-parameters
 
 ## Filing issues
 
