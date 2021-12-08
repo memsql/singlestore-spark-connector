@@ -1,10 +1,31 @@
 package com.singlestore.spark
 
 import com.singlestore.spark.ExpressionGen._
-import com.singlestore.spark.SQLGen.{ExpressionExtractor, IntVar, Joinable, Raw, StringVar, block}
+import com.singlestore.spark.SQLGen.{
+  ExpressionExtractor,
+  IntVar,
+  Joinable,
+  StringVar,
+  block,
+  cast,
+  sqlMapValueCaseInsensitive
+}
 import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.types.{CalendarIntervalType, DateType, TimestampType}
-import org.apache.spark.unsafe.types.CalendarInterval
+import org.apache.spark.sql.types.{
+  BinaryType,
+  BooleanType,
+  ByteType,
+  DateType,
+  DecimalType,
+  DoubleType,
+  FloatType,
+  IntegerType,
+  LongType,
+  NullType,
+  ShortType,
+  StringType,
+  TimestampType
+}
 
 case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor) {
   def unapply(e: Expression): Option[Joinable] = e match {
@@ -42,6 +63,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
       Some(op("/", left, right))
     case Remainder(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("%", left, right))
+    case Abs(expressionExtractor(child)) => Some(f("ABS", child))
 
     case Pmod(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(block(block(block(left + "%" + right) + "+" + right) + "%" + right))
@@ -87,6 +109,73 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     // randomExpression.scala
     // TODO PLAT-5759
     case Rand(expressionExtractor(child), false) => Some(f("RAND", child))
+
+    // Cast.scala
+    case Cast(e @ expressionExtractor(child), dataType, _) => {
+      dataType match {
+        case TimestampType => {
+          e.dataType match {
+            case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
+                DoubleType | _: DecimalType =>
+              Some(cast(f("FROM_UNIXTIME", child), "DATETIME(6)"))
+            case _ => Some(cast(child, "DATETIME(6)"))
+          }
+        }
+        case DateType => Some(cast(child, "DATE"))
+
+        case StringType => Some(cast(child, "CHAR"))
+        case BinaryType => Some(cast(child, "BINARY"))
+
+        case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
+            DoubleType | _: DecimalType =>
+          if (e.dataType == DateType) {
+            Some(StringVar(null))
+          } else {
+            val numeric_ch = if (e.dataType == TimestampType) {
+              f("UNIX_TIMESTAMP", child)
+            } else {
+              child
+            }
+            dataType match {
+              case BooleanType     => Some(op("!=", numeric_ch, IntVar(0)))
+              case ByteType        => Some(op("!:>", numeric_ch, "TINYINT"))
+              case ShortType       => Some(op("!:>", numeric_ch, "SMALLINT"))
+              case IntegerType     => Some(op("!:>", numeric_ch, "INT"))
+              case LongType        => Some(op("!:>", numeric_ch, "BIGINT"))
+              case FloatType       => Some(op("!:>", numeric_ch, "FLOAT"))
+              case DoubleType      => Some(op("!:>", numeric_ch, "DOUBLE"))
+              case dt: DecimalType => Some(makeDecimal(numeric_ch, dt.precision, dt.scale))
+            }
+          }
+        // SingleStore doesn't know how to handle this cast, pass it through AS is
+        case _ => Some(child)
+      }
+    }
+
+    case NextDay(expressionExtractor(startDate), utf8StringFoldableExtractor(dayOfWeek)) =>
+      Some(
+        computeNextDay(
+          startDate,
+          sqlMapValueCaseInsensitive(
+            StringVar(dayOfWeek.toString),
+            DAYS_OF_WEEK_OFFSET_MAP,
+            StringVar(null)
+          )
+        ))
+
+    case NextDay(expressionExtractor(startDate), expressionExtractor(dayOfWeek)) =>
+      Some(
+        computeNextDay(startDate,
+                       sqlMapValueCaseInsensitive(
+                         dayOfWeek,
+                         DAYS_OF_WEEK_OFFSET_MAP,
+                         StringVar(null)
+                       )))
+
+    case Lead(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
+      Some(f("LEAD", input, offset))
+    case Lag(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
+      Some(f("LAG", input, offset))
 
     case _ => None
   }

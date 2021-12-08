@@ -49,9 +49,9 @@ jobs:
             export SINGLESTORE_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' singlestore-integration)
             if [ << parameters.spark_version >> == '3.0.0' ]
             then
-              sbt ++2.12.12 test -Dspark.version=<< parameters.spark_version >>
+              sbt ++2.12.12 "testOnly -- -l  OnlySpark31" -Dspark.version=<< parameters.spark_version >>
             else
-              sbt ++2.11.11 "testOnly -- -l  OnlySpark3" -Dspark.version=<< parameters.spark_version >>
+              sbt ++2.12.12 "testOnly -- -l  OnlySpark30" -Dspark.version=<< parameters.spark_version >>
             fi
 
   publish:
@@ -75,6 +75,10 @@ jobs:
           name: Publish Spark 3.1.0
           command: |
             sbt ++2.12.12 -Dspark.version=3.1.0 publish sonatypePrepare sonatypeBundleUpload sonatypeRelease
+      - run:
+          name: Publish Spark 3.2.0
+          command: |
+            sbt ++2.12.12 -Dspark.version=3.2.0 publish sonatypePrepare sonatypeBundleUpload sonatypeRelease
 
 workflows:
   test:
@@ -90,10 +94,13 @@ workflows:
               spark_version:
                 - 3.0.0
                 - 3.1.0
+                - 3.2.0
               singlestore_image:
                 - memsql/cluster-in-a-box:centos-7.0.15-619d118712-1.9.5-1.5.0
-                - memsql/cluster-in-a-box:centos-6.8.15-029542cbf3-1.9.3-1.4.1
-                - memsql/cluster-in-a-box:6.7.18-db1caffe94-1.6.1-1.1.1
+                - memsql/cluster-in-a-box:centos-7.1.13-11ddea2a3a-3.0.0-1.9.3
+                - memsql/cluster-in-a-box:centos-7.3.2-a364d4b31f-3.0.0-1.9.3
+                - memsql/cluster-in-a-box:centos-7.5.8-12c73130aa-3.2.11-1.11.11
+                - memsql/cluster-in-a-box:centos-7.6.5-018454f4e3-4.0.1-1.13.0
   publish:
     jobs:
       - approve-publish:

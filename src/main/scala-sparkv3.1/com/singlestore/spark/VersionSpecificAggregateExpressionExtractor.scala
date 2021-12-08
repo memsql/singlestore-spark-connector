@@ -4,10 +4,12 @@ import com.singlestore.spark.SQLGen.{ExpressionExtractor, SQLGenContext, Stateme
 import com.singlestore.spark.ExpressionGen.aggregateWithFilter
 import org.apache.spark.sql.catalyst.expressions.aggregate.{
   AggregateFunction,
+  Average,
   First,
   Last,
   StddevPop,
   StddevSamp,
+  Sum,
   VariancePop,
   VarianceSamp
 }
@@ -34,6 +36,14 @@ case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: Expr
       // Last.scala
       case Last(expressionExtractor(child), false) =>
         Some(aggregateWithFilter("ANY_VALUE", child, filter))
+
+      // Sum.scala
+      case Sum(expressionExtractor(child)) =>
+        Some(aggregateWithFilter("SUM", child, filter))
+
+      // Average.scala
+      case Average(expressionExtractor(child)) =>
+        Some(aggregateWithFilter("AVG", child, filter))
 
       case _ => None
     }

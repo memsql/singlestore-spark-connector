@@ -2,19 +2,7 @@ package com.singlestore.spark
 
 import com.singlestore.spark.SQLGen.{ExpressionExtractor, SQLGenContext, Statement}
 import com.singlestore.spark.ExpressionGen.aggregateWithFilter
-import org.apache.spark.sql.catalyst.expressions.Literal
-import org.apache.spark.sql.catalyst.expressions.aggregate.{
-  AggregateFunction,
-  Average,
-  First,
-  Last,
-  StddevPop,
-  StddevSamp,
-  Sum,
-  VariancePop,
-  VarianceSamp
-}
-import org.apache.spark.sql.types.BooleanType
+import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateFunction, Average, First, Last, StddevPop, StddevSamp, Sum, VariancePop, VarianceSamp}
 
 case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: ExpressionExtractor,
                                                        context: SQLGenContext,
@@ -22,29 +10,29 @@ case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: Expr
   def unapply(f: AggregateFunction): Option[Statement] = {
     f match {
       // CentralMomentAgg.scala
-      case StddevPop(expressionExtractor(child)) =>
+      case StddevPop(expressionExtractor(child), true) =>
         Some(aggregateWithFilter("STDDEV_POP", child, filter))
-      case StddevSamp(expressionExtractor(child)) =>
+      case StddevSamp(expressionExtractor(child), true) =>
         Some(aggregateWithFilter("STDDEV_SAMP", child, filter))
-      case VariancePop(expressionExtractor(child)) =>
+      case VariancePop(expressionExtractor(child), true) =>
         Some(aggregateWithFilter("VAR_POP", child, filter))
-      case VarianceSamp(expressionExtractor(child)) =>
+      case VarianceSamp(expressionExtractor(child), true) =>
         Some(aggregateWithFilter("VAR_SAMP", child, filter))
 
       // First.scala
-      case First(expressionExtractor(child), Literal(false, BooleanType)) =>
+      case First(expressionExtractor(child), false) =>
         Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
       // Last.scala
-      case Last(expressionExtractor(child), Literal(false, BooleanType)) =>
+      case Last(expressionExtractor(child), false) =>
         Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
       // Sum.scala
-      case Sum(expressionExtractor(child)) =>
+      case Sum(expressionExtractor(child), false) =>
         Some(aggregateWithFilter("SUM", child, filter))
 
       // Average.scala
-      case Average(expressionExtractor(child)) =>
+      case Average(expressionExtractor(child), false) =>
         Some(aggregateWithFilter("AVG", child, filter))
 
       case _ => None

@@ -3,6 +3,7 @@ package com.singlestore.spark
 import java.sql.{Date, Timestamp}
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
+import com.singlestore.spark.SQLGen.SinglestoreVersion
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, SaveMode}
 
@@ -566,11 +567,18 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
     assertSmallDataFrameEquality(
       df,
       spark.createDF(
-        List(
-          null,
-          Timestamp.valueOf("1970-02-04 22:59:59.0"),
-          Timestamp.valueOf("1969-11-27 02:59:59")
-        ),
+        // before Spark 3.2.0 JDBC TIME type was read as Timestamp
+        // in SPARK-34357 special handling of TIME type was added
+        // and it ignores date part
+        if (SinglestoreVersion(spark.version).atLeast("3.2.0")) {
+          List(null,
+               Timestamp.valueOf("1970-01-01 22:59:59.0"),
+               Timestamp.valueOf("1970-01-01 02:59:59"))
+        } else {
+          List(null,
+               Timestamp.valueOf("1970-02-04 22:59:59.0"),
+               Timestamp.valueOf("1969-11-27 02:59:59"))
+        },
         List(("a", TimestampType, true))
       ),
       orderedComparison = false

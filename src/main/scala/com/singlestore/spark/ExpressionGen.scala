@@ -39,17 +39,23 @@ object ExpressionGen extends LazyLogging {
   }
 
   def addMicroseconds(start: Joinable, v: CalendarInterval): Joinable =
-    if (v.microseconds == 0) {
+    addMicroseconds(start, v.microseconds)
+
+  def addMicroseconds(start: Joinable, v: Long): Joinable =
+    if (v == 0) {
       start
     } else {
-      f("DATE_ADD", start, Raw("INTERVAL") + v.microseconds.toString + "MICROSECOND")
+      f("DATE_ADD", start, Raw("INTERVAL") + v.toString + "MICROSECOND")
     }
 
   def addMonths(start: Joinable, v: CalendarInterval): Joinable =
-    if (v.months == 0) {
+    addMonths(start, v.months)
+
+  def addMonths(start: Joinable, v: Int): Joinable =
+    if (v == 0) {
       start
     } else {
-      f("DATE_ADD", start, Raw("INTERVAL") + v.months.toString + "MONTH")
+      f("DATE_ADD", start, Raw("INTERVAL") + v.toString + "MONTH")
     }
 
   def subMicroseconds(start: Joinable, v: CalendarInterval): Joinable =
@@ -105,7 +111,9 @@ object ExpressionGen extends LazyLogging {
       case Literal(v: Int, DateType)       => Some(DateVar(DateTimeUtils.toJavaDate(v)))
       case Literal(v: Long, TimestampType) => Some(TimestampVar(DateTimeUtils.toJavaTimestamp(v)))
 
-      case Literal(v, _) => convertLiteralValue.lift(v)
+      case Literal(v, t) if !VersionSpecificUtil.isIntervalType(t) => {
+        convertLiteralValue.lift(v)
+      }
 
       case _ => None
     }
@@ -185,10 +193,6 @@ object ExpressionGen extends LazyLogging {
           VersionSpecificAggregateExpressionExtractor(expressionExtractor, context, filter)
 
         arg.aggregateFunction match {
-          // Average.scala
-          case Average(expressionExtractor(child)) =>
-            Some(aggregateWithFilter("AVG", child, filter))
-
           // TODO: case Skewness(expressionExtractor(child))     => ???
           // TODO: case Kurtosis(expressionExtractor(child))     => ???
 
@@ -215,10 +219,6 @@ object ExpressionGen extends LazyLogging {
           // Min.scala
           case Min(expressionExtractor(child)) =>
             Some(aggregateWithFilter("MIN", child, filter))
-
-          // Sum.scala
-          case Sum(expressionExtractor(child)) =>
-            Some(aggregateWithFilter("SUM", child, filter))
 
           // BitAnd.scala
           case BitAndAgg(expressionExtractor(child))
@@ -318,10 +318,6 @@ object ExpressionGen extends LazyLogging {
                                 windowBoundaryExpressionExtractor(upper)) =>
         Raw(frameType.sql) + "BETWEEN" + lower + "AND" + upper
 
-      case Lead(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
-        f("LEAD", input, offset)
-      case Lag(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
-        f("LAG", input, offset)
       case RowNumber()                       => "ROW_NUMBER()"
       case NTile(expressionExtractor(child)) => f("NTILE", child)
       case Rank(_)                           => "RANK()"
@@ -420,24 +416,6 @@ object ExpressionGen extends LazyLogging {
       case FromUnixTime(expressionExtractor(sec), utf8StringFoldableExtractor(format), timeZoneId)
           if format == SINGLESTORE_DEFAULT_TIME_FORMAT =>
         f("FROM_UNIXTIME", sec)
-
-      case NextDay(expressionExtractor(startDate), utf8StringFoldableExtractor(dayOfWeek)) =>
-        computeNextDay(
-          startDate,
-          sqlMapValueCaseInsensitive(
-            StringVar(dayOfWeek.toString),
-            DAYS_OF_WEEK_OFFSET_MAP,
-            StringVar(null)
-          )
-        )
-
-      case NextDay(expressionExtractor(startDate), expressionExtractor(dayOfWeek)) =>
-        computeNextDay(startDate,
-                       sqlMapValueCaseInsensitive(
-                         dayOfWeek,
-                         DAYS_OF_WEEK_OFFSET_MAP,
-                         StringVar(null)
-                       ))
 
       case DateDiff(expressionExtractor(endDate), expressionExtractor(startDate)) =>
         f("DATEDIFF", endDate, startDate)
@@ -596,7 +574,6 @@ object ExpressionGen extends LazyLogging {
 
       // arithmetic.scala
       case UnaryPositive(expressionExtractor(child)) => f("+", child)
-      case Abs(expressionExtractor(child))           => f("ABS", child)
 
       // bitwiseExpression.scala
       case BitwiseNot(expressionExtractor(expr)) => f("~", expr)
@@ -604,47 +581,6 @@ object ExpressionGen extends LazyLogging {
       case BitwiseCount(expressionExtractor(child)) =>
         f("BIT_COUNT", child)
 
-      // Cast.scala
-      case Cast(e @ expressionExtractor(child), dataType, _) => {
-        dataType match {
-          case TimestampType => {
-            e.dataType match {
-              case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
-                  DoubleType | _: DecimalType =>
-                cast(f("FROM_UNIXTIME", child), "DATETIME(6)")
-              case _ => cast(child, "DATETIME(6)")
-            }
-          }
-          case DateType => cast(child, "DATE")
-
-          case StringType => cast(child, "CHAR")
-          case BinaryType => cast(child, "BINARY")
-
-          case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
-              DoubleType | _: DecimalType =>
-            if (e.dataType == DateType) {
-              StringVar(null)
-            } else {
-              val numeric_ch = if (e.dataType == TimestampType) {
-                f("UNIX_TIMESTAMP", child)
-              } else {
-                child
-              }
-              dataType match {
-                case BooleanType     => op("!=", numeric_ch, IntVar(0))
-                case ByteType        => op("!:>", numeric_ch, "TINYINT")
-                case ShortType       => op("!:>", numeric_ch, "SMALLINT")
-                case IntegerType     => op("!:>", numeric_ch, "INT")
-                case LongType        => op("!:>", numeric_ch, "BIGINT")
-                case FloatType       => op("!:>", numeric_ch, "FLOAT")
-                case DoubleType      => op("!:>", numeric_ch, "DOUBLE")
-                case dt: DecimalType => makeDecimal(numeric_ch, dt.precision, dt.scale)
-              }
-            }
-          // SingleStore doesn't know how to handle this cast, pass it through AS is
-          case _ => child
-        }
-      }
       // TODO: case UpCast(expressionExtractor(child), dataType, walkedTypePath) => ???
 
       // datetimeExpressions.scala

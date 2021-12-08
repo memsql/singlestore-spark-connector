@@ -235,6 +235,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
+  def testSingleReadForOldS2(q: String, minVersion: SinglestoreVersion): Unit = {
+    if (version.atLeast(minVersion) && canDoParallelReadFromAggregators) {
+      testQuery(q)
+    } else {
+      testSingleReadQuery(q)
+    }
+  }
+
   describe("Attributes") {
     describe("successful pushdown") {
       it("Attribute") { testQuery("select id from users") }
@@ -1577,7 +1585,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       val resultSet               = spark.executeSinglestoreQuery("select @@memsql_version")
       val version                 = SinglestoreVersion(resultSet.next().getString(0))
       if (version.atLeast(bitOperationsMinVersion))
-        testSingleReadQuery(sql)
+        testSingleReadForOldS2(sql, SinglestoreVersion(7, 6, 0))
     }
     it("bit_and") {
       bitOperationTest("SELECT bit_and(user_id) AS bit_and FROM reviews")
@@ -1630,107 +1638,178 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("Aggregate Expressions") {
     describe("Average") {
-      it("ints") { testSingleReadQuery("select avg(user_id) as x from reviews") }
-      it("floats") { testSingleReadQuery("select avg(rating) as x from reviews") }
-      it("floats with nulls") { testSingleReadQuery("select avg(critic_rating) as x from movies") }
+      it("ints") {
+        testSingleReadForOldS2("select avg(user_id) as x from reviews", SinglestoreVersion(7, 6, 0))
+      }
+      it("floats") {
+        testSingleReadForOldS2("select avg(rating) as x from reviews", SinglestoreVersion(7, 6, 0))
+      }
+      it("floats with nulls") {
+        testSingleReadForOldS2("select avg(critic_rating) as x from movies",
+                               SinglestoreVersion(7, 6, 0))
+      }
       it("partial pushdown with udf") {
         testSingleReadQuery("select avg(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
       it("filter") {
-        testSingleReadQuery("select avg(age) filter (where age % 2 = 0) from users")
+        testSingleReadForOldS2("select avg(age) filter (where age % 2 = 0) from users",
+                               SinglestoreVersion(7, 6, 0))
       }
     }
     describe("StddevPop") {
-      it("ints") { testSingleReadQuery("select stddev_pop(user_id) as x from reviews") }
-      it("floats") { testSingleReadQuery("select stddev_pop(rating) as x from reviews") }
+      it("ints") {
+        testSingleReadForOldS2("select stddev_pop(user_id) as x from reviews",
+                               SinglestoreVersion(7, 6, 0))
+      }
+      it("floats") {
+        testSingleReadForOldS2("select stddev_pop(rating) as x from reviews",
+                               SinglestoreVersion(7, 6, 0))
+      }
       it("floats with nulls") {
-        testSingleReadQuery("select stddev_pop(critic_rating) as x from movies")
+        testSingleReadForOldS2("select stddev_pop(critic_rating) as x from movies",
+                               SinglestoreVersion(7, 6, 0))
       }
       it("partial pushdown with udf") {
         testSingleReadQuery("select stddev_pop(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
       it("filter") {
-        testSingleReadQuery("select stddev_pop(age) filter (where age % 2 = 0) from users")
+        testSingleReadForOldS2("select stddev_pop(age) filter (where age % 2 = 0) from users",
+                               SinglestoreVersion(7, 6, 0))
       }
     }
     describe("StddevSamp") {
-      it("ints") { testSingleReadQuery("select stddev_samp(user_id) as x from reviews") }
-      it("floats") { testSingleReadQuery("select stddev_samp(rating) as x from reviews") }
+      it("ints") {
+        testSingleReadForOldS2("select stddev_samp(user_id) as x from reviews",
+                               SinglestoreVersion(7, 6, 0))
+      }
+      it("floats") {
+        testSingleReadForOldS2("select stddev_samp(rating) as x from reviews",
+                               SinglestoreVersion(7, 6, 0))
+      }
       it("floats with nulls") {
-        testSingleReadQuery("select stddev_samp(critic_rating) as x from movies")
+        testSingleReadForOldS2("select stddev_samp(critic_rating) as x from movies",
+                               SinglestoreVersion(7, 6, 0))
       }
       it("partial pushdown with udf") {
         testSingleReadQuery("select stddev_samp(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
       it("filter") {
-        testSingleReadQuery("select stddev_samp(age) filter (where age % 2 = 0) from users")
+        testSingleReadForOldS2("select stddev_samp(age) filter (where age % 2 = 0) from users",
+                               SinglestoreVersion(7, 6, 0))
       }
     }
     describe("VariancePop") {
-      it("ints") { testSingleReadQuery("select var_pop(user_id) as x from reviews") }
-      it("floats") { testSingleReadQuery("select var_pop(rating) as x from reviews") }
+      it("ints") {
+        testSingleReadForOldS2("select var_pop(user_id) as x from reviews",
+                               SinglestoreVersion(7, 6, 0))
+      }
+      it("floats") {
+        testSingleReadForOldS2("select var_pop(rating) as x from reviews",
+                               SinglestoreVersion(7, 6, 0))
+      }
       it("floats with nulls") {
-        testSingleReadQuery("select var_pop(critic_rating) as x from movies")
+        testSingleReadForOldS2("select var_pop(critic_rating) as x from movies",
+                               SinglestoreVersion(7, 6, 0))
       }
       it("partial pushdown with udf") {
         testSingleReadQuery("select var_pop(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
       it("filter") {
-        testSingleReadQuery("select var_pop(age) filter (where age % 2 = 0) from users")
+        testSingleReadForOldS2("select var_pop(age) filter (where age % 2 = 0) from users",
+                               SinglestoreVersion(7, 6, 0))
       }
     }
     describe("VarianceSamp") {
-      it("ints") { testSingleReadQuery("select var_samp(user_id) as x from reviews") }
-      it("floats") { testSingleReadQuery("select var_samp(rating) as x from reviews") }
+      it("ints") {
+        testSingleReadForOldS2("select var_samp(user_id) as x from reviews",
+                               SinglestoreVersion(7, 6, 0))
+      }
+      it("floats") {
+        testSingleReadForOldS2("select var_samp(rating) as x from reviews",
+                               SinglestoreVersion(7, 6, 0))
+      }
       it("floats with nulls") {
-        testSingleReadQuery("select var_samp(critic_rating) as x from movies")
+        testSingleReadForOldS2("select var_samp(critic_rating) as x from movies",
+                               SinglestoreVersion(7, 6, 0))
       }
       it("partial pushdown with udf") {
         testSingleReadQuery("select var_samp(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
       it("filter") {
-        testSingleReadQuery("select var_samp(age) filter (where age % 2 = 0) from users")
+        testSingleReadForOldS2("select var_samp(age) filter (where age % 2 = 0) from users",
+                               SinglestoreVersion(7, 6, 0))
       }
     }
     describe("Max") {
-      it("ints") { testSingleReadQuery("select  max(user_id) as x from reviews") }
-      it("floats") { testSingleReadQuery("select max(rating) as x from reviews") }
-      it("strings") { testSingleReadQuery("select max(first_name) as x from users") }
-      it("floats with nulls") { testSingleReadQuery("select max(critic_rating) as x from movies") }
+      it("ints") {
+        testSingleReadForOldS2("select  max(user_id) as x from reviews",
+                               SinglestoreVersion(7, 6, 0))
+      }
+      it("floats") {
+        testSingleReadForOldS2("select max(rating) as x from reviews", SinglestoreVersion(7, 6, 0))
+      }
+      it("strings") {
+        testSingleReadForOldS2("select max(first_name) as x from users",
+                               SinglestoreVersion(7, 6, 0))
+      }
+      it("floats with nulls") {
+        testSingleReadForOldS2("select max(critic_rating) as x from movies",
+                               SinglestoreVersion(7, 6, 0))
+      }
       it("partial pushdown with udf") {
         testSingleReadQuery("select max(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
       it("filter") {
-        testSingleReadQuery(
-          "select max(user_id) filter (where user_id % 2 = 0) as maxid_filter from reviews")
+        testSingleReadForOldS2(
+          "select max(user_id) filter (where user_id % 2 = 0) as maxid_filter from reviews",
+          SinglestoreVersion(7, 6, 0))
       }
     }
     describe("Min") {
-      it("ints") { testSingleReadQuery("select min(user_id) as x from reviews") }
-      it("floats") { testSingleReadQuery("select min(rating) as x from reviews") }
-      it("strings") { testSingleReadQuery("select min(first_name) as x from users") }
-      it("floats with nulls") { testSingleReadQuery("select min(critic_rating) as x from movies") }
+      it("ints") {
+        testSingleReadForOldS2("select min(user_id) as x from reviews", SinglestoreVersion(7, 6, 0))
+      }
+      it("floats") {
+        testSingleReadForOldS2("select min(rating) as x from reviews", SinglestoreVersion(7, 6, 0))
+      }
+      it("strings") {
+        testSingleReadForOldS2("select min(first_name) as x from users",
+                               SinglestoreVersion(7, 6, 0))
+      }
+      it("floats with nulls") {
+        testSingleReadForOldS2("select min(critic_rating) as x from movies",
+                               SinglestoreVersion(7, 6, 0))
+      }
       it("partial pushdown with udf") {
         testSingleReadQuery("select min(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
       }
       it("filter") {
-        testSingleReadQuery(
-          "select min(user_id) filter (where user_id % 2 = 0) as minid_filter from reviews")
+        testSingleReadForOldS2(
+          "select min(user_id) filter (where user_id % 2 = 0) as minid_filter from reviews",
+          SinglestoreVersion(7, 6, 0))
       }
     }
     describe("Sum") {
       // We cast the output, because SingleStore SUM returns DECIMAL(41, 0)
       // which is not supported by spark (spark maximum decimal precision is 38)
-      it("ints") { testSingleReadQuery("select cast(sum(age) as decimal(20, 0)) as x from users") }
-      it("floats") { testSingleReadQuery("select sum(rating) as x from reviews") }
-      it("floats with nulls") { testSingleReadQuery("select sum(critic_rating) as x from movies") }
+      it("ints") {
+        testSingleReadForOldS2("select cast(sum(age) as decimal(20, 0)) as x from users",
+                               SinglestoreVersion(7, 6, 0))
+      }
+      it("floats") {
+        testSingleReadForOldS2("select sum(rating) as x from reviews", SinglestoreVersion(7, 6, 0))
+      }
+      it("floats with nulls") {
+        testSingleReadForOldS2("select sum(critic_rating) as x from movies",
+                               SinglestoreVersion(7, 6, 0))
+      }
       it("partial pushdown with udf") {
         testSingleReadQuery("select sum(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
@@ -1763,8 +1842,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
     describe("Count") {
-      it("all") { testSingleReadQuery("select count(*) from users") }
-      it("distinct") { testSingleReadQuery("select count(distinct first_name) from users") }
+      it("all") {
+        testSingleReadForOldS2("select count(*) from users", SinglestoreVersion(7, 6, 0))
+      }
+      it("distinct") {
+        testSingleReadForOldS2("select count(distinct first_name) from users",
+                               SinglestoreVersion(7, 6, 0))
+      }
       it("partial pushdown with udf (all)") {
         testSingleReadQuery("select count(stringIdentity(first_name)) from users group by id",
                             expectPartialPushdown = true)
@@ -1775,7 +1859,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           expectPartialPushdown = true)
       }
       it("filter") {
-        testSingleReadQuery("select count(*) filter (where age % 2 = 0) from users")
+        testSingleReadForOldS2("select count(*) filter (where age % 2 = 0) from users",
+                               SinglestoreVersion(7, 6, 0))
       }
       it("partial pushdown with udf in filter") {
         spark.udf.register("myUDF", (x: Int) => x % 3 == 1)
@@ -1783,10 +1868,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                             expectPartialPushdown = true)
       }
       it("count_if") {
-        testSingleReadQuery("SELECT count_if(age % 2 = 0) as count FROM users")
+        testSingleReadForOldS2("SELECT count_if(age % 2 = 0) as count FROM users",
+                               SinglestoreVersion(7, 6, 0))
       }
       it("count_if filter") {
-        testSingleReadQuery("SELECT count_if(age % 2 = 0) filter (where age % 2 = 0) FROM users")
+        testSingleReadForOldS2("SELECT count_if(age % 2 = 0) filter (where age % 2 = 0) FROM users",
+                               SinglestoreVersion(7, 6, 0))
       }
     }
     it("top 3 email domains") {
@@ -2409,15 +2496,15 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     val intervals = List(
+      "1 year",
       "1 month",
       "3 week",
       "2 day",
       "7 hour",
       "3 minute",
       "5 second",
-      "1 month 1 week",
-      "2 month 2 hour",
-      "3 month 1 week 3 hour 5 minute 4 seconds"
+      "1 year 1 month",
+      "1 week 3 hour 5 minute 4 seconds"
     )
 
     describe("toUnixTimestamp") {
@@ -2477,7 +2564,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("partial pushdown because of udf in the left argument") {
         testQuery(
           s"""
-                     | select created, stringIdentity(created) + interval 1 month
+                     | select created, to_timestamp(stringIdentity(created)) + interval 1 month
                      | from reviews
                      | where date(created) != last_day(created)
                      |""".stripMargin,
@@ -2500,7 +2587,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("partial pushdown because of udf in the left argument") {
         testQuery(
           s"""
-             | select created, stringIdentity(created) - interval 1 day
+             | select created, to_timestamp(stringIdentity(created)) - interval 1 day
              | from reviews
              | where date(created) != last_day(created)
              |""".stripMargin,
@@ -2701,7 +2788,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown because of udf in the right argument") {
         testQuery(
-          s"select months_between(created, stringIdentity(created) + interval 1 month) from reviews",
+          s"select months_between(created, to_timestamp(stringIdentity(created)) + interval 1 month) from reviews",
           expectPartialPushdown = true)
       }
     }
@@ -3310,8 +3397,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
            // SingleStore truncates the value on overflow
            // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
            scale <- scales if scale < precision) {
-        testSingleReadQuery(
-          s"select sum(cast(rating as decimal($precision, $scale))) as rs from reviews")
+        testSingleReadForOldS2(
+          s"select sum(cast(rating as decimal($precision, $scale))) as rs from reviews",
+          SinglestoreVersion(7, 6, 0))
       }
 
     }
@@ -3337,8 +3425,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
            // SingleStore truncates the value on overflow
            // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
            scale <- scales if scale < precision) {
-        testSingleReadQuery(
-          s"select avg(cast(rating as decimal($precision, $scale))) as rs from reviews")
+        testSingleReadForOldS2(
+          s"select avg(cast(rating as decimal($precision, $scale))) as rs from reviews",
+          SinglestoreVersion(7, 6, 0))
       }
     }
 
