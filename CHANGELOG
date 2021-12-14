@@ -1,4 +1,8 @@
-2021-12-29 Version 3.2.0
+2021-12-14 Version 3.2.1
+    * Added support of the Spark 3.2
+    * Fixed links in the README
+
+2021-11-29 Version 3.2.0
     * Added support for reading in parallel from aggregator nodes instead of leaf nodes
 
 2021-09-16 Version 3.1.3

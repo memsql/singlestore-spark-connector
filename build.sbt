@@ -20,7 +20,7 @@ lazy val root = project
       case "3.1.0" => "scala-sparkv3.1"
       case "3.2.0" => "scala-sparkv3.2"
     }),
-    version := s"3.2.0-spark-${sparkVersion}",
+    version := s"3.2.1-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
     ),
