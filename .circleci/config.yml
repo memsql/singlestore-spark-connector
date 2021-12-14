@@ -29,6 +29,7 @@ jobs:
       singlestore_image:
         type: string
     machine: true
+    resource_class: large
     environment:
       SINGLESTORE_IMAGE: << parameters.singlestore_image >>
       SINGLESTORE_PORT: 5506
@@ -42,7 +43,7 @@ jobs:
       - checkout
       - run:
           name: Setup test cluster
-          command: ./scripts/ensure-test-singlestore-cluster.sh
+          command: ./scripts/setup-cluster.sh
       - run:
           name: Run tests
           command: |
@@ -96,7 +97,6 @@ workflows:
                 - 3.1.0
                 - 3.2.0
               singlestore_image:
-                - memsql/cluster-in-a-box:centos-7.0.15-619d118712-1.9.5-1.5.0
                 - memsql/cluster-in-a-box:centos-7.1.13-11ddea2a3a-3.0.0-1.9.3
                 - memsql/cluster-in-a-box:centos-7.3.2-a364d4b31f-3.0.0-1.9.3
                 - memsql/cluster-in-a-box:centos-7.5.8-12c73130aa-3.2.11-1.11.11
