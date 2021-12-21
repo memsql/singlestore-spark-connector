@@ -1,7 +1,7 @@
 package com.singlestore.spark
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import org.apache.spark.sql.{SaveMode, SparkSession}
+import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.types.IntegerType
 
@@ -43,7 +43,7 @@ class LoadbalanceTest extends IntegrationSuiteBase {
 
     it("queries both aggregators eventually") {
 
-      var df = spark.createDF(
+      val df = spark.createDF(
         List(4, 5, 6),
         List(("id", IntegerType, true))
       )
