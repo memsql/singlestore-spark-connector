@@ -366,11 +366,17 @@ object JdbcHelpers extends LazyLogging {
                                 query: String,
                                 schema: StructType,
                                 materialized: Boolean,
-                                needsRepartition: Boolean): String = {
+                                needsRepartition: Boolean,
+                                repartitionColumns: Seq[String]): String = {
     val materializedStr = { if (materialized) { "MATERIALIZED" } else "" }
     if (needsRepartition) {
-      val randColName = s"randColumn${randomUUID().toString.replace("-", "")}"
-      s"CREATE $materializedStr RESULT TABLE $tableName PARTITION BY ($randColName) AS SELECT *, RAND() AS $randColName FROM ($query)"
+      if (repartitionColumns.isEmpty) {
+        val randColName = s"randColumn${randomUUID().toString.replace("-", "")}"
+        s"CREATE $materializedStr RESULT TABLE $tableName PARTITION BY ($randColName) AS SELECT *, RAND() AS $randColName FROM ($query)"
+      } else {
+        s"CREATE $materializedStr RESULT TABLE $tableName PARTITION BY (${repartitionColumns
+          .mkString(",")}) AS SELECT * FROM ($query)"
+      }
     } else {
       s"CREATE $materializedStr RESULT TABLE $tableName AS $query"
     }
@@ -386,9 +392,15 @@ object JdbcHelpers extends LazyLogging {
                         schema: StructType,
                         variables: VariableList,
                         materialized: Boolean,
-                        needsRepartition: Boolean): Unit = {
+                        needsRepartition: Boolean,
+                        repartitionColumns: Seq[String]): Unit = {
     val sql =
-      getCreateResultTableQuery(tableName, query, schema, materialized, needsRepartition)
+      getCreateResultTableQuery(tableName,
+                                query,
+                                schema,
+                                materialized,
+                                needsRepartition,
+                                repartitionColumns)
     log.trace(s"Executing SQL:\n$sql")
 
     conn.withPreparedStatement(sql, stmt => {

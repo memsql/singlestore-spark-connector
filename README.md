@@ -53,6 +53,7 @@ global options have the prefix `spark.datasource.singlestore.`.
 | `parallelRead.tableCreationTimeoutMS`             | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregators` feature is used; 0 means no timeout (default: `0`)
 | `parallelRead.tableCreationTimeoutMaterializedMS` | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregatorsMaterialized` feature is used; 0 means no timeout (default: `0`)
 | `parallelRead.repartition`                        | Repartition data before reading it (default: `false`)
+| `parallelRead.repartition.columns`                | Comma separated list of column names that are used for repartitioning, if `parallelRead.repartition` is enabled. By default, repartitioning is done using an additional column with `RAND()` value.
 | `overwriteBehavior`                               | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
 | `truncate`                                        | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
 | `loadDataCompression`                             | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
@@ -385,12 +386,26 @@ For `readFromAggregators` and `readFromAggregatorsMaterialized` you can repartit
 to be sure that all tasks will read approximately the same amount of data. This option is very useful for queries with top level
 limit clauses as without repartitioning it is possible that all rows will belong to one partition.
 
+Use the `parallelRead.repartition.columns` option to specify a comma separated list of columns that will be used for repartitioning.
+Column names that contain leading or trailing whitespaces or commas must be escaped as:
+ - Column name must be enclosed in backticks
+```
+"a" -> "`a`"
+```
+ - Each backtick (`) in the column name must be replaced with two backticks (``)
+```
+"a`a``" -> "a``a````"
+```
+
+By default, repartitioning is done using an additional column with `RAND()` value.
+
 ### Example
 ```scala
 spark.read.format("singlestore")
 .option("enableParallelRead", "automatic")
 .option("parallelRead.Features", "readFromAggregators,readFromLeaves")
 .option("parallelRead.repartition", "true")
+.option("parallelRead.repartition.columns", "a, b")
 .option("parallelRead.TableCreationTimeout", "1000")
 .load("db.table")
 ```

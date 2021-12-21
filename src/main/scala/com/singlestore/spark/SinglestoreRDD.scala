@@ -17,6 +17,7 @@ case class SinglestoreRDD(query: String,
                           schema: StructType,
                           expectedOutput: Seq[Attribute],
                           resultMustBeSorted: Boolean,
+                          parallelReadRepartitionColumns: Seq[String],
                           @transient val sc: SparkContext)
     extends RDD[Row](sc, Nil) {
   val (parallelReadType, partitions_) = SinglestorePartitioner(this).getPartitions

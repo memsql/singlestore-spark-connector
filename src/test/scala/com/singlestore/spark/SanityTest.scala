@@ -175,4 +175,36 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
       createTableWithKeys(Map(s"tableKey.key...."         -> "id"))
     }
   }
+
+  def repartitionColumnsTest(): Unit = {
+    val expectedDf = spark.createDF(
+      List((1, 1, "Albert", "1"), (5, 2, "Ronny", "2"), (7, 3, "Ben", "4"), (9, 4, "David", "5")),
+      List(("id", IntegerType, true),
+           ("id2", IntegerType, true),
+           (",a,,", StringType, true),
+           (" ", StringType, true))
+    )
+    writeTable("testdb.foo", expectedDf)
+
+    spark.sqlContext.setConf("spark.datasource.singlestore.enableParallelRead", "forced")
+    val actualDf = spark.read
+      .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+      .option("parallelRead.repartition", "true")
+      .option("parallelRead.repartition.columns", "id,   `,a,,` ,   ` `")
+      .load("testdb.foo")
+
+    assertSmallDataFrameEquality(actualDf, expectedDf, orderedComparison = false)
+    spark.sqlContext.setConf("spark.datasource.singlestore.enableParallelRead", "automaticLite")
+  }
+
+  it("repartition columns pushdown enabled") {
+    spark.sqlContext.setConf("spark.datasource.singlestore.disablePushdown", "false")
+    repartitionColumnsTest()
+  }
+
+  it("repartition columns pushdown disabled") {
+    spark.sqlContext.setConf("spark.datasource.singlestore.disablePushdown", "true")
+    repartitionColumnsTest()
+    spark.sqlContext.setConf("spark.datasource.singlestore.disablePushdown", "false")
+  }
 }

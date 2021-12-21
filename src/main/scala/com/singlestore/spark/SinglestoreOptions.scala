@@ -26,7 +26,8 @@ case class SinglestoreOptions(
     parallelReadFeatures: List[ParallelReadType],
     parallelReadTableCreationTimeoutMS: Long,
     parallelReadMaterializedTableCreationTimeoutMS: Long,
-    parallelReadRepartition: Boolean
+    parallelReadRepartition: Boolean,
+    parallelReadRepartitionColumns: Set[String]
 ) extends LazyLogging {
 
   def assert(condition: Boolean, message: String) = {
@@ -99,7 +100,8 @@ object SinglestoreOptions extends LazyLogging {
     "parallelRead.tableCreationTimeoutMS")
   final val PARALLEL_READ_MATERIALIZED_TABLE_CREATION_TIMEOUT_MS = newOption(
     "parallelRead.materializedTableCreationTimeoutMS")
-  final val PARALLEL_READ_REPARTITION = newOption("parallelRead.repartition")
+  final val PARALLEL_READ_REPARTITION         = newOption("parallelRead.repartition")
+  final val PARALLEL_READ_REPARTITION_COLUMNS = newOption("parallelRead.repartition.columns")
 
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
   final val TABLE_KEYS            = newOption("tableKey")
@@ -134,6 +136,67 @@ object SinglestoreOptions extends LazyLogging {
           s"One of the following options must be specified: $QUERY, $TABLE_NAME, $PATH"
         )
       )
+  }
+
+  def splitEscapedColumns(s: String): List[String] = {
+    def splitEscapedColumns(s: String, isQuoteOpen: Boolean): List[String] = {
+      if (s.isEmpty) {
+        List.empty
+      } else if (s.head == '`') {
+        val suffixRes = splitEscapedColumns(s.tail, !isQuoteOpen)
+        if (suffixRes.isEmpty) {
+          // it is the first column that we meet
+          // return list with one string
+          List("`")
+        } else {
+          // prepend character to the first column
+          ('`' + suffixRes.head) +: suffixRes.tail
+        }
+      } else if (s.head == ',' && !isQuoteOpen) {
+        val res = splitEscapedColumns(s.tail, isQuoteOpen)
+        // we are processing a new column
+        // prepend empty column to the result
+        "" +: res
+      } else {
+        val res = splitEscapedColumns(s.tail, isQuoteOpen)
+        if (res.isEmpty) {
+          // it is the first column that we meet
+          // return list with one string
+          List(s.head.toString)
+        } else {
+          // prepend character to the first column
+          (s.head + res.head) +: res.tail
+        }
+      }
+    }
+
+    splitEscapedColumns(s, isQuoteOpen = false)
+  }
+
+  def trimAndUnescapeColumn(s: String): String = {
+    def unescapeColumn(s: List[Char]): List[Char] = {
+      if (s.isEmpty) {
+        List.empty
+      } else if (s.head == '`' && s.tail.nonEmpty && s.tail.head == '`') {
+        // we met escaped backtick
+        // append it only once
+        '`' +: unescapeColumn(s.tail.tail)
+      } else if (s.head == '`') {
+        // we met backtick
+        // skip it
+        unescapeColumn(s.tail)
+      } else {
+        // add a simple character
+        s.head +: unescapeColumn(s.tail)
+      }
+    }
+
+    val trimmed = s.trim
+    if (trimmed.nonEmpty && trimmed.head == '`') {
+      unescapeColumn(s.trim.toCharArray.toList).mkString("")
+    } else {
+      trimmed
+    }
   }
 
   def apply(options: CaseInsensitiveMap[String]): SinglestoreOptions = {
@@ -241,6 +304,10 @@ object SinglestoreOptions extends LazyLogging {
         options.getOrElse(PARALLEL_READ_MATERIALIZED_TABLE_CREATION_TIMEOUT_MS, "0").toInt
       },
       parallelReadRepartition = options.get(PARALLEL_READ_REPARTITION).getOrElse("false").toBoolean,
+      parallelReadRepartitionColumns =
+        splitEscapedColumns(options.get(PARALLEL_READ_REPARTITION_COLUMNS).getOrElse(""))
+          .map(column => trimAndUnescapeColumn(column))
+          .toSet
     )
   }
 }

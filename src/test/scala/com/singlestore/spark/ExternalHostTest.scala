@@ -172,7 +172,8 @@ class ExternalHostTest
         List(ReadFromLeaves),
         0,
         0,
-        true
+        true,
+        Set.empty
       )
 
       val conn         = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()

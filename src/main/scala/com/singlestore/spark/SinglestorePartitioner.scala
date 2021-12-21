@@ -187,12 +187,14 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
 
     if (!JdbcHelpers.isValidQuery(
           conn,
-          JdbcHelpers.getCreateResultTableQuery("CheckIfSelectQueryIsSupportedByParallelRead",
-                                                rdd.query,
-                                                rdd.schema,
-                                                materialized = true,
-                                                needsRepartition =
-                                                  rdd.options.parallelReadRepartition),
+          JdbcHelpers.getCreateResultTableQuery(
+            "CheckIfSelectQueryIsSupportedByParallelRead",
+            rdd.query,
+            rdd.schema,
+            materialized = true,
+            needsRepartition = rdd.options.parallelReadRepartition,
+            rdd.parallelReadRepartitionColumns
+          ),
           rdd.variables
         )) {
       if (log.isTraceEnabled) {
@@ -211,12 +213,14 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
 
     if (!JdbcHelpers.isValidQuery(
           conn,
-          JdbcHelpers.getCreateResultTableQuery("CheckIfSelectQueryIsSupportedByParallelRead",
-                                                rdd.query,
-                                                rdd.schema,
-                                                materialized = false,
-                                                needsRepartition =
-                                                  rdd.options.parallelReadRepartition),
+          JdbcHelpers.getCreateResultTableQuery(
+            "CheckIfSelectQueryIsSupportedByParallelRead",
+            rdd.query,
+            rdd.schema,
+            materialized = false,
+            needsRepartition = rdd.options.parallelReadRepartition,
+            rdd.parallelReadRepartitionColumns
+          ),
           rdd.variables
         )) {
       if (log.isTraceEnabled) {

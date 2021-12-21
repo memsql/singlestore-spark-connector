@@ -29,7 +29,8 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
                                         schema: StructType,
                                         connectionOptions: JDBCOptions,
                                         materialized: Boolean,
-                                        needsRepartition: Boolean)
+                                        needsRepartition: Boolean,
+                                        repartitionColumns: Seq[String])
 
   def addRDDInfo(rdd: SinglestoreRDD): Unit = {
     rddInfos.synchronized({
@@ -39,7 +40,8 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
         rdd.schema,
         JdbcHelpers.getDDLJDBCOptions(rdd.options),
         rdd.parallelReadType.contains(ReadFromAggregatorsMaterialized),
-        rdd.options.parallelReadRepartition
+        rdd.options.parallelReadRepartition,
+        rdd.parallelReadRepartitionColumns,
       ))
     })
   }
@@ -81,7 +83,8 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
               singleStoreRDDInfo.schema,
               singleStoreRDDInfo.variables,
               singleStoreRDDInfo.materialized,
-              singleStoreRDDInfo.needsRepartition
+              singleStoreRDDInfo.needsRepartition,
+              singleStoreRDDInfo.repartitionColumns
             )
           })
       }

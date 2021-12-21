@@ -18,4 +18,67 @@ class SinglestoreOptionsTest extends IntegrationSuiteBase {
       )
     }
   }
+
+  describe("splitEscapedColumns") {
+    it("empty string") {
+      assert(SinglestoreOptions.splitEscapedColumns("") == List())
+    }
+
+    it("3 columns") {
+      assert(
+        SinglestoreOptions.splitEscapedColumns("col1,col2,col3") == List("col1", "col2", "col3"))
+    }
+
+    it("with spaces") {
+      assert(
+        SinglestoreOptions
+          .splitEscapedColumns("  col1 , col2,   col3") == List("  col1 ", " col2", "   col3"))
+    }
+
+    it("with backticks") {
+      assert(
+        SinglestoreOptions.splitEscapedColumns(" ` col1` , `col2`, ``  col3") == List(" ` col1` ",
+                                                                                      " `col2`",
+                                                                                      " ``  col3"))
+    }
+
+    it("with commas inside of backticks") {
+      assert(
+        SinglestoreOptions
+          .splitEscapedColumns(" ` ,, col1,` , ``,```,col3`, ``  col4,`,,`") == List(
+          " ` ,, col1,` ",
+          " ``",
+          "```,col3`",
+          " ``  col4",
+          "`,,`"))
+    }
+  }
+
+  describe("trimAndUnescapeColumn") {
+    it("empty string") {
+      assert(SinglestoreOptions.trimAndUnescapeColumn("") == "")
+    }
+
+    it("spaces") {
+      assert(SinglestoreOptions.trimAndUnescapeColumn("   ") == "")
+    }
+
+    it("in backticks") {
+      assert(SinglestoreOptions.trimAndUnescapeColumn(" `asd`  ") == "asd")
+    }
+
+    it("backticks in the result") {
+      assert(SinglestoreOptions.trimAndUnescapeColumn(" ```a``sd`  ") == "`a`sd")
+    }
+
+    it("several escaped words") {
+      assert(SinglestoreOptions.trimAndUnescapeColumn(" ```a``sd` ```a``sd` ") == "`a`sd `a`sd")
+    }
+
+    it("backtick in the middle of string") {
+      assert(
+        SinglestoreOptions
+          .trimAndUnescapeColumn(" a```a``sd` ```a``sd` ") == "a```a``sd` ```a``sd`")
+    }
+  }
 }

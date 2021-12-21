@@ -18,13 +18,18 @@ case class SinglestoreReaderNoPushdown(query: String,
 
   override def buildScan: RDD[Row] = {
     val rdd =
-      SinglestoreRDD(query,
-                     Nil,
-                     options,
-                     schema,
-                     Nil,
-                     resultMustBeSorted = false,
-                     sqlContext.sparkContext)
+      SinglestoreRDD(
+        query,
+        Nil,
+        options,
+        schema,
+        Nil,
+        resultMustBeSorted = false,
+        schema
+          .filter(sf => options.parallelReadRepartitionColumns.contains(sf.name))
+          .map(sf => SQLGen.Ident(sf.name).sql),
+        sqlContext.sparkContext
+      )
     if (rdd.parallelReadType.contains(ReadFromAggregators)) {
       // Wrap an RDD with barrier stage, to force all readers start reading at the same time.
       // Repartition it to force spark to read data and do all other computations in different stages.
@@ -55,13 +60,18 @@ case class SinglestoreReader(query: String,
 
   override def buildScan: RDD[Row] = {
     val rdd =
-      SinglestoreRDD(query,
-                     variables,
-                     options,
-                     schema,
-                     expectedOutput,
-                     resultMustBeSorted,
-                     sqlContext.sparkContext)
+      SinglestoreRDD(
+        query,
+        variables,
+        options,
+        schema,
+        expectedOutput,
+        resultMustBeSorted,
+        expectedOutput
+          .filter(attr => options.parallelReadRepartitionColumns.contains(attr.name))
+          .map(attr => context.ident(attr.name, attr.exprId)),
+        sqlContext.sparkContext
+      )
     if (rdd.parallelReadType.contains(ReadFromAggregators)) {
       // Wrap an RDD with barrier stage, to force all readers start reading at the same time.
       // Repartition it to force spark to read data and do all other computations in different stages.
