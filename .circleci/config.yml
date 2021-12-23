@@ -71,15 +71,15 @@ jobs:
       - run:
           name: Publish Spark 3.0.0
           command: |
-            sbt ++2.12.12 -Dspark.version=3.0.0 publishSigned sonatypeBundleRelease
+            sbt ++2.12.12 -Dspark.version=3.0.0 clean publishSigned sonatypeBundleRelease
       - run:
           name: Publish Spark 3.1.0
           command: |
-            sbt ++2.12.12 -Dspark.version=3.1.0 publishSigned sonatypeBundleRelease
+            sbt ++2.12.12 -Dspark.version=3.1.0 clean publishSigned sonatypeBundleRelease
       - run:
           name: Publish Spark 3.2.0
           command: |
-            sbt ++2.12.12 -Dspark.version=3.2.0 publishSigned sonatypeBundleRelease
+            sbt ++2.12.12 -Dspark.version=3.2.0 clean publishSigned sonatypeBundleRelease
 
 workflows:
   test:
