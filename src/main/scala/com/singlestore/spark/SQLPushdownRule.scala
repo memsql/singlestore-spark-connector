@@ -61,7 +61,7 @@ class SQLPushdownRule extends Rule[LogicalPlan] {
     } while (!ptr.fastEquals(nextPtr))
 
     // Finalize all the relations in the tree and perform casts into the expected output datatype for Spark
-    val out = ptr.transformDown({
+    val out = ptr.transform({
       case SQLGen.Relation(relation) if !relation.isFinal => relation.castOutputAndFinalize
     })
 
