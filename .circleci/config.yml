@@ -69,17 +69,13 @@ jobs:
             openssl enc -d -aes-256-cbc -K ${ENCRYPTION_KEY} -iv ${ENCRYPTION_IV} -in ci/secring.asc.enc -out ci/secring.asc
             gpg --import ci/secring.asc
       - run:
-          name: Publish Spark 3.0.0
-          command: |
-            sbt ++2.12.12 -Dspark.version=3.0.0 publishSigned sonatypeBundleRelease
-      - run:
           name: Publish Spark 3.1.0
           command: |
-            sbt ++2.12.12 -Dspark.version=3.1.0 publishSigned sonatypeBundleRelease
+            sbt ++2.12.12 -Dspark.version=3.1.0 clean publishSigned sonatypeBundleRelease
       - run:
           name: Publish Spark 3.2.0
           command: |
-            sbt ++2.12.12 -Dspark.version=3.2.0 publishSigned sonatypeBundleRelease
+            sbt ++2.12.12 -Dspark.version=3.2.0 clean publishSigned sonatypeBundleRelease
 
 workflows:
   test:
@@ -108,8 +104,6 @@ workflows:
           filters:
             tags:
               only: /^v.*/
-            branches:
-              ignore: /.*/
       - publish:
           requires:
             - approve-publish
