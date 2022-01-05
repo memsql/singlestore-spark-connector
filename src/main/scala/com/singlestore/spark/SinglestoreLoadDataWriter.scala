@@ -211,7 +211,9 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
   }
 
   override def abort(): Unit = {
-    conn.abort(ExecutionContext.global)
+    if (!conn.isClosed) {
+      conn.abort(ExecutionContext.global)
+    }
     outputstream.close()
     Await.ready(writeFuture, Duration.Inf)
   }
@@ -255,7 +257,9 @@ class AvroDataWriter(avroSchema: Schema,
   }
 
   override def abort(): Unit = {
-    conn.abort(ExecutionContext.global)
+    if (!conn.isClosed) {
+      conn.abort(ExecutionContext.global)
+    }
     outputstream.close()
     Await.ready(writeFuture, Duration.Inf)
   }
