@@ -57,10 +57,6 @@ object JdbcHelpers extends LazyLogging {
         "allowLoadLocalInfile"        -> "true",
         "connectTimeout"              -> SINGLESTORE_CONNECT_TIMEOUT,
         "sessionVariables"            -> sessionVariables,
-        "pool"                        -> "true",
-        "maxIdleTime"                 -> "2",
-        "maxPoolSize"                 -> "100001",
-        "minPoolSize"                 -> "0",
         "tinyInt1isBit"               -> "false",
         "allowLocalInfile"            -> "true"
       ) ++ conf.jdbcExtraOptions
