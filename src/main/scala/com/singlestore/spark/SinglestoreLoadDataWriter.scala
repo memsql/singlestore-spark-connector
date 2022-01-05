@@ -47,7 +47,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
   final val BUFFER_SIZE = 524288
 
   type ImplementsSetInfileStream = {
-    def setLocalInfileInputStream(input: InputStream)
+    def setNextLocalInfileInputStream(input: InputStream)
   }
 
   def createDataWriter(schema: StructType,
@@ -149,7 +149,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
         try {
           stmt
             .asInstanceOf[ImplementsSetInfileStream]
-            .setLocalInfileInputStream(inputstream)
+            .setNextLocalInfileInputStream(inputstream)
 
           log.debug(s"Executing SQL:\n$query")
           stmt.executeUpdate(query)
@@ -211,7 +211,9 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
   }
 
   override def abort(): Unit = {
-    conn.abort(ExecutionContext.global)
+    if (!conn.isClosed) {
+      conn.abort(ExecutionContext.global)
+    }
     outputstream.close()
     Await.ready(writeFuture, Duration.Inf)
   }
@@ -255,7 +257,9 @@ class AvroDataWriter(avroSchema: Schema,
   }
 
   override def abort(): Unit = {
-    conn.abort(ExecutionContext.global)
+    if (!conn.isClosed) {
+      conn.abort(ExecutionContext.global)
+    }
     outputstream.close()
     Await.ready(writeFuture, Duration.Inf)
   }

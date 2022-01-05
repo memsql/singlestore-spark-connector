@@ -573,11 +573,11 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
         if (SinglestoreVersion(spark.version).atLeast("3.2.0")) {
           List(null,
                Timestamp.valueOf("1970-01-01 22:59:59.0"),
-               Timestamp.valueOf("1970-01-01 02:59:59"))
+               Timestamp.valueOf("1970-01-01 01:00:01"))
         } else {
           List(null,
                Timestamp.valueOf("1970-02-04 22:59:59.0"),
-               Timestamp.valueOf("1969-11-27 02:59:59"))
+               Timestamp.valueOf("1969-11-27 01:00:01"))
         },
         List(("a", TimestampType, true))
       ),

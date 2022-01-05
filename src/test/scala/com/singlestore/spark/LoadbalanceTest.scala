@@ -20,7 +20,7 @@ class LoadbalanceTest extends IntegrationSuiteBase {
 
   def countQueries(hostport: String): Int = {
     val opts = new JDBCOptions(
-      Map("url"      -> s"jdbc:mysql://$hostport",
+      Map("url"      -> s"jdbc:singlestore://$hostport",
           "dbtable"  -> "testdb",
           "user"     -> "root",
           "password" -> masterPassword))

@@ -27,20 +27,21 @@ lazy val root = project
     resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven",
     libraryDependencies ++= Seq(
       // runtime dependencies
-      "org.apache.spark"       %% "spark-core"         % sparkVersion % "provided, test",
-      "org.apache.spark"       %% "spark-sql"          % sparkVersion % "provided, test",
-      "org.apache.avro"        % "avro"                % "1.8.2",
-      "org.apache.commons"     % "commons-dbcp2"       % "2.7.0",
-      "org.scala-lang.modules" %% "scala-java8-compat" % "0.9.0",
-      "org.mariadb.jdbc"       % "mariadb-java-client" % "2.+",
-      "io.spray"               %% "spray-json"         % "1.3.5",
-      "io.netty"               % "netty-buffer"        % "4.1.70.Final",
+      "org.apache.spark"       %% "spark-core"             % sparkVersion % "provided, test",
+      "org.apache.spark"       %% "spark-sql"              % sparkVersion % "provided, test",
+      "org.apache.avro"        % "avro"                    % "1.8.2",
+      "org.apache.commons"     % "commons-dbcp2"           % "2.7.0",
+      "org.scala-lang.modules" %% "scala-java8-compat"     % "0.9.0",
+      "com.singlestore"        % "singlestore-jdbc-client" % "1.0.1",
+      "io.spray"               %% "spray-json"             % "1.3.5",
+      "io.netty"               % "netty-buffer"            % "4.1.70.Final",
       // test dependencies
-      "org.scalatest"       %% "scalatest"        % "3.1.0"   % Test,
-      "org.scalacheck"      %% "scalacheck"       % "1.14.1"  % Test,
-      "org.mockito"         %% "mockito-scala"    % "1.16.37" % Test,
-      "com.github.mrpowers" %% "spark-fast-tests" % "0.21.3"  % Test,
-      "com.github.mrpowers" %% "spark-daria"      % "0.38.2"  % Test
+      "org.mariadb.jdbc"    % "mariadb-java-client" % "2.+"     % Test,
+      "org.scalatest"       %% "scalatest"          % "3.1.0"   % Test,
+      "org.scalacheck"      %% "scalacheck"         % "1.14.1"  % Test,
+      "org.mockito"         %% "mockito-scala"      % "1.16.37" % Test,
+      "com.github.mrpowers" %% "spark-fast-tests"   % "0.21.3"  % Test,
+      "com.github.mrpowers" %% "spark-daria"        % "0.38.2"  % Test
     ),
     Test / testOptions += Tests.Argument("-oF"),
     Test / fork := true
