@@ -211,11 +211,11 @@ object ExpressionGen extends LazyLogging {
           // TODO: case CovSample(expressionExtractor(left), expressionExtractor(right))     => ???
 
           // First.scala
-          case First(expressionExtractor(child), Literal(false, BooleanType)) =>
+          case First(expressionExtractor(child), false) =>
             Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
           // Last.scala
-          case Last(expressionExtractor(child), Literal(false, BooleanType)) =>
+          case Last(expressionExtractor(child), false) =>
             Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
           // Max.scala
