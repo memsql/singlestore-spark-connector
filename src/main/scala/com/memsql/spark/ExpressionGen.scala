@@ -178,11 +178,11 @@ object ExpressionGen extends LazyLogging {
     // TODO: case CovSample(Expression(left), Expression(right))     => ???
 
     // First.scala
-    case AggregateExpression(First(Expression(child), Literal(false, BooleanType)), _, _, _) =>
+    case AggregateExpression(First(Expression(child), false), _, _, _) =>
       f("ANY_VALUE", child)
 
     // Last.scala
-    case AggregateExpression(Last(Expression(child), Literal(false, BooleanType)), _, _, _) =>
+    case AggregateExpression(Last(Expression(child), false), _, _, _) =>
       f("ANY_VALUE", child)
 
     // Max.scala
