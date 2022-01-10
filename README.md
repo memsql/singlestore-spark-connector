@@ -48,7 +48,7 @@ global options have the prefix `spark.datasource.singlestore.`.
 | `dbtable`                                         | The table to query (mutually exclusive with query)
 | `database`                                        | If set, all connections will default to using this database (default: empty)
 | `disablePushdown`                                 | Disable SQL Pushdown when running queries (default: false)
-| `enableParallelRead`                              | Enable reading data in parallel for some query shapes; one of (`disabled`, `automaticLite`, `automatic`, `forced`) (default: `disabled`)
+| `enableParallelRead`                              | Enable reading data in parallel for some query shapes; one of (`disabled`, `automaticLite`, `automatic`, `forced`) (default: `automaticLite`)
 | `parallelRead.Features`                           | Specify comma separated list of parallel read features that will be tried. The order in which features are listed determines their priority. Supported features: `ReadFromLeaves`, `ReadFromAggregators`, `ReadFromAggregatorsMaterialized`. Ex. `ReadFromLeaves,ReadFromAggregators` (default: `ReadFromAggregators`).
 | `parallelRead.tableCreationTimeoutMS`             | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregators` feature is used; 0 means no timeout (default: `0`)
 | `parallelRead.tableCreationTimeoutMaterializedMS` | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregatorsMaterialized` feature is used; 0 means no timeout (default: `0`)
