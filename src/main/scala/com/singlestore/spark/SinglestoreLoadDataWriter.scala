@@ -151,8 +151,10 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
             .asInstanceOf[ImplementsSetInfileStream]
             .setLocalInfileInputStream(inputstream)
 
-          log.debug(s"Executing SQL:\n$query")
-          stmt.executeUpdate(query)
+          log.info(s"Loading data using SQL query:\n$query")
+          val res = stmt.executeUpdate(query)
+          log.info("Query execution finished")
+          res
         } finally {
           stmt.close()
         }
@@ -169,7 +171,8 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
 }
 
 class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn: Connection)
-    extends DataWriter[Row] {
+    extends DataWriter[Row]
+    with LazyLogging {
 
   override def write(row: Row): Unit = {
     val rowLength = row.size
