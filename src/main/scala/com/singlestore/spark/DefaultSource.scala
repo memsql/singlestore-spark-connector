@@ -11,6 +11,7 @@ import org.apache.spark.sql.sources.{
   RelationProvider
 }
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
+import org.slf4j.LoggerFactory
 
 object DefaultSource {
 
@@ -62,6 +63,7 @@ class DefaultSource
                               mode: SaveMode,
                               parameters: Map[String, String],
                               data: DataFrame): BaseRelation = {
+    log.info("createRelation: started")
     val opts = CaseInsensitiveMap(includeGlobalParams(sqlContext, parameters))
     val conf = SinglestoreOptions(opts)
 
@@ -84,18 +86,24 @@ class DefaultSource
     val schema        = data.schema
     var totalRowCount = 0L
     data.foreachPartition((partition: Iterator[Row]) => {
+      val log = LoggerFactory.getLogger(com.singlestore.spark.DefaultSource.getClass)
+      log.info("createRelation: writing of a partition started")
       val writer = partitionWriterFactory.createDataWriter(schema,
                                                            TaskContext.getPartitionId(),
                                                            0,
                                                            isReferenceTable,
                                                            mode)
+      log.info("createRelation: writer created")
       try {
         partition.foreach(record => {
           writer.write(record)
           totalRowCount += 1
         })
+        log.info("createRelation: records written")
         writer.commit()
+        log.info("createRelation: committed")
         MetricsHandler.setRecordsWritten(totalRowCount)
+        log.info("createRelation: updated written records count")
       } catch {
         case e: Exception =>
           writer.abort()
@@ -103,6 +111,8 @@ class DefaultSource
       }
     })
 
-    createRelation(sqlContext, parameters)
+    val res = createRelation(sqlContext, parameters)
+    log.info("createRelation: finished")
+    res
   }
 }

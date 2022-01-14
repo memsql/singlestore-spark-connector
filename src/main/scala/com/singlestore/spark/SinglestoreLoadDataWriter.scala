@@ -55,6 +55,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
                        attemptNumber: Int,
                        isReferenceTable: Boolean,
                        mode: SaveMode): DataWriter[Row] = {
+    log.info("createDataWriter: started")
     val basestream  = new PipedOutputStream
     val inputstream = new PipedInputStream(basestream, BUFFER_SIZE)
 
@@ -71,6 +72,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
       case CompressionType.Skip =>
         ("tsv", basestream)
     }
+    log.info("createDataWriter: created streams")
 
     def tempColName(colName: String) = s"@${colName}_tmp"
 
@@ -134,6 +136,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
       List[String](queryPrefix, queryErrorHandlingPart, queryEnding, querySetPart, maxErrorsPart)
         .filter(s => !s.isEmpty)
         .mkString(" ")
+    log.info("createDataWriter: created query")
 
     val conn = JdbcUtils.createConnectionFactory(
       if (isReferenceTable) {
@@ -142,6 +145,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
         JdbcHelpers.getDMLJDBCOptions(conf)
       }
     )()
+    log.info("createDataWriter: created connection")
 
     val writer = Future[Long] {
       try {
@@ -175,6 +179,7 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
     with LazyLogging {
 
   override def write(row: Row): Unit = {
+    log.info("write: started")
     val rowLength = row.size
     for (i <- 0 until rowLength) {
       // We tried using off the shelf CSVWriter, but found it qualitatively slower.
@@ -204,12 +209,17 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
       }
       outputstream.write(value)
       outputstream.write(if (i < rowLength - 1) '\t' else '\n')
+      log.info(s"write: written ${value.size + 1} bytes to the stream")
     }
+    log.info("write: finished")
   }
 
   override def commit(): WriterCommitMessage = {
+    log.info("commit: started")
     outputstream.close()
+    log.info("commit: outputstream closed")
     Await.result(writeFuture, Duration.Inf)
+    log.info("commit: writeFuture finished")
     new WriteSuccess
   }
 
