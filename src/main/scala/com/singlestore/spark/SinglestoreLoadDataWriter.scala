@@ -179,7 +179,6 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
     with LazyLogging {
 
   override def write(row: Row): Unit = {
-    log.info("write: started")
     val rowLength = row.size
     for (i <- 0 until rowLength) {
       // We tried using off the shelf CSVWriter, but found it qualitatively slower.
@@ -209,9 +208,7 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
       }
       outputstream.write(value)
       outputstream.write(if (i < rowLength - 1) '\t' else '\n')
-      log.info(s"write: written ${value.size + 1} bytes to the stream")
     }
-    log.info("write: finished")
   }
 
   override def commit(): WriterCommitMessage = {
