@@ -1,3 +1,6 @@
+2022-01-20 Version 4.0.0
+    * Changed connector to use SinleStore JDBC Driver instead of MariaDB JDBC Driver
+
 2021-12-23 Version 3.2.2
     * Added possibility to repartition result by columns in parallel read from aggregators
     * Replaced usages of `transformDown` with `transform` in order to make connector work with Databricks 9.1 LTS
