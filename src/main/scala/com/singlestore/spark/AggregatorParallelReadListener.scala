@@ -6,6 +6,7 @@ import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.SparkContext
 import org.apache.spark.scheduler.{
   SparkListener,
+  SparkListenerApplicationEnd,
   SparkListenerStageCompleted,
   SparkListenerStageSubmitted
 }
@@ -56,6 +57,10 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
     rddInfos.synchronized({
       rddInfos.isEmpty
     })
+  }
+
+  override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
+    log.info("ENDING")
   }
 
   override def onStageSubmitted(stageSubmitted: SparkListenerStageSubmitted): Unit = {
