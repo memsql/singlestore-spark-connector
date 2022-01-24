@@ -29,7 +29,9 @@ case class SinglestoreOptions(
     onDuplicateKeySQL: Option[String],
     maxErrors: Int,
     insertBatchSize: Int,
-    createRowstoreTable: Boolean
+    createRowstoreTable: Boolean,
+    driverConnectionPoolOptions: SinglestoreConnectionPoolOptions,
+    executorConnectionPoolOptions: SinglestoreConnectionPoolOptions
 ) extends LazyLogging {
 
   def assert(condition: Boolean, message: String) = {
@@ -116,6 +118,30 @@ object SinglestoreOptions extends LazyLogging {
   final val ENABLE_ASSERTS       = newOption("enableAsserts")
   final val DISABLE_PUSHDOWN     = newOption("disablePushdown")
   final val ENABLE_PARALLEL_READ = newOption("enableParallelRead")
+
+  final val DRIVER_CONNECTION_POOL_ENABLED        = newOption("driverConnectionPool.Enabled")
+  final val DRIVER_CONNECTION_POOL_MAX_OPEN_CONNS = newOption("driverConnectionPool.MaxOpenConns")
+  final val DRIVER_CONNECTION_POOL_MAX_IDLE_CONNS = newOption("driverConnectionPool.MaxIdleConns")
+  final val DRIVER_CONNECTION_POOL_MIN_EVICTABLE_IDLE_TIME_MS = newOption(
+    "driverConnectionPool.MinEvictableIdleTimeMS")
+  final val DRIVER_CONNECTION_POOL_TIME_BETWEEN_EVICTION_RUNS_MS = newOption(
+    "driverConnectionPool.TimeBetweenEvictionRunsMS")
+  final val DRIVER_CONNECTION_POOL_MAX_WAIT_MS = newOption("driverConnectionPool.MaxWaitMS")
+  final val DRIVER_CONNECTION_POOL_MAX_CONN_LIFETIME_MS = newOption(
+    "driverConnectionPool.MaxConnLifetimeMS")
+
+  final val EXECUTOR_CONNECTION_POOL_ENABLED = newOption("executorConnectionPool.Enabled")
+  final val EXECUTOR_CONNECTION_POOL_MAX_OPEN_CONNS = newOption(
+    "executorConnectionPool.MaxOpenConns")
+  final val EXECUTOR_CONNECTION_POOL_MAX_IDLE_CONNS = newOption(
+    "executorConnectionPool.MaxIdleConns")
+  final val EXECUTOR_CONNECTION_POOL_MIN_EVICTABLE_IDLE_TIME_MS = newOption(
+    "executorConnectionPool.MinEvictableIdleTimeMS")
+  final val EXECUTOR_CONNECTION_POOL_TIME_BETWEEN_EVICTION_RUNS_MS = newOption(
+    "executorConnectionPool.TimeBetweenEvictionRunsMS")
+  final val EXECUTOR_CONNECTION_POOL_MAX_WAIT_MS = newOption("executorConnectionPool.MaxWaitMS")
+  final val EXECUTOR_CONNECTION_POOL_MAX_CONN_LIFETIME_MS = newOption(
+    "executorConnectionPool.MaxConnLifetimeMS")
 
   def getTable(options: CaseInsensitiveMap[String]): Option[TableIdentifier] =
     options
@@ -311,7 +337,25 @@ object SinglestoreOptions extends LazyLogging {
         splitEscapedColumns(options.get(PARALLEL_READ_REPARTITION_COLUMNS).getOrElse(""))
           .map(column => trimAndUnescapeColumn(column))
           .toSet,
-      createRowstoreTable = options.getOrElse(CREATE_ROWSTORE_TABLE, "false").toBoolean
+      createRowstoreTable = options.getOrElse(CREATE_ROWSTORE_TABLE, "false").toBoolean,
+      executorConnectionPoolOptions = SinglestoreConnectionPoolOptions(
+        options.getOrElse(EXECUTOR_CONNECTION_POOL_ENABLED, "true").toBoolean,
+        options.getOrElse(EXECUTOR_CONNECTION_POOL_MAX_OPEN_CONNS, "-1").toInt,
+        options.getOrElse(EXECUTOR_CONNECTION_POOL_MAX_IDLE_CONNS, "8").toInt,
+        options.getOrElse(EXECUTOR_CONNECTION_POOL_MIN_EVICTABLE_IDLE_TIME_MS, "30000").toLong,
+        options.getOrElse(EXECUTOR_CONNECTION_POOL_TIME_BETWEEN_EVICTION_RUNS_MS, "1000").toLong,
+        options.getOrElse(EXECUTOR_CONNECTION_POOL_MAX_WAIT_MS, "-1").toLong,
+        options.getOrElse(EXECUTOR_CONNECTION_POOL_MAX_CONN_LIFETIME_MS, "-1").toLong,
+      ),
+      driverConnectionPoolOptions = SinglestoreConnectionPoolOptions(
+        options.getOrElse(DRIVER_CONNECTION_POOL_ENABLED, "true").toBoolean,
+        options.getOrElse(DRIVER_CONNECTION_POOL_MAX_OPEN_CONNS, "-1").toInt,
+        options.getOrElse(DRIVER_CONNECTION_POOL_MAX_IDLE_CONNS, "8").toInt,
+        options.getOrElse(DRIVER_CONNECTION_POOL_MIN_EVICTABLE_IDLE_TIME_MS, "2000").toLong,
+        options.getOrElse(DRIVER_CONNECTION_POOL_TIME_BETWEEN_EVICTION_RUNS_MS, "1000").toLong,
+        options.getOrElse(DRIVER_CONNECTION_POOL_MAX_WAIT_MS, "-1").toLong,
+        options.getOrElse(DRIVER_CONNECTION_POOL_MAX_CONN_LIFETIME_MS, "-1").toLong,
+      ),
     )
   }
 }

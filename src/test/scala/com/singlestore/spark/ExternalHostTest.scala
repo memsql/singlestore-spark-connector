@@ -1,9 +1,10 @@
 package com.singlestore.spark
 
-import java.sql.{PreparedStatement, SQLException}
+import java.sql.PreparedStatement
+import java.util.Properties
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import com.singlestore.spark.JdbcHelpers.getDDLJDBCOptions
+import com.singlestore.spark.JdbcHelpers.getDDLConnProperties
 import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
@@ -38,9 +39,12 @@ class ExternalHostTest
   def setupMockJdbcHelper(): Unit = {
     when(JdbcHelpers.loadSchema(any[SinglestoreOptions], any[String], any[SQLGen.VariableList]))
       .thenCallRealMethod()
-    when(JdbcHelpers.getDDLJDBCOptions(any[SinglestoreOptions])).thenCallRealMethod()
-    when(JdbcHelpers.getDMLJDBCOptions(any[SinglestoreOptions])).thenCallRealMethod()
-    when(JdbcHelpers.getJDBCOptions(any[SinglestoreOptions], any[String])).thenCallRealMethod()
+    when(JdbcHelpers.getDDLConnProperties(any[SinglestoreOptions], any[Boolean]))
+      .thenCallRealMethod()
+    when(JdbcHelpers.getDMLConnProperties(any[SinglestoreOptions], any[Boolean]))
+      .thenCallRealMethod()
+    when(JdbcHelpers.getConnProperties(any[SinglestoreOptions], any[Boolean], any[String]))
+      .thenCallRealMethod()
     when(JdbcHelpers.explainJSONQuery(any[SinglestoreOptions], any[String], any[VariableList]))
       .thenCallRealMethod()
     when(JdbcHelpers.partitionHostPorts(any[SinglestoreOptions], any[String]))
@@ -174,10 +178,13 @@ class ExternalHostTest
         None,
         10,
         10,
-        false
+        false,
+        SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 30000, 1000, -1, -1),
+        SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 2000, 1000, -1, -1)
       )
 
-      val conn         = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+      val conn =
+        SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
       val statement    = conn.prepareStatement(s"""
         SELECT IP_ADDR,    
         PORT,
@@ -196,9 +203,9 @@ class ExternalHostTest
         WHERE TYPE = "LEAF";
       """)).thenReturn(spyStatement)
 
-      withObjectMocked[JdbcUtils.type] {
+      withObjectMocked[SinglestoreConnectionPool.type] {
 
-        when(JdbcUtils.createConnectionFactory(any[JDBCOptions])).thenReturn(() => spyConn)
+        when(SinglestoreConnectionPool.getConnection(any[Properties])).thenReturn(spyConn)
         val externalHostPorts = JdbcHelpers.externalHostPorts(conf)
         val expectedResult = Map(
           "172.17.0.2:3307" -> "172.17.0.10:3310"

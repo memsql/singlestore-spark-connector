@@ -76,7 +76,7 @@ case class SinglestoreRDD(query: String,
       }
     }
 
-    conn = JdbcUtils.createConnectionFactory(partition.connectionInfo)()
+    conn = SinglestoreConnectionPool.getConnection(partition.connectionInfo)
     if (aggregatorParallelReadUsed) {
       val tableName = JdbcHelpers.getResultTableName(applicationId, context.stageId(), id)
 

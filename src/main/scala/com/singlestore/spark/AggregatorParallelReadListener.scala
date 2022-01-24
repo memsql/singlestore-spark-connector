@@ -1,7 +1,9 @@
 package com.singlestore.spark
 
 import java.sql.Connection
+import java.util.Properties
 
+import com.singlestore.spark.JdbcHelpers.getDDLConnProperties
 import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.SparkContext
 import org.apache.spark.scheduler.{
@@ -10,7 +12,6 @@ import org.apache.spark.scheduler.{
   SparkListenerStageCompleted,
   SparkListenerStageSubmitted
 }
-import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.types.StructType
 
 import scala.collection.mutable
@@ -28,7 +29,7 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
   private case class SingleStoreRDDInfo(query: String,
                                         variables: VariableList,
                                         schema: StructType,
-                                        connectionOptions: JDBCOptions,
+                                        connectionProperties: Properties,
                                         materialized: Boolean,
                                         needsRepartition: Boolean,
                                         repartitionColumns: Seq[String])
@@ -39,7 +40,7 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
         rdd.query,
         rdd.variables,
         rdd.schema,
-        JdbcHelpers.getDDLJDBCOptions(rdd.options),
+        getDDLConnProperties(rdd.options, isOnExecutor = false),
         rdd.parallelReadType.contains(ReadFromAggregatorsMaterialized),
         rdd.options.parallelReadRepartition,
         rdd.parallelReadRepartitionColumns,
@@ -75,7 +76,8 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
             val tableName = JdbcHelpers.getResultTableName(applicationId, stageId, rddInfo.id)
 
             // Create connection and save it in the map
-            val conn = JdbcUtils.createConnectionFactory(singleStoreRDDInfo.connectionOptions)()
+            val conn =
+              SinglestoreConnectionPool.getConnection(singleStoreRDDInfo.connectionProperties)
             connectionsMap.synchronized(
               connectionsMap += (tableName -> conn)
             )

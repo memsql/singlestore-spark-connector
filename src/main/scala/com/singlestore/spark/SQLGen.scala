@@ -8,7 +8,7 @@ import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.types._
 import org.slf4j.{Logger, LoggerFactory}
-import com.singlestore.spark.JdbcHelpers.getDMLJDBCOptions
+import com.singlestore.spark.JdbcHelpers.getDMLConnProperties
 
 import scala.collection.immutable.HashMap
 import scala.collection.{breakOut, mutable}
@@ -463,8 +463,9 @@ object SQLGen extends LazyLogging {
                        joinType @ (Inner | Cross),
                        sortPredicates(condition),
                        _)
-          if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
-            right.reader.options).asProperties =>
+          if getDMLConnProperties(left.reader.options, isOnExecutor = false) == getDMLConnProperties(
+            right.reader.options,
+            isOnExecutor = false) =>
         newStatement(plan)
           .selectAll()
           .from(left)
@@ -480,8 +481,9 @@ object SQLGen extends LazyLogging {
                        joinType @ (LeftOuter | RightOuter | FullOuter),
                        Some(sortPredicates(condition)),
                        _)
-          if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
-            right.reader.options).asProperties =>
+          if getDMLConnProperties(left.reader.options, isOnExecutor = false) == getDMLConnProperties(
+            right.reader.options,
+            isOnExecutor = false) =>
         newStatement(plan)
           .selectAll()
           .from(left)
@@ -493,8 +495,9 @@ object SQLGen extends LazyLogging {
       // the last parameter is a spark hint for join
       // SingleStore does its own optimizations under the hood, so we can safely ignore this parameter
       case plan @ Join(relationOrSort(left), relationOrSort(right), NaturalJoin(joinType), None, _)
-          if getDMLJDBCOptions(left.reader.options).asProperties == getDMLJDBCOptions(
-            right.reader.options).asProperties =>
+          if getDMLConnProperties(left.reader.options, isOnExecutor = false) == getDMLConnProperties(
+            right.reader.options,
+            isOnExecutor = false) =>
         newStatement(plan)
           .selectAll()
           .from(left)
