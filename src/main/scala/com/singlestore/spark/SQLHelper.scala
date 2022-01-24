@@ -1,6 +1,6 @@
 package com.singlestore.spark
 
-import com.singlestore.spark.JdbcHelpers.{executeQuery, getDDLJDBCOptions}
+import com.singlestore.spark.JdbcHelpers.{executeQuery, getDDLConnProperties}
 import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
@@ -28,7 +28,8 @@ object SQLHelper extends LazyLogging {
       }
 
       val conf = SinglestoreOptions(CaseInsensitiveMap(opts))
-      val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+      val conn =
+        SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
       try {
         executeQuery(conn, query, variables: _*)
       } finally {

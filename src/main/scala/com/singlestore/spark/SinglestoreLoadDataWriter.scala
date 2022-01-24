@@ -7,14 +7,15 @@ import java.sql.Connection
 import java.util.Base64
 import java.util.zip.GZIPOutputStream
 
+import com.singlestore.spark.JdbcHelpers.{getDDLConnProperties, getDMLConnProperties}
 import com.singlestore.spark.SinglestoreOptions.CompressionType
 import com.singlestore.spark.vendor.apache.SchemaConverters
 import net.jpountz.lz4.LZ4FrameOutputStream
 import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.avro.io.EncoderFactory
+import org.apache.commons.dbcp2.DelegatingStatement
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.{Row, SaveMode}
 
@@ -135,19 +136,19 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
         .filter(s => !s.isEmpty)
         .mkString(" ")
 
-    val conn = JdbcUtils.createConnectionFactory(
-      if (isReferenceTable) {
-        JdbcHelpers.getDDLJDBCOptions(conf)
-      } else {
-        JdbcHelpers.getDMLJDBCOptions(conf)
-      }
-    )()
+    val conn = SinglestoreConnectionPool.getConnection(if (isReferenceTable) {
+      getDDLConnProperties(conf, isOnExecutor = true)
+    } else {
+      getDMLConnProperties(conf, isOnExecutor = true)
+    })
 
     val writer = Future[Long] {
       try {
         val stmt = conn.createStatement()
         try {
           stmt
+            .asInstanceOf[DelegatingStatement]
+            .getInnermostDelegate
             .asInstanceOf[ImplementsSetInfileStream]
             .setNextLocalInfileInputStream(inputstream)
 

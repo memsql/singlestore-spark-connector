@@ -3,8 +3,8 @@ package com.singlestore.spark
 import java.sql.Connection
 import java.util.Base64
 
+import com.singlestore.spark.JdbcHelpers.{getDDLConnProperties, getDMLConnProperties}
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.{Row, SaveMode}
 
@@ -35,13 +35,11 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
       List.fill(rows)(rowTemplate).mkString(",")
     val fullBatchQuery = queryPrefix + valueTemplate(conf.insertBatchSize) + querySuffix
 
-    val conn = JdbcUtils.createConnectionFactory(
-      if (isReferenceTable) {
-        JdbcHelpers.getDDLJDBCOptions(conf)
-      } else {
-        JdbcHelpers.getDMLJDBCOptions(conf)
-      }
-    )()
+    val conn = SinglestoreConnectionPool.getConnection(if (isReferenceTable) {
+      getDDLConnProperties(conf, isOnExecutor = true)
+    } else {
+      getDMLConnProperties(conf, isOnExecutor = true)
+    })
     conn.setAutoCommit(false)
 
     def writeBatch(buff: ListBuffer[Row]): Long = {

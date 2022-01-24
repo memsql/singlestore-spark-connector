@@ -30,7 +30,7 @@ trait IntegrationSuiteBase
   final val continuousIntegration: Boolean = sys.env
     .getOrElse("CONTINUOUS_INTEGRATION", "false") == "true"
 
-  final val masterPassword: String = sys.env.getOrElse("SINGLESTORE_PASSWORD", "")
+  final val masterPassword: String = sys.env.getOrElse("SINGLESTORE_PASSWORD", "1")
   final val forceReadFromLeaves: Boolean =
     sys.env.getOrElse("FORCE_READ_FROM_LEAVES", "FALSE").equalsIgnoreCase("TRUE")
 
