@@ -14,6 +14,8 @@ import net.jpountz.lz4.LZ4FrameOutputStream
 import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.avro.io.EncoderFactory
+import org.apache.commons.dbcp2.DelegatingStatement
+import org.apache.commons.dbcp2.managed.ManagedConnection
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.{BinaryType, StructType}
@@ -147,6 +149,8 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
         val stmt = conn.createStatement()
         try {
           stmt
+            .asInstanceOf[DelegatingStatement]
+            .getInnermostDelegate
             .asInstanceOf[ImplementsSetInfileStream]
             .setNextLocalInfileInputStream(inputstream)
 
