@@ -1,0 +1,20 @@
+[0m[[0m[0mdebug[0m] [0m[0m[zinc] IncrementalCompile -----------[0m
+[0m[[0m[0mdebug[0m] [0m[0mIncrementalCompile.incrementalCompile[0m
+[0m[[0m[0mdebug[0m] [0m[0mprevious = Stamps for: 0 products, 0 sources, 0 libraries[0m
+[0m[[0m[0mdebug[0m] [0m[0mcurrent source = Set(${BASE}/SQLPushdownTest.scala, ${BASE}/SQLHelperTest.scala, ${BASE}/BenchmarkSerializingTest.scala, ${BASE}/SQLOverwriteTest.scala, ${BASE}/CustomDatatypesTest.scala, ${BASE}/MaxErrorsTest.scala, ${BASE}/LoadDataTest.scala, ${BASE}/SanityTest.scala, ${BASE}/BatchInsertBenchmark.scala, ${BASE}/BinaryTypeBenchmark.scala, ${BASE}/SQLPermissionsTest.scala, ${BASE}/TestHelper.scala, ${BASE}/LoadDataBenchmark.scala, ${BASE}/IssuesTest.scala, ${BASE}/LoadbalanceTest.scala, ${BASE}/IntegrationSuiteBase.scala, ${BASE}/OutputMetricsTest.scala, ${BASE}/ReferenceTableTest.scala, ${BASE}/ExternalHostTest.scala, ${BASE}/VersionTest.scala, ${BASE}/BatchInsertTest.scala, ${BASE}/SinglestoreOptionsTest.scala)[0m
+[0m[[0m[0mdebug[0m] [0m[0m> initialChanges = InitialChanges(Changes(added = Set(${BASE}/BenchmarkSerializingTest.scala, ${BASE}/ReferenceTableTest.scala, ${BASE}/BatchInsertTest.scala, ${BASE}/MaxErrorsTest.scala, ${BASE}/SQLHelperTest.scala, ${BASE}/CustomDatatypesTest.scala, ${BASE}/BinaryTypeBenchmark.scala, ${BASE}/IssuesTest.scala, ${BASE}/VersionTest.scala, ${BASE}/SQLPushdownTest.scala, ${BASE}/LoadDataTest.scala, ${BASE}/BatchInsertBenchmark.scala, ${BASE}/IntegrationSuiteBase.scala, ${BASE}/SQLPermissionsTest.scala, ${BASE}/LoadbalanceTest.scala, ${BASE}/LoadDataBenchmark.scala, ${BASE}/ExternalHostTest.scala, ${BASE}/SQLOverwriteTest.scala, ${BASE}/SanityTest.scala, ${BASE}/OutputMetricsTest.scala, ${BASE}/TestHelper.scala, ${BASE}/SinglestoreOptionsTest.scala), removed = Set(), changed = Set(), unmodified = ...),Set(),Set(),API Changes: Set())[0m
+[0m[[0m[0mdebug[0m] [0m[0mFull compilation, no sources in previous analysis.[0m
+[0m[[0m[0mdebug[0m] [0m[0mall 22 sources are invalidated[0m
+[0m[[0m[0mdebug[0m] [0m[0mInitial set of included nodes: [0m
+[0m[[0m[0mdebug[0m] [0m[0mRecompiling all sources: number of invalidated sources > 50.0% of all sources[0m
+[0m[[0m[0mdebug[0m] [0m[0mcompilation cycle 1[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 22 Scala sources to /home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/target/scala-2.12/classes ...[0m
+[0m[[0m[0mdebug[0m] [0m[0mGetting org.scala-sbt:compiler-bridge_2.12:1.6.0:compile for Scala 2.12.12[0m
+[0m[[0m[0mdebug[0m] [0m[0m[zinc] Running cached compiler 2fafdd24 for Scala compiler version 2.12.12[0m
+[0m[[0m[0mdebug[0m] [0m[0m[zinc] The Scala compiler is invoked with:[0m
+[0m[[0m[0mdebug[0m] [0m[0m	-bootclasspath[0m
+[0m[[0m[0mdebug[0m] [0m[0m	/home/posadcha-ua/.cache/coursier/v1/https/repo1.maven.org/maven2/org/scala-lang/scala-library/2.12.12/scala-library-2.12.12.jar[0m
+[0m[[0m[0mdebug[0m] [0m[0m	-classpath[0m
+[0m[[0m[0mdebug[0m] [0m[0m	/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/target/scala-2.12/classes[0m
+[0m[[0m[0mdebug[0m] [0m[0mCompilation failed (CompilerInterface)[0m
+[0m[[0m[31merror[0m] [0m[0m(Compile / [31mcompileIncremental[0m) Compilation failed[0m

@@ -1,0 +1,301 @@
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertBenchmark.scala:7:12: object apache is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.apache.spark.sql.types._[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertBenchmark.scala:8:12: object github is not a member of package com[0m
+[0m[[0m[31merror[0m] [0m[0mimport com.github.mrpowers.spark.daria.sql.SparkSessionExt._[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertBenchmark.scala:9:12: object apache is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.apache.spark.sql.{SaveMode, SparkSession}[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertBenchmark.scala:20:14: not found: type SparkSession[0m
+[0m[[0m[31merror[0m] [0m[0m  val spark: SparkSession = SparkSession[0m
+[0m[[0m[31merror[0m] [0m[0m             ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertBenchmark.scala:20:29: not found: value SparkSession[0m
+[0m[[0m[31merror[0m] [0m[0m  val spark: SparkSession = SparkSession[0m
+[0m[[0m[31merror[0m] [0m[0m                            ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertBenchmark.scala:29:23: not found: type Loan[0m
+[0m[[0m[31merror[0m] [0m[0m  def jdbcConnection: Loan[Connection] = {[0m
+[0m[[0m[31merror[0m] [0m[0m                      ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertBenchmark.scala:33:5: not found: value Loan[0m
+[0m[[0m[31merror[0m] [0m[0m    Loan([0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:3:12: object github is not a member of package com[0m
+[0m[[0m[31merror[0m] [0m[0mimport com.github.mrpowers.spark.daria.sql.SparkSessionExt._[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:4:12: object apache is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.apache.spark.sql.types.{IntegerType, StringType}[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:5:12: object apache is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.apache.spark.sql.{DataFrame, SaveMode}[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:6:12: object scalatest is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:10:12: object scalatest is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.scalatest._[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:14:30: object SQLHelper is not a member of package com.singlestore.spark[0m
+[0m[[0m[31merror[0m] [0m[0mimport com.singlestore.spark.SQLHelper._[0m
+[0m[[0m[31merror[0m] [0m[0m                             ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:11:12: object scalatest is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.scalatest.funspec.AnyFunSpec[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:19:13: not found: type AnyFunSpec[0m
+[0m[[0m[31merror[0m] [0m[0m    extends AnyFunSpec[0m
+[0m[[0m[31merror[0m] [0m[0m            ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:20:10: not found: type BeforeAndAfterEach[0m
+[0m[[0m[31merror[0m] [0m[0m    with BeforeAndAfterEach[0m
+[0m[[0m[31merror[0m] [0m[0m         ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:21:10: not found: type BeforeAndAfterAll[0m
+[0m[[0m[31merror[0m] [0m[0m    with BeforeAndAfterAll[0m
+[0m[[0m[31merror[0m] [0m[0m         ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:6:12: object github is not a member of package com[0m
+[0m[[0m[31merror[0m] [0m[0mimport com.github.mrpowers.spark.fast.tests.DataFrameComparer[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:22:10: not found: type DataFrameComparer[0m
+[0m[[0m[31merror[0m] [0m[0m    with DataFrameComparer[0m
+[0m[[0m[31merror[0m] [0m[0m         ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:23:10: not found: type LazyLogging[0m
+[0m[[0m[31merror[0m] [0m[0m    with LazyLogging {[0m
+[0m[[0m[31merror[0m] [0m[0m         ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:8:57: not found: type BeforeAndAfterEach[0m
+[0m[[0m[31merror[0m] [0m[0mclass BatchInsertTest extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {[0m
+[0m[[0m[31merror[0m] [0m[0m                                                        ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:8:81: not found: type BeforeAndAfterAll[0m
+[0m[[0m[31merror[0m] [0m[0mclass BatchInsertTest extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {[0m
+[0m[[0m[31merror[0m] [0m[0m                                                                                ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:9:11: not found: type DataFrame[0m
+[0m[[0m[31merror[0m] [0m[0m  var df: DataFrame = _[0m
+[0m[[0m[31merror[0m] [0m[0m          ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:9:12: object apache is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:37:14: not found: type SparkSession[0m
+[0m[[0m[31merror[0m] [0m[0m  var spark: SparkSession = _[0m
+[0m[[0m[31merror[0m] [0m[0m             ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:31:3: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m  it("insert into a new table") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:46:5: not found: value assertSmallDataFrameEquality[0m
+[0m[[0m[31merror[0m] [0m[0m    assertSmallDataFrameEquality(actualDF, df)[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/IntegrationSuiteBase.scala:166:24: not found: type DataFrame[0m
+[0m[[0m[31merror[0m] [0m[0m                   df: DataFrame,[0m
+[0m[[0m[31merror[0m] [0m[0m                       ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:60:5: not found: value assertSmallDataFrameEquality[0m
+[0m[[0m[31merror[0m] [0m[0m    assertSmallDataFrameEquality([0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:67:7: not found: value orderedComparison[0m
+[0m[[0m[31merror[0m] [0m[0m      orderedComparison = false[0m
+[0m[[0m[31merror[0m] [0m[0m      ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:71:3: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m  it("insert a new row") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:85:3: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m  it("insert several new rows with small batchSize") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:109:3: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m  it("insert exactly batchSize rows") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:127:3: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m  it("negative batchsize") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:145:3: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m  it("empty insert") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:158:3: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m  it("insert one existing row") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:171:3: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m  it("insert several existing rows") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:189:3: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m  it("insert existing and non existing row") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BatchInsertTest.scala:206:3: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m  it("insert NULL") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:3:12: object github is not a member of package com[0m
+[0m[[0m[31merror[0m] [0m[0mimport com.github.mrpowers.spark.daria.sql.SparkSessionExt._[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:4:12: object apache is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.apache.spark.sql.{DataFrame, SaveMode}[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:5:12: object apache is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.apache.spark.sql.types.{IntegerType, LongType, StringType}[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:18:33: not found: value StringType[0m
+[0m[[0m[31merror[0m] [0m[0m  val smallSchema = List(("id", StringType, false))[0m
+[0m[[0m[31merror[0m] [0m[0m                                ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:19:34: not found: value StringType[0m
+[0m[[0m[31merror[0m] [0m[0m  val mediumSchema = List(("id", StringType, false),[0m
+[0m[[0m[31merror[0m] [0m[0m                                 ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:20:36: not found: value StringType[0m
+[0m[[0m[31merror[0m] [0m[0m                          ("name", StringType, false),[0m
+[0m[[0m[31merror[0m] [0m[0m                                   ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:21:39: not found: value StringType[0m
+[0m[[0m[31merror[0m] [0m[0m                          ("surname", StringType, false),[0m
+[0m[[0m[31merror[0m] [0m[0m                                      ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:22:35: not found: value IntegerType[0m
+[0m[[0m[31merror[0m] [0m[0m                          ("age", IntegerType, false))[0m
+[0m[[0m[31merror[0m] [0m[0m                                  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:24:12: not found: value StringType[0m
+[0m[[0m[31merror[0m] [0m[0m    ("id", StringType, false),[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:25:14: not found: value StringType[0m
+[0m[[0m[31merror[0m] [0m[0m    ("name", StringType, false),[0m
+[0m[[0m[31merror[0m] [0m[0m             ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:26:17: not found: value StringType[0m
+[0m[[0m[31merror[0m] [0m[0m    ("surname", StringType, false),[0m
+[0m[[0m[31merror[0m] [0m[0m                ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:27:20: not found: value StringType[0m
+[0m[[0m[31merror[0m] [0m[0m    ("someString", StringType, false),[0m
+[0m[[0m[31merror[0m] [0m[0m                   ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:28:23: not found: value StringType[0m
+[0m[[0m[31merror[0m] [0m[0m    ("anotherString", StringType, false),[0m
+[0m[[0m[31merror[0m] [0m[0m                      ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:29:13: not found: value IntegerType[0m
+[0m[[0m[31merror[0m] [0m[0m    ("age", IntegerType, false),[0m
+[0m[[0m[31merror[0m] [0m[0m            ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:30:22: not found: value IntegerType[0m
+[0m[[0m[31merror[0m] [0m[0m    ("secondNumber", IntegerType, false),[0m
+[0m[[0m[31merror[0m] [0m[0m                     ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:31:21: not found: value LongType[0m
+[0m[[0m[31merror[0m] [0m[0m    ("thirdNumber", LongType, false)[0m
+[0m[[0m[31merror[0m] [0m[0m                    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:57:35: not found: type DataFrame[0m
+[0m[[0m[31merror[0m] [0m[0m  def doWriteOperation(dataFrame: DataFrame, options: Map[String, String]): Long = {[0m
+[0m[[0m[31merror[0m] [0m[0m                                  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:80:3: not found: value describe[0m
+[0m[[0m[31merror[0m] [0m[0m  describe("Avro testing") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:82:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("small data | small schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:85:27: not found: value SinglestoreOptions[0m
+[0m[[0m[31merror[0m] [0m[0m                      Map(SinglestoreOptions.LOAD_DATA_FORMAT -> "avro"))[0m
+[0m[[0m[31merror[0m] [0m[0m                          ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:88:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("medium data | small schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:91:27: not found: value SinglestoreOptions[0m
+[0m[[0m[31merror[0m] [0m[0m                      Map(SinglestoreOptions.LOAD_DATA_FORMAT -> "avro"))[0m
+[0m[[0m[31merror[0m] [0m[0m                          ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:94:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("large data | small schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:97:27: not found: value SinglestoreOptions[0m
+[0m[[0m[31merror[0m] [0m[0m                      Map(SinglestoreOptions.LOAD_DATA_FORMAT -> "avro"))[0m
+[0m[[0m[31merror[0m] [0m[0m                          ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:100:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("small data | medium schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:103:27: not found: value SinglestoreOptions[0m
+[0m[[0m[31merror[0m] [0m[0m                      Map(SinglestoreOptions.LOAD_DATA_FORMAT -> "avro"))[0m
+[0m[[0m[31merror[0m] [0m[0m                          ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:106:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("medium data | medium schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:109:27: not found: value SinglestoreOptions[0m
+[0m[[0m[31merror[0m] [0m[0m                      Map(SinglestoreOptions.LOAD_DATA_FORMAT -> "avro"))[0m
+[0m[[0m[31merror[0m] [0m[0m                          ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:112:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("large data | medium schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:115:27: not found: value SinglestoreOptions[0m
+[0m[[0m[31merror[0m] [0m[0m                      Map(SinglestoreOptions.LOAD_DATA_FORMAT -> "avro"))[0m
+[0m[[0m[31merror[0m] [0m[0m                          ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:118:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("small data | large schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:121:27: not found: value SinglestoreOptions[0m
+[0m[[0m[31merror[0m] [0m[0m                      Map(SinglestoreOptions.LOAD_DATA_FORMAT -> "avro"))[0m
+[0m[[0m[31merror[0m] [0m[0m                          ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:124:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("medium data | large schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:127:27: not found: value SinglestoreOptions[0m
+[0m[[0m[31merror[0m] [0m[0m                      Map(SinglestoreOptions.LOAD_DATA_FORMAT -> "avro"))[0m
+[0m[[0m[31merror[0m] [0m[0m                          ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:130:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("large data | large schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:133:27: not found: value SinglestoreOptions[0m
+[0m[[0m[31merror[0m] [0m[0m                      Map(SinglestoreOptions.LOAD_DATA_FORMAT -> "avro"))[0m
+[0m[[0m[31merror[0m] [0m[0m                          ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:137:3: not found: value describe[0m
+[0m[[0m[31merror[0m] [0m[0m  describe("CSV testing") {[0m
+[0m[[0m[31merror[0m] [0m[0m  ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:138:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("small data | small schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:142:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("medium data | small schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:146:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("large data | small schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:150:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("small data | medium schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:154:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("medium data | medium schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:158:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("large data | medium schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:162:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("small data | large schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:166:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("medium data | large schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BenchmarkSerializingTest.scala:170:5: not found: value it[0m
+[0m[[0m[31merror[0m] [0m[0m    it("large data | large schema") {[0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BinaryTypeBenchmark.scala:6:12: object github is not a member of package com[0m
+[0m[[0m[31merror[0m] [0m[0mimport com.github.mrpowers.spark.daria.sql.SparkSessionExt._[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BinaryTypeBenchmark.scala:8:12: object apache is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.apache.spark.sql.types.{BinaryType, IntegerType}[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BinaryTypeBenchmark.scala:9:12: object apache is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.apache.spark.sql.{SaveMode, SparkSession}[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BinaryTypeBenchmark.scala:20:14: not found: type SparkSession[0m
+[0m[[0m[31merror[0m] [0m[0m  val spark: SparkSession = SparkSession[0m
+[0m[[0m[31merror[0m] [0m[0m             ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BinaryTypeBenchmark.scala:20:29: not found: value SparkSession[0m
+[0m[[0m[31merror[0m] [0m[0m  val spark: SparkSession = SparkSession[0m
+[0m[[0m[31merror[0m] [0m[0m                            ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BinaryTypeBenchmark.scala:29:23: not found: type Loan[0m
+[0m[[0m[31merror[0m] [0m[0m  def jdbcConnection: Loan[Connection] = {[0m
+[0m[[0m[31merror[0m] [0m[0m                      ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/BinaryTypeBenchmark.scala:33:5: not found: value Loan[0m
+[0m[[0m[31merror[0m] [0m[0m    Loan([0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/CustomDatatypesTest.scala:5:12: object github is not a member of package com[0m
+[0m[[0m[31merror[0m] [0m[0mimport com.github.mrpowers.spark.daria.sql.SparkSessionExt._[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/CustomDatatypesTest.scala:6:30: object SQLGen is not a member of package com.singlestore.spark[0m
+[0m[[0m[31merror[0m] [0m[0mimport com.singlestore.spark.SQLGen.SinglestoreVersion[0m
+[0m[[0m[31merror[0m] [0m[0m                             ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/CustomDatatypesTest.scala:7:12: object apache is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.apache.spark.sql.types._[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/CustomDatatypesTest.scala:8:12: object apache is not a member of package org[0m
+[0m[[0m[31merror[0m] [0m[0mimport org.apache.spark.sql.{DataFrame, SaveMode}[0m
+[0m[[0m[31merror[0m] [0m[0m           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/CustomDatatypesTest.scala:16:28: not found: type DataFrame[0m
+[0m[[0m[31merror[0m] [0m[0m  def writeRead(dfToWrite: DataFrame,[0m
+[0m[[0m[31merror[0m] [0m[0m                           ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/CustomDatatypesTest.scala:17:29: not found: type DataFrame[0m
+[0m[[0m[31merror[0m] [0m[0m                expectedDf: DataFrame,[0m
+[0m[[0m[31merror[0m] [0m[0m                            ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/CustomDatatypesTest.scala:29:5: not found: value assertApproximateDataFrameEquality[0m
+[0m[[0m[31merror[0m] [0m[0m    assertApproximateDataFrameEquality([0m
+[0m[[0m[31merror[0m] [0m[0m    ^[0m
+[0m[[0m[31merror[0m] [0m[0m/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/CustomDatatypesTest.scala:32:7: not found: value precision[0m
+[0m[[0m[31merror[0m] [0m[0m      precision = 0.01,[0m
+[0m[[0m[31merror[0m] [0m[0m      ^[0m
+[0m[[0m[31merror[0m] [0m[0m1679 errors found[0m

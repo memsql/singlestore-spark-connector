@@ -1,0 +1,3 @@
+[0m[[0m[0mdebug[0m] [0m[0mnot up to date. inChanged = true, force = false[0m
+[0m[[0m[0mdebug[0m] [0m[0mUpdating ProjectRef(uri("file:/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/project/"), "spark-build")...[0m
+[0m[[0m[0mdebug[0m] [0m[0mDone updating ProjectRef(uri("file:/home/posadcha-ua/github/singlestore-spark-connector/src/test/scala/com/singlestore/spark/project/"), "spark-build")[0m

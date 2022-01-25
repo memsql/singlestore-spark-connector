@@ -1,6 +1,7 @@
 package com.singlestore.spark
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
+import com.singlestore.spark.SQLHelper.QueryMethods
 import com.singlestore.spark.SinglestoreOptions.{OVERWRITE_BEHAVIOR, TRUNCATE}
 import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.apache.spark.sql.types.{IntegerType, StringType}
@@ -127,6 +128,36 @@ class SQLOverwriteTest extends IntegrationSuiteBase {
         Map(SinglestoreOptions.ON_DUPLICATE_KEY_SQL -> "name = 'Duplicate'"),
         SaveMode.Ignore
       )
+    }
+
+    it("merge on overwrite with columnstore unique constraints") {
+      if (version.atLeast("7.3.0")) {
+        spark.executeSinglestoreQuery(query =
+          s"CREATE TABLE $dbName.$tableName(a int, b int, shard key (a), unique key(a) using hash, sort key(a))")
+        spark.executeSinglestoreQuery(
+          query = s"insert into $dbName.$tableName values (1, 1), (2, 2)")
+
+        val df = spark.createDF(
+          List(
+            (2, 4),
+            (3, 3),
+          ),
+          List(("a", IntegerType, false), ("b", IntegerType, true))
+        )
+
+        df.write
+          .format("singlestore")
+          .mode(SaveMode.Overwrite)
+          .option("overwriteBehavior", "merge")
+          .save(s"$dbName.$tableName")
+
+        val res = spark.executeSinglestoreQueryDB(dbName, s"SELECT * FROM $tableName")
+        val out =
+          for (row <- res)
+            yield (row.getInt(0), row.getInt(1))
+
+        assert(out.toList.sorted == List((1, 1), (2, 4), (3, 3)))
+      }
     }
   }
 
