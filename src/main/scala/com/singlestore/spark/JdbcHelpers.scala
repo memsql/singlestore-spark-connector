@@ -32,7 +32,9 @@ object JdbcHelpers extends LazyLogging {
       Loan(conn.prepareStatement(query)).to(handle)
   }
 
-  def getConnProperties(conf: SinglestoreOptions, hostPorts: String*): Properties = {
+  def getConnProperties(conf: SinglestoreOptions,
+                        isOnExecutor: Boolean,
+                        hostPorts: String*): Properties = {
     val url: String = {
       val base = s"jdbc:singlestore:loadbalance://${hostPorts.mkString(",")}"
       conf.database match {
@@ -71,11 +73,11 @@ object JdbcHelpers extends LazyLogging {
     properties
   }
 
-  def getDDLConnProperties(conf: SinglestoreOptions): Properties =
-    getConnProperties(conf, conf.ddlEndpoint)
+  def getDDLConnProperties(conf: SinglestoreOptions, isOnExecutor: Boolean): Properties =
+    getConnProperties(conf, isOnExecutor, conf.ddlEndpoint)
 
-  def getDMLConnProperties(conf: SinglestoreOptions): Properties =
-    getConnProperties(conf, conf.dmlEndpoints: _*)
+  def getDMLConnProperties(conf: SinglestoreOptions, isOnExecutor: Boolean): Properties =
+    getConnProperties(conf, isOnExecutor, conf.dmlEndpoints: _*)
 
   def executeQuery(conn: Connection, query: String, variables: Any*): Iterator[Row] = {
     val statement = conn.prepareStatement(query)

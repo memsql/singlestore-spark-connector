@@ -105,7 +105,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     if (partitionHostPorts.exists(p =>
           Try {
             SinglestoreConnectionPool.getConnection(
-              JdbcHelpers.getConnProperties(options, p.hostport))
+              JdbcHelpers.getConnProperties(options, isOnExecutor = false, p.hostport))
           }.isFailure)) {
       if (log.isTraceEnabled) {
         log.trace(s"readFromLeaves disabled for this query: some leaves are not connectable")
@@ -131,7 +131,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
             // SingleStore has already injected our variables into the query
             // so we don't have to do any additional injection
             Nil,
-            JdbcHelpers.getConnProperties(options, p.hostport)
+            JdbcHelpers.getConnProperties(options, isOnExecutor = true, p.hostport)
         ))
         .toArray)
   }
