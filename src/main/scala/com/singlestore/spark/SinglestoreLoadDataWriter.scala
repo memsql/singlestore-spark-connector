@@ -7,6 +7,7 @@ import java.sql.Connection
 import java.util.Base64
 import java.util.zip.GZIPOutputStream
 
+import com.singlestore.spark.JdbcHelpers.{getDDLConnProperties, getDMLConnProperties}
 import com.singlestore.spark.SinglestoreOptions.CompressionType
 import com.singlestore.spark.vendor.apache.SchemaConverters
 import net.jpountz.lz4.LZ4FrameOutputStream
@@ -135,13 +136,11 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
         .filter(s => !s.isEmpty)
         .mkString(" ")
 
-    val conn = JdbcUtils.createConnectionFactory(
-      if (isReferenceTable) {
-        JdbcHelpers.getDDLJDBCOptions(conf)
-      } else {
-        JdbcHelpers.getDMLJDBCOptions(conf)
-      }
-    )()
+    val conn = SinglestoreConnectionPool.getConnection(if (isReferenceTable) {
+      getDDLConnProperties(conf)
+    } else {
+      getDMLConnProperties(conf)
+    })
 
     val writer = Future[Long] {
       try {

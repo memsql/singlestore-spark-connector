@@ -1,7 +1,9 @@
 package com.singlestore.spark
 
 import java.sql.SQLException
+import java.util.Properties
 
+import com.singlestore.spark.JdbcHelpers.getDDLConnProperties
 import com.singlestore.spark.SQLGen.{SinglestoreVersion, VariableList}
 import org.apache.spark.scheduler.MaxNumConcurrentTasks
 import org.apache.spark.Partition
@@ -16,7 +18,7 @@ case class SinglestorePartition(
     override val index: Int,
     query: String,
     variables: VariableList,
-    connectionInfo: JDBCOptions,
+    connectionInfo: Properties,
 ) extends Partition
 
 case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
@@ -102,7 +104,8 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     // 4. all leaves are connectable
     if (partitionHostPorts.exists(p =>
           Try {
-            JdbcUtils.createConnectionFactory(JdbcHelpers.getJDBCOptions(options, p.hostport))()
+            SinglestoreConnectionPool.getConnection(
+              JdbcHelpers.getConnProperties(options, p.hostport))
           }.isFailure)) {
       if (log.isTraceEnabled) {
         log.trace(s"readFromLeaves disabled for this query: some leaves are not connectable")
@@ -128,14 +131,13 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
             // SingleStore has already injected our variables into the query
             // so we don't have to do any additional injection
             Nil,
-            JdbcHelpers.getJDBCOptions(options, p.hostport)
+            JdbcHelpers.getConnProperties(options, p.hostport)
         ))
         .toArray)
   }
 
   private lazy val databasePartitionCount: Int = {
-    val jdbcOpts = JdbcHelpers.getDMLJDBCOptions(options)
-    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    val conn = SinglestoreConnectionPool.getConnection(JdbcHelpers.getDMLConnProperties(options))
     try {
       JdbcHelpers.getPartitionsCount(conn, options.database.get)
     } finally {
@@ -143,11 +145,16 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     }
   }
 
-  private lazy val aggregatorReadPartitions = Some(Array
-    .range(0, databasePartitionCount)
-    .map(index =>
-      SinglestorePartition(index, rdd.query, rdd.variables, JdbcHelpers.getDMLJDBCOptions(options))
-        .asInstanceOf[Partition]))
+  private lazy val aggregatorReadPartitions = Some(
+    Array
+      .range(0, databasePartitionCount)
+      .map(
+        index =>
+          SinglestorePartition(index,
+                               rdd.query,
+                               rdd.variables,
+                               JdbcHelpers.getDMLConnProperties(options))
+            .asInstanceOf[Partition]))
 
   private lazy val readFromLeavesPartitions: Option[Array[Partition]] = {
     val minimalExternalHostVersion = "7.1.0"
@@ -182,8 +189,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   }
 
   private lazy val readFromAggregatorsMaterializedPartitions: Option[Array[Partition]] = {
-    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(options)
-    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(options))
 
     if (!JdbcHelpers.isValidQuery(
           conn,
@@ -208,8 +214,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   }
 
   private lazy val readFromAggregatorsPartitions: Option[Array[Partition]] = {
-    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(options)
-    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(options))
 
     if (!JdbcHelpers.isValidQuery(
           conn,
@@ -243,7 +248,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   private lazy val nonParallelReadPartitions: Option[Array[Partition]] =
     Some(
       Array(
-        SinglestorePartition(0, rdd.query, rdd.variables, JdbcHelpers.getDMLJDBCOptions(options))
+        SinglestorePartition(0, rdd.query, rdd.variables, JdbcHelpers.getDMLConnProperties(options))
           .asInstanceOf[Partition]))
 
   private def getPartitions(parallelReadType: ParallelReadType): Option[Array[Partition]] =

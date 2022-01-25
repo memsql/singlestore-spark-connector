@@ -3,7 +3,7 @@ package com.singlestore.spark
 import java.sql.{PreparedStatement, SQLException}
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import com.singlestore.spark.JdbcHelpers.getDDLJDBCOptions
+import com.singlestore.spark.JdbcHelpers.getDDLConnProperties
 import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
@@ -38,9 +38,9 @@ class ExternalHostTest
   def setupMockJdbcHelper(): Unit = {
     when(JdbcHelpers.loadSchema(any[SinglestoreOptions], any[String], any[SQLGen.VariableList]))
       .thenCallRealMethod()
-    when(JdbcHelpers.getDDLJDBCOptions(any[SinglestoreOptions])).thenCallRealMethod()
-    when(JdbcHelpers.getDMLJDBCOptions(any[SinglestoreOptions])).thenCallRealMethod()
-    when(JdbcHelpers.getJDBCOptions(any[SinglestoreOptions], any[String])).thenCallRealMethod()
+    when(JdbcHelpers.getDDLConnProperties(any[SinglestoreOptions])).thenCallRealMethod()
+    when(JdbcHelpers.getDMLConnProperties(any[SinglestoreOptions])).thenCallRealMethod()
+    when(JdbcHelpers.getConnProperties(any[SinglestoreOptions], any[String])).thenCallRealMethod()
     when(JdbcHelpers.explainJSONQuery(any[SinglestoreOptions], any[String], any[VariableList]))
       .thenCallRealMethod()
     when(JdbcHelpers.partitionHostPorts(any[SinglestoreOptions], any[String]))
@@ -176,7 +176,7 @@ class ExternalHostTest
         Set.empty
       )
 
-      val conn         = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+      val conn         = SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf))
       val statement    = conn.prepareStatement(s"""
         SELECT IP_ADDR,    
         PORT,

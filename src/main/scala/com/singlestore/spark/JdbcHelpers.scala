@@ -1,10 +1,12 @@
 package com.singlestore.spark
 
 import java.sql.{Connection, PreparedStatement, SQLException, Statement}
+import java.util.Properties
 import java.util.UUID.randomUUID
 
 import com.singlestore.spark.SinglestoreOptions.{TableKey, TableKeyType}
 import com.singlestore.spark.SQLGen.{StringVar, VariableList}
+import org.apache.commons.dbcp2.{BasicDataSource, BasicDataSourceFactory}
 import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.catalyst.{QualifiedTableName, TableIdentifier}
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
@@ -30,7 +32,7 @@ object JdbcHelpers extends LazyLogging {
       Loan(conn.prepareStatement(query)).to(handle)
   }
 
-  def getJDBCOptions(conf: SinglestoreOptions, hostPorts: String*): JDBCOptions = {
+  def getConnProperties(conf: SinglestoreOptions, hostPorts: String*): Properties = {
     val url: String = {
       val base = s"jdbc:singlestore:loadbalance://${hostPorts.mkString(",")}"
       conf.database match {
@@ -44,30 +46,36 @@ object JdbcHelpers extends LazyLogging {
       "sql_select_limit=18446744073709551615",
       "compile_only=false",
       "sql_mode='STRICT_ALL_TABLES,ONLY_FULL_GROUP_BY'"
-    ).mkString(";")
+    ).mkString(",")
 
-    new JDBCOptions(
-      Map(
-        JDBCOptions.JDBC_URL          -> url,
-        JDBCOptions.JDBC_TABLE_NAME   -> "XXX",
-        JDBCOptions.JDBC_DRIVER_CLASS -> "com.singlestore.jdbc.Driver",
-        "user"                        -> conf.user,
-        "password"                    -> conf.password,
-        "zeroDateTimeBehavior"        -> "convertToNull",
-        "allowLoadLocalInfile"        -> "true",
-        "connectTimeout"              -> SINGLESTORE_CONNECT_TIMEOUT,
-        "sessionVariables"            -> sessionVariables,
-        "tinyInt1isBit"               -> "false",
-        "allowLocalInfile"            -> "true"
-      ) ++ conf.jdbcExtraOptions
+    val properties = new Properties()
+    properties.setProperty("url", url)
+    properties.setProperty("driverClassName", "com.singlestore.jdbc.Driver")
+    properties.setProperty("username", conf.user)
+    properties.setProperty("password", conf.password)
+    properties.setProperty(
+      "connectionProperties",
+      (Map(
+        JDBCOptions.JDBC_TABLE_NAME -> "XXX",
+        "zeroDateTimeBehavior"      -> "convertToNull",
+        "allowLoadLocalInfile"      -> "true",
+        "connectTimeout"            -> SINGLESTORE_CONNECT_TIMEOUT,
+        "sessionVariables"          -> sessionVariables,
+        "tinyInt1isBit"             -> "false",
+        "allowLocalInfile"          -> "true"
+      ) ++ conf.jdbcExtraOptions)
+        .map(pair => pair._1 + "=" + pair._2)
+        .mkString(";")
     )
+
+    properties
   }
 
-  def getDDLJDBCOptions(conf: SinglestoreOptions): JDBCOptions =
-    getJDBCOptions(conf, conf.ddlEndpoint)
+  def getDDLConnProperties(conf: SinglestoreOptions): Properties =
+    getConnProperties(conf, conf.ddlEndpoint)
 
-  def getDMLJDBCOptions(conf: SinglestoreOptions): JDBCOptions =
-    getJDBCOptions(conf, conf.dmlEndpoints: _*)
+  def getDMLConnProperties(conf: SinglestoreOptions): Properties =
+    getConnProperties(conf, conf.dmlEndpoints: _*)
 
   def executeQuery(conn: Connection, query: String, variables: Any*): Iterator[Row] = {
     val statement = conn.prepareStatement(query)
@@ -82,7 +90,7 @@ object JdbcHelpers extends LazyLogging {
   }
 
   def loadSchema(conf: SinglestoreOptions, query: String, variables: VariableList): StructType = {
-    val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf))
     try {
       val statement =
         conn.prepareStatement(SinglestoreDialect.getSchemaQuery(s"($query) AS q"))
@@ -103,7 +111,7 @@ object JdbcHelpers extends LazyLogging {
   }
 
   def explainQuery(conf: SinglestoreOptions, query: String, variables: VariableList): String = {
-    val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf))
     try {
       val statement = conn.prepareStatement(s"EXPLAIN $query")
       try {
@@ -129,7 +137,7 @@ object JdbcHelpers extends LazyLogging {
   // explainJSONQuery runs `EXPLAIN JSON` on the query and returns the String
   // representing this queries plan as JSON.
   def explainJSONQuery(conf: SinglestoreOptions, query: String, variables: VariableList): String = {
-    val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf))
     try {
       val statement = conn.prepareStatement(s"EXPLAIN JSON ${query}")
       try {
@@ -156,7 +164,7 @@ object JdbcHelpers extends LazyLogging {
   // partitions in the specified database
   def partitionHostPorts(conf: SinglestoreOptions,
                          database: String): List[SinglestorePartitionInfo] = {
-    val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf))
     try {
       val statement = conn.prepareStatement(s"""
         SELECT HOST, PORT
@@ -194,7 +202,7 @@ object JdbcHelpers extends LazyLogging {
     * @return Map `host:port` -> `externalHost:externalPort`
     */
   def externalHostPorts(conf: SinglestoreOptions): Map[String, String] = {
-    val conn = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()
+    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf))
     try {
       val statement = conn.prepareStatement(s"""
         SELECT IP_ADDR,    
@@ -318,9 +326,8 @@ object JdbcHelpers extends LazyLogging {
   }
 
   def getSinglestoreVersion(conf: SinglestoreOptions): String = {
-    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
-    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
-    val sql      = "select @@memsql_version"
+    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf))
+    val sql  = "select @@memsql_version"
     log.trace(s"Executing SQL:\n$sql")
     val resultSet = conn.withStatement(stmt => {
       try {
@@ -448,8 +455,7 @@ object JdbcHelpers extends LazyLogging {
   }
 
   def isReferenceTable(conf: SinglestoreOptions, table: TableIdentifier): Boolean = {
-    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
-    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf))
     // Assume that either table.database is set or conf.database is set
     val databaseName =
       table.database
@@ -480,8 +486,7 @@ object JdbcHelpers extends LazyLogging {
                            table: TableIdentifier,
                            mode: SaveMode,
                            schema: StructType): Unit = {
-    val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
-    val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
+    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf))
     try {
       if (JdbcHelpers.tableExists(conn, table)) {
         mode match {
