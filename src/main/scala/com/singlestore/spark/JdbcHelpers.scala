@@ -105,7 +105,7 @@ object JdbcHelpers extends LazyLogging {
       JdbcUtils.resultSetToRows(rs, schema)
     } finally {
       // !!!! statement.close()
-      statement.close()
+      // statement.close()
     }
   }
 
