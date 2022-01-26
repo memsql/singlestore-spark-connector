@@ -1,6 +1,7 @@
 package com.singlestore.spark
 
-import java.sql.{PreparedStatement, SQLException}
+import java.sql.PreparedStatement
+import java.util.Properties
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
 import com.singlestore.spark.JdbcHelpers.getDDLConnProperties
@@ -201,9 +202,9 @@ class ExternalHostTest
         WHERE TYPE = "LEAF";
       """)).thenReturn(spyStatement)
 
-      withObjectMocked[JdbcUtils.type] {
+      withObjectMocked[SinglestoreConnectionPool.type] {
 
-        when(JdbcUtils.createConnectionFactory(any[JDBCOptions])).thenReturn(() => spyConn)
+        when(SinglestoreConnectionPool.getConnection(any[Properties])).thenReturn(spyConn)
         val externalHostPorts = JdbcHelpers.externalHostPorts(conf)
         val expectedResult = Map(
           "172.17.0.2:3307" -> "172.17.0.10:3310"

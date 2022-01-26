@@ -119,8 +119,8 @@ object SinglestoreOptions extends LazyLogging {
   final val DRIVER_CONNECTION_POOL_ENABLED        = newOption("driverConnectionPool.Enabled")
   final val DRIVER_CONNECTION_POOL_MAX_OPEN_CONNS = newOption("driverConnectionPool.MaxOpenConns")
   final val DRIVER_CONNECTION_POOL_MAX_IDLE_CONNS = newOption("driverConnectionPool.MaxIdleConns")
-  final val DRIVER_CONNECTION_POOL_MIN_EVICTABLE_TIME_MS = newOption(
-    "driverConnectionPool.MinEvictableTimeMS")
+  final val DRIVER_CONNECTION_POOL_MIN_EVICTABLE_IDLE_TIME_MS = newOption(
+    "driverConnectionPool.MinEvictableIdleTimeMS")
   final val DRIVER_CONNECTION_POOL_TIME_BETWEEN_EVICTION_RUNS_MS = newOption(
     "driverConnectionPool.TimeBetweenEvictionRunsMS")
   final val DRIVER_CONNECTION_POOL_MAX_WAIT_MS = newOption("driverConnectionPool.MaxWaitMS")
@@ -132,8 +132,8 @@ object SinglestoreOptions extends LazyLogging {
     "executorConnectionPool.MaxOpenConns")
   final val EXECUTOR_CONNECTION_POOL_MAX_IDLE_CONNS = newOption(
     "executorConnectionPool.MaxIdleConns")
-  final val EXECUTOR_CONNECTION_POOL_MIN_EVICTABLE_TIME_MS = newOption(
-    "executorConnectionPool.MinEvictableTimeMS")
+  final val EXECUTOR_CONNECTION_POOL_MIN_EVICTABLE_IDLE_TIME_MS = newOption(
+    "executorConnectionPool.MinEvictableIdleTimeMS")
   final val EXECUTOR_CONNECTION_POOL_TIME_BETWEEN_EVICTION_RUNS_MS = newOption(
     "executorConnectionPool.TimeBetweenEvictionRunsMS")
   final val EXECUTOR_CONNECTION_POOL_MAX_WAIT_MS = newOption("executorConnectionPool.MaxWaitMS")
@@ -338,7 +338,7 @@ object SinglestoreOptions extends LazyLogging {
         options.getOrElse(EXECUTOR_CONNECTION_POOL_ENABLED, "true").toBoolean,
         options.getOrElse(EXECUTOR_CONNECTION_POOL_MAX_OPEN_CONNS, "-1").toInt,
         options.getOrElse(EXECUTOR_CONNECTION_POOL_MAX_IDLE_CONNS, "8").toInt,
-        options.getOrElse(EXECUTOR_CONNECTION_POOL_MIN_EVICTABLE_TIME_MS, "30000").toLong,
+        options.getOrElse(EXECUTOR_CONNECTION_POOL_MIN_EVICTABLE_IDLE_TIME_MS, "30000").toLong,
         options.getOrElse(EXECUTOR_CONNECTION_POOL_TIME_BETWEEN_EVICTION_RUNS_MS, "1000").toLong,
         options.getOrElse(EXECUTOR_CONNECTION_POOL_MAX_WAIT_MS, "-1").toLong,
         options.getOrElse(EXECUTOR_CONNECTION_POOL_MAX_CONN_LIFETIME_MS, "-1").toLong,
@@ -347,7 +347,7 @@ object SinglestoreOptions extends LazyLogging {
         options.getOrElse(DRIVER_CONNECTION_POOL_ENABLED, "true").toBoolean,
         options.getOrElse(DRIVER_CONNECTION_POOL_MAX_OPEN_CONNS, "-1").toInt,
         options.getOrElse(DRIVER_CONNECTION_POOL_MAX_IDLE_CONNS, "8").toInt,
-        options.getOrElse(DRIVER_CONNECTION_POOL_MIN_EVICTABLE_TIME_MS, "2000").toLong,
+        options.getOrElse(DRIVER_CONNECTION_POOL_MIN_EVICTABLE_IDLE_TIME_MS, "2000").toLong,
         options.getOrElse(DRIVER_CONNECTION_POOL_TIME_BETWEEN_EVICTION_RUNS_MS, "1000").toLong,
         options.getOrElse(DRIVER_CONNECTION_POOL_MAX_WAIT_MS, "-1").toLong,
         options.getOrElse(DRIVER_CONNECTION_POOL_MAX_CONN_LIFETIME_MS, "-1").toLong,

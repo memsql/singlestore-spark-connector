@@ -52,7 +52,16 @@ class LoadbalanceTest extends IntegrationSuiteBase {
 
       // 50/50 chance of picking either agg, 10 tries should be enough to ensure we hit both aggs with write queries
       for (i <- 0 to 10) {
-        writeTable("test", df, SaveMode.Overwrite)
+        df.write
+          .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+          .option("driverConnectionPool.MinEvictableIdleTimeMs", "100")
+          .option("driverConnectionPool.TimeBetweenEvictionRunsMS", "50")
+          .option("executorConnectionPool.MinEvictableIdleTimeMs", "100")
+          .option("executorConnectionPool.TimeBetweenEvictionRunsMS", "50")
+          .mode(SaveMode.Overwrite)
+          .save("test")
+
+        Thread.sleep(300)
       }
 
       val endCounters = counters

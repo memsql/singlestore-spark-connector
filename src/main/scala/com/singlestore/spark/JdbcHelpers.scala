@@ -104,6 +104,7 @@ object JdbcHelpers extends LazyLogging {
       val schema = JdbcUtils.getSchema(rs, SinglestoreDialect, alwaysNullable = true)
       JdbcUtils.resultSetToRows(rs, schema)
     } finally {
+      // !!!! statement.close()
       // statement.close()
     }
   }
