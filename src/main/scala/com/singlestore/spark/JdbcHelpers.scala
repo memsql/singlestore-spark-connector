@@ -70,6 +70,24 @@ object JdbcHelpers extends LazyLogging {
         .mkString(";")
     )
 
+    val connectionPoolOptions = if (isOnExecutor) {
+      conf.executorConnectionPoolOptions
+    } else {
+      conf.driverConnectionPoolOptions
+    }
+
+    if (connectionPoolOptions.enabled) {
+      properties.setProperty("maxTotal", connectionPoolOptions.MaxOpenConns.toString)
+      properties.setProperty("maxIdle", connectionPoolOptions.MaxIdleConns.toString)
+      properties.setProperty("maxWaitMillis", connectionPoolOptions.MaxWaitMS.toString)
+      properties.setProperty("minEvictableIdleTimeMillis",
+                             connectionPoolOptions.MinEvictableIdleTimeMs.toString)
+      properties.setProperty("maxConnLifetimeMillis",
+                             connectionPoolOptions.MaxConnLifetimeMS.toString)
+      properties.setProperty("timeBetweenEvictionRunsMillis",
+                             connectionPoolOptions.TimeBetweenEvictionRunsMS.toString)
+    }
+
     properties
   }
 
@@ -87,7 +105,7 @@ object JdbcHelpers extends LazyLogging {
       val schema = JdbcUtils.getSchema(rs, SinglestoreDialect, alwaysNullable = true)
       JdbcUtils.resultSetToRows(rs, schema)
     } finally {
-      statement.close()
+      // statement.close()
     }
   }
 
