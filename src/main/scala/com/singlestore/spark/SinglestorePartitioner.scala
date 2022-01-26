@@ -137,7 +137,8 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   }
 
   private lazy val databasePartitionCount: Int = {
-    val conn = SinglestoreConnectionPool.getConnection(JdbcHelpers.getDMLConnProperties(options))
+    val conn = SinglestoreConnectionPool.getConnection(
+      JdbcHelpers.getDMLConnProperties(options, isOnExecutor = false))
     try {
       JdbcHelpers.getPartitionsCount(conn, options.database.get)
     } finally {
@@ -153,7 +154,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
           SinglestorePartition(index,
                                rdd.query,
                                rdd.variables,
-                               JdbcHelpers.getDMLConnProperties(options))
+                               JdbcHelpers.getDMLConnProperties(options, isOnExecutor = true))
             .asInstanceOf[Partition]))
 
   private lazy val readFromLeavesPartitions: Option[Array[Partition]] = {
@@ -189,7 +190,8 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   }
 
   private lazy val readFromAggregatorsMaterializedPartitions: Option[Array[Partition]] = {
-    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(options))
+    val conn =
+      SinglestoreConnectionPool.getConnection(getDDLConnProperties(options, isOnExecutor = true))
 
     if (!JdbcHelpers.isValidQuery(
           conn,
@@ -214,7 +216,8 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   }
 
   private lazy val readFromAggregatorsPartitions: Option[Array[Partition]] = {
-    val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(options))
+    val conn =
+      SinglestoreConnectionPool.getConnection(getDDLConnProperties(options, isOnExecutor = true))
 
     if (!JdbcHelpers.isValidQuery(
           conn,
@@ -248,7 +251,10 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   private lazy val nonParallelReadPartitions: Option[Array[Partition]] =
     Some(
       Array(
-        SinglestorePartition(0, rdd.query, rdd.variables, JdbcHelpers.getDMLConnProperties(options))
+        SinglestorePartition(0,
+                             rdd.query,
+                             rdd.variables,
+                             JdbcHelpers.getDMLConnProperties(options, isOnExecutor = true))
           .asInstanceOf[Partition]))
 
   private def getPartitions(parallelReadType: ParallelReadType): Option[Array[Partition]] =

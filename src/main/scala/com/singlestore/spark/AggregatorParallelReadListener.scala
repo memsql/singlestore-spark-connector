@@ -41,7 +41,7 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
         rdd.query,
         rdd.variables,
         rdd.schema,
-        getDDLConnProperties(rdd.options),
+        getDDLConnProperties(rdd.options, isOnExecutor = false),
         rdd.parallelReadType.contains(ReadFromAggregatorsMaterialized),
         rdd.options.parallelReadRepartition,
         rdd.parallelReadRepartitionColumns,

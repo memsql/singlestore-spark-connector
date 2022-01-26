@@ -37,9 +37,9 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
     val fullBatchQuery = queryPrefix + valueTemplate(conf.insertBatchSize) + querySuffix
 
     val conn = SinglestoreConnectionPool.getConnection(if (isReferenceTable) {
-      getDDLConnProperties(conf)
+      getDDLConnProperties(conf, isOnExecutor = true)
     } else {
-      getDMLConnProperties(conf)
+      getDMLConnProperties(conf, isOnExecutor = true)
     })
     conn.setAutoCommit(false)
 

@@ -176,10 +176,13 @@ class ExternalHostTest
         0,
         0,
         true,
-        Set.empty
+        Set.empty,
+        SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 30000, 1000, -1, -1),
+        SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 2000, 1000, -1, -1)
       )
 
-      val conn         = SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf))
+      val conn =
+        SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
       val statement    = conn.prepareStatement(s"""
         SELECT IP_ADDR,    
         PORT,

@@ -139,9 +139,9 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
         .mkString(" ")
 
     val conn = SinglestoreConnectionPool.getConnection(if (isReferenceTable) {
-      getDDLConnProperties(conf)
+      getDDLConnProperties(conf, isOnExecutor = true)
     } else {
-      getDMLConnProperties(conf)
+      getDMLConnProperties(conf, isOnExecutor = true)
     })
 
     val writer = Future[Long] {

@@ -28,7 +28,8 @@ object SQLHelper extends LazyLogging {
       }
 
       val conf = SinglestoreOptions(CaseInsensitiveMap(opts))
-      val conn = SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf))
+      val conn =
+        SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
       try {
         executeQuery(conn, query, variables: _*)
       } finally {
