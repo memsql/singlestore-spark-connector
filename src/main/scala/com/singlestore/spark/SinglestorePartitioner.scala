@@ -103,8 +103,10 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     // 4. all leaves are connectable
     if (partitionHostPorts.exists(p =>
           Try {
-            SinglestoreConnectionPool.getConnection(
-              JdbcHelpers.getConnProperties(options, isOnExecutor = false, p.hostport))
+            SinglestoreConnectionPool
+              .getConnection(
+                JdbcHelpers.getConnProperties(options, isOnExecutor = false, p.hostport))
+              .close()
           }.isFailure)) {
       if (log.isTraceEnabled) {
         log.trace(s"readFromLeaves disabled for this query: some leaves are not connectable")
