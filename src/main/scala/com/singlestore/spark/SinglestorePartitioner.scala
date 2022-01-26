@@ -3,11 +3,10 @@ package com.singlestore.spark
 import java.sql.SQLException
 import java.util.Properties
 
-import com.singlestore.spark.JdbcHelpers.getDDLConnProperties
+import com.singlestore.spark.JdbcHelpers.{getDDLConnProperties, getDMLConnProperties}
 import com.singlestore.spark.SQLGen.{SinglestoreVersion, VariableList}
 import org.apache.spark.scheduler.MaxNumConcurrentTasks
 import org.apache.spark.Partition
-import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import spray.json.DeserializationException
 import spray.json.DefaultJsonProtocol._
 import spray.json._
@@ -137,8 +136,8 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   }
 
   private lazy val databasePartitionCount: Int = {
-    val conn = SinglestoreConnectionPool.getConnection(
-      JdbcHelpers.getDMLConnProperties(options, isOnExecutor = false))
+    val conn =
+      SinglestoreConnectionPool.getConnection(getDMLConnProperties(options, isOnExecutor = false))
     try {
       JdbcHelpers.getPartitionsCount(conn, options.database.get)
     } finally {
@@ -154,7 +153,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
           SinglestorePartition(index,
                                rdd.query,
                                rdd.variables,
-                               JdbcHelpers.getDMLConnProperties(options, isOnExecutor = true))
+                               getDMLConnProperties(options, isOnExecutor = true))
             .asInstanceOf[Partition]))
 
   private lazy val readFromLeavesPartitions: Option[Array[Partition]] = {
@@ -254,7 +253,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
         SinglestorePartition(0,
                              rdd.query,
                              rdd.variables,
-                             JdbcHelpers.getDMLConnProperties(options, isOnExecutor = true))
+                             getDMLConnProperties(options, isOnExecutor = true))
           .asInstanceOf[Partition]))
 
   private def getPartitions(parallelReadType: ParallelReadType): Option[Array[Partition]] =

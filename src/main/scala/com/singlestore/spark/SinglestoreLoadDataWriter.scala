@@ -15,9 +15,7 @@ import org.apache.avro.Schema
 import org.apache.avro.generic.{GenericData, GenericDatumWriter, GenericRecord}
 import org.apache.avro.io.EncoderFactory
 import org.apache.commons.dbcp2.DelegatingStatement
-import org.apache.commons.dbcp2.managed.ManagedConnection
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.{Row, SaveMode}
 

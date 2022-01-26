@@ -6,9 +6,8 @@ import java.util.UUID.randomUUID
 
 import com.singlestore.spark.SinglestoreOptions.{TableKey, TableKeyType}
 import com.singlestore.spark.SQLGen.{StringVar, VariableList}
-import org.apache.commons.dbcp2.{BasicDataSource, BasicDataSourceFactory}
 import org.apache.spark.sql.{Row, SaveMode}
-import org.apache.spark.sql.catalyst.{QualifiedTableName, TableIdentifier}
+import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.jdbc.JdbcDialects
 import org.apache.spark.sql.types.{StringType, StructType}

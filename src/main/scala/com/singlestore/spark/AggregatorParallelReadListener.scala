@@ -12,7 +12,6 @@ import org.apache.spark.scheduler.{
   SparkListenerStageCompleted,
   SparkListenerStageSubmitted
 }
-import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.types.StructType
 
 import scala.collection.mutable

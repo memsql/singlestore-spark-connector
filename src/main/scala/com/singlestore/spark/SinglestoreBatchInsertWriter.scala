@@ -5,7 +5,6 @@ import java.util.Base64
 
 import com.singlestore.spark.JdbcHelpers.{getDDLConnProperties, getDMLConnProperties}
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.{Row, SaveMode}
 

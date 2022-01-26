@@ -33,7 +33,7 @@ object SQLHelper extends LazyLogging {
       try {
         executeQuery(conn, query, variables: _*)
       } finally {
-        // conn.close()
+        // !!!! conn.close()
       }
     }
 

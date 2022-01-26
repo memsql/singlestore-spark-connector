@@ -36,7 +36,6 @@ lazy val root = project
       "io.spray"               %% "spray-json"             % "1.3.5",
       "io.netty"               % "netty-buffer"            % "4.1.70.Final",
       "org.apache.commons"     % "commons-dbcp2"           % "2.9.0",
-      "org.apache.commons"     % "commons-dbcp2"           % "2.9.0",
       // test dependencies
       "org.mariadb.jdbc"    % "mariadb-java-client" % "2.+"     % Test,
       "org.scalatest"       %% "scalatest"          % "3.1.0"   % Test,
