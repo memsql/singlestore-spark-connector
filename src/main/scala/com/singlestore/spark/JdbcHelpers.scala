@@ -104,7 +104,7 @@ object JdbcHelpers extends LazyLogging {
         // We don't have a resultSet
         Iterator[Row]()
       } else {
-        val rs     = statement.getResultSet()
+        val rs     = statement.getResultSet
         val schema = JdbcUtils.getSchema(rs, SinglestoreDialect, alwaysNullable = true)
         JdbcUtils.resultSetToRows(rs, schema)
       }
