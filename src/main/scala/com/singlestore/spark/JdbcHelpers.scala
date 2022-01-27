@@ -100,12 +100,16 @@ object JdbcHelpers extends LazyLogging {
     val statement = conn.prepareStatement(query)
     try {
       fillStatementJdbc(statement, variables.toList)
-      val rs     = statement.executeQuery()
-      val schema = JdbcUtils.getSchema(rs, SinglestoreDialect, alwaysNullable = true)
-      JdbcUtils.resultSetToRows(rs, schema)
+      if (!statement.execute()) {
+        // We don't have a resultSet
+        Iterator[Row]()
+      } else {
+        val rs     = statement.getResultSet()
+        val schema = JdbcUtils.getSchema(rs, SinglestoreDialect, alwaysNullable = true)
+        JdbcUtils.resultSetToRows(rs, schema)
+      }
     } finally {
-      // !!!! statement.close()
-      // statement.close()
+      statement.close()
     }
   }
 
