@@ -101,7 +101,8 @@ object JdbcHelpers extends LazyLogging {
     try {
       fillStatementJdbc(statement, variables.toList)
       if (!statement.execute()) {
-        // We don't have a resultSet
+        // We don't have a ResultSet
+        // Return an empty iterator
         Iterator[Row]()
       } else {
         val rs     = statement.getResultSet
