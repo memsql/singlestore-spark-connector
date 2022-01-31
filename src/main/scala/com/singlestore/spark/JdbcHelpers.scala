@@ -69,6 +69,10 @@ object JdbcHelpers extends LazyLogging {
         .mkString(";")
     )
 
+    // This is a non-existing property
+    // It is needed, to have different connection pools for the driver and executor in a local mode
+    properties.setProperty("isOnSparkExecutor", isOnExecutor.toString)
+
     val connectionPoolOptions = if (isOnExecutor) {
       conf.executorConnectionPoolOptions
     } else {
