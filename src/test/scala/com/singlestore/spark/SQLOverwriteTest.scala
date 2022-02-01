@@ -6,6 +6,7 @@ import com.singlestore.spark.SinglestoreOptions.{OVERWRITE_BEHAVIOR, TRUNCATE}
 import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.apache.spark.sql.types.{IntegerType, StringType}
 
+import scala.List
 import scala.util.Try
 
 class SQLOverwriteTest extends IntegrationSuiteBase {
@@ -282,4 +283,109 @@ class SQLOverwriteTest extends IntegrationSuiteBase {
     }
   }
 
+  describe("on duplicate key update") {
+
+    def createTable(isColumnstore: Boolean): Unit = {
+      val createTableQuery = if (isColumnstore) {
+        s"CREATE TABLE $dbName.$tableName( srt int, suk int, nuk int, sort key(srt), shard key(suk), key(nuk) using hash, unique key(suk) using hash);"
+      } else {
+        val rowstore = if (version.atLeast("7.5.0") && isColumnstore) {
+          "ROWSTORE"
+        } else {
+          ""
+        }
+        s"CREATE $rowstore TABLE $dbName.$tableName( srt int, suk int, nuk int, sort key(srt), shard key(suk), key(nuk) using hash, key(suk) using hash);"
+
+      }
+      spark.executeSinglestoreQuery(query = createTableQuery)
+      spark.executeSinglestoreQuery(query = s"INSERT INTO $dbName.$tableName VALUES (1, 1, 1)")
+    }
+
+    def assertOnDuplicateKeyUpdateResult[U, T <: Product](rowData: List[U],
+                                                          fields: List[T]): Unit = {
+      assertSmallDataFrameEquality(spark.read.format("singlestore").load(s"$dbName.$tableName"),
+                                   spark.createDF(rowData, fields))
+    }
+
+    def onDuplicateKeyUpdate(isColumnstore: Boolean): Unit = {
+      val fields =
+        List(("srt", IntegerType, true), ("suk", IntegerType, true), ("nuk", IntegerType, true))
+      val df = spark.read.format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT).load(s"$tableName")
+      df.write
+        .format("singlestore")
+        .option("onDuplicateKeySQL", "srt = 2")
+        .option("insertBatchSize", 300)
+        .mode(SaveMode.Append)
+        .save(s"$dbName.$tableName")
+
+      if (isColumnstore) {
+        assertOnDuplicateKeyUpdateResult(
+          List(
+            (2, 1, 1),
+          ),
+          fields
+        )
+      } else {
+        assertOnDuplicateKeyUpdateResult(
+          List(
+            (1, 1, 1),
+            (1, 1, 1),
+          ),
+          fields
+        )
+      }
+
+      df.write
+        .format("singlestore")
+        .option("onDuplicateKeySQL", "nuk = 2")
+        .option("insertBatchSize", 300)
+        .mode(SaveMode.Append)
+        .save(s"$dbName.$tableName")
+
+      if (isColumnstore) {
+        assertOnDuplicateKeyUpdateResult(
+          List(
+            (2, 1, 2),
+          ),
+          fields
+        )
+      } else {
+        assertOnDuplicateKeyUpdateResult(
+          List(
+            (1, 1, 1),
+            (1, 1, 1),
+            (1, 1, 1),
+            (1, 1, 1),
+          ),
+          fields
+        )
+      }
+
+      if (isColumnstore) {
+        val result = Try {
+          df.write
+            .format("singlestore")
+            .option("onDuplicateKeySQL", "suk = 2")
+            .option("insertBatchSize", 300)
+            .mode(SaveMode.Append)
+            .save(s"$dbName.$tableName")
+        }
+        assert(result.isFailure)
+      }
+    }
+
+    it("success update with unique key") {
+      if (version.atLeast("7.3.0")) {
+        createTable(true)
+        onDuplicateKeyUpdate(true)
+      }
+    }
+
+    it("success update without unique key") {
+      if (version.atLeast("7.3.0")) {
+        createTable(false)
+        onDuplicateKeyUpdate(false)
+      }
+    }
+  }
 }

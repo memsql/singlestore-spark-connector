@@ -165,9 +165,10 @@ df.write
 
 ## Inserting rows into the table with ON DUPLICATE KEY UPDATE
 
-When updating a rowstore table it is possible to insert rows with `ON DUPLICATE KEY UPDATE` option.
+When updating a table it is possible to insert rows with `ON DUPLICATE KEY UPDATE` option.
 See [sql reference](https://docs.singlestore.com/db/latest/en/reference/sql-reference/data-manipulation-language-dml/insert.html) for more details.
-
+> :warning: This feature doesn't work for columnstore tables with SingleStore 7.1.
+> :warning: Do not allow to update a table on unique key.
 ```scala
 df.write
     .option("onDuplicateKeySQL", "age = age + 1")
