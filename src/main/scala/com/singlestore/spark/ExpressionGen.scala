@@ -254,6 +254,34 @@ object ExpressionGen extends LazyLogging {
       } yield (date1, date2)
   }
 
+  case class CaseWhenExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: CaseWhen): Option[Joinable] = {
+      val condition =
+        arg.branches.foldLeft(Option(stringToJoinable("")))((actualPrefix, branch) => {
+          actualPrefix match {
+            case Some(_) =>
+              branch match {
+                case (expressionExtractor(whenCondition), expressionExtractor(thenCondition)) =>
+                  Some(Raw("WHEN") + whenCondition + Raw("THEN") + thenCondition)
+                case _ => None
+              }
+            case _ => None
+          }
+        })
+
+      val elseCondition = arg.elseValue match {
+        case Some(expressionExtractor(e)) => Some(Raw("ELSE") + e)
+        case None                         => Some(Raw(""))
+        case _                            => None
+      }
+
+      (condition, elseCondition) match {
+        case (Some(c), Some(e)) =>  Some(block(Raw("CASE") + c + e + "END"))
+        case _                  =>  None
+      }
+    }
+  }
+
   def aggregateWithFilter(funcName: String, child: Joinable, filter: Option[Joinable]) = {
     filter match {
       case Some(filterExpression) =>
@@ -266,6 +294,7 @@ object ExpressionGen extends LazyLogging {
   val utf8StringFoldableExtractor: FoldableExtractor[UTF8String] = FoldableExtractor[UTF8String]()
 
   def apply(expressionExtractor: ExpressionExtractor): PartialFunction[Expression, Joinable] = {
+    val caseWhenExpressionExtractor       = CaseWhenExpressionExtractor(expressionExtractor)
     val windowBoundaryExpressionExtractor = WindowBoundaryExpressionExtractor(expressionExtractor)
     val monthsBetweenExpressionExtractor  = MonthsBetweenExpressionExtractor(expressionExtractor)
     val context                           = expressionExtractor.context
@@ -406,6 +435,8 @@ object ExpressionGen extends LazyLogging {
 
       case monthsBetweenExpressionExtractor((date1, date2)) =>
         f("MONTHS_BETWEEN", date1, date2)
+
+      case caseWhenExpressionExtractor(caseWhenStatement) => caseWhenStatement
 
       case AddMonths(expressionExtractor(startDate), expressionExtractor(numMonths)) =>
         f("DATE_ADD", startDate, Raw("INTERVAL") + numMonths + "MONTH")

@@ -782,6 +782,47 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           expectPartialPushdown = true)
       }
     }
+    describe("case when") {
+      it("simple") {
+        testQuery("select case when id < 10 then 1 else 3 end from users_sample")
+      }
+      it("match multiple conditions") {
+        testQuery(
+          "select case id when id < 3 then id when id < 6 then age when 2 < 0 or 3 > 0 then last_name else first_name end from users_sample")
+      }
+      it("match else condition") {
+        testQuery(
+          "select id, case when 1 < 0 then id when 2 < 0 or 3 < 0 then last_name else first_name end from users_sample")
+      }
+
+      it("without else condition, select NULL") {
+        testQuery("select id, case when 1 < 0 then id end from users_sample")
+      }
+
+      it("complicated case: comparing string with a numeric type") {
+        testQuery(
+          "select id, case last_name when id < '5'  then 'No_name' when 'Paute' then 'Random_surname' else last_name end from users_sample",
+          expectSameResult = false
+          // When string is casted to numeric type, singlestore takes the prefix of it
+          // which is numeric (spark returns null if the whole string is not numeric)
+        )
+      }
+      it("partial pushdown: invalid condition") {
+        testQuery("select case when IsNull(stringIdentity(id)) then 1 else id end from users",
+                  expectPartialPushdown = true)
+      }
+
+      it("partial pushdown: invalid condition, more complicated query") {
+        testQuery(
+          "select case when id < 2 then last_name when IsNull(stringIdentity(id)) then 1 else id end from users",
+          expectPartialPushdown = true)
+      }
+
+      it("partial pushdown: invalid `else` condition") {
+        testQuery("select case when id < 5 then 1 else stringIdentity(id) end from users",
+                  expectPartialPushdown = true)
+      }
+    }
   }
 
   describe("arithmetic") {
