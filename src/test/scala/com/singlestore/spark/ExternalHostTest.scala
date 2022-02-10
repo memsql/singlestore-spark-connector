@@ -162,6 +162,11 @@ class ExternalHostTest
         false,
         false,
         Automatic,
+        List(ReadFromLeaves),
+        0,
+        0,
+        true,
+        Set.empty,
         Truncate,
         SinglestoreOptions.CompressionType.GZip,
         SinglestoreOptions.LoadDataFormat.CSV,
@@ -169,11 +174,7 @@ class ExternalHostTest
         None,
         10,
         10,
-        List(ReadFromLeaves),
-        0,
-        0,
-        true,
-        Set.empty
+        false
       )
 
       val conn         = JdbcUtils.createConnectionFactory(getDDLJDBCOptions(conf))()

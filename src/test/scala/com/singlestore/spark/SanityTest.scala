@@ -8,6 +8,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{IntegerType, StringType}
 import org.apache.spark.sql.{DataFrame, SaveMode}
 import org.scalatest.BeforeAndAfterEach
+import com.singlestore.spark.SQLHelper._
 
 class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
   var df: DataFrame = _
@@ -206,5 +207,19 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
     spark.sqlContext.setConf("spark.datasource.singlestore.disablePushdown", "true")
     repartitionColumnsTest()
     spark.sqlContext.setConf("spark.datasource.singlestore.disablePushdown", "false")
+  }
+
+  it("creates rowstore table") {
+    df.write
+      .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+      .option("createRowstoreTable", "true")
+      .save("testdb.rowstore")
+
+    val rows = spark.executeSinglestoreQueryDB(
+      "testdb",
+      "select storage_type from information_schema.tables where table_schema='testdb' and table_name='rowstore';")
+    assert(rows.size == 1, "Only one row should be selected")
+    rows.foreach(row =>
+      assert(row.getString(0).equals("INMEMORY_ROWSTORE"), "Should create rowstore table"))
   }
 }
