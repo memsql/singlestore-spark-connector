@@ -57,6 +57,7 @@ global options have the prefix `spark.datasource.singlestore.`.
 | `parallelRead.Features`                            | Specify comma separated list of parallel read features that will be tried. The order in which features are listed determines their priority. Supported features: `ReadFromLeaves`, `ReadFromAggregators`, `ReadFromAggregatorsMaterialized`. Ex. `ReadFromLeaves,ReadFromAggregators` (default: `ReadFromAggregators`).
 | `parallelRead.tableCreationTimeoutMS`              | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregators` feature is used; 0 means no timeout (default: `0`)
 | `parallelRead.tableCreationTimeoutMaterializedMS`  | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregatorsMaterialized` feature is used; 0 means no timeout (default: `0`)
+| `parallelRead.maxNumPartitions`                   | Maximum number of partitions in the resulting DataFrame; 0 means no limit (default: `0`)
 | `parallelRead.repartition`                         | Repartition data before reading it (default: `false`)
 | `parallelRead.repartition.columns`                 | Comma separated list of column names that are used for repartitioning, if `parallelRead.repartition` is enabled. By default, repartitioning is done using an additional column with `RAND()` value.
 
@@ -368,10 +369,10 @@ for which all requirements are satisfied.
 
 #### readFromAggregators
 When this feature is used, `singlestore-spark-connector` will use [SingleStore parallel read functionality](https://docs.singlestore.com/db/latest/en/query-data/query-procedures/read-query-results-in-parallel.html).
-The number of partitions in the resulting DataFrame will be equal to the number of partitions in the SingleStore database.
-Each partition will be read by the separate spark task. All tasks must start reading at the same time. So, in order to use this
-feature, parallelism level in the spark cluster must be enough to start all these tasks at the same time - i.e., sum of
-`(spark.executor.cores/spark.task.cpus)` for all executors should not be less than number of partitions in your database.
+By default, the number of partitions in the resulting DataFrame is the lesser of the number of partitions in the SingleStore database and Spark parallelism level
+(i.e., sum of `(spark.executor.cores/spark.task.cpus)` for all executors).
+Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` option.
+To use this feature, all reading tasks must start at the same time. Hence, the number of partitions in the resulting DataFrame should not be greater than the parallelism level of the Spark cluster.
 
 You can set a timeout for result table creation using the `parallelRead.tableCreationTimeoutMS` option.
 
@@ -379,13 +380,14 @@ Requirements:
  * SingleStore version is 7.5 or above
  * `database` option is set, or database name is provided in `load`
  * Generated query is supported by SingleStore parallel read functionality
- * Parallelism level on Spark cluster is enough to start reading from all database partitions at the same time
 
 #### readFromAggregatorsMaterialized
 This feature is very similar to `readFromAggregators`. The only difference is that the result table is created using
 the `MATERIALIZED` option. For this feature, reading tasks don't need to be started at the same time, so parallelism level on
 spark cluster doesn't matter. On the other side, the `MATERIALIZED` option may cause the query to fail if SingleStore
 doesn't have enough memory to materialize the result set.
+By default, the number of partitions in the resulting DataFrame is equal to the number of partitions in the SingleStore database.
+Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` option.
 
 You can set a timeout for materialized result table creation using the `parallelRead.tableCreationTimeoutMaterializedMS` option.
 
@@ -404,6 +406,9 @@ It supports only query-shapes which do not perform work on the Aggregator and th
 
 In order to use `readFromLeaves` feature, the username and password provided to the
 `singlestore-spark-connector` must be the same across all nodes in the cluster.
+
+By default, the number of partitions in the resulting DataFrame is equal to the number of partitions in the SingleStore database.
+Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` option.
 
 Requirements:
  * `database` option is set, or database name is provided in `load`

@@ -13,6 +13,10 @@ import spray.json._
 
 import scala.util.Try
 
+// SinglestoreMultiPartition represents single Spark partition reading from >= 1 SingleStore partitions
+case class SinglestoreMultiPartition(override val index: Int, partitions: Seq[SinglestorePartition])
+    extends Partition
+
 case class SinglestorePartition(
     override val index: Int,
     query: String,
@@ -22,6 +26,8 @@ case class SinglestorePartition(
 
 case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   private val options: SinglestoreOptions = rdd.options
+
+  private var errorMessages: Map[ParallelReadType, String] = Map.empty
 
   private val executorWhitelist: Set[String] = Set(
     "Project",
@@ -39,9 +45,29 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     "StreamingGroupBy"
   ).map(_.toLowerCase)
 
+  private def coalescePartitions(partitions: Seq[SinglestorePartition],
+                                 numPartitions: Int): Array[Partition] = {
+    partitions
+      .groupBy(p => p.index % numPartitions)
+      .toArray
+      .sortBy(p => p._1)
+      .map(p => SinglestoreMultiPartition(p._1, p._2))
+  }
+
+  def saveErrorMessage(parallelReadType: ParallelReadType, message: String): Unit = {
+    errorMessages += (parallelReadType -> message)
+    if (log.isTraceEnabled()) {
+      log.trace(s"$parallelReadType disabled for this query: $message")
+    }
+  }
+
   private def partitionsFromExplainJSON(database: String,
                                         partitionHostPorts: List[SinglestorePartitionInfo],
                                         explainJSON: JsValue): Option[Array[Partition]] = {
+    def saveErrorMessageReadFromLeaves(message: String): Unit = {
+      saveErrorMessage(ReadFromLeaves, message)
+    }
+
     // The top level Explain is either the explain tree or a "metadata" wrapper
     // (we can disambiguate between these cases by checking for the presence of the "version" key)
 
@@ -72,20 +98,16 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     // We are able to pushdown when the following conditions hold:
     // 1. there is exactly one query
     if (queries.length != 1) {
-      if (log.isTraceEnabled) {
-        log.trace(
-          s"readFromLeaves disabled for this query: SingleStore would run more than one query during execution (${queries.length} queries found)")
-      }
+      saveErrorMessageReadFromLeaves(
+        s"SingleStore would run more than one query during execution (${queries.length} queries found)")
       return None
     }
 
     // 2. all of the executors are in our whitelist
     if (executors.map(!executorWhitelist.contains(_)).exists(identity)) {
-      if (log.isTraceEnabled) {
-        log.trace(
-          s"readFromLeaves disabled for this query: SingleStore is using parallel-unsafe executors (distinct executors in use: ${executors.toSet
-            .mkString(", ")})")
-      }
+      saveErrorMessageReadFromLeaves(
+        s"SingleStore is using parallel-unsafe executors (distinct executors in use: ${executors.toSet
+          .mkString(", ")})")
       return None
     }
 
@@ -93,10 +115,8 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     val numGathers  = executors.count(_ == "gather")
     val gatherFirst = executors.headOption.contains("gather")
     if (numGathers != 1 || !gatherFirst) {
-      if (log.isTraceEnabled) {
-        log.trace(
-          s"readFromLeaves disabled for this query: the gather method used by this query is not supported ($numGathers, $gatherFirst)")
-      }
+      saveErrorMessageReadFromLeaves(
+        s"the gather method used by this query is not supported ($numGathers, $gatherFirst)")
       return None
     }
 
@@ -108,9 +128,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
                 JdbcHelpers.getConnProperties(options, isOnExecutor = false, p.hostport))
               .close()
           }.isFailure)) {
-      if (log.isTraceEnabled) {
-        log.trace(s"readFromLeaves disabled for this query: some leaves are not connectable")
-      }
+      saveErrorMessageReadFromLeaves(s"some leaves are not connectable")
       return None
     }
 
@@ -123,9 +141,9 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
 
     val firstPartitionName = s"${database}_0"
 
-    Some(
-      partitionHostPorts
-        .map(p =>
+    val singlePartitions = partitionHostPorts
+      .map(
+        p =>
           SinglestorePartition(
             p.ordinal,
             partitionQuery.replace(firstPartitionName, p.name),
@@ -134,7 +152,14 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
             Nil,
             JdbcHelpers.getConnProperties(options, isOnExecutor = true, p.hostport)
         ))
-        .toArray)
+
+    val partitionsNum = if (options.parallelReadMaxNumPartitions > 0) {
+      singlePartitions.length.min(options.parallelReadMaxNumPartitions)
+    } else {
+      singlePartitions.length
+    }
+
+    Some(coalescePartitions(singlePartitions, partitionsNum))
   }
 
   private lazy val databasePartitionCount: Int = {
@@ -147,16 +172,18 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     }
   }
 
-  private lazy val aggregatorReadPartitions = Some(
-    Array
+  private def aggregatorReadPartitions(partitionsNum: Int): Some[Array[Partition]] = {
+    val singlePartitions = Seq
       .range(0, databasePartitionCount)
       .map(
         index =>
           SinglestorePartition(index,
                                rdd.query,
                                rdd.variables,
-                               getDMLConnProperties(options, isOnExecutor = true))
-            .asInstanceOf[Partition]))
+                               getDMLConnProperties(options, isOnExecutor = true)))
+
+    Some(coalescePartitions(singlePartitions, partitionsNum))
+  }
 
   private lazy val readFromLeavesPartitions: Option[Array[Partition]] = {
     val minimalExternalHostVersion = "7.1.0"
@@ -206,17 +233,25 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
           ),
           rdd.variables
         )) {
-      if (log.isTraceEnabled) {
-        log.trace(
-          s"readFromAggregatorsMaterialized disabled for this query: the query is not supported by aggregator parallel read")
-      }
+      saveErrorMessage(ReadFromAggregatorsMaterialized,
+                       "the query is not supported by aggregator parallel read")
       None
     } else {
-      aggregatorReadPartitions
+      val numPartitions = if (options.parallelReadMaxNumPartitions > 0) {
+        databasePartitionCount.min(options.parallelReadMaxNumPartitions)
+      } else {
+        databasePartitionCount
+      }
+
+      aggregatorReadPartitions(numPartitions)
     }
   }
 
   private lazy val readFromAggregatorsPartitions: Option[Array[Partition]] = {
+    def saveErrorMessageReadFromAggregators(message: String): Unit = {
+      saveErrorMessage(ReadFromAggregators, message)
+    }
+
     val conn =
       SinglestoreConnectionPool.getConnection(getDDLConnProperties(options, isOnExecutor = true))
 
@@ -232,31 +267,31 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
           ),
           rdd.variables
         )) {
-      if (log.isTraceEnabled) {
-        log.trace(
-          s"readFromAggregators disabled for this query: the query is not supported by aggregator parallel read")
-      }
-      None
-    } else if (MaxNumConcurrentTasks.get(rdd) < databasePartitionCount) {
-      if (log.isTraceEnabled) {
-        log.trace(
-          s"readFromAggregators disabled for this query: maximum number of concurrent tasks that can be launched in the cluster is ${MaxNumConcurrentTasks
-            .get(rdd)} when the required amount is ${databasePartitionCount}")
-      }
+      saveErrorMessageReadFromAggregators("the query is not supported by aggregator parallel read")
       None
     } else {
-      aggregatorReadPartitions
+      val numPartitions = if (options.parallelReadMaxNumPartitions > 0) {
+        databasePartitionCount
+          .min(MaxNumConcurrentTasks.get(rdd))
+          .min(options.parallelReadMaxNumPartitions)
+      } else {
+        databasePartitionCount
+          .min(MaxNumConcurrentTasks.get(rdd))
+      }
+
+      aggregatorReadPartitions(numPartitions)
     }
   }
 
   private lazy val nonParallelReadPartitions: Option[Array[Partition]] =
     Some(
-      Array(
-        SinglestorePartition(0,
-                             rdd.query,
-                             rdd.variables,
-                             getDMLConnProperties(options, isOnExecutor = true))
-          .asInstanceOf[Partition]))
+      coalescePartitions(
+        Seq(
+          SinglestorePartition(0,
+                               rdd.query,
+                               rdd.variables,
+                               getDMLConnProperties(options, isOnExecutor = true))),
+        1))
 
   private def getPartitions(parallelReadType: ParallelReadType): Option[Array[Partition]] =
     if (options.database.isEmpty) {
@@ -282,7 +317,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     }
 
     if (readType.isEmpty && options.enableParallelRead == Forced) {
-      throw new ParallelReadFailedException(options.parallelReadFeatures)
+      throw new ParallelReadFailedException(errorMessages)
     }
 
     val partitions = readType match {
@@ -296,7 +331,10 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   }
 }
 
-final class ParallelReadFailedException(features: List[ParallelReadType])
+final class ParallelReadFailedException(errors: Map[ParallelReadType, String])
     extends SQLException(
-      s"Failed to read data in parallel. Tried following parallel read features: ${features
-        .mkString(",")}")
+      s"Failed to read data in parallel.\n" +
+        s"Tried following parallel read features:\n" +
+        s"${errors
+          .map(error => s" * ${error._1} - ${error._2}\n")
+          .mkString("")}")

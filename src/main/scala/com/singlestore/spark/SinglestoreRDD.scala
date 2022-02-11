@@ -1,6 +1,7 @@
 package com.singlestore.spark
 
 import java.sql.{Connection, PreparedStatement, ResultSet, SQLTransientConnectionException}
+import java.util.concurrent.Executors
 
 import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.rdd.RDD
@@ -10,6 +11,10 @@ import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types._
 import org.apache.spark.util.TaskCompletionListener
 import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
+
+import scala.concurrent.duration.Duration
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{Await, ExecutionContext, Future}
 
 case class SinglestoreRDD(query: String,
                           variables: VariableList,
@@ -46,11 +51,28 @@ case class SinglestoreRDD(query: String,
   override protected def getPartitions: Array[Partition] = partitions_
 
   override def compute(rawPartition: Partition, context: TaskContext): Iterator[Row] = {
+    val multiPartition: SinglestoreMultiPartition =
+      rawPartition.asInstanceOf[SinglestoreMultiPartition]
+    val threadPool = Executors.newFixedThreadPool(multiPartition.partitions.size)
+    try {
+      val executionContext =
+        ExecutionContext.fromExecutor(threadPool)
+      val future: Future[Seq[Iterator[Row]]] = Future.sequence(multiPartition.partitions.map(p =>
+        Future(computeSinglePartition(p, context))(executionContext)))
+
+      Await.result(future, Duration.Inf).foldLeft(Iterator[Row]())(_ ++ _)
+    } finally {
+      threadPool.shutdownNow()
+    }
+  }
+
+  def computeSinglePartition(rawPartition: SinglestorePartition,
+                             context: TaskContext): Iterator[Row] = {
     var closed                          = false
     var rs: ResultSet                   = null
     var stmt: PreparedStatement         = null
     var conn: Connection                = null
-    var partition: SinglestorePartition = rawPartition.asInstanceOf[SinglestorePartition]
+    val partition: SinglestorePartition = rawPartition.asInstanceOf[SinglestorePartition]
 
     def tryClose(name: String, what: AutoCloseable): Unit = {
       try {
