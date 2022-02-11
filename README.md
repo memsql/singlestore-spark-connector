@@ -62,7 +62,7 @@ global options have the prefix `spark.datasource.singlestore.`.
 | `onDuplicateKeySQL`                               | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, SingleStore will instead perform an UPDATE of the old row. See examples below
 | `insertBatchSize`                                 | Size of the batch for row insertion (default: `10000`)
 | `maxErrors`                                       | The maximum number of errors in a single `LOAD DATA` request. When this limit is reached, the load fails. If this property equals to `0`, no error limit exists (Default: `0`)
-| `createRowstoreTable`                             | If enabled, the connector creates a rowstore table (default: `false`)
+| `createRowstoreTable`                             | If enabled, the connector creates a rowstore table (default: `false`).
 
 ## Examples
 
@@ -129,8 +129,8 @@ When creating a table, the `singlestore-spark-connector` will read options prefi
 with `tableKey`. These options must be formatted in a specific way in order to
 correctly specify the keys.
 
-> :warning: The default table type is SingleStore Columnstore. If you want a RowStore table,
-> you will need to enable the `createRowstoreTable` option.
+> :warning: The default table type is SingleStore Columnstore.
+> To create a rowstore table instead, enable the `createRowstoreTable` option.
 
 To explain we will refer to the following example:
 
