@@ -4,7 +4,7 @@ import java.sql.{Connection, PreparedStatement, SQLException, Statement}
 import java.util.UUID.randomUUID
 
 import com.singlestore.spark.SinglestoreOptions.{TableKey, TableKeyType}
-import com.singlestore.spark.SQLGen.{StringVar, VariableList}
+import com.singlestore.spark.SQLGen.{SinglestoreVersion, StringVar, VariableList}
 import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.catalyst.{QualifiedTableName, TableIdentifier}
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
@@ -262,7 +262,9 @@ object JdbcHelpers extends LazyLogging {
     }
   }
 
-  def schemaToString(schema: StructType, tableKeys: List[TableKey]): String = {
+  def schemaToString(schema: StructType,
+                     tableKeys: List[TableKey],
+                     createRowstoreTable: Boolean): String = {
     // spark should never call any of our code if the schema is empty
     assert(schema.length > 0)
 
@@ -285,7 +287,7 @@ object JdbcHelpers extends LazyLogging {
     // specify a sort key so we just pick the first column arbitrarily for now
     var finalTableKeys = tableKeys
     // if all the keys are shard keys it means there are no other keys so we can default
-    if (tableKeys.forall(_.keyType == TableKeyType.Shard)) {
+    if (!createRowstoreTable && tableKeys.forall(_.keyType == TableKeyType.Shard)) {
       finalTableKeys = TableKey(TableKeyType.Columnstore, columns = schema.head.name) :: tableKeys
     }
 
@@ -340,8 +342,11 @@ object JdbcHelpers extends LazyLogging {
   def createTable(conn: Connection,
                   table: TableIdentifier,
                   schema: StructType,
-                  tableKeys: List[TableKey]): Unit = {
-    val sql = s"CREATE TABLE ${table.quotedString} ${schemaToString(schema, tableKeys)}"
+                  tableKeys: List[TableKey],
+                  createRowstoreTable: Boolean,
+                  version: SinglestoreVersion): Unit = {
+    val sql =
+      s"CREATE ${if (createRowstoreTable && version.atLeast("7.3.0")) "ROWSTORE" else ""} TABLE ${table.quotedString} ${schemaToString(schema, tableKeys, createRowstoreTable)}"
     log.trace(s"Executing SQL:\n$sql")
     conn.withStatement(stmt => stmt.executeUpdate(sql))
   }
@@ -480,6 +485,7 @@ object JdbcHelpers extends LazyLogging {
                            table: TableIdentifier,
                            mode: SaveMode,
                            schema: StructType): Unit = {
+    val version  = SinglestoreVersion(JdbcHelpers.getSinglestoreVersion(conf))
     val jdbcOpts = JdbcHelpers.getDDLJDBCOptions(conf)
     val conn     = JdbcUtils.createConnectionFactory(jdbcOpts)()
     try {
@@ -491,7 +497,12 @@ object JdbcHelpers extends LazyLogging {
                 JdbcHelpers.truncateTable(conn, table)
               case DropAndCreate =>
                 JdbcHelpers.dropTable(conn, table)
-                JdbcHelpers.createTable(conn, table, schema, conf.tableKeys)
+                JdbcHelpers.createTable(conn,
+                                        table,
+                                        schema,
+                                        conf.tableKeys,
+                                        conf.createRowstoreTable,
+                                        version)
               case Merge =>
               // nothing to do
             }
@@ -504,7 +515,12 @@ object JdbcHelpers extends LazyLogging {
           case SaveMode.Append => // continue
         }
       } else {
-        JdbcHelpers.createTable(conn, table, schema, conf.tableKeys)
+        JdbcHelpers.createTable(conn,
+                                table,
+                                schema,
+                                conf.tableKeys,
+                                conf.createRowstoreTable,
+                                version)
       }
     } finally {
       conn.close()

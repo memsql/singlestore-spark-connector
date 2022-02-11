@@ -13,8 +13,14 @@ case class SinglestoreOptions(
     database: Option[String],
     jdbcExtraOptions: Map[String, String],
     enableAsserts: Boolean,
+    // read options
     disablePushdown: Boolean,
     enableParallelRead: ParallelReadEnablement,
+    parallelReadFeatures: List[ParallelReadType],
+    parallelReadTableCreationTimeoutMS: Long,
+    parallelReadMaterializedTableCreationTimeoutMS: Long,
+    parallelReadRepartition: Boolean,
+    parallelReadRepartitionColumns: Set[String],
     // write options
     overwriteBehavior: OverwriteBehavior,
     loadDataCompression: SinglestoreOptions.CompressionType.Value,
@@ -23,11 +29,7 @@ case class SinglestoreOptions(
     onDuplicateKeySQL: Option[String],
     maxErrors: Int,
     insertBatchSize: Int,
-    parallelReadFeatures: List[ParallelReadType],
-    parallelReadTableCreationTimeoutMS: Long,
-    parallelReadMaterializedTableCreationTimeoutMS: Long,
-    parallelReadRepartition: Boolean,
-    parallelReadRepartitionColumns: Set[String]
+    createRowstoreTable: Boolean
 ) extends LazyLogging {
 
   def assert(condition: Boolean, message: String) = {
@@ -109,6 +111,7 @@ object SinglestoreOptions extends LazyLogging {
   final val ON_DUPLICATE_KEY_SQL  = newOption("onDuplicateKeySQL")
   final val INSERT_BATCH_SIZE     = newOption("insertBatchSize")
   final val MAX_ERRORS            = newOption("maxErrors")
+  final val CREATE_ROWSTORE_TABLE = newOption("createRowstoreTable")
 
   final val ENABLE_ASSERTS       = newOption("enableAsserts")
   final val DISABLE_PUSHDOWN     = newOption("disablePushdown")
@@ -307,7 +310,8 @@ object SinglestoreOptions extends LazyLogging {
       parallelReadRepartitionColumns =
         splitEscapedColumns(options.get(PARALLEL_READ_REPARTITION_COLUMNS).getOrElse(""))
           .map(column => trimAndUnescapeColumn(column))
-          .toSet
+          .toSet,
+      createRowstoreTable = options.getOrElse(CREATE_ROWSTORE_TABLE, "false").toBoolean
     )
   }
 }
