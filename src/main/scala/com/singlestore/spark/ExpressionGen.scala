@@ -257,15 +257,15 @@ object ExpressionGen extends LazyLogging {
   case class CaseWhenExpressionExtractor(expressionExtractor: ExpressionExtractor) {
     def unapply(arg: CaseWhen): Option[Joinable] = {
       val condition =
-        arg.branches.foldLeft(Option(stringToJoinable("")))((actualPrefix, branch) => {
-          actualPrefix match {
-            case Some(_) =>
+        arg.branches.foldLeft(Option(stringToJoinable("")))((prefix: Option[Joinable], branch) => {
+          prefix match {
+            case Some(actualPrefix) =>
               branch match {
                 case (expressionExtractor(whenCondition), expressionExtractor(thenCondition)) =>
-                  Some(Raw("WHEN") + whenCondition + Raw("THEN") + thenCondition)
+                  Some(actualPrefix + Raw("WHEN") + whenCondition + Raw("THEN") + thenCondition)
                 case _ => None
               }
-            case _ => None
+            case None => None
           }
         })
 
@@ -276,8 +276,8 @@ object ExpressionGen extends LazyLogging {
       }
 
       (condition, elseCondition) match {
-        case (Some(c), Some(e)) =>  Some(block(Raw("CASE") + c + e + "END"))
-        case _                  =>  None
+        case (Some(c), Some(e)) => Some(block(Raw("CASE") + c + e + "END"))
+        case _                  => None
       }
     }
   }

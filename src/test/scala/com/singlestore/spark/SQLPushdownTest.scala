@@ -786,10 +786,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("simple") {
         testQuery("select case when id < 10 then 1 else 3 end from users_sample")
       }
+
       it("match multiple conditions") {
         testQuery(
-          "select case id when id < 3 then id when id < 6 then age when 2 < 0 or 3 > 0 then last_name else first_name end from users_sample")
+          "select case id when id < 3 then id when id < 6 and id >= 3 then age when id < 9 and id >=6 then last_name else first_name end from users_sample")
       }
+
       it("match else condition") {
         testQuery(
           "select id, case when 1 < 0 then id when 2 < 0 or 3 < 0 then last_name else first_name end from users_sample")
