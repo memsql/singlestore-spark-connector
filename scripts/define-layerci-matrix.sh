@@ -26,14 +26,14 @@ fi
 if [ "$TEST_NUM" == '0' ] || [ "$TEST_NUM" == '3' ] || [ "$TEST_NUM" == '6' ] || [ "$TEST_NUM" == '9' ]
 then
   echo 'export SPARK_VERSION="3.0.0"'
-  echo 'export TEST_FILTER="testOnly -- -l  OnlySpark31"'
+  echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark30"'
 elif [ "$TEST_NUM" == '1' ] || [ "$TEST_NUM" == '4' ] || [ "$TEST_NUM" == '7' ] || [ "$TEST_NUM" == '10' ]
 then
   echo 'export SPARK_VERSION="3.1.0"'
-  echo 'export TEST_FILTER="testOnly -- -l  OnlySpark30"'
+  echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark31"'
 else
   echo 'export SPARK_VERSION="3.2.0"'
-  echo 'export TEST_FILTER="testOnly -- -l  OnlySpark30"'
+  echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark32"'
 fi
 
 echo 'export SCALA_VERSION="2.12.12"'

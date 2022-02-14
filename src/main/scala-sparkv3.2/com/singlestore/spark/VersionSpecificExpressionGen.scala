@@ -198,6 +198,9 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
              false) =>
       Some(f("LAG", input, offset))
 
+    case BitwiseGet(expressionExtractor(left), expressionExtractor(right)) =>
+      Some(op("&", op(">>", left, right), "1"))
+
     case _ => None
   }
 }

@@ -960,6 +960,54 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                   expectPartialPushdown = true)
       }
     }
+
+    describe("bitwiseGet") {
+      it("numbers", ExcludeFromSpark30, ExcludeFromSpark31) {
+        testQuery("select bit_get(id, 2) from users_sample")
+      }
+      it("negative left argument", ExcludeFromSpark30, ExcludeFromSpark31) {
+        try {
+          testQuery("select bit_get(id, -2) from users_sample")
+        } catch {
+          case e: Throwable =>
+            if (e.toString.contains("Invalid bit position: -2 is less than zero")) {
+              None
+            } else {
+              throw e
+            }
+        }
+      }
+      it("negative right argument", ExcludeFromSpark30, ExcludeFromSpark31) {
+          testQuery("select bit_get(-200, 2), id from users_sample")
+      }
+      it("exceeds upper limit left argument", ExcludeFromSpark30, ExcludeFromSpark31) {
+        try {
+          testQuery("select bit_get(id, 100000) from users_sample")
+        } catch {
+          case e: Throwable =>
+            if (e.toString.contains("Invalid bit position: 100000 exceeds the bit upper limit")) {
+              None
+            } else {
+              throw e
+            }
+        }
+      }
+      it("big int right argument", ExcludeFromSpark30, ExcludeFromSpark31) {
+        testQuery("select bit_get(1000000000000000, 2), id from users_sample")
+      }
+      it("partial pushdown because of udf in the left argument",
+         ExcludeFromSpark30,
+         ExcludeFromSpark31) {
+        testQuery("select bit_get(cast(stringIdentity(movie_id) as integer), 2) from reviews",
+                  expectPartialPushdown = true)
+      }
+      it("partial pushdown because of udf in the right argument",
+         ExcludeFromSpark30,
+         ExcludeFromSpark31) {
+        testQuery("select bit_get(movie_id, cast(stringIdentity(2) as integer)) from reviews",
+                  expectPartialPushdown = true)
+      }
+    }
   }
 
   describe("sanity test disablePushdown") {
@@ -3090,7 +3138,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |    ) or 
             |    critic_rating is null""".stripMargin)
       }
-      it("works with null", OnlySpark30) {
+      it("works with null", ExcludeFromSpark31, ExcludeFromSpark32) {
         // in 3.1 version, spark simplifies this query and doesn't send it to the database, so it is read from single partition
         testQuery(
           "select format_number(critic_rating, null) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
@@ -3520,7 +3568,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("null literal") {
       testQuery("select rand(null)*id from users", expectSameResult = false)
     }
-    it("empty arguments", OnlySpark30) {
+    it("empty arguments", ExcludeFromSpark31, ExcludeFromSpark32) {
       // TODO PLAT-5759
       testQuery("select rand()*id from users",
                 expectSameResult = false,
@@ -3649,10 +3697,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("non-literals") {
         testQuery("select regexp_replace(first_name, first_name, first_name) from users")
       }
-      it("with position", OnlySpark31) {
+      it("with position", ExcludeFromSpark30) {
         testQuery("select regexp_replace(first_name, 'a', 'd', 3) from users")
       }
-      it("big position", OnlySpark31) {
+      it("big position", ExcludeFromSpark30) {
         testQuery("select regexp_replace(first_name, 'a', 'd', 100) from users")
       }
     }
