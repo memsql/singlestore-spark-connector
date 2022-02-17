@@ -770,6 +770,9 @@ object ExpressionGen extends LazyLogging {
 
       case versionSpecificExpressionGen(child) => child
 
+      case Uuid(_)
+        if context.singlestoreVersionAtLeast("7.5.0")  => "UUID()"
+
       // TODO: case InitCap(expressionExtractor(child)) => ???
       // TODO: case StringReverse(expressionExtractor(child)) => ???
       // TODO: case SoundEx(expressionExtractor(child)) => ???
