@@ -20,7 +20,7 @@ lazy val root = project
       case "3.1.0" => "scala-sparkv3.1"
       case "3.2.0" => "scala-sparkv3.2"
     }),
-    version := s"4.0.0-spark-${sparkVersion}",
+    version := s"4.0.1-beta-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
     ),
@@ -54,6 +54,11 @@ credentials += Credentials(
   "CDD996495CF08BB2041D86D8D1EB3D14F1CD334F",
   "ignored" // this field is ignored; passwords are supplied by pinentry
 )
+
+assemblyMergeStrategy in assembly := {
+  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+  case x                             => MergeStrategy.first
+}
 
 publishTo := sonatypePublishToBundle.value
 publishMavenStyle := true
