@@ -755,6 +755,11 @@ object ExpressionGen extends LazyLogging {
       // stringExpressions.scala
       case Upper(expressionExtractor(child)) => f("UPPER", child)
       case Lower(expressionExtractor(child)) => f("LOWER", child)
+      case Left(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
+       f("LEFT", str, len, child)
+      case Right(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
+        f("RIGHT", str, len, child)
+      case ConcatWs(expressionExtractor(Some(child)))   => f("CONCAT_WS", child)
 
       case StringSpace(expressionExtractor(child)) =>
         f("LPAD", StringVar(""), child, StringVar(" "))
@@ -770,8 +775,7 @@ object ExpressionGen extends LazyLogging {
 
       case versionSpecificExpressionGen(child) => child
 
-      case Uuid(_)
-        if context.singlestoreVersionAtLeast("7.5.0")  => "UUID()"
+      case Uuid(_) if context.singlestoreVersionAtLeast("7.5.0") => "UUID()"
 
       // TODO: case InitCap(expressionExtractor(child)) => ???
       // TODO: case StringReverse(expressionExtractor(child)) => ???

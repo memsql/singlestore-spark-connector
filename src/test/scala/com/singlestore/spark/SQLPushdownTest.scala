@@ -978,7 +978,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         }
       }
       it("negative right argument", ExcludeFromSpark30, ExcludeFromSpark31) {
-          testQuery("select bit_get(-200, 2), id from users_sample")
+        testQuery("select bit_get(-200, 2), id from users_sample")
       }
       it("exceeds upper limit left argument", ExcludeFromSpark30, ExcludeFromSpark31) {
         try {
@@ -3388,6 +3388,47 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("partial pushdown with udf") {
         testQuery("select id, lower(stringIdentity(critic_review)) from movies",
                   expectPartialPushdown = true)
+      }
+    }
+
+    describe("Left") {
+      it("works") {
+        testQuery("select id, left(last_name, 2) as l from users_sample")
+      }
+      it("works with len is sting ") {
+        testQuery("select id, left(last_name, '4') as l from users_sample")
+      }
+      it("partial pushdown with udf") {
+        testQuery("select id, left(stringIdentity(critic_review), 4) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Right") {
+      it("works") {
+        testQuery("select id, right(critic_review, 2) as r from movies")
+      }
+      it("works with len is sting") {
+        testQuery("select id, right(critic_review, '4') as r from movies")
+      }
+      it("partial pushdown whith udf") {
+        testQuery("select id, right(stringIdentity(critic_review), 4) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Concat_ws") {
+      it("works") {
+        testQuery("select id, CONCAT_WS('@', id, 'user.com') as conc from movies")
+      }
+      it("works with many expressions") {
+        testQuery(
+          "select id, CONCAT_WS('@', last_name, 'singlestore', '.', 'com', id) as conc from users")
+      }
+      it("partial pushdown whith udf") {
+        testQuery(
+          "select id, CONCAT_WS('@', stringIdentity(critic_review), 'user.com') as conc from movies",
+          expectPartialPushdown = true)
       }
     }
 
