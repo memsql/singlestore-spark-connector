@@ -14,15 +14,17 @@ import scala.util.Random
 // this feature is accessible in Ultimate version of IntelliJ IDEA
 // see https://www.jetbrains.com/help/idea/async-profiler.html#profile for more details
 object BatchInsertBenchmark extends App {
-  final val masterHost: String = sys.props.getOrElse("singlestore.host", "localhost")
-  final val masterPort: String = sys.props.getOrElse("singlestore.port", "5506")
+  final val clusterHost: String = sys.props.getOrElse("singlestore.host", "localhost")
+  final val clusterPort: String = sys.props.getOrElse("singlestore.port", "5508")
+  final val adminPort: String   = sys.props.getOrElse("singlestore.port", "5506")
 
   val spark: SparkSession = SparkSession
     .builder()
     .master("local")
     .config("spark.sql.shuffle.partitions", "1")
     .config("spark.driver.bindAddress", "localhost")
-    .config("spark.datasource.singlestore.ddlEndpoint", s"${masterHost}:${masterPort}")
+    .config("spark.datasource.singlestore.clusterEndpoints", s"${clusterHost}:${clusterPort}")
+    .config("spark.datasource.singlestore.adminEndpoint", s"${clusterHost}:${adminPort}")
     .config("spark.datasource.singlestore.database", "testdb")
     .getOrCreate()
 
@@ -32,7 +34,7 @@ object BatchInsertBenchmark extends App {
 
     Loan(
       DriverManager.getConnection(
-        s"jdbc:singlestore://$masterHost:$masterPort",
+        s"jdbc:singlestore://$clusterHost:$adminPort",
         connProperties
       ))
   }

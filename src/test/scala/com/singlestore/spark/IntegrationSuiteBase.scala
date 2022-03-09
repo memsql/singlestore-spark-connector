@@ -25,8 +25,9 @@ trait IntegrationSuiteBase
   object ExcludeFromSpark31 extends Tag("ExcludeFromSpark31")
   object ExcludeFromSpark30 extends Tag("ExcludeFromSpark30")
 
-  final val masterHost: String = sys.props.getOrElse("singlestore.host", "localhost")
-  final val masterPort: String = sys.props.getOrElse("singlestore.port", "5506")
+  final val clusterHost: String = sys.props.getOrElse("singlestore.host", "localhost")
+  final val clusterPort: String = sys.props.getOrElse("singlestore.port", "5506")
+  final val adminPort: String   = sys.props.getOrElse("singlestore.port", "5506")
 
   final val continuousIntegration: Boolean = sys.env
     .getOrElse("CONTINUOUS_INTEGRATION", "false") == "true"
@@ -39,7 +40,7 @@ trait IntegrationSuiteBase
 
   var jdbcOptsDefault = new JDBCOptions(
     Map(
-      JDBCOptions.JDBC_URL          -> s"jdbc:mysql://$masterHost:$masterPort",
+      JDBCOptions.JDBC_URL          -> s"jdbc:mysql://$clusterHost:$clusterPort",
       JDBCOptions.JDBC_TABLE_NAME   -> "XXX",
       JDBCOptions.JDBC_DRIVER_CLASS -> "org.mariadb.jdbc.Driver",
       "user"                        -> "root",
@@ -117,7 +118,8 @@ trait IntegrationSuiteBase
       .config("spark.driver.extraJavaOptions", "-Duser.timezone=GMT")
       .config("spark.executor.extraJavaOptions", "-Duser.timezone=GMT")
       .config("spark.sql.session.timeZone", "GMT")
-      .config("spark.datasource.singlestore.ddlEndpoint", s"${masterHost}:${masterPort}")
+      .config("spark.datasource.singlestore.clusterEndpoints", s"${clusterHost}:${clusterPort}")
+      .config("spark.datasource.singlestore.adminEndpoint", s"${clusterHost}:${adminPort}")
       .config("spark.datasource.singlestore.user", "root-ssl")
       .config("spark.datasource.singlestore.password", "")
       .config("spark.datasource.singlestore.enableAsserts", "true")
@@ -144,7 +146,7 @@ trait IntegrationSuiteBase
   }
 
   def jdbcOptions(dbtable: String): Map[String, String] = Map(
-    "url"      -> s"jdbc:mysql://$masterHost:$masterPort",
+    "url"      -> s"jdbc:mysql://$clusterHost:$clusterPort",
     "dbtable"  -> dbtable,
     "user"     -> "root",
     "password" -> masterPassword

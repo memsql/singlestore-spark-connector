@@ -7,15 +7,15 @@ import org.apache.spark.sql.types.IntegerType
 
 class LoadbalanceTest extends IntegrationSuiteBase {
 
-  val masterHostPort = s"${masterHost}:${masterPort}"
-  val childHostPort  = "localhost:5508"
+  val masterHostPort = s"${clusterHost}:${adminPort}"
+  val childHostPort  = s"${clusterHost}:${clusterPort}"
 
   override def beforeEach(): Unit = {
     super.beforeEach()
 
-    // Set master + child aggregator as dmlEndpoints
+    // Set master + child aggregator as clusterEndpoints
     spark.conf
-      .set("spark.datasource.singlestore.dmlEndpoints", s"${masterHostPort},${childHostPort}")
+      .set("spark.datasource.singlestore.clusterEndpoints", s"${masterHostPort},${childHostPort}")
   }
 
   def countQueries(hostport: String): Int = {
@@ -39,7 +39,7 @@ class LoadbalanceTest extends IntegrationSuiteBase {
       childHostPort  -> countQueries(childHostPort)
     )
 
-  describe("load-balances among all hosts listed in dmlEndpoints") {
+  describe("load-balances among all hosts listed in clusterEndpoints") {
 
     it("queries both aggregators eventually") {
 

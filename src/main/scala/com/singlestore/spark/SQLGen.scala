@@ -550,15 +550,6 @@ object SQLGen extends LazyLogging {
 
   object SQLGenContext {
 
-    var singlestoreVersion: Option[String] = None
-    private def getSinglestoreVersion(options: SinglestoreOptions): SinglestoreVersion =
-      singlestoreVersion match {
-        case Some(version) => SinglestoreVersion(version)
-        case None =>
-          singlestoreVersion = Some(JdbcHelpers.getSinglestoreVersion(options))
-          SinglestoreVersion(singlestoreVersion.get)
-      }
-
     def apply(root: LogicalPlan, options: SinglestoreOptions): SQLGenContext = {
       var normalizedExprIdMap = scala.collection.immutable.HashMap[ExprId, Int]()
       val nextId              = Iterator.from(1)
@@ -569,11 +560,11 @@ object SQLGen extends LazyLogging {
           }
         }))
 
-      new SQLGenContext(normalizedExprIdMap, getSinglestoreVersion(options))
+      new SQLGenContext(normalizedExprIdMap, options.version)
     }
 
     def apply(options: SinglestoreOptions): SQLGenContext =
-      new SQLGenContext(HashMap.empty, getSinglestoreVersion(options))
+      new SQLGenContext(HashMap.empty, options.version)
   }
 
   case class SinglestoreVersion(major: Int, minor: Int, patch: Int) {

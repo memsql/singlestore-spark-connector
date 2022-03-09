@@ -137,9 +137,12 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
         .mkString(" ")
 
     val conn = SinglestoreConnectionPool.getConnection(if (isReferenceTable) {
-      getDDLConnProperties(conf, isOnExecutor = true)
+      JdbcHelpers.getAdminConnProperties(conf, isOnExecutor = true) match {
+        case Some(properties) => properties
+        case None             => throw new Exception("") // TODO PLAT-5918
+      }
     } else {
-      getDMLConnProperties(conf, isOnExecutor = true)
+      JdbcHelpers.getClusterConnProperties(conf, isOnExecutor = true)
     })
 
     val writer = Future[Long] {

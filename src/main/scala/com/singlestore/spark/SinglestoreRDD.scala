@@ -2,7 +2,7 @@ package com.singlestore.spark
 
 import java.sql.{Connection, PreparedStatement, ResultSet, SQLTransientConnectionException}
 
-import com.singlestore.spark.SQLGen.VariableList
+import com.singlestore.spark.SQLGen.{SinglestoreVersion, VariableList}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -27,6 +27,8 @@ case class SinglestoreRDD(query: String,
   def isRunOnExecutor: Boolean = sc == null
 
   val applicationId: String = sc.applicationId
+
+  lazy val singlestoreVersion: SinglestoreVersion = options.version
 
   val aggregatorParallelReadUsed: Boolean =
     parallelReadType.contains(ReadFromAggregators) ||

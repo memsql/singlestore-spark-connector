@@ -3,7 +3,7 @@ package com.singlestore.spark
 import java.sql.Connection
 import java.util.Properties
 
-import com.singlestore.spark.JdbcHelpers.getDDLConnProperties
+import com.singlestore.spark.JdbcHelpers.{getAdminConnProperties, getClusterConnProperties}
 import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.SparkContext
 import org.apache.spark.scheduler.{
@@ -40,7 +40,12 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
         rdd.query,
         rdd.variables,
         rdd.schema,
-        getDDLConnProperties(rdd.options, isOnExecutor = false),
+        if (rdd.singlestoreVersion.atLeast("7.5.0") && !rdd.singlestoreVersion.atLeast("7.6.0")) {
+          // TODO !!!
+          getAdminConnProperties(rdd.options, isOnExecutor = false).get
+        } else {
+          getClusterConnProperties(rdd.options, isOnExecutor = false)
+        },
         rdd.parallelReadType.contains(ReadFromAggregatorsMaterialized),
         rdd.options.parallelReadRepartition,
         rdd.parallelReadRepartitionColumns,

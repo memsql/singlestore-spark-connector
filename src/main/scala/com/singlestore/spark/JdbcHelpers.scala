@@ -94,11 +94,11 @@ object JdbcHelpers extends LazyLogging {
     properties
   }
 
-  def getDDLConnProperties(conf: SinglestoreOptions, isOnExecutor: Boolean): Properties =
-    getConnProperties(conf, isOnExecutor, conf.ddlEndpoint)
+  def getAdminConnProperties(conf: SinglestoreOptions, isOnExecutor: Boolean): Option[Properties] =
+    conf.adminEndpoint.map(endpoint => getConnProperties(conf, isOnExecutor, endpoint))
 
-  def getDMLConnProperties(conf: SinglestoreOptions, isOnExecutor: Boolean): Properties =
-    getConnProperties(conf, isOnExecutor, conf.dmlEndpoints: _*)
+  def getClusterConnProperties(conf: SinglestoreOptions, isOnExecutor: Boolean): Properties =
+    getConnProperties(conf, isOnExecutor, conf.clusterEndpoints: _*)
 
   def executeQuery(conn: Connection, query: String, variables: Any*): Iterator[Row] = {
     val statement = conn.prepareStatement(query)
@@ -120,7 +120,7 @@ object JdbcHelpers extends LazyLogging {
 
   def loadSchema(conf: SinglestoreOptions, query: String, variables: VariableList): StructType = {
     val conn =
-      SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
+      SinglestoreConnectionPool.getConnection(getClusterConnProperties(conf, isOnExecutor = false))
     try {
       val statement =
         conn.prepareStatement(SinglestoreDialect.getSchemaQuery(s"($query) AS q"))
@@ -142,7 +142,7 @@ object JdbcHelpers extends LazyLogging {
 
   def explainQuery(conf: SinglestoreOptions, query: String, variables: VariableList): String = {
     val conn =
-      SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
+      SinglestoreConnectionPool.getConnection(getClusterConnProperties(conf, isOnExecutor = false))
     try {
       val statement = conn.prepareStatement(s"EXPLAIN $query")
       try {
@@ -169,7 +169,7 @@ object JdbcHelpers extends LazyLogging {
   // representing this queries plan as JSON.
   def explainJSONQuery(conf: SinglestoreOptions, query: String, variables: VariableList): String = {
     val conn =
-      SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
+      SinglestoreConnectionPool.getConnection(getClusterConnProperties(conf, isOnExecutor = false))
     try {
       val statement = conn.prepareStatement(s"EXPLAIN JSON ${query}")
       try {
@@ -197,7 +197,7 @@ object JdbcHelpers extends LazyLogging {
   def partitionHostPorts(conf: SinglestoreOptions,
                          database: String): List[SinglestorePartitionInfo] = {
     val conn =
-      SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
+      SinglestoreConnectionPool.getConnection(getClusterConnProperties(conf, isOnExecutor = false))
     try {
       val statement = conn.prepareStatement(s"""
         SELECT HOST, PORT
@@ -236,7 +236,7 @@ object JdbcHelpers extends LazyLogging {
     */
   def externalHostPorts(conf: SinglestoreOptions): Map[String, String] = {
     val conn =
-      SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
+      SinglestoreConnectionPool.getConnection(getClusterConnProperties(conf, isOnExecutor = false))
     try {
       val statement = conn.prepareStatement(s"""
         SELECT IP_ADDR,    
@@ -363,7 +363,7 @@ object JdbcHelpers extends LazyLogging {
 
   def getSinglestoreVersion(conf: SinglestoreOptions): String = {
     val conn =
-      SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
+      SinglestoreConnectionPool.getConnection(getClusterConnProperties(conf, isOnExecutor = false))
     val sql = "select @@memsql_version"
     log.trace(s"Executing SQL:\n$sql")
     val resultSet = conn.withStatement(stmt => {
@@ -496,7 +496,7 @@ object JdbcHelpers extends LazyLogging {
 
   def isReferenceTable(conf: SinglestoreOptions, table: TableIdentifier): Boolean = {
     val conn =
-      SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
+      SinglestoreConnectionPool.getConnection(getClusterConnProperties(conf, isOnExecutor = false))
     // Assume that either table.database is set or conf.database is set
     val databaseName =
       table.database
@@ -523,14 +523,53 @@ object JdbcHelpers extends LazyLogging {
     })
   }
 
+  def syncPermissionsEnabled(conn: Connection): Boolean = {
+    conn.withStatement(
+      stmt =>
+        try {
+          val resultSet = stmt.executeQuery("SELECT @@sync_permissions")
+          if (resultSet.next()) {
+            resultSet.getString("@@sync_permissions")
+          } else throw new IllegalArgumentException("Can't get sync_permissions variable")
+        } finally {
+          stmt.close()
+      }
+    ) == "ON"
+  }
+
   def prepareTableForWrite(conf: SinglestoreOptions,
                            table: TableIdentifier,
                            mode: SaveMode,
                            schema: StructType): Unit = {
-    val version = SinglestoreVersion(JdbcHelpers.getSinglestoreVersion(conf))
     val conn =
-      SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
+      SinglestoreConnectionPool.getConnection(getClusterConnProperties(conf, isOnExecutor = false))
+
+    def executeDDLStatement(f: Connection => Unit): Unit = {
+      val ddlConn = if (conf.version.atLeast("7.3.0") && syncPermissionsEnabled(conn)) {
+        conn
+      } else {
+        getAdminConnProperties(conf, isOnExecutor = false) match {
+          case Some(properties) => SinglestoreConnectionPool.getConnection(properties)
+          case None =>
+            if (conf.version.atLeast("7.3.0")) {
+              throw new Exception("")
+            } else {
+              throw new Exception("")
+            } // TODO PLAT-5918
+        }
+      }
+
+      try {
+        f(ddlConn)
+      } finally {
+        if (ddlConn != conn) {
+          ddlConn.close()
+        }
+      }
+    }
+
     try {
+
       if (JdbcHelpers.tableExists(conn, table)) {
         mode match {
           case SaveMode.Overwrite =>
@@ -538,13 +577,15 @@ object JdbcHelpers extends LazyLogging {
               case Truncate =>
                 JdbcHelpers.truncateTable(conn, table)
               case DropAndCreate =>
-                JdbcHelpers.dropTable(conn, table)
-                JdbcHelpers.createTable(conn,
-                                        table,
-                                        schema,
-                                        conf.tableKeys,
-                                        conf.createRowstoreTable,
-                                        version)
+                executeDDLStatement((conn: Connection) => {
+                  JdbcHelpers.dropTable(conn, table)
+                  JdbcHelpers.createTable(conn,
+                                          table,
+                                          schema,
+                                          conf.tableKeys,
+                                          conf.createRowstoreTable,
+                                          conf.version)
+                })
               case Merge =>
               // nothing to do
             }
@@ -557,12 +598,14 @@ object JdbcHelpers extends LazyLogging {
           case SaveMode.Append => // continue
         }
       } else {
-        JdbcHelpers.createTable(conn,
-                                table,
-                                schema,
-                                conf.tableKeys,
-                                conf.createRowstoreTable,
-                                version)
+        executeDDLStatement((conn: Connection) => {
+          JdbcHelpers.createTable(conn,
+                                  table,
+                                  schema,
+                                  conf.tableKeys,
+                                  conf.createRowstoreTable,
+                                  conf.version)
+        })
       }
     } finally {
       conn.close()

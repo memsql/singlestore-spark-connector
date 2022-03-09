@@ -4,10 +4,9 @@ import java.sql.PreparedStatement
 import java.util.Properties
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
-import com.singlestore.spark.JdbcHelpers.getDDLConnProperties
+import com.singlestore.spark.JdbcHelpers.getClusterConnProperties
 import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.types.{IntegerType, StringType}
 import org.mockito.ArgumentMatchers.any
 import org.mockito.MockitoSugar
@@ -39,9 +38,9 @@ class ExternalHostTest
   def setupMockJdbcHelper(): Unit = {
     when(JdbcHelpers.loadSchema(any[SinglestoreOptions], any[String], any[SQLGen.VariableList]))
       .thenCallRealMethod()
-    when(JdbcHelpers.getDDLConnProperties(any[SinglestoreOptions], any[Boolean]))
+    when(JdbcHelpers.getAdminConnProperties(any[SinglestoreOptions], any[Boolean]))
       .thenCallRealMethod()
-    when(JdbcHelpers.getDMLConnProperties(any[SinglestoreOptions], any[Boolean]))
+    when(JdbcHelpers.getClusterConnProperties(any[SinglestoreOptions], any[Boolean]))
       .thenCallRealMethod()
     when(JdbcHelpers.getConnProperties(any[SinglestoreOptions], any[Boolean], any[String]))
       .thenCallRealMethod()
@@ -157,8 +156,8 @@ class ExternalHostTest
       writeTable(s"$testDb.$mvNodesCollection", mvNodesDf)
 
       val conf = new SinglestoreOptions(
-        s"$masterHost:$masterPort",
-        List.empty[String],
+        s"$clusterHost:$adminPort",
+        List(s"$clusterHost:$clusterPort"),
         "root",
         masterPassword,
         None,
@@ -184,7 +183,8 @@ class ExternalHostTest
       )
 
       val conn =
-        SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
+        SinglestoreConnectionPool.getConnection(
+          getClusterConnProperties(conf, isOnExecutor = false))
       val statement    = conn.prepareStatement(s"""
         SELECT IP_ADDR,    
         PORT,

@@ -1,13 +1,14 @@
 package com.singlestore.spark
 
+import com.singlestore.spark.SQLGen.SinglestoreVersion
 import com.singlestore.spark.SinglestoreOptions.TableKey
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.parser.CatalystSqlParser
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 
 case class SinglestoreOptions(
-    ddlEndpoint: String,
-    dmlEndpoints: List[String],
+    adminEndpoint: Option[String],
+    clusterEndpoints: List[String],
     user: String,
     password: String,
     database: Option[String],
@@ -33,6 +34,8 @@ case class SinglestoreOptions(
     driverConnectionPoolOptions: SinglestoreConnectionPoolOptions,
     executorConnectionPoolOptions: SinglestoreConnectionPoolOptions
 ) extends LazyLogging {
+
+  lazy val version: SinglestoreVersion = SinglestoreVersion(JdbcHelpers.getSinglestoreVersion(this))
 
   def assert(condition: Boolean, message: String) = {
     if (!condition) {
@@ -85,8 +88,10 @@ object SinglestoreOptions extends LazyLogging {
     name
   }
 
-  final val DDL_ENDPOINT  = newOption("ddlEndpoint")
-  final val DML_ENDPOINTS = newOption("dmlEndpoints")
+  final val DDL_ENDPOINT      = newOption("ddlEndpoint")
+  final val DML_ENDPOINTS     = newOption("dmlEndpoints")
+  final val ADMIN_ENDPOINT    = newOption("adminEndpoint")
+  final val CLUSTER_ENDPOINTS = newOption("clusterEndpoints")
 
   final val USER     = newOption("user")
   final val PASSWORD = newOption("password")
@@ -231,7 +236,14 @@ object SinglestoreOptions extends LazyLogging {
   def apply(options: CaseInsensitiveMap[String]): SinglestoreOptions = {
     val table = getTable(options)
 
-    require(options.isDefinedAt(DDL_ENDPOINT), s"Option '$DDL_ENDPOINT' is required.")
+    val clusterEndpoints = options
+      .get(CLUSTER_ENDPOINTS)
+      .orElse(options.get(DML_ENDPOINTS))
+      .orElse(options.get(DML_ENDPOINTS))
+    require(
+      clusterEndpoints.isDefined,
+      s"Option '$CLUSTER_ENDPOINTS' is required."
+    )
 
     val loadDataCompression = CompressionType.fromOption(LOAD_DATA_COMPRESSION,
                                                          options.get(LOAD_DATA_COMPRESSION),
@@ -268,9 +280,8 @@ object SinglestoreOptions extends LazyLogging {
       .toList
 
     new SinglestoreOptions(
-      ddlEndpoint = options(DDL_ENDPOINT),
-      dmlEndpoints =
-        options.getOrElse(DML_ENDPOINTS, options(DDL_ENDPOINT)).split(",").toList.sorted,
+      adminEndpoint = options.get(ADMIN_ENDPOINT).orElse(options.get(DDL_ENDPOINT)),
+      clusterEndpoints = clusterEndpoints.get.split(",").toList.sorted,
       user = options.getOrElse(USER, "root"),
       password = options.getOrElse(PASSWORD, ""),
       database = options.get(DATABASE).orElse(table.flatMap(t => t.database)),

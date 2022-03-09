@@ -2270,12 +2270,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           val df1 =
             spark.read
               .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
-              .options(Map("dmlEndpoint" -> "host1:1020,host2:1010"))
+              .options(Map("clusterEndpoints" -> "host1:1020,host2:1010"))
               .load("testdb.users")
           val df2 =
             spark.read
               .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
-              .options(Map("dmlEndpoint" -> "host3:1020,host2:1010"))
+              .options(Map("clusterEndpoints" -> "host3:1020,host2:1010"))
               .load("testdb.reviews")
 
           val joinedDf = df1.join(df2, df1("id") === df2("user_id"), joinType)

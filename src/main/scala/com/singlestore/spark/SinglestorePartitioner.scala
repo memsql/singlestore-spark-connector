@@ -139,7 +139,8 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
 
   private lazy val databasePartitionCount: Int = {
     val conn =
-      SinglestoreConnectionPool.getConnection(getDMLConnProperties(options, isOnExecutor = false))
+      SinglestoreConnectionPool.getConnection(
+        JdbcHelpers.getClusterConnProperties(options, isOnExecutor = false))
     try {
       JdbcHelpers.getPartitionsCount(conn, options.database.get)
     } finally {
@@ -155,7 +156,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
           SinglestorePartition(index,
                                rdd.query,
                                rdd.variables,
-                               getDMLConnProperties(options, isOnExecutor = true))
+                               JdbcHelpers.getClusterConnProperties(options, isOnExecutor = true))
             .asInstanceOf[Partition]))
 
   private lazy val readFromLeavesPartitions: Option[Array[Partition]] = {
@@ -164,8 +165,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
       JdbcHelpers.explainJSONQuery(options, rdd.query, rdd.variables).parseJson
     val partitions = JdbcHelpers.partitionHostPorts(options, options.database.head)
     val partitionHostPorts = {
-      val singlestoreVersion = SinglestoreVersion(JdbcHelpers.getSinglestoreVersion(options))
-      if (singlestoreVersion.atLeast(minimalExternalHostVersion)) {
+      if (rdd.singlestoreVersion.atLeast(minimalExternalHostVersion)) {
         val externalHostMap = JdbcHelpers.externalHostPorts(options)
         var isValid         = true
         val externalPartitions = partitions.flatMap(p => {
@@ -191,61 +191,93 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   }
 
   private lazy val readFromAggregatorsMaterializedPartitions: Option[Array[Partition]] = {
-    val conn =
-      SinglestoreConnectionPool.getConnection(getDDLConnProperties(options, isOnExecutor = true))
-
-    if (!JdbcHelpers.isValidQuery(
-          conn,
-          JdbcHelpers.getCreateResultTableQuery(
-            "CheckIfSelectQueryIsSupportedByParallelRead",
-            rdd.query,
-            rdd.schema,
-            materialized = true,
-            needsRepartition = rdd.options.parallelReadRepartition,
-            rdd.parallelReadRepartitionColumns
-          ),
-          rdd.variables
-        )) {
-      if (log.isTraceEnabled) {
-        log.trace(
-          s"readFromAggregatorsMaterialized disabled for this query: the query is not supported by aggregator parallel read")
+    val connProperties =
+      // Only MA is able to create result table for parallel read from aggregators in 7.5 version of S2
+      if (rdd.singlestoreVersion.atLeast("7.5.0") && !rdd.singlestoreVersion.atLeast("7.6.0")) {
+        JdbcHelpers.getAdminConnProperties(options, isOnExecutor = true)
+      } else {
+        Some(JdbcHelpers.getClusterConnProperties(options, isOnExecutor = true))
       }
-      None
-    } else {
-      aggregatorReadPartitions
+
+    connProperties match {
+      case None =>
+        log.trace(
+          "readFromAggregatorsMaterialized disabled for this query: parallel read from the aggregators requires adminEndpoint option")
+        None
+
+      case Some(properties) =>
+        val conn =
+          SinglestoreConnectionPool.getConnection(properties)
+
+        if (!JdbcHelpers.isValidQuery(
+              conn,
+              JdbcHelpers.getCreateResultTableQuery(
+                "CheckIfSelectQueryIsSupportedByParallelRead",
+                rdd.query,
+                rdd.schema,
+                materialized = true,
+                needsRepartition = rdd.options.parallelReadRepartition,
+                rdd.parallelReadRepartitionColumns
+              ),
+              rdd.variables
+            )) {
+          if (log.isTraceEnabled) {
+            log.trace(
+              s"readFromAggregatorsMaterialized disabled for this query: the query is not supported by aggregator parallel read")
+          }
+          None
+        } else {
+          aggregatorReadPartitions
+        }
     }
   }
 
   private lazy val readFromAggregatorsPartitions: Option[Array[Partition]] = {
-    val conn =
-      SinglestoreConnectionPool.getConnection(getDDLConnProperties(options, isOnExecutor = true))
+    val connProperties =
+      // Only MA is able to create result table for parallel read from aggregators in 7.5 version of S2
+      if (rdd.singlestoreVersion.atLeast("7.5.0") && !rdd.singlestoreVersion.atLeast("7.6.0")) {
+        JdbcHelpers.getAdminConnProperties(options, isOnExecutor = true)
+      } else {
+        Some(JdbcHelpers.getClusterConnProperties(options, isOnExecutor = true))
+      }
 
-    if (!JdbcHelpers.isValidQuery(
-          conn,
-          JdbcHelpers.getCreateResultTableQuery(
-            "CheckIfSelectQueryIsSupportedByParallelRead",
-            rdd.query,
-            rdd.schema,
-            materialized = false,
-            needsRepartition = rdd.options.parallelReadRepartition,
-            rdd.parallelReadRepartitionColumns
-          ),
-          rdd.variables
-        )) {
-      if (log.isTraceEnabled) {
+    connProperties match {
+      case None =>
         log.trace(
-          s"readFromAggregators disabled for this query: the query is not supported by aggregator parallel read")
-      }
-      None
-    } else if (MaxNumConcurrentTasks.get(rdd) < databasePartitionCount) {
-      if (log.isTraceEnabled) {
-        log.trace(
-          s"readFromAggregators disabled for this query: maximum number of concurrent tasks that can be launched in the cluster is ${MaxNumConcurrentTasks
-            .get(rdd)} when the required amount is ${databasePartitionCount}")
-      }
-      None
-    } else {
-      aggregatorReadPartitions
+          "readFromAggregators disabled for this query: parallel read from the aggregators requires adminEndpoint option")
+        None
+
+      case Some(properties) =>
+        val conn =
+          SinglestoreConnectionPool.getConnection(properties)
+
+        if (!JdbcHelpers.isValidQuery(
+              conn,
+              JdbcHelpers.getCreateResultTableQuery(
+                "CheckIfSelectQueryIsSupportedByParallelRead",
+                rdd.query,
+                rdd.schema,
+                materialized = false,
+                needsRepartition = rdd.options.parallelReadRepartition,
+                rdd.parallelReadRepartitionColumns
+              ),
+              rdd.variables
+            )) {
+          if (log.isTraceEnabled) {
+            log.trace(
+              s"readFromAggregators disabled for this query: the query is not supported by aggregator parallel read")
+          }
+          None
+        } else if (MaxNumConcurrentTasks.get(rdd) < databasePartitionCount) {
+          if (log.isTraceEnabled) {
+            log.trace(
+              s"readFromAggregators disabled for this query: maximum number of concurrent tasks that can be launched in the cluster is ${MaxNumConcurrentTasks
+                .get(rdd)} when the required amount is ${databasePartitionCount}")
+          }
+          None
+        } else {
+          aggregatorReadPartitions
+        }
     }
   }
 
@@ -255,7 +287,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
         SinglestorePartition(0,
                              rdd.query,
                              rdd.variables,
-                             getDMLConnProperties(options, isOnExecutor = true))
+                             JdbcHelpers.getClusterConnProperties(options, isOnExecutor = true))
           .asInstanceOf[Partition]))
 
   private def getPartitions(parallelReadType: ParallelReadType): Option[Array[Partition]] =
