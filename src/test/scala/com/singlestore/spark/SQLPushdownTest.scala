@@ -978,7 +978,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         }
       }
       it("negative right argument", ExcludeFromSpark30, ExcludeFromSpark31) {
-          testQuery("select bit_get(-200, 2), id from users_sample")
+        testQuery("select bit_get(-200, 2), id from users_sample")
       }
       it("exceeds upper limit left argument", ExcludeFromSpark30, ExcludeFromSpark31) {
         try {
@@ -3044,6 +3044,35 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("udf in the right argument") {
         testQuery("select instr(critic_review, stringIdentity('id')) from movies",
                   expectPartialPushdown = true)
+      }
+    }
+
+    describe("FindInSet") {
+      it("works") {
+        testQuery(
+          "select id, find_in_set(id, '82, 1,13,54,28,39,42, owns_house,120') from users")
+      }
+      it("constant example") {
+        testQuery(
+          "select id, find_in_set('39', '1,2,3990, 13,28,39,42,54,82,120') from users")
+      }
+      it("works with empty left argument") {
+        testQuery("select find_in_set('', '1,2,3') from users")
+      }
+      it("works with empty right argument") {
+        testQuery("select find_in_set(id, '') from users")
+      }
+      it("udf in the left argument") {
+        testQuery("select find_in_set(stringIdentity(critic_review), 'id') from movies",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the right argument") {
+        testQuery("select find_in_set(critic_review, stringIdentity('id')) from movies",
+                  expectPartialPushdown = true)
+      }
+      it("joinable object in the right argument") {
+        testQuery("select find_in_set(critic_review, id) from movies",
+          expectPartialPushdown = true)
       }
     }
 
