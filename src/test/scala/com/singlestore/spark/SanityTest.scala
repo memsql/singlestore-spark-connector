@@ -85,7 +85,7 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
 
         val x = spark.read
           .format("jdbc")
-          .option("url", s"jdbc:mysql://$masterHost:$masterPort/testdb")
+          .option("url", s"jdbc:mysql://$clusterHost:$adminPort/testdb")
           .option("dbtable", "testdb.tb2")
           .option("user", "root")
           .option("password", masterPassword)

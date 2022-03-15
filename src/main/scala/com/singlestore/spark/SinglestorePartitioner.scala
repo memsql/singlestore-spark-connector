@@ -3,7 +3,7 @@ package com.singlestore.spark
 import java.sql.SQLException
 import java.util.Properties
 
-import com.singlestore.spark.JdbcHelpers.{getDDLConnProperties, getDMLConnProperties}
+import com.singlestore.spark.JdbcHelpers.{getAdminConnProperties, getClusterConnProperties}
 import com.singlestore.spark.SQLGen.{SinglestoreVersion, VariableList}
 import org.apache.spark.scheduler.MaxNumConcurrentTasks
 import org.apache.spark.Partition

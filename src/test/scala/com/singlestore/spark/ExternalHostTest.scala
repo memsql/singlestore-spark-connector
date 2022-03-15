@@ -156,7 +156,7 @@ class ExternalHostTest
       writeTable(s"$testDb.$mvNodesCollection", mvNodesDf)
 
       val conf = new SinglestoreOptions(
-        s"$clusterHost:$adminPort",
+        Some(s"$clusterHost:$adminPort"),
         List(s"$clusterHost:$clusterPort"),
         "root",
         masterPassword,

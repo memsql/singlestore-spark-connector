@@ -3,7 +3,7 @@ package com.singlestore.spark
 import java.sql.Connection
 import java.util.Base64
 
-import com.singlestore.spark.JdbcHelpers.{getDDLConnProperties, getDMLConnProperties}
+import com.singlestore.spark.JdbcHelpers.{getClusterConnProperties, getAdminConnProperties}
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.{Row, SaveMode}

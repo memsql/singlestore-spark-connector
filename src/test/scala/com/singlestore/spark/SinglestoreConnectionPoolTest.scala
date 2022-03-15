@@ -15,9 +15,9 @@ class SinglestoreConnectionPoolTest extends IntegrationSuiteBase {
     properties = JdbcHelpers.getConnProperties(
       SinglestoreOptions(
         CaseInsensitiveMap(
-          Map("ddlEndpoint" -> s"$masterHost:$masterPort", "password" -> masterPassword))),
+          Map("ddlEndpoint" -> s"$clusterHost:$adminPort", "password" -> masterPassword))),
       isOnExecutor = false,
-      s"$masterHost:$masterPort"
+      s"$clusterHost:$adminPort"
     )
   }
 
