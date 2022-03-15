@@ -542,6 +542,16 @@ object ExpressionGen extends LazyLogging {
           if trimStr == UTF8String.fromString(" ") =>
         f("RTRIM", srcStr)
 
+      case FindInSet(expressionExtractor(left), utf8StringFoldableExtractor(right)) => {
+        val str_array    = right.toString.split(',')
+        var caseBranches = stringToJoinable("")
+        for (i <- 1 to str_array.length) {
+          caseBranches += Raw(s"WHEN '${str_array(i - 1)}'")
+          caseBranches += Raw(s"THEN '${i.toString}'")
+        }
+        block(Raw("CASE") + left + caseBranches + Raw("ELSE 0 END"))
+      }
+
       // TODO: case _: Levenshtein => None
 
       // ----------------------------------
