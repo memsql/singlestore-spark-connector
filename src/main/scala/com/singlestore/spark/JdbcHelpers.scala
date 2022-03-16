@@ -552,10 +552,12 @@ object JdbcHelpers extends LazyLogging {
           case Some(properties) => SinglestoreConnectionPool.getConnection(properties)
           case None =>
             if (conf.version.atLeast("7.3.0")) {
-              throw new Exception("")
+              throw new IllegalArgumentException(
+                "Can’t create a table. Please, provide endpoint to Master Aggregator using adminEndpoint option.")
             } else {
-              throw new Exception("")
-            } // TODO PLAT-5918
+              throw new IllegalArgumentException(
+                "Can’t create a table. Please, provide endpoint to Master Aggregator using adminEndpoint option or enable  sync_permissions engine variable.")
+            }
         }
       }
 
@@ -569,7 +571,6 @@ object JdbcHelpers extends LazyLogging {
     }
 
     try {
-
       if (JdbcHelpers.tableExists(conn, table)) {
         mode match {
           case SaveMode.Overwrite =>

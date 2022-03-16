@@ -139,7 +139,12 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
     val conn = SinglestoreConnectionPool.getConnection(if (isReferenceTable) {
       JdbcHelpers.getAdminConnProperties(conf, isOnExecutor = true) match {
         case Some(properties) => properties
-        case None             => throw new Exception("") // TODO PLAT-5918
+        case None =>
+          throw new IllegalArgumentException(
+            s"Table ${table.quotedString} is a reference table.\n" +
+              "Admin endpoint is required to write data to the reference table.\n" +
+              "Please, provide endpoint to Master Aggregator using adminEndpoint option.")
+
       }
     } else {
       JdbcHelpers.getClusterConnProperties(conf, isOnExecutor = true)

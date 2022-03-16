@@ -40,9 +40,16 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
         rdd.query,
         rdd.variables,
         rdd.schema,
-        if (rdd.singlestoreVersion.atLeast("7.5.0") && !rdd.singlestoreVersion.atLeast("7.6.0")) {
+        if (rdd.options.version.atLeast("7.5.0") && !rdd.options.version.atLeast("7.6.0")) {
           // TODO !!!
-          getAdminConnProperties(rdd.options, isOnExecutor = false).get
+          getAdminConnProperties(rdd.options, isOnExecutor = false) match {
+            case Some(properties) => properties
+            case None             =>
+              // this should not actually happen as parallel read should be disabled in this case
+              // and the error should be thrown from the SinglestorePartitioner
+              throw new IllegalArgumentException(
+                "Parallel read from the aggregators requires admin endpoint. Please, provide endpoint to Master Aggregator using adminEndpoint option.")
+          }
         } else {
           getClusterConnProperties(rdd.options, isOnExecutor = false)
         },

@@ -28,8 +28,6 @@ case class SinglestoreRDD(query: String,
 
   val applicationId: String = sc.applicationId
 
-  lazy val singlestoreVersion: SinglestoreVersion = options.version
-
   val aggregatorParallelReadUsed: Boolean =
     parallelReadType.contains(ReadFromAggregators) ||
       parallelReadType.contains(ReadFromAggregatorsMaterialized)

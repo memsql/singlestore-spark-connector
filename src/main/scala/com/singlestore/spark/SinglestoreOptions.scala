@@ -239,7 +239,7 @@ object SinglestoreOptions extends LazyLogging {
     val clusterEndpoints = options
       .get(CLUSTER_ENDPOINTS)
       .orElse(options.get(DML_ENDPOINTS))
-      .orElse(options.get(DML_ENDPOINTS))
+      .orElse(options.get(DDL_ENDPOINT))
     require(
       clusterEndpoints.isDefined,
       s"Option '$CLUSTER_ENDPOINTS' is required."

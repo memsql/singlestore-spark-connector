@@ -4,7 +4,7 @@ import java.sql.SQLException
 import java.util.Properties
 
 import com.singlestore.spark.JdbcHelpers.{getAdminConnProperties, getClusterConnProperties}
-import com.singlestore.spark.SQLGen.{SinglestoreVersion, VariableList}
+import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.scheduler.MaxNumConcurrentTasks
 import org.apache.spark.Partition
 import spray.json.DeserializationException
@@ -140,7 +140,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   private lazy val databasePartitionCount: Int = {
     val conn =
       SinglestoreConnectionPool.getConnection(
-        JdbcHelpers.getClusterConnProperties(options, isOnExecutor = false))
+        getClusterConnProperties(options, isOnExecutor = false))
     try {
       JdbcHelpers.getPartitionsCount(conn, options.database.get)
     } finally {
@@ -156,7 +156,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
           SinglestorePartition(index,
                                rdd.query,
                                rdd.variables,
-                               JdbcHelpers.getClusterConnProperties(options, isOnExecutor = true))
+                               getClusterConnProperties(options, isOnExecutor = true))
             .asInstanceOf[Partition]))
 
   private lazy val readFromLeavesPartitions: Option[Array[Partition]] = {
@@ -165,7 +165,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
       JdbcHelpers.explainJSONQuery(options, rdd.query, rdd.variables).parseJson
     val partitions = JdbcHelpers.partitionHostPorts(options, options.database.head)
     val partitionHostPorts = {
-      if (rdd.singlestoreVersion.atLeast(minimalExternalHostVersion)) {
+      if (options.version.atLeast(minimalExternalHostVersion)) {
         val externalHostMap = JdbcHelpers.externalHostPorts(options)
         var isValid         = true
         val externalPartitions = partitions.flatMap(p => {
@@ -193,10 +193,10 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   private lazy val readFromAggregatorsMaterializedPartitions: Option[Array[Partition]] = {
     val connProperties =
       // Only MA is able to create result table for parallel read from aggregators in 7.5 version of S2
-      if (rdd.singlestoreVersion.atLeast("7.5.0") && !rdd.singlestoreVersion.atLeast("7.6.0")) {
-        JdbcHelpers.getAdminConnProperties(options, isOnExecutor = true)
+      if (options.version.atLeast("7.5.0") && !options.version.atLeast("7.6.0")) {
+        getAdminConnProperties(options, isOnExecutor = true)
       } else {
-        Some(JdbcHelpers.getClusterConnProperties(options, isOnExecutor = true))
+        Some(getClusterConnProperties(options, isOnExecutor = true))
       }
 
     connProperties match {
@@ -235,10 +235,10 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
   private lazy val readFromAggregatorsPartitions: Option[Array[Partition]] = {
     val connProperties =
       // Only MA is able to create result table for parallel read from aggregators in 7.5 version of S2
-      if (rdd.singlestoreVersion.atLeast("7.5.0") && !rdd.singlestoreVersion.atLeast("7.6.0")) {
-        JdbcHelpers.getAdminConnProperties(options, isOnExecutor = true)
+      if (options.version.atLeast("7.5.0") && !options.version.atLeast("7.6.0")) {
+        getAdminConnProperties(options, isOnExecutor = true)
       } else {
-        Some(JdbcHelpers.getClusterConnProperties(options, isOnExecutor = true))
+        Some(getClusterConnProperties(options, isOnExecutor = true))
       }
 
     connProperties match {
@@ -287,7 +287,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
         SinglestorePartition(0,
                              rdd.query,
                              rdd.variables,
-                             JdbcHelpers.getClusterConnProperties(options, isOnExecutor = true))
+                             getClusterConnProperties(options, isOnExecutor = true))
           .asInstanceOf[Partition]))
 
   private def getPartitions(parallelReadType: ParallelReadType): Option[Array[Partition]] =

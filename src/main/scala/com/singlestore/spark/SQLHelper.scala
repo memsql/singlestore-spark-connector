@@ -37,7 +37,9 @@ object SQLHelper extends LazyLogging {
       val conn = if (queryAdmin) {
         val properties = getAdminConnProperties(conf, isOnExecutor = false) match {
           case Some(properties) => properties
-          case None             => throw new Exception("") // TODO PLAT-5918
+          case None =>
+            throw new IllegalArgumentException(
+              "adminEndpoint option is required in order to perform this operation")
         }
         SinglestoreConnectionPool.getConnection(properties)
       } else {
