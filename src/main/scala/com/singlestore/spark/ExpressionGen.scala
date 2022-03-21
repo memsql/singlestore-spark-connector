@@ -597,6 +597,23 @@ object ExpressionGen extends LazyLogging {
                      expressionExtractor(len)) =>
         f("SUBSTR", str, pos, len)
 
+      case Overlay(expressionExtractor(input),
+                   expressionExtractor(replace),
+                   expressionExtractor(pos),
+                   expressionExtractor(len)) =>
+        f(
+          "IF",
+          op("<", len, IntVar(0)),
+          f("CONCAT",
+            f("LEFT", input, op("-", pos, "1")),
+            replace,
+            f("SUBSTR", input, op("+", f("LENGTH", replace), pos))),
+          f("CONCAT",
+            f("LEFT", input, op("-", pos, "1")),
+            replace,
+            f("SUBSTR", input, op("+", pos, len)))
+        )
+
       // TODO: case StringTranslate(expressionExtractor(srcExpr), expressionExtractor(matchingExpr), expressionExtractor(replaceExpr)) => ???
 
       // ----------------------------------
@@ -770,8 +787,7 @@ object ExpressionGen extends LazyLogging {
 
       case versionSpecificExpressionGen(child) => child
 
-      case Uuid(_)
-        if context.singlestoreVersionAtLeast("7.5.0")  => "UUID()"
+      case Uuid(_) if context.singlestoreVersionAtLeast("7.5.0") => "UUID()"
 
       // TODO: case InitCap(expressionExtractor(child)) => ???
       // TODO: case StringReverse(expressionExtractor(child)) => ???
