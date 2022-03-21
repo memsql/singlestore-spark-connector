@@ -3240,6 +3240,60 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
+    describe("StringOverlay") {
+      it("works") {
+        testQuery("select id, overlay(email placing '#Glory_To_Ukraine#' from 9) from users")
+      }
+      it("works with non-empty len") {
+        testQuery("select id, overlay(email placing '#Ukraine#' from 9 for 3) from users")
+      }
+      it("works with comma separated arguments") {
+        testQuery("select id, overlay(email, '#Glory_To_Ukraine#', 9, 6) from users")
+      }
+      it("works when second argument is not literal") {
+        testQuery("select id, overlay(email, last_name, 3, 4) from users")
+      }
+      it("works with negative len") {
+        testQuery("select id, overlay(email placing '#Glory_To_Ukraine#' from 9 for -3) from users")
+      }
+      it("works with negative position") {
+        testQuery("select id, overlay(email placing first_name from -2 for 0) from users_sample")
+      }
+      it("works with len is zero") {
+        testQuery("select id, overlay(email, '#Heroyam_Slava#', 3, 0) from users")
+      }
+      it("works with len is negative") {
+        testQuery("select id, overlay(email, '#SLAVA_ZSY#', 3, -4) from users")
+      }
+      it("works with len is a string") {
+        testQuery("select id, overlay(email, '#SLAVA_ZSY#', 3, '2') from users")
+      }
+      it("works with len is greater than len of replacing string") {
+        testQuery("select id, overlay(email placing last_name from 3 for 10) from users")
+      }
+      it("works with pos is greater than input string string") {
+        testQuery("select id, overlay(email, '#Slava_Ukraini#', 70, 3) from users")
+      }
+      it("works when pos is not literal") {
+        testQuery("select id, overlay(email, '#PTHPNH#', age) from users")
+      }
+      it("works when len is not literal") {
+        testQuery("select id, overlay(email, '#Heroyam_Slava#', 3, id) from users")
+      }
+      it("udf in the first argument") {
+        testQuery("select id, overlay(stringIdentity(email), '#Heroyam_Slava#', 3, 4) from users",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the 'pos' argument") {
+        testQuery("select id, overlay(email, '#StandWithUkraine#', stringIdentity(age), 4) from users",
+          expectPartialPushdown = true)
+      }
+      it("udf in the 'len' argument") {
+        testQuery("select id, overlay(email, '#ZePresident#', 3, stringIdentity(id)) from users",
+          expectPartialPushdown = true)
+      }
+    }
+
     describe("SubstringIndex") {
       it("works with negative count") {
         testQuery("select id, substring_index(critic_review, ' ', -100) from movies")

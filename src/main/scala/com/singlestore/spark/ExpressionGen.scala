@@ -607,6 +607,23 @@ object ExpressionGen extends LazyLogging {
                      expressionExtractor(len)) =>
         f("SUBSTR", str, pos, len)
 
+      case Overlay(expressionExtractor(input),
+                   expressionExtractor(replace),
+                   expressionExtractor(pos),
+                   expressionExtractor(len)) =>
+        f(
+          "IF",
+          op("<", len, IntVar(0)),
+          f("CONCAT",
+            f("LEFT", input, op("-", pos, "1")),
+            replace,
+            f("SUBSTR", input, op("+", f("LENGTH", replace), pos))),
+          f("CONCAT",
+            f("LEFT", input, op("-", pos, "1")),
+            replace,
+            f("SUBSTR", input, op("+", pos, len)))
+        )
+
       // TODO: case StringTranslate(expressionExtractor(srcExpr), expressionExtractor(matchingExpr), expressionExtractor(replaceExpr)) => ???
 
       // ----------------------------------
