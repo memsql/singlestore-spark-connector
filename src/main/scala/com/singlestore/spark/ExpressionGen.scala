@@ -624,7 +624,27 @@ object ExpressionGen extends LazyLogging {
             f("SUBSTR", input, op("+", pos, len)))
         )
 
-      // TODO: case StringTranslate(expressionExtractor(srcExpr), expressionExtractor(matchingExpr), expressionExtractor(replaceExpr)) => ???
+      case StringTranslate(expressionExtractor(srcExpr),
+                           utf8StringFoldableExtractor(matchingExpr),
+                           utf8StringFoldableExtractor(replaceExpr)) => {
+        var replaceContent  = srcExpr
+        val replaceExprLen  = replaceExpr.toString.length
+        val matchingExprLen = matchingExpr.toString.length
+        for (i <- 0 to Math.max(replaceExprLen, matchingExprLen) - 1) {
+          val matchingCurrCharacter = if (i < matchingExprLen) {
+            s"'${matchingExpr.toString.charAt(i)}'"
+          } else {
+            "''"
+          }
+          val replaceCurrCharacter = if (i < replaceExprLen) {
+            s"'${replaceExpr.toString.charAt(i)}'"
+          } else {
+            "''"
+          }
+          replaceContent = f("REPLACE", replaceContent, matchingCurrCharacter, replaceCurrCharacter)
+        }
+        replaceContent
+      }
 
       // ----------------------------------
       // Unary Expressions
