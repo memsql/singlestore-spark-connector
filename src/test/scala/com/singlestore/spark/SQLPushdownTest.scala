@@ -3365,6 +3365,37 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
+    describe("StringTranslate") {
+      it("works") {
+        testQuery("select id, translate(email, 'com', '123') from users")
+      }
+      it("works when 'from' argument is longer than 'to'") {
+        testQuery("select id, translate(email, 'coma', '123') from users")
+      }
+      it("works when 'to' argument is longer than 'from'") {
+        testQuery("select id, translate(email, 'com', '1234') from users")
+      }
+      it("works when 'from' argument is empty") {
+        testQuery("select id, translate(email, '', '123') from users")
+      }
+      it("works when 'to' argument is empty") {
+        testQuery("select id, translate(email, 'abb', '') from users")
+      }
+      it("works when both 'from' and 'to' arguments are empty") {
+        testQuery("select id, translate(email, '', '') from users")
+      }
+      it("partial pushdown when the second argument is not literal"){
+        testQuery("select id, translate(email, last_name, '1234') from users", expectPartialPushdown = true)
+      }
+      it("partial pushdown when the third argument is not literal"){
+        testQuery("select id, translate(email, 'com', last_name) from users", expectPartialPushdown = true)
+      }
+      it("udf in the first argument") {
+        testQuery("select id, translate(stringIdentity(email), '@', '#') from users",
+          expectPartialPushdown = true)
+      }
+    }
+
     describe("Upper") {
       it("works") {
         testQuery("select id, upper(critic_review) from movies")

@@ -597,7 +597,27 @@ object ExpressionGen extends LazyLogging {
                      expressionExtractor(len)) =>
         f("SUBSTR", str, pos, len)
 
-      // TODO: case StringTranslate(expressionExtractor(srcExpr), expressionExtractor(matchingExpr), expressionExtractor(replaceExpr)) => ???
+      case StringTranslate(expressionExtractor(srcExpr),
+                           utf8StringFoldableExtractor(matchingExpr),
+                           utf8StringFoldableExtractor(replaceExpr)) => {
+        var replaceContent  = srcExpr
+        val replaceExprLen  = replaceExpr.toString.length
+        val matchingExprLen = matchingExpr.toString.length
+        for (i <- 0 to Math.max(replaceExprLen, matchingExprLen) - 1) {
+          val matchingCurrCharacter = if (i < matchingExprLen) {
+            s"'${matchingExpr.toString.charAt(i)}'"
+          } else {
+            "''"
+          }
+          val replaceCurrCharacter = if (i < replaceExprLen) {
+            s"'${replaceExpr.toString.charAt(i)}'"
+          } else {
+            "''"
+          }
+          replaceContent = f("REPLACE", replaceContent, matchingCurrCharacter, replaceCurrCharacter)
+        }
+        replaceContent
+      }
 
       // ----------------------------------
       // Unary Expressions
@@ -756,10 +776,10 @@ object ExpressionGen extends LazyLogging {
       case Upper(expressionExtractor(child)) => f("UPPER", child)
       case Lower(expressionExtractor(child)) => f("LOWER", child)
       case Left(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
-       f("LEFT", str, len, child)
+        f("LEFT", str, len, child)
       case Right(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
         f("RIGHT", str, len, child)
-      case ConcatWs(expressionExtractor(Some(child)))   => f("CONCAT_WS", child)
+      case ConcatWs(expressionExtractor(Some(child))) => f("CONCAT_WS", child)
 
       case StringSpace(expressionExtractor(child)) =>
         f("LPAD", StringVar(""), child, StringVar(" "))
