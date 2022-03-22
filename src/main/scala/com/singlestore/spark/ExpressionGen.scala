@@ -340,6 +340,17 @@ object ExpressionGen extends LazyLogging {
             frameSpec
         )
 
+      case FindInSet(expressionExtractor(left), utf8StringFoldableExtractor(right))
+          if right != UTF8String.fromString(" ") => {
+        val str_array    = right.toString.split(',')
+        var caseBranches = stringToJoinable("")
+        for (i <- 1 to str_array.length) {
+          caseBranches += Raw(s"WHEN '${str_array(i - 1)}'")
+          caseBranches += Raw(s"THEN '${i.toString}'")
+        }
+        block(Raw("CASE") + left + caseBranches + Raw("ELSE 0 END"))
+      }
+
       case UnspecifiedFrame => ""
 
       case SpecifiedWindowFrame(frameType,
@@ -770,8 +781,7 @@ object ExpressionGen extends LazyLogging {
 
       case versionSpecificExpressionGen(child) => child
 
-      case Uuid(_)
-        if context.singlestoreVersionAtLeast("7.5.0")  => "UUID()"
+      case Uuid(_) if context.singlestoreVersionAtLeast("7.5.0") => "UUID()"
 
       // TODO: case InitCap(expressionExtractor(child)) => ???
       // TODO: case StringReverse(expressionExtractor(child)) => ???

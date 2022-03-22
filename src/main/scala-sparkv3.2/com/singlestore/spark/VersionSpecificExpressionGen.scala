@@ -54,7 +54,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
 
     case IntegralDivide(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(f("FLOOR", op("/", left, right)))
-
+case Overlay()
     // arithmetic.scala
     case Add(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("+", left, right))
