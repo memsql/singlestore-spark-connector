@@ -3049,12 +3049,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("FindInSet") {
       it("works") {
-        testQuery(
-          "select id, find_in_set(id, '82, 1,13,54,28,39,42, owns_house,120') from users")
+        testQuery("select id, find_in_set(id, '82, 1,13,54,28,39,42, owns_house,120') from users")
       }
       it("constant example") {
-        testQuery(
-          "select id, find_in_set('39', '1,2,3990, 13,28,39,42,54,82,120') from users")
+        testQuery("select id, find_in_set('39', '1,2,3990, 13,28,39,42,54,82,120') from users")
       }
       it("works with empty left argument") {
         testQuery("select find_in_set('', '1,2,3') from users")
@@ -3071,8 +3069,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                   expectPartialPushdown = true)
       }
       it("joinable object in the right argument") {
-        testQuery("select find_in_set(critic_review, id) from movies",
-          expectPartialPushdown = true)
+        testQuery("select find_in_set(critic_review, id) from movies", expectPartialPushdown = true)
       }
     }
 
@@ -3390,6 +3387,24 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("udf in the third argument") {
         testQuery("select id, substring(critic_review, 5, stringIdentity(4)) from movies",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("Initcap") {
+      it("works") {
+        // Here we don't expect same result as spark implementation of `initcap` method
+        // does not define as the beginning of a word that is enclosed in quotation marks / brackets, etc.
+        testQuery("select id, initcap(critic_review) from movies", expectSameResult = false)
+      }
+      it("same result on simple text") {
+        testQuery("select id, initcap(favorite_color) from users")
+      }
+      it("works with ints") {
+        testQuery("select id, initcap(id) from movies")
+      }
+      it("partial pushdown whith udf") {
+        testQuery("select id, initcap(stringIdentity(critic_review)) from movies",
                   expectPartialPushdown = true)
       }
     }
