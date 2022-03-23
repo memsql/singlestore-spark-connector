@@ -609,7 +609,10 @@ Happy querying!
  * `Conv` works differently if the number contains non alphanumeric characters
  * `ShiftLeft`, `ShiftRight` and `ShiftRightUnsigned` converts the value to the UNSIGNED BIGINT and then produces the shift
  In the case of overflow, it returns 0 (`1<<64` = `0` and `10>>20` = `0`)
- * `BitwiseGet` BitwiseGet returns 0 when the bit position is negative or exceeds the bit upper limit
+ * `BitwiseGet` returns 0 when the bit position is negative or exceeds the bit upper limit
+ * `Initcap` defines a letter as the beginning of a word even if it is enclosed in quotation marks / brackets, etc. For example "dear sir/madam (miss)" will be casted to "Dear Sir/Madam (Miss)"
+
+
 
 ## Major changes from the 2.0.0 connector
 
