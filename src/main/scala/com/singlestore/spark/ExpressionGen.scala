@@ -654,6 +654,7 @@ object ExpressionGen extends LazyLogging {
       case WeekDay(expressionExtractor(child))     => f("WEEKDAY", child)
       case WeekOfYear(expressionExtractor(child))  => f("WEEK", child, "3")
       case LastDay(expressionExtractor(startDate)) => f("LAST_DAY", startDate)
+      case Now()                                   => f("NOW")
 
       //    case DatePart(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child)) => // Converts to CAST(field)
       //    case Extract(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child))  => // Converts to CAST(field)

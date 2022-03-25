@@ -2928,9 +2928,45 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("CurrentDate") {
       testQuery("select current_date() from users", expectSameResult = false)
     }
-
-    it("CurrentTimestamp") {
+    it("Now") {
+      testQuery("select now() from users", expectSameResult = false)
+    }
+    it("DateFromUnixDate", ExcludeFromSpark30) {
+      testQuery("select date_from_unix_date(1234567) from users")
+    }
+    it("CurrentTimestamp", ExcludeFromSpark30) {
       testQuery("select current_timestamp() from users", expectSameResult = false)
+    }
+
+    describe("UnixDate") {
+      it("Simple query, one day after epoch", ExcludeFromSpark30) {
+        testQuery("select unix_date(date('1970-01-02')) from users")
+      }
+      it("works", ExcludeFromSpark30) {
+        testQuery("select unix_date(birthday) from users")
+      }
+      it("partial pushdown", ExcludeFromSpark30) {
+        testQuery("select unix_date(date(stringIdentity(birthday))) from users",
+                  expectPartialPushdown = true)
+      }
+    }
+
+    describe("unix seconds functions") {
+      val functions = Seq("unix_seconds", "unix_micros", "unix_millis")
+      it("works with timestamp", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(created) from reviews")
+        }
+      }
+
+      it("partial pushdown", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(timestamp(stringIdentity(created))) from reviews",
+                    expectPartialPushdown = true)
+        }
+      }
     }
 
     describe("timestamp parts functions") {
