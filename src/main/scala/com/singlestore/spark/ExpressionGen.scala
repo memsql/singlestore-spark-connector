@@ -637,6 +637,7 @@ object ExpressionGen extends LazyLogging {
       case WeekDay(expressionExtractor(child))     => f("WEEKDAY", child)
       case WeekOfYear(expressionExtractor(child))  => f("WEEK", child, "3")
       case LastDay(expressionExtractor(startDate)) => f("LAST_DAY", startDate)
+      case Now()                                   => f("NOW")
 
       //    case DatePart(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child)) => // Converts to CAST(field)
       //    case Extract(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child))  => // Converts to CAST(field)
@@ -766,10 +767,10 @@ object ExpressionGen extends LazyLogging {
       case Upper(expressionExtractor(child)) => f("UPPER", child)
       case Lower(expressionExtractor(child)) => f("LOWER", child)
       case Left(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
-       f("LEFT", str, len, child)
+        f("LEFT", str, len, child)
       case Right(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
         f("RIGHT", str, len, child)
-      case ConcatWs(expressionExtractor(Some(child)))   => f("CONCAT_WS", child)
+      case ConcatWs(expressionExtractor(Some(child))) => f("CONCAT_WS", child)
 
       case StringSpace(expressionExtractor(child)) =>
         f("LPAD", StringVar(""), child, StringVar(" "))

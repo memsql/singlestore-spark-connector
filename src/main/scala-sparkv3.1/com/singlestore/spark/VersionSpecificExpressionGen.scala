@@ -163,6 +163,12 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
           )
         ))
 
+    case DateFromUnixDate(expressionExtractor(child)) => Some(f("FROM_UNIXTIME", child))
+    case UnixDate(expressionExtractor(child)) => Some(f("TIMESTAMPDIFF", "DAY", "'1970-01-01'",  child))
+    case UnixSeconds(expressionExtractor(child)) => Some(f("TIMESTAMPDIFF", "SECOND", "'1970-01-01 00:00:00'",  child))
+    case UnixMicros(expressionExtractor(child)) => Some(f("TIMESTAMPDIFF", "MICROSECOND", "'1970-01-01 00:00:00'",  child))
+    case UnixMillis(expressionExtractor(child)) => Some(f("ROUND", op("/",  f("TIMESTAMPDIFF", "MICROSECOND", "'1970-01-01 00:00:00'",  child), "1000")))
+
     case NextDay(expressionExtractor(startDate), expressionExtractor(dayOfWeek)) =>
       Some(
         computeNextDay(startDate,
@@ -171,6 +177,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
                          DAYS_OF_WEEK_OFFSET_MAP,
                          StringVar(null)
                        )))
+
 
     case Lead(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
       Some(f("LEAD", input, offset))
