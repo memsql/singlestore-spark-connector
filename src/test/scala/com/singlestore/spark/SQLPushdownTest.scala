@@ -2969,6 +2969,31 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
+    describe("converting (milli/micro)seconds to timestamp functions") {
+      val functions = Seq("timestamp_seconds", "timestamp_millis", "timestamp_micros")
+      it("works", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select created, $f(user_id) from reviews")
+        }
+      }
+
+      it("works with negative data", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(-movie_id) from reviews")
+        }
+      }
+
+      it("partial pushdown", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select $f(int(stringIdentity(id))) from users",
+            expectPartialPushdown = true)
+        }
+      }
+    }
+
     describe("timestamp parts functions") {
       val functions = Seq("Hour",
                           "Minute",
@@ -3321,12 +3346,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                   expectPartialPushdown = true)
       }
       it("udf in the 'pos' argument") {
-        testQuery("select id, overlay(email, '#StandWithUkraine#', stringIdentity(age), 4) from users",
+        testQuery(
+          "select id, overlay(email, '#StandWithUkraine#', stringIdentity(age), 4) from users",
           expectPartialPushdown = true)
       }
       it("udf in the 'len' argument") {
         testQuery("select id, overlay(email, '#ZePresident#', 3, stringIdentity(id)) from users",
-          expectPartialPushdown = true)
+                  expectPartialPushdown = true)
       }
     }
 
