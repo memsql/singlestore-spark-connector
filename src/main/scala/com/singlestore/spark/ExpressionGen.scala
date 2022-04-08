@@ -679,6 +679,26 @@ object ExpressionGen extends LazyLogging {
         f("SHA2", left, right.toString)
       case Crc32(expressionExtractor(child)) => f("CRC32", child)
 
+      //jsonExpressions.scala
+      case GetJsonObject(expressionExtractor(json), utf8StringFoldableExtractor(path))
+        if path.toString.length >= 2 & path.toString.substring(0, 2) == "$."  => {
+          val pathParties = path.toString.substring(2).split("\\.")
+          val goalPath    = pathParties.last
+          var jsonQuery   = json
+          for (i <- 0 to (pathParties.length - 2)) {
+            jsonQuery = f("JSON_EXTRACT_JSON", jsonQuery, StringVar(pathParties(i)))
+          }
+          f(
+            "IF",
+            op("=",
+               f("JSON_GET_TYPE", f("JSON_EXTRACT_JSON", jsonQuery, StringVar(goalPath))),
+               "'string'"),
+            f("JSON_EXTRACT_STRING", jsonQuery, StringVar(goalPath)),
+            f("JSON_EXTRACT_JSON", jsonQuery, StringVar(goalPath))
+          )
+
+        }
+
       // mathExpressions.scala
       case Acos(expressionExtractor(child))      => f("ACOS", child)
       case Asin(expressionExtractor(child))      => f("ASIN", child)

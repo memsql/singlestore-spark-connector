@@ -172,6 +172,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case MillisToTimestamp(expressionExtractor(child)) => Some(f("TIMESTAMPADD", "MICROSECOND", op("*", child, "1000"),  "'1970-01-01 00:00:00'"))
     case MicrosToTimestamp(expressionExtractor(child)) => Some(f("TIMESTAMPADD", "MICROSECOND", child,  "'1970-01-01 00:00:00'"))
 
+    case LengthOfJsonArray(expressionExtractor(child)) => Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
 
     case NextDay(expressionExtractor(startDate), expressionExtractor(dayOfWeek)) =>
       Some(

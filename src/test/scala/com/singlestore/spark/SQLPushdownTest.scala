@@ -59,6 +59,17 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                  .load("testdb.users")
                  .sample(0.5)
                  .limit(10))
+
+    val movieRatingSchema = StructType(
+      StructField("id", LongType)
+        :: StructField("movie_rating", StringType)
+        :: StructField("same_rate_movies", StringType)
+        :: Nil)
+
+    writeTable(
+      "testdb.movies_rating",
+      spark.read.schema(movieRatingSchema).json("src/test/resources/data/movies_rating.json"))
+
   }
 
   override def beforeEach(): Unit = {
@@ -80,6 +91,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     makeTables("users")
     makeTables("users_sample")
     makeTables("movies")
+    makeTables("movies_rating")
     makeTables("reviews")
 
     spark.udf.register("stringIdentity", (s: String) => s)
@@ -2988,8 +3000,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("partial pushdown", ExcludeFromSpark30) {
         for (f <- functions) {
           log.debug(s"testing $f")
-          testQuery(s"select $f(int(stringIdentity(id))) from users",
-            expectPartialPushdown = true)
+          testQuery(s"select $f(int(stringIdentity(id))) from users", expectPartialPushdown = true)
         }
       }
     }
@@ -3921,6 +3932,65 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     it("top-level sort") {
       testQuery("select id from users order by id", expectSingleRead = true, alreadyOrdered = true)
+    }
+  }
+
+  describe("json functions") {
+    describe("GetJsonObject") {
+      it("works with strings") {
+        testQuery(
+          "select id, get_json_object(movie_rating, '$.title') as get_j from movies_rating"
+        )
+      }
+      it("works with int") {
+        testQuery(
+          "select id, get_json_object(movie_rating, '$.movie_id') as get_j from movies_rating")
+      }
+      it("works with booleans") {
+        testQuery("select id, get_json_object(movie_rating, '$.3D') as get_j from movies_rating")
+      }
+      it("works with arrays") {
+        testQuery(
+          "select id, get_json_object(movie_rating, '$.reviews') as get_j from movies_rating")
+      }
+      it("works with nested json") {
+        testQuery(
+          "select id, get_json_object(movie_rating, '$.timetable.hall') as get_j from movies_rating")
+      }
+      it("works with nested json string") {
+        testQuery(
+          "select id, get_json_object(movie_rating, '$.timetable.day') as get_j from movies_rating")
+      }
+      it("non-existing  path") {
+        testQuery(
+          "select id, get_json_object(movie_rating, '$.nonexistingPath') as get_j from movies_rating")
+      }
+      it("invalid path") {
+        testQuery("select id, get_json_object(movie_rating, 'rating') as get_j from movies_rating",
+                  expectPartialPushdown = true)
+      }
+      it("udf in the first argument") {
+        testQuery(
+          "select id, get_json_object(stringIdentity(movie_rating), '$.title') as get_j from movies_rating",
+          expectPartialPushdown = true)
+      }
+      it("udf in the second argument") {
+        testQuery(
+          "select id, get_json_object(movie_rating, stringIdentity('$.title')) as get_j from movies_rating",
+          expectPartialPushdown = true)
+      }
+    }
+
+    describe("LengthOfJsonArray") {
+      it("works", ExcludeFromSpark30) {
+        testQuery("select id, json_array_length(same_rate_movies) from movies_rating")
+      }
+      it("udf", ExcludeFromSpark30) {
+        testQuery(
+          "select id, json_array_length(stringIdentity(same_rate_movies)) from movies_rating",
+          expectPartialPushdown = true)
+      }
+
     }
   }
 
