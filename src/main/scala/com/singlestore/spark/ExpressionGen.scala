@@ -193,9 +193,6 @@ object ExpressionGen extends LazyLogging {
           VersionSpecificAggregateExpressionExtractor(expressionExtractor, context, filter)
 
         arg.aggregateFunction match {
-          // TODO: case Skewness(expressionExtractor(child))     => ???
-          // TODO: case Kurtosis(expressionExtractor(child))     => ???
-
           case Count(expression) =>
             (expression, arg.isDistinct, filter) match {
               case (expressionExtractor(None), false, filter) =>

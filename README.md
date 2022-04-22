@@ -595,11 +595,11 @@ Happy querying!
 
 ## SQL Pushdown Incompatibilities
  * `ToUnixTimestamp` and `UnixTimestamp` handle only time less then `2038-01-19 03:14:08`, if they get `DateType` or `TimestampType` as a first argument
- * `FromUnixTime` with default format (`yyyy-MM-dd HH:mm:ss`) handle only time less then `2147483648` (`2^31`)
+ * `FromUnixTime` with default format (`yyyy-MM-dd HH:mm:ss`) handle only time less than `2147483648` (`2^31`)
  * `DecimalType` on the overflow is truncated (by default spark either throws exception or returns null)
  * `greatest` and `least` return null if at least one argument is null (in spark these functions skip nulls)
  * When value can not be converted to numeric or fractional type MemSQL returns 0 (spark returns `null`)
- * `Atanh(x)`, for x ∈ (-∞, -1] ∪ [1, ∞) retuns, `null` (spark returns `NaN`)
+ * `Atanh(x)`, for x ∈ (-∞, -1] ∪ [1, ∞) returns, `null` (spark returns `NaN`)
  * When string is casted to numeric type, singlestore takes the prefix of it which is numeric (spark returns `null` if the whole string is not numeric)
  * When numeric type is casted to the smaller one singlestore truncates it. For example `500` casted to the Byte will be `127`
  Note: spark optimizer can optimize casts for literals and then behaviour for them will match custom spark behaviour
@@ -611,7 +611,7 @@ Happy querying!
  In the case of overflow, it returns 0 (`1<<64` = `0` and `10>>20` = `0`)
  * `BitwiseGet` returns 0 when the bit position is negative or exceeds the bit upper limit
  * `Initcap` defines a letter as the beginning of a word even if it is enclosed in quotation marks / brackets, etc. For example "dear sir/madam (miss)" will be casted to "Dear Sir/Madam (Miss)"
-
+ * `Skewness(x)`, in Spark 3.0, for `STD(x) = 0` returns `null` instead of `NaN`
 
 
 ## Major changes from the 2.0.0 connector
