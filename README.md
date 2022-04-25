@@ -617,8 +617,7 @@ Happy querying!
  * `BitwiseGet` returns 0 when the bit position is negative or exceeds the bit upper limit
  * `Initcap` defines a letter as the beginning of a word even if it is enclosed in quotation marks / brackets, etc. For example "dear sir/madam (miss)" will be casted to "Dear Sir/Madam (Miss)"
  * `Skewness(x)`, in Spark 3.0, for `STD(x) = 0` returns `null` instead of `NaN`
-
-
+ 
 ## Major changes from the 2.0.0 connector
 
 The SingleStore Spark Connector 4.0.0 has a number of key features and enhancements:

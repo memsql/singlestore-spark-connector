@@ -215,6 +215,20 @@ object ExpressionGen extends LazyLogging {
           // TODO: case CovPopulation(expressionExtractor(left), expressionExtractor(right)) => ???
           // TODO: case CovSample(expressionExtractor(left), expressionExtractor(right))     => ???
 
+          case ApproximatePercentile(e @ expressionExtractor(child),
+                                     expressionExtractor(percentageExpression),
+                                     intFoldableExtractor(accuracyExpression),
+                                     _,
+                                     _)
+              if accuracyExpression != 1 &&
+                (e.dataType == IntegerType || e.dataType == DoubleType || e.dataType == LongType || e.dataType == FloatType) =>
+            Some(
+              f("APPROX_PERCENTILE",
+                child,
+                percentageExpression,
+                op("/", "1.0", accuracyExpression.toString))
+            )
+
           // Max.scala
           case Max(expressionExtractor(child)) =>
             Some(aggregateWithFilter("MAX", child, filter))

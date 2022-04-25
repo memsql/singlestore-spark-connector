@@ -233,11 +233,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   def testSingleReadQuery(q: String,
                           alreadyOrdered: Boolean = false,
                           expectPartialPushdown: Boolean = false,
+                          expectSameResult: Boolean = false,
                           pushdown: Boolean = true): Unit = {
     testQuery(q,
               alreadyOrdered = alreadyOrdered,
               expectPartialPushdown = expectPartialPushdown,
               expectSingleRead = true,
+              expectSameResult = expectSameResult,
               pushdown = pushdown)
   }
 
@@ -249,11 +251,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  def testSingleReadForOldS2(q: String, minVersion: SinglestoreVersion): Unit = {
+  def testSingleReadForOldS2(q: String,
+                             minVersion: SinglestoreVersion,
+                             expectSameResult: Boolean = true): Unit = {
     if (version.atLeast(minVersion) && canDoParallelReadFromAggregators) {
-      testQuery(q)
+      testQuery(q, expectSameResult = expectSameResult)
     } else {
-      testSingleReadQuery(q)
+      testSingleReadQuery(q, expectSameResult = expectSameResult)
     }
   }
 
@@ -1896,6 +1900,42 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           testSingleReadForOldS2(s"select $f(age) filter (where age % 2 = 0) from users",
                                  SinglestoreVersion(7, 6, 0))
         }
+      }
+    }
+    describe("approx percentile") {
+      it("ints") {
+        testSingleReadForOldS2(
+          "select percentile_approx(user_id, 0.35, 10000000) as percentile from reviews",
+          SinglestoreVersion(7, 6, 0))
+      }
+      it("double") {
+        testSingleReadForOldS2(
+          s"select percentile_approx(rating, 0.35, 10000) as percentile from reviews",
+          SinglestoreVersion(7, 6, 0))
+      }
+      it("date type") {
+        testSingleReadQuery(
+          s"select percentile_approx(birthday, 0.35, 10000) as percentile from users",
+          expectPartialPushdown = true)
+      }
+      it("timestamp type") {
+        testSingleReadQuery(
+          "select percentile_approx(created, 0.35, 10000) as percentile from reviews",
+          expectPartialPushdown = true)
+      }
+      // For some cases spark implementation of calculating approximate percentile is
+      // less accurate than singlestore one. The difference is not more than `1`, it happens
+      // because in spark percentile_approx operate with long type and casts float numbers to long one
+      // what lead to decrease in accuracy.
+      it("ints, bigger percentage arg") {
+        testSingleReadForOldS2(
+          "select percentile_approx(user_id, 0.4, 1000000) as percentile from reviews",
+          SinglestoreVersion(7, 6, 0),
+          expectSameResult = false)
+      }
+      it("accuracy = 1") {
+        testSingleReadQuery("select percentile_approx(created, 0.35, 1) as percentile from reviews",
+                            expectPartialPushdown = true)
       }
     }
 
