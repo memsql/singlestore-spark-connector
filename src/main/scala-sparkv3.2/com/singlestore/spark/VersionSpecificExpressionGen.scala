@@ -210,6 +210,12 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case BitwiseGet(expressionExtractor(left), expressionExtractor(right)) =>
       Some(op("&", op(">>", left, right), "1"))
 
+    case Randn(expressionExtractor(child), hideSeed) =>
+      if (!hideSeed) {
+        Some(f("RAND", child))
+      } else {
+        Some("RAND()")
+      }
     case _ => None
   }
 }

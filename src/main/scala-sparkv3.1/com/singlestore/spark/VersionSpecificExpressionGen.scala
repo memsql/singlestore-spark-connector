@@ -187,6 +187,13 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case Lag(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
       Some(f("LAG", input, offset))
 
+    case Randn(expressionExtractor(child), hideSeed) =>
+      if (!hideSeed) {
+        Some(f("RAND", child))
+      } else {
+        Some("RAND()")
+      }
+
     case _ => None
   }
 }

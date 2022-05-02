@@ -611,7 +611,8 @@ Happy querying!
  In the case of overflow, it returns 0 (`1<<64` = `0` and `10>>20` = `0`)
  * `BitwiseGet` returns 0 when the bit position is negative or exceeds the bit upper limit
  * `Initcap` defines a letter as the beginning of a word even if it is enclosed in quotation marks / brackets, etc. For example "dear sir/madam (miss)" will be casted to "Dear Sir/Madam (Miss)"
-
+ * `Randn` works only with constant seed argument of type `int` or `null`.
+Pushdown to Spark 3.0 does not support this function without seed argument(`randn()`).
 
 
 ## Major changes from the 2.0.0 connector

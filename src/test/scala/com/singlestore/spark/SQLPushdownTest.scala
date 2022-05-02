@@ -1530,6 +1530,66 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
+    describe("Randn") {
+      it("works without arguments", ExcludeFromSpark30) {
+        testQuery("select randn() from users", expectSameResult = false)
+      }
+      it("works with constant int seed argument") {
+        testQuery("select randn(3) from users", expectSameResult = false)
+      }
+      it("works with null argument") {
+        testQuery("select randn(null) from movies", expectSameResult = false)
+      }
+      it("does not work with not constant seed argument  for Spark 3.2", ExcludeFromSpark30, ExcludeFromSpark31) {
+        try {
+          testQuery("select randn(id) from users")
+        } catch {
+          case e: Throwable =>
+            if (e.toString.contains("Input argument to randn must be a constant")) {
+              None
+            } else {
+              throw e
+            }
+        }
+      }
+      it("does not work with not constant seed argument", ExcludeFromSpark32) {
+        try {
+          testQuery("select randn(id) from users")
+        } catch {
+          case e: Throwable =>
+            if (e.toString.contains("Input argument to randn must be an integer, long") && e.toString.contains("or null")) {
+              None
+            } else {
+              throw e
+            }
+        }
+      }
+      it("does not work with string seed argument") {
+        try {
+          testQuery("select randn('4') from users")
+        } catch {
+          case e: Throwable =>
+            if (e.toString.contains("not resolve 'randn('4')' due to data type mismatch: argument 1 requires (int or bigint) type, however, ''4'' is of string type")) {
+              None
+            } else {
+              throw e
+            }
+        }
+      }
+      it("does not work with float seed argument") {
+        try {
+          testQuery("select randn(1.2) from users")
+        } catch {
+          case e: Throwable =>
+            if (e.toString.contains("cannot resolve 'randn(1.2BD)' due to data type mismatch: argument 1 requires (int or bigint) type, however, '1.2BD' is of decimal(2,1) type")) {
+              None
+            } else {
+              throw e
+            }
+        }
+      }
+    }
+
     describe("Round") {
       // singlestore can round x.5 differently
       it("works with one argument") {

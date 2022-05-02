@@ -792,8 +792,6 @@ object ExpressionGen extends LazyLogging {
               expressionExtractor(falseValue)) =>
         f("IF", predicate, trueValue, falseValue)
 
-      // TODO: case Randn(expressionExtractor(child)) => ???
-
       // SortOrder.scala
       // in SingleStore, nulls always come first when direction = ascending
       case SortOrder(expressionExtractor(child), Ascending, NullsFirst, _) => block(child) + "ASC"
