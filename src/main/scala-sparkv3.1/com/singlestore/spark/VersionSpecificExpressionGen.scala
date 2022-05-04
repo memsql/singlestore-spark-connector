@@ -164,15 +164,22 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
         ))
 
     case DateFromUnixDate(expressionExtractor(child)) => Some(f("FROM_UNIXTIME", child))
-    case UnixDate(expressionExtractor(child)) => Some(f("TIMESTAMPDIFF", "DAY", "'1970-01-01'",  child))
-    case UnixSeconds(expressionExtractor(child)) => Some(f("TIMESTAMPDIFF", "SECOND", "'1970-01-01 00:00:00'",  child))
-    case UnixMicros(expressionExtractor(child)) => Some(f("TIMESTAMPDIFF", "MICROSECOND", "'1970-01-01 00:00:00'",  child))
-    case UnixMillis(expressionExtractor(child)) => Some(f("ROUND", op("/",  f("TIMESTAMPDIFF", "MICROSECOND", "'1970-01-01 00:00:00'",  child), "1000")))
-    case SecondsToTimestamp(expressionExtractor(child)) => Some(f("TIMESTAMPADD", "SECOND", child, "'1970-01-01 00:00:00'"))
-    case MillisToTimestamp(expressionExtractor(child)) => Some(f("TIMESTAMPADD", "MICROSECOND", op("*", child, "1000"),  "'1970-01-01 00:00:00'"))
-    case MicrosToTimestamp(expressionExtractor(child)) => Some(f("TIMESTAMPADD", "MICROSECOND", child,  "'1970-01-01 00:00:00'"))
-
-    case LengthOfJsonArray(expressionExtractor(child)) => Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
+    case UnixDate(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPDIFF", "DAY", "'1970-01-01'", child))
+    case UnixSeconds(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPDIFF", "SECOND", "'1970-01-01 00:00:00'", child))
+    case UnixMicros(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPDIFF", "MICROSECOND", "'1970-01-01 00:00:00'", child))
+    case UnixMillis(expressionExtractor(child)) =>
+      Some(
+        f("ROUND",
+          op("/", f("TIMESTAMPDIFF", "MICROSECOND", "'1970-01-01 00:00:00'", child), "1000")))
+    case SecondsToTimestamp(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPADD", "SECOND", child, "'1970-01-01 00:00:00'"))
+    case MillisToTimestamp(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPADD", "MICROSECOND", op("*", child, "1000"), "'1970-01-01 00:00:00'"))
+    case MicrosToTimestamp(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPADD", "MICROSECOND", child, "'1970-01-01 00:00:00'"))
 
     case NextDay(expressionExtractor(startDate), expressionExtractor(dayOfWeek)) =>
       Some(
@@ -182,11 +189,24 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
                          DAYS_OF_WEEK_OFFSET_MAP,
                          StringVar(null)
                        )))
-      
+
     case Lead(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
       Some(f("LEAD", input, offset))
     case Lag(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
       Some(f("LAG", input, offset))
+
+    case LikeAny(expressionExtractor(child), patterns) if patterns.size > 0 => {
+      Some(likePatterns(child, patterns, "OR"))
+    }
+    case NotLikeAny(expressionExtractor(child), patterns) if patterns.size > 0 => {
+      Some(f("NOT", likePatterns(child, patterns, "AND")))
+    }
+    case LikeAll(expressionExtractor(child), patterns) if patterns.size > 0 => {
+      Some(likePatterns(child, patterns, "AND"))
+    }
+    case NotLikeAll(expressionExtractor(child), patterns) if patterns.size > 0 => {
+      Some(f("NOT", likePatterns(child, patterns, "OR")))
+    }
 
     case _ => None
   }

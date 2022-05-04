@@ -164,8 +164,6 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case MillisToTimestamp(expressionExtractor(child)) => Some(f("TIMESTAMPADD", "MICROSECOND", op("*", child, "1000"),  "'1970-01-01 00:00:00'"))
     case MicrosToTimestamp(expressionExtractor(child)) => Some(f("TIMESTAMPADD", "MICROSECOND", child,  "'1970-01-01 00:00:00'"))
 
-    case LengthOfJsonArray(expressionExtractor(child)) => Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
-
     case NextDay(expressionExtractor(startDate), utf8StringFoldableExtractor(dayOfWeek), false) =>
       Some(
         computeNextDay(
@@ -211,6 +209,23 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
 
     case BitwiseGet(expressionExtractor(left), expressionExtractor(right)) =>
       Some(op("&", op(">>", left, right), "1"))
+
+    case LikeAny(expressionExtractor(child), patterns)
+      if patterns.size > 0 => {
+      Some(likePatterns(child, patterns, "OR"))
+    }
+    case NotLikeAny(expressionExtractor(child), patterns)
+      if patterns.size > 0 => {
+      Some(f("NOT", likePatterns(child, patterns, "AND")))
+    }
+    case LikeAll(expressionExtractor(child), patterns)
+      if patterns.size > 0 => {
+      Some(likePatterns(child, patterns, "AND"))
+    }
+    case NotLikeAll(expressionExtractor(child), patterns)
+      if patterns.size > 0 => {
+      Some(f("NOT", likePatterns(child, patterns, "OR")))
+    }
 
     case _ => None
   }
