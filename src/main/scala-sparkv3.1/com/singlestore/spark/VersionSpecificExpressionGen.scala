@@ -1,31 +1,9 @@
 package com.singlestore.spark
 
 import com.singlestore.spark.ExpressionGen._
-import com.singlestore.spark.SQLGen.{
-  ExpressionExtractor,
-  IntVar,
-  Joinable,
-  StringVar,
-  block,
-  cast,
-  sqlMapValueCaseInsensitive
-}
+import com.singlestore.spark.SQLGen.{ExpressionExtractor, IntVar, Joinable, Raw, StringVar, block, cast, sqlMapValueCaseInsensitive, stringToJoinable}
 import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.types.{
-  BinaryType,
-  BooleanType,
-  ByteType,
-  DateType,
-  DecimalType,
-  DoubleType,
-  FloatType,
-  IntegerType,
-  LongType,
-  NullType,
-  ShortType,
-  StringType,
-  TimestampType
-}
+import org.apache.spark.sql.types.{BinaryType, BooleanType, ByteType, DateType, DecimalType, DoubleType, FloatType, IntegerType, LongType, NullType, ShortType, StringType, TimestampType}
 
 case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor) {
   def unapply(e: Expression): Option[Joinable] = e match {
@@ -199,6 +177,38 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     }
     case NotLikeAll(expressionExtractor(child), patterns) if patterns.size > 0 => {
       Some(f("NOT", likePatterns(child, patterns, "OR")))
+    }
+
+    case WidthBucket(expressionExtractor(value), expressionExtractor(minValue), expressionExtractor(maxValue), expressionExtractor(numBucket)) => {
+      var caseBranches = stringToJoinable("")
+      // when (numBucket <= 0) or (minValue = maxValue)  then null
+      caseBranches += Raw("WHEN") + op(
+        "|",
+        op("<=", numBucket, IntVar(0)),
+        op("=", minValue, maxValue),
+      ) + Raw("THEN ") + StringVar(null)
+
+      // when (value < minValue and minValue < maxValue) or (value > minValue and minValue > maxValue) then 0
+      caseBranches += Raw("WHEN") + op(
+        "|",
+        op("&", op("<", value, minValue), op("<", minValue, maxValue)),
+        op("&", op(">", value, minValue), op(">", minValue, maxValue))
+      ) + Raw("THEN 0")
+
+      // when (value > maxValue and minValue < maxValue) or (value < maxValue and minValue > maxValue) then numBucket + 1
+      caseBranches += Raw("WHEN") + op("|",
+        op("&", op(">", value, maxValue), op("<", minValue, maxValue)),
+        op("&", op("<", value, maxValue), op(">", minValue, maxValue))) +
+        Raw("THEN") + op("+", numBucket, "1")
+
+      // else FLOOR( (value - minValue)*numBucket / (maxValue - minValue) ) + 1 END
+      val elseBranch = Raw("ELSE") + op(
+        "+",
+        f("FLOOR",
+          op("/", op("*", numBucket, op("-", value, minValue)), op("-", maxValue, minValue))),
+        IntVar(1)
+      )
+      Some(block(Raw("CASE") + caseBranches + elseBranch + Raw("END")))
     }
 
     case _ => None
