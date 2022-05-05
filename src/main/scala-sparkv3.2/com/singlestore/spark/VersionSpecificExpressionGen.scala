@@ -5,10 +5,12 @@ import com.singlestore.spark.SQLGen.{
   ExpressionExtractor,
   IntVar,
   Joinable,
+  Raw,
   StringVar,
   block,
   cast,
-  sqlMapValueCaseInsensitive
+  sqlMapValueCaseInsensitive,
+  stringToJoinable
 }
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.types.{
@@ -156,15 +158,25 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     }
 
     case DateFromUnixDate(expressionExtractor(child)) => Some(f("FROM_UNIXTIME", child))
-    case UnixDate(expressionExtractor(child)) => Some(f("TIMESTAMPDIFF", "DAY", "'1970-01-01'",  child))
-    case UnixSeconds(expressionExtractor(child)) => Some(f("TIMESTAMPDIFF", "SECOND", "'1970-01-01 00:00:00'",  child))
-    case UnixMicros(expressionExtractor(child)) => Some(f("TIMESTAMPDIFF", "MICROSECOND", "'1970-01-01 00:00:00'",  child))
-    case UnixMillis(expressionExtractor(child)) => Some(f("ROUND", op("/",  f("TIMESTAMPDIFF", "MICROSECOND", "'1970-01-01 00:00:00'",  child), "1000")))
-    case SecondsToTimestamp(expressionExtractor(child)) => Some(f("TIMESTAMPADD", "SECOND", child, "'1970-01-01 00:00:00'"))
-    case MillisToTimestamp(expressionExtractor(child)) => Some(f("TIMESTAMPADD", "MICROSECOND", op("*", child, "1000"),  "'1970-01-01 00:00:00'"))
-    case MicrosToTimestamp(expressionExtractor(child)) => Some(f("TIMESTAMPADD", "MICROSECOND", child,  "'1970-01-01 00:00:00'"))
+    case UnixDate(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPDIFF", "DAY", "'1970-01-01'", child))
+    case UnixSeconds(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPDIFF", "SECOND", "'1970-01-01 00:00:00'", child))
+    case UnixMicros(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPDIFF", "MICROSECOND", "'1970-01-01 00:00:00'", child))
+    case UnixMillis(expressionExtractor(child)) =>
+      Some(
+        f("ROUND",
+          op("/", f("TIMESTAMPDIFF", "MICROSECOND", "'1970-01-01 00:00:00'", child), "1000")))
+    case SecondsToTimestamp(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPADD", "SECOND", child, "'1970-01-01 00:00:00'"))
+    case MillisToTimestamp(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPADD", "MICROSECOND", op("*", child, "1000"), "'1970-01-01 00:00:00'"))
+    case MicrosToTimestamp(expressionExtractor(child)) =>
+      Some(f("TIMESTAMPADD", "MICROSECOND", child, "'1970-01-01 00:00:00'"))
 
-    case LengthOfJsonArray(expressionExtractor(child)) => Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
+    case LengthOfJsonArray(expressionExtractor(child)) =>
+      Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
 
     case NextDay(expressionExtractor(startDate), utf8StringFoldableExtractor(dayOfWeek), false) =>
       Some(
@@ -212,21 +224,53 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case BitwiseGet(expressionExtractor(left), expressionExtractor(right)) =>
       Some(op("&", op(">>", left, right), "1"))
 
-    case LikeAny(expressionExtractor(child), patterns)
-      if patterns.size > 0 => {
+    case LikeAny(expressionExtractor(child), patterns) if patterns.size > 0 => {
       Some(likePatterns(child, patterns, "OR"))
     }
-    case NotLikeAny(expressionExtractor(child), patterns)
-      if patterns.size > 0 => {
+    case NotLikeAny(expressionExtractor(child), patterns) if patterns.size > 0 => {
       Some(f("NOT", likePatterns(child, patterns, "AND")))
     }
-    case LikeAll(expressionExtractor(child), patterns)
-      if patterns.size > 0 => {
+    case LikeAll(expressionExtractor(child), patterns) if patterns.size > 0 => {
       Some(likePatterns(child, patterns, "AND"))
     }
-    case NotLikeAll(expressionExtractor(child), patterns)
-      if patterns.size > 0 => {
+    case NotLikeAll(expressionExtractor(child), patterns) if patterns.size > 0 => {
       Some(f("NOT", likePatterns(child, patterns, "OR")))
+    }
+
+    case WidthBucket(expressionExtractor(value),
+                     expressionExtractor(minValue),
+                     expressionExtractor(maxValue),
+                     expressionExtractor(numBucket)) => {
+      var caseBranches = stringToJoinable("")
+      // when (numBucket <= 0) or (minValue = maxValue)  then null
+      caseBranches += Raw("WHEN") + op(
+        "|",
+        op("<=", numBucket, IntVar(0)),
+        op("=", minValue, maxValue),
+      ) + Raw("THEN ") + StringVar(null)
+
+      // when (value < minValue and minValue < maxValue) or (value > minValue and minValue > maxValue) then 0
+      caseBranches += Raw("WHEN") + op(
+        "|",
+        op("&", op("<", value, minValue), op("<", minValue, maxValue)),
+        op("&", op(">", value, minValue), op(">", minValue, maxValue))
+      ) + Raw("THEN 0")
+
+      // when (value > maxValue and minValue < maxValue) or (value < maxValue and minValue > maxValue) then numBucket + 1
+      caseBranches += Raw("WHEN") + op(
+        "|",
+        op("&", op(">", value, maxValue), op("<", minValue, maxValue)),
+        op("&", op("<", value, maxValue), op(">", minValue, maxValue))) +
+        Raw("THEN") + op("+", numBucket, "1")
+
+      // else FLOOR( (value - minValue)*numBucket / (maxValue - minValue) ) + 1 END
+      val elseBranch = Raw("ELSE") + op(
+        "+",
+        f("FLOOR",
+          op("/", op("*", numBucket, op("-", value, minValue)), op("-", maxValue, minValue))),
+        IntVar(1)
+      )
+      Some(block(Raw("CASE") + caseBranches + elseBranch + Raw("END")))
     }
 
     case _ => None

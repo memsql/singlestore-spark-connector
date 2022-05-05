@@ -135,6 +135,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                 expectCodegenDeterminism: Boolean = true,
                 pushdown: Boolean = true,
                 enableParallelRead: String = "automaticLite",
+                dataFrameEqualityPrecision: Double = 0.1,
                 filterDF: DataFrame => DataFrame = x => x): Unit = {
     spark.sqlContext.setConf("spark.datasource.singlestore.enableParallelRead", enableParallelRead)
 
@@ -198,7 +199,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         }
         assertApproximateDataFrameEquality(changeTypes(singlestoreDF),
                                            changeTypes(jdbcDF),
-                                           0.1,
+                                           dataFrameEqualityPrecision,
                                            orderedComparison = alreadyOrdered)
       } catch {
         case e: Throwable =>
@@ -1567,6 +1568,67 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       // right argument must be foldable
       // because of it, we can't use udf there
+    }
+
+    describe("WidthBucket") {
+      it("works with int, simple case", ExcludeFromSpark30) {
+        testQuery("select id, width_bucket(id, 10, 90, 10) as x from movies")
+      }
+      it("works with int, negative value", ExcludeFromSpark30) {
+        testQuery("select width_bucket(-id, -90, -10, 10) as x from movies")
+      }
+      it("many small buckets", ExcludeFromSpark30) {
+        testQuery("select id, width_bucket(id, 10, 90, 1000000000) as x from movies")
+      }
+      it("works with int, max < min", ExcludeFromSpark30) {
+        testQuery("select id, width_bucket(id, 90, 10, 10) as x from movies")
+      }
+      it("num_buckets is float", ExcludeFromSpark30) {
+        testQuery("select id, width_bucket(id, 90, 10, 6.6) as x from movies")
+      }
+      it("num_buckets is non-constant  float", ExcludeFromSpark30) {
+        testQuery(
+          "select id, width_bucket(id, 10, 90, id/10 + 1) as x from movies where id/10 - floor(id/10) < 0.5")
+      }
+      it("works with float, simple case", ExcludeFromSpark30) {
+        testQuery(
+          "select id, width_bucket(critic_rating, 10 + critic_rating, 90, 10) as x from movies")
+      }
+      it("works with string", ExcludeFromSpark30) {
+        testQuery("select id, width_bucket(-critic_rating, '10.2', '0.4', '10') as x from movies")
+      }
+      it("all args are not const", ExcludeFromSpark30) {
+        testQuery("select id, width_bucket(critic_rating, id-10, id, id + 200) as x from movies")
+      }
+      it("works with int, max = min", ExcludeFromSpark30) {
+        testQuery("select id, width_bucket(id, 90, 90, 10) as x from movies")
+      }
+      it("num_buckets is negative", ExcludeFromSpark30) {
+        testQuery("select id, width_bucket(id, 90, 10, -1) as x from movies")
+      }
+      it("num_buckets = 0", ExcludeFromSpark30) {
+        testQuery("select id, width_bucket(id, 90, 10, 0) as x from movies")
+      }
+      it("udf in the first arg", ExcludeFromSpark30) {
+        testQuery(
+          "select id, width_bucket(stringIdentity(critic_rating), 10, 100, 200) as x from movies",
+          expectPartialPushdown = true)
+      }
+      it("udf in the second arg", ExcludeFromSpark30) {
+        testQuery(
+          "select id, width_bucket(id, stringIdentity(critic_rating), 100, 200) as x from movies",
+          expectPartialPushdown = true)
+      }
+      it("udf in the third arg", ExcludeFromSpark30) {
+        testQuery(
+          "select id, width_bucket(id, 10, stringIdentity(critic_rating), 200) as x from movies",
+          expectPartialPushdown = true)
+      }
+      it("udf in the fourth arg", ExcludeFromSpark30) {
+        testQuery(
+          "select id, width_bucket(id, 100, 200, stringIdentity(critic_rating)) as x from movies",
+          expectPartialPushdown = true)
+      }
     }
 
     describe("Hypot") {
@@ -3917,18 +3979,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                     expectPartialPushdown = true)
         }
       }
-      it("very simple patterns, spark 3.2", ExcludeFromSpark30, ExcludeFromSpark31) {
+      it("very simple patterns", ExcludeFromSpark30) {
         for (f <- functions) {
           log.debug(s"testing $f")
-          //Sparks 3.2 computes such in more optimal way and does not invoke pushdown
+          //Sparks computes such in more optimal way and does not invoke pushdown
           testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')",
                     expectPartialPushdown = true)
-        }
-      }
-      it("very simple patterns, spark 3.1", ExcludeFromSpark30, ExcludeFromSpark32) {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')")
         }
       }
       it("empty patterns arg", ExcludeFromSpark30) {

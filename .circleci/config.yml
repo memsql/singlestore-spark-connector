@@ -73,13 +73,13 @@ jobs:
           command: |
             sbt ++2.12.12 -Dspark.version=3.0.0 clean publishSigned sonatypeBundleRelease
       - run:
-          name: Publish Spark 3.1.0
+          name: Publish Spark 3.1.3
           command: |
-            sbt ++2.12.12 -Dspark.version=3.1.0 clean publishSigned sonatypeBundleRelease
+            sbt ++2.12.12 -Dspark.version=3.1.3 clean publishSigned sonatypeBundleRelease
       - run:
-          name: Publish Spark 3.2.0
+          name: Publish Spark 3.2.1
           command: |
-            sbt ++2.12.12 -Dspark.version=3.2.0 clean publishSigned sonatypeBundleRelease
+            sbt ++2.12.12 -Dspark.version=3.2.1 clean publishSigned sonatypeBundleRelease
 
 workflows:
   test:
@@ -94,8 +94,8 @@ workflows:
             parameters:
               spark_version:
                 - 3.0.0
-                - 3.1.0
-                - 3.2.0
+                - 3.1.3
+                - 3.2.1
               singlestore_image:
                 - memsql/cluster-in-a-box:centos-7.1.13-11ddea2a3a-3.0.0-1.9.3
                 - memsql/cluster-in-a-box:centos-7.3.2-a364d4b31f-3.0.0-1.9.3
