@@ -3836,6 +3836,118 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
+    describe("(not) like all/any patterns functions") {
+      val functions = Seq("like all", "like any", "not like all", "not like any")
+      it("simple", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select id, first_name from users where first_name $f ('An%te%')")
+        }
+      }
+      it("simple, both fields", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select id, first_name from users where first_name $f (last_name, 'Al%')")
+        }
+      }
+      it("repeated pattern", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(
+            s"select id, first_name from users where first_name $f ('Al%', last_name, 'Al%')")
+        }
+      }
+      it("character wildcard", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select * from users where first_name $f ('A___e', '_n__e')")
+        }
+      }
+      it("string wildcard", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select * from users where first_name $f ('Kon%ce', '%tan%', '%Kon%tan%ce%')")
+        }
+      }
+      it("dumb true", ExcludeFromSpark30) {
+        for (i <- 0 to 1) {
+          log.debug(s"testing ${functions(i)}")
+          testQuery(s"select * from users where '1' ${functions(i)} ('1')")
+        }
+      }
+      it("dumb false", ExcludeFromSpark30) {
+        for (i <- 0 to 1) {
+          log.debug(s"testing ${functions(i)}")
+          testQuery(s"select * from users where id ${functions(i)} ('D%', 'A%bbbb%')",
+                    expectEmpty = true)
+        }
+        for (i <- 2 to 3) {
+          log.debug(s"testing ${functions(i)}")
+          testQuery(s"select * from users where id ${functions(i)} ('D%', 'A%bbbb%')")
+        }
+      }
+      it("dumb true once more", ExcludeFromSpark30) {
+        for (i <- 0 to 1) {
+          log.debug(s"testing ${functions(i)}")
+          testQuery(s"select * from users where first_name ${functions(i)} (first_name)")
+        }
+        for (i <- 2 to 3) {
+          log.debug(s"testing ${functions(i)}")
+          testQuery(s"select * from users where first_name ${functions(i)} (first_name)",
+                    expectEmpty = true)
+        }
+      }
+      it("null", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select critic_review $f (null) from movies")
+        }
+      }
+      it("partial pushdown left", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select * from users where stringIdentity(first_name) $f ('Ali%')",
+                    expectPartialPushdown = true)
+        }
+      }
+      it("partial pushdown right", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select * from users where first_name $f (stringIdentity('Ali%'))",
+                    expectPartialPushdown = true)
+        }
+      }
+      it("very simple patterns, spark 3.2", ExcludeFromSpark30, ExcludeFromSpark31) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          //Sparks 3.2 computes such in more optimal way and does not invoke pushdown
+          testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')",
+                    expectPartialPushdown = true)
+        }
+      }
+      it("very simple patterns, spark 3.1", ExcludeFromSpark30, ExcludeFromSpark32) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')")
+        }
+      }
+      it("empty patterns arg", ExcludeFromSpark30) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          try {
+            testQuery(s"select * from users where first_name $f ()", expectPartialPushdown = true)
+          } catch {
+            case e: Throwable =>
+              if (e.toString.contains("Expected something between '(' and ')'")) {
+                None
+              } else {
+                throw e
+              }
+          }
+        }
+      }
+    }
+
     describe("regexp") {
       it("simple") {
         testQuery("select * from users where first_name regexp 'D.'")

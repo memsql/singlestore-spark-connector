@@ -78,6 +78,12 @@ object ExpressionGen extends LazyLogging {
   def like(left: Joinable, right: Joinable): Joinable =
     op("LIKE", left, right)
 
+  def likePatterns(child: Joinable, patterns: Seq[UTF8String], operation: String): Joinable = {
+    patterns.foldLeft(op("LIKE", child, s"'${patterns.head.toString}'"))((patternA, patternB) => {
+      op(operation, patternA, op("LIKE", child, s"'${patternB.toString}'"))
+    })
+  }
+
   // regexpFromStart adds a ^ prefix for singlestore regexp to match the beginning of the string (as Java does)
   def regexpFromStart(r: Joinable): Joinable = func("CONCAT", StringVar("^"), r)
 

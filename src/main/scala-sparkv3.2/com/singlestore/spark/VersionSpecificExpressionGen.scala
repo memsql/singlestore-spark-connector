@@ -212,6 +212,23 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case BitwiseGet(expressionExtractor(left), expressionExtractor(right)) =>
       Some(op("&", op(">>", left, right), "1"))
 
+    case LikeAny(expressionExtractor(child), patterns)
+      if patterns.size > 0 => {
+      Some(likePatterns(child, patterns, "OR"))
+    }
+    case NotLikeAny(expressionExtractor(child), patterns)
+      if patterns.size > 0 => {
+      Some(f("NOT", likePatterns(child, patterns, "AND")))
+    }
+    case LikeAll(expressionExtractor(child), patterns)
+      if patterns.size > 0 => {
+      Some(likePatterns(child, patterns, "AND"))
+    }
+    case NotLikeAll(expressionExtractor(child), patterns)
+      if patterns.size > 0 => {
+      Some(f("NOT", likePatterns(child, patterns, "OR")))
+    }
+
     case _ => None
   }
 }
