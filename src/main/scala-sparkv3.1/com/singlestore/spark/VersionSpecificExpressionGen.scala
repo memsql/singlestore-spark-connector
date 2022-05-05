@@ -182,11 +182,24 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
                          DAYS_OF_WEEK_OFFSET_MAP,
                          StringVar(null)
                        )))
-      
+
     case Lead(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
       Some(f("LEAD", input, offset))
     case Lag(expressionExtractor(input), expressionExtractor(offset), Literal(null, NullType)) =>
       Some(f("LAG", input, offset))
+
+    case LikeAny(expressionExtractor(child), patterns) if patterns.size > 0 => {
+      Some(likePatterns(child, patterns, "OR"))
+    }
+    case NotLikeAny(expressionExtractor(child), patterns) if patterns.size > 0 => {
+      Some(f("NOT", likePatterns(child, patterns, "AND")))
+    }
+    case LikeAll(expressionExtractor(child), patterns) if patterns.size > 0 => {
+      Some(likePatterns(child, patterns, "AND"))
+    }
+    case NotLikeAll(expressionExtractor(child), patterns) if patterns.size > 0 => {
+      Some(f("NOT", likePatterns(child, patterns, "OR")))
+    }
 
     case _ => None
   }
