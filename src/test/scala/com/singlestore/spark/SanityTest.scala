@@ -6,7 +6,7 @@ import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
 import com.singlestore.spark.SinglestoreOptions.{CompressionType, TableKeyType}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{IntegerType, StringType}
-import org.apache.spark.sql.{DataFrame, SaveMode}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.scalatest.BeforeAndAfterEach
 import com.singlestore.spark.SQLHelper._
 
@@ -268,5 +268,32 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
         }
       }
     }
+  }
+
+  it("JWT authentication") {
+    val jwtSpark = SparkSession
+      .builder()
+      .master("local")
+      .appName("singlestore-integration-jwt-test")
+      .config(
+        "spark.datasource.singlestore.ddlEndpoint",
+        s"${masterHost}:${masterPort}"
+      )
+      .config("spark.datasource.singlestore.user", "test_jwt_user")
+      .config(
+        "spark.datasource.singlestore.password",
+        "eyJhbGciOiJSUzM4NCIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InRlc3Rfand0X3VzZXIiLCJleHAiOjI1MTQzNTk5MjAsImVtYWlsIjoidGVzdEBzaW5nbGVzdG9yZS5jb20ifQ.kzcqllfR9HIjJLG8ZxS8Ck_N1PUjqdPTdXOv_jRWJCwzdBP8x0kuOtvtx-XScJq2PN3x41I8BkC74T3eUt1dUo_PqhDGcgePNDKgdrqvyGxLZxNiyydt_zO75lj8frfxf1rDa57VCPOaqGDITJEHgcgU9gK42RhfR9tL5vdw8DfdIOWz17CSZFmiFwO_rhGRtlaR1rFl_LbBKXpSKyEuSBSd5ED1Ywx4KjU4Nh1uDivNvZ1PQFQNQ8_up_dCu4-kzcENuQcEKJWkzYuXyMJjtnTJVXRT5RMMFewzaKQ7WzOjdl_WtpyKY7Cjoms9dyxstJW6M0-m8c8ADlUn_e3mvyE7KqgSXe8tYBMs8Ojlme7B2D5FFMZe80wwAcNv3T-vA0Ah8G9b1t0PvbHJ5NRScFyItkJb0akPmDsSh4p-CXM2rErJGI-i-PW3VFswiIwfkavSzn-ElOoZPuc-lp-ffRjnBJSNjTYF5wUwCQdaUcaklfEJJYhNHrRBQ4dTu9Jq2CbZztex6zfIpd2PRiPauaEcE0Di4nyJZjSSxQj0ao-us3523eC2XDXvIH1E7Y2I235hudKDUWVrYZJtxZU2Ci3ZuEdYteXJ3VoUBG7m_Ydsky2GUz7sNZWhdsaYD_Ghy66XsO-2cW-kX7GjvX28HOBWWzzPpzT_25W54cxsc-c"
+      )
+      .config("spark.datasource.singlestore.database", "testdb")
+      .config("spark.datasource.singlestore.credentialType", "JWT")
+      .getOrCreate()
+
+    // Read with enabled sslMode
+    var jwtDF = jwtSpark.read
+      .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+      .option("sslMode", "trust")
+      .option(SinglestoreOptions.TABLE_NAME, "testdb.foo")
+      .load()
+    assertSmallDataFrameEquality(jwtDF, df, orderedComparison = false)
   }
 }

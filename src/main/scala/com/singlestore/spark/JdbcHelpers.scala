@@ -1,6 +1,12 @@
 package com.singlestore.spark
 
-import java.sql.{Connection, PreparedStatement, SQLException, Statement}
+import java.sql.{
+  Connection,
+  PreparedStatement,
+  SQLException,
+  SQLInvalidAuthorizationSpecException,
+  Statement
+}
 import java.util.Properties
 import java.util.UUID.randomUUID
 
@@ -478,7 +484,9 @@ object JdbcHelpers extends LazyLogging {
       })
     } match {
       case Success(_) => true
-      case Failure(_) => false
+      // SQLInvalidAuthorizationSpecException is thrown when JWT authentication is used and token is wrong
+      case Failure(a: SQLException) if !a.isInstanceOf[SQLInvalidAuthorizationSpecException] =>
+        false
     }
   }
 

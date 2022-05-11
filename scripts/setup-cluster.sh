@@ -23,6 +23,7 @@ if [[ "${EXISTS}" -eq 0 ]]; then
     docker run -i --init \
         --name ${CONTAINER_NAME} \
         -v ${PWD}/scripts/ssl:/test-ssl \
+        -v ${PWD}/scripts/jwt:/test-jwt \
         -e LICENSE_KEY=${LICENSE_KEY} \
         -e ROOT_PASSWORD=${SINGLESTORE_PASSWORD} \
         -p 5506:3306 -p 5507:3307 -p 5508:3308 \
@@ -60,6 +61,8 @@ echo "Setting up SSL"
 docker exec -it ${CONTAINER_NAME} memsqlctl update-config --yes --all --key ssl_ca --value /test-ssl/test-ca-cert.pem
 docker exec -it ${CONTAINER_NAME} memsqlctl update-config --yes --all --key ssl_cert --value /test-ssl/test-singlestore-cert.pem
 docker exec -it ${CONTAINER_NAME} memsqlctl update-config --yes --all --key ssl_key --value /test-ssl/test-singlestore-key.pem
+echo "Setting up JWT"
+docker exec -it ${CONTAINER_NAME} memsqlctl update-config --yes --all --key jwt_auth_config_file --value /test-jwt/jwt_auth_config.json
 echo "Restarting cluster"
 docker exec -it ${CONTAINER_NAME} memsqlctl restart-node --yes --all
 singlestore-wait-start
@@ -67,6 +70,10 @@ echo "Setting up root-ssl user"
 mysql -u root -h 127.0.0.1 -P 5506 -p"${SINGLESTORE_PASSWORD}" -e 'grant all privileges on *.* to "root-ssl"@"%" require ssl with grant option'
 mysql -u root -h 127.0.0.1 -P 5507 -p"${SINGLESTORE_PASSWORD}" -e 'grant all privileges on *.* to "root-ssl"@"%" require ssl with grant option'
 mysql -u root -h 127.0.0.1 -P 5508 -p"${SINGLESTORE_PASSWORD}" -e 'grant all privileges on *.* to "root-ssl"@"%" require ssl with grant option'
+echo "Done!"
+echo "Setting up root-jwt user"
+mysql -h 127.0.0.1 -u root -P 5506 -p"${SINGLESTORE_PASSWORD}" -e "CREATE USER 'test_jwt_user' IDENTIFIED WITH authentication_jwt"
+mysql -h 127.0.0.1 -u root -P 5506 -p"${SINGLESTORE_PASSWORD}" -e "GRANT ALL PRIVILEGES ON *.* TO 'test_jwt_user'@'%'"
 echo "Done!"
 
 echo
