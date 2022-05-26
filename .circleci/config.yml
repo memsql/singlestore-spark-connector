@@ -97,7 +97,6 @@ workflows:
                 - 3.1.0
                 - 3.2.0
               singlestore_image:
-                - memsql/cluster-in-a-box:centos-7.1.13-11ddea2a3a-3.0.0-1.9.3
                 - memsql/cluster-in-a-box:centos-7.3.2-a364d4b31f-3.0.0-1.9.3
                 - memsql/cluster-in-a-box:centos-7.5.8-12c73130aa-3.2.11-1.11.11
                 - memsql/cluster-in-a-box:centos-7.6.5-018454f4e3-4.0.1-1.13.0
