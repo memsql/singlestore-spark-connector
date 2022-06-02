@@ -169,6 +169,7 @@ class ExternalHostTest
         List(ReadFromLeaves),
         0,
         0,
+        0,
         true,
         Set.empty,
         Truncate,
@@ -244,7 +245,7 @@ class ExternalHostTest
             ex match {
               case sqlEx: ParallelReadFailedException =>
                 assert(
-                  sqlEx.getMessage startsWith "Failed to read data in parallel. Tried following parallel read features:")
+                  sqlEx.getMessage startsWith "Failed to read data in parallel.\nTried following parallel read features:")
               case _ => fail("ParallelReadFailedException expected")
             }
         }

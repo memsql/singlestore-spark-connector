@@ -19,6 +19,7 @@ case class SinglestoreOptions(
     parallelReadFeatures: List[ParallelReadType],
     parallelReadTableCreationTimeoutMS: Long,
     parallelReadMaterializedTableCreationTimeoutMS: Long,
+    parallelReadMaxNumPartitions: Int,
     parallelReadRepartition: Boolean,
     parallelReadRepartitionColumns: Set[String],
     // write options
@@ -106,6 +107,7 @@ object SinglestoreOptions extends LazyLogging {
     "parallelRead.materializedTableCreationTimeoutMS")
   final val PARALLEL_READ_REPARTITION         = newOption("parallelRead.repartition")
   final val PARALLEL_READ_REPARTITION_COLUMNS = newOption("parallelRead.repartition.columns")
+  final val PARALLEL_READ_MAX_NUM_PARTITIONS  = newOption("parallelRead.maxNumPartitions")
 
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
   final val TABLE_KEYS            = newOption("tableKey")
@@ -332,6 +334,7 @@ object SinglestoreOptions extends LazyLogging {
       parallelReadMaterializedTableCreationTimeoutMS = {
         options.getOrElse(PARALLEL_READ_MATERIALIZED_TABLE_CREATION_TIMEOUT_MS, "0").toInt
       },
+      parallelReadMaxNumPartitions = options.getOrElse(PARALLEL_READ_MAX_NUM_PARTITIONS, "0").toInt,
       parallelReadRepartition = options.get(PARALLEL_READ_REPARTITION).getOrElse("false").toBoolean,
       parallelReadRepartitionColumns =
         splitEscapedColumns(options.get(PARALLEL_READ_REPARTITION_COLUMNS).getOrElse(""))

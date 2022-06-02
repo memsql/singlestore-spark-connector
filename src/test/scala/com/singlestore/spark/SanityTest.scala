@@ -222,4 +222,51 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
     rows.foreach(row =>
       assert(row.getString(0).equals("INMEMORY_ROWSTORE"), "Should create rowstore table"))
   }
+
+  describe("parallel read num partitions") {
+
+    def testNumPartitions(feature: String, numPartitions: Int, expectedNumPartitions: Int): Unit = {
+      val initialConf = spark.conf.getAll
+      spark.conf.set("spark.datasource.singlestore.parallelRead.Features", feature)
+      spark.conf.set("spark.datasource.singlestore.enableParallelRead", "forced")
+
+      try {
+        val df = spark.read
+          .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+          .option("enableParallelRead", "forced")
+          .option("parallelRead.maxNumPartitions", numPartitions.toString)
+          .load("testdb.foo")
+          .cache()
+
+        assert(df.rdd.getNumPartitions == expectedNumPartitions,
+               "Wrong number of partition in the resulting RDD")
+      } finally {
+        val finalConf = spark.conf.getAll
+        finalConf.foreach(c =>
+          if (c._1.startsWith("spark.datasource.singlestore")) {
+            spark.conf.unset(c._1)
+        })
+        initialConf.foreach(c =>
+          if (c._1.startsWith("spark.datasource.singlestore")) {
+            spark.conf.set(c._1, c._2)
+        })
+      }
+    }
+
+    for (feature <- Seq("readFromLeaves", "readFromAggregators", "readFromAggregatorsMaterialized")) {
+      if (canDoParallelReadFromAggregators || feature == "readFromLeaves") {
+        describe(feature) {
+          it("default") {
+            testNumPartitions(feature, 0, 2)
+          }
+          it("single partition") {
+            testNumPartitions(feature, 1, 1)
+          }
+          it("a lot of partitions") {
+            testNumPartitions(feature, 5, 2)
+          }
+        }
+      }
+    }
+  }
 }
