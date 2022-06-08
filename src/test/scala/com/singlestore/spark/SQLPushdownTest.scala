@@ -3948,6 +3948,21 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
+    describe("existance expressions") {
+      describe("EXISTS") {
+        it("simple") {
+          testQuery("select * from users where exists(select id from users_sample)")
+//          SELECT employee.name AS 'Name'
+//          FROM employee
+//            WHERE EXISTS ( SELECT * FROM manager
+//            WHERE employee.name = manager.name
+//          );
+
+          // testQuery("select * from users where age in(SELECT age FROM VALUES (50), (60))")
+        }
+      }
+    }
+
     describe("regexp") {
       it("simple") {
         testQuery("select * from users where first_name regexp 'D.'")

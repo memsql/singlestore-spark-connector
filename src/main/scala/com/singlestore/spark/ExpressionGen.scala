@@ -2,7 +2,7 @@ package com.singlestore.spark
 
 import org.apache.spark.sql.catalyst.expressions.aggregate._
 import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.catalyst.util.DateTimeUtils
+import org.apache.spark.sql.catalyst.util.{DateTimeUtils, toPrettySQL}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 
@@ -509,6 +509,10 @@ object ExpressionGen extends LazyLogging {
       case RLike(expressionExtractor(left), expressionExtractor(right)) =>
         op("RLIKE", left, regexpFromStart(right))
 
+//      case Exists(plan, outerAttrs, exprId) => {
+//        f("EXISTS", "blabla") //joinCond.toString())
+//      }
+
       // stringExpressions.scala
       case Contains(expressionExtractor(left), expressionExtractor(right)) =>
         op(">", f("INSTR", left, right), "0")
@@ -801,6 +805,28 @@ object ExpressionGen extends LazyLogging {
         f("COALESCE", left, right)
       case IsNull(expressionExtractor(child))    => block(child) + "IS NULL"
       case IsNotNull(expressionExtractor(child)) => block(child) + "IS NOT NULL"
+
+      //   case ScalarSubquery(plan, expressionExtractor(children), exprId) => {
+      case ScalarSubquery(plan, outerAttrs, exprId, joinCond) => {
+        log.debug("In ScalarSubquery")
+        val rule         = new SQLPushdownRule
+        val pushdownPlan = rule.apply(plan)
+
+        pushdownPlan match {
+          case SQLGen.Relation(res) => {
+            log.debug(res.sql)
+            // log.debug(toPrettySQL(res.))
+            Raw("SELECT") + res
+          }
+          case _ => {
+            log.debug("pushdown failed")
+            log.debug(outerAttrs.toString())
+            log.debug(exprId.toString)
+            log.debug(joinCond.toString())
+            Raw("SELECT 1")
+          } // TODO
+        }
+      }
 
       case Nvl2(expressionExtractor(expr1),
                 expressionExtractor(expr2),
