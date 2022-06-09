@@ -289,7 +289,7 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
       .getOrCreate()
 
     // Read with enabled sslMode
-    var jwtDF = jwtSpark.read
+    val jwtDF = jwtSpark.read
       .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
       .option("sslMode", "trust")
       .option(SinglestoreOptions.TABLE_NAME, "testdb.foo")

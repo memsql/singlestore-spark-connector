@@ -484,8 +484,12 @@ object JdbcHelpers extends LazyLogging {
       })
     } match {
       case Success(_) => true
-      // SQLInvalidAuthorizationSpecException is thrown when JWT authentication is used and token is wrong
-      case Failure(a: SQLException) if !a.isInstanceOf[SQLInvalidAuthorizationSpecException] =>
+      // SQLInvalidAuthorizationSpecException is thrown when password (or token in the case of JWT authentification) is wrong
+      case Failure(e: SQLException)
+          if !e.isInstanceOf[SQLInvalidAuthorizationSpecException] &&
+            // Original exception can be wrapped inside of the connection pool
+            !(e.getCause != null && e.getCause
+              .isInstanceOf[SQLInvalidAuthorizationSpecException]) =>
         false
     }
   }
