@@ -6,7 +6,7 @@ import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
 import com.singlestore.spark.SinglestoreOptions.{CompressionType, TableKeyType}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{IntegerType, StringType}
-import org.apache.spark.sql.{DataFrame, SaveMode}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.scalatest.BeforeAndAfterEach
 import com.singlestore.spark.SQLHelper._
 
@@ -268,5 +268,32 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
         }
       }
     }
+  }
+
+  it("JWT authentication") {
+    val jwtSpark = SparkSession
+      .builder()
+      .master("local")
+      .appName("singlestore-integration-jwt-test")
+      .config(
+        "spark.datasource.singlestore.ddlEndpoint",
+        s"${masterHost}:${masterPort}"
+      )
+      .config("spark.datasource.singlestore.user", "test_jwt_user")
+      .config(
+        "spark.datasource.singlestore.password",
+        masterJWTPassword
+      )
+      .config("spark.datasource.singlestore.database", "testdb")
+      .config("spark.datasource.singlestore.credentialType", "JWT")
+      .getOrCreate()
+
+    // Read with enabled sslMode
+    val jwtDF = jwtSpark.read
+      .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+      .option("sslMode", "trust")
+      .option(SinglestoreOptions.TABLE_NAME, "testdb.foo")
+      .load()
+    assertSmallDataFrameEquality(jwtDF, df, orderedComparison = false)
   }
 }
