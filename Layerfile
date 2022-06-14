@@ -40,7 +40,7 @@ MEMORY 16G
 
 # split to 13 states
 # each of them will run different version of the singlestore and spark
-SPLIT 13
+SPLIT 30
 
 # copy the entire git repository
 COPY . .
@@ -50,6 +50,3 @@ RUN scripts/define-layerci-matrix.sh >> ~/.profile
 
 # start singlestore cluster
 RUN ./scripts/setup-cluster.sh
-
-# run tests
-RUN sbt ++$SCALA_VERSION -Dspark.version=$SPARK_VERSION "${TEST_FILTER}"
