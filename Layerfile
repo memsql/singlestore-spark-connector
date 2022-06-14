@@ -21,6 +21,8 @@ RUN apt-get update &&                                                           
 RUN apt-get update && \
     sudo apt-get install openjdk-8-jdk
 
+RUN apt-get update
+
 # set environment variables
 ENV MEMSQL_PORT=5506
 ENV MEMSQL_USER=root
@@ -40,7 +42,7 @@ MEMORY 16G
 
 # split to 13 states
 # each of them will run different version of the singlestore and spark
-SPLIT 30
+SPLIT 26
 
 # copy the entire git repository
 COPY . .
