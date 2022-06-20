@@ -4,7 +4,11 @@ import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
 import com.singlestore.spark.JdbcHelpers.executeQuery
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
+import org.apache.spark.sql.jdbc.JdbcDialects
 import org.apache.spark.sql.types.IntegerType
+
+import java.sql.DriverManager
+import java.util.Properties
 
 class LoadbalanceTest extends IntegrationSuiteBase {
 
@@ -20,18 +24,20 @@ class LoadbalanceTest extends IntegrationSuiteBase {
   }
 
   def countQueries(hostport: String): Int = {
-    val opts = new JDBCOptions(
-      Map("url"      -> s"jdbc:singlestore://$hostport",
-          "dbtable"  -> "testdb",
-          "user"     -> "root",
-          "password" -> masterPassword))
+    val props = new Properties()
+    props.setProperty("dbtable", "testdb")
+    props.setProperty("user", "root")
+    props.setProperty("password", masterPassword)
 
-    JdbcUtils.withConnection(opts)(conn => {
+    val conn = DriverManager.getConnection(s"jdbc:singlestore://$hostport")
+    try {
       // we only use write queries since read queries are always increasing due to internal status checks
       val rows =
         JdbcHelpers.executeQuery(conn, "show status extended like 'Successful_write_queries'")
       rows.map(r => r.getAs[String](1).toInt).sum
-    })
+    } finally {
+      conn.close()
+    }
   }
 
   def counters =

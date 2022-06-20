@@ -38,21 +38,17 @@ trait IntegrationSuiteBase
 
   var spark: SparkSession = _
 
-  var jdbcOptsDefault = new JDBCOptions(
-    Map(
-      JDBCOptions.JDBC_URL          -> s"jdbc:mysql://$masterHost:$masterPort",
-      JDBCOptions.JDBC_TABLE_NAME   -> "XXX",
-      JDBCOptions.JDBC_DRIVER_CLASS -> "org.mariadb.jdbc.Driver",
-      "user"                        -> "root",
-      "password"                    -> masterPassword
-    )
-  )
+  val jdbcDefaultProps = new Properties()
+  jdbcDefaultProps.setProperty(JDBCOptions.JDBC_TABLE_NAME, "XXX")
+  jdbcDefaultProps.setProperty(JDBCOptions.JDBC_DRIVER_CLASS, "org.mariadb.jdbc.Driver")
+  jdbcDefaultProps.setProperty("user", "root")
+  jdbcDefaultProps.setProperty("password", masterPassword)
 
   val version: SinglestoreVersion = {
-    JdbcUtils.withConnection(jdbcOptsDefault)(conn => {
-      val resultSet = executeQuery(conn, "select @@memsql_version")
-      SinglestoreVersion(resultSet.next().getString(0))
-    })
+    val conn =
+      DriverManager.getConnection(s"jdbc:mysql://$masterHost:$masterPort", jdbcDefaultProps)
+    val resultSet = executeQuery(conn, "select @@memsql_version")
+    SinglestoreVersion(resultSet.next().getString(0))
   }
 
   val canDoParallelReadFromAggregators: Boolean = version.atLeast("7.5.0") && !forceReadFromLeaves
@@ -61,13 +57,17 @@ trait IntegrationSuiteBase
     // override global JVM timezone to GMT
     TimeZone.setDefault(TimeZone.getTimeZone("GMT"))
 
-    JdbcUtils.withConnection(jdbcOptsDefault)(conn => {
+    val conn =
+      DriverManager.getConnection(s"jdbc:mysql://$masterHost:$masterPort", jdbcDefaultProps)
+    try {
       // make singlestore use less memory
       executeQuery(conn, "set global default_partitions_per_leaf = 2")
 
       executeQuery(conn, "drop database if exists testdb")
       executeQuery(conn, "create database testdb")
-    })
+    } finally {
+      conn.close()
+    }
   }
 
   override def withFixture(test: NoArgTest): Outcome = {
