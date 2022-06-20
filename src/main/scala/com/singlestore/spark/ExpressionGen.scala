@@ -822,12 +822,8 @@ object ExpressionGen extends LazyLogging {
       case SortOrder(expressionExtractor(child), Descending, NullsLast, _) => block(child) + "DESC"
 
       // stringExpressions.scala
-      case Upper(expressionExtractor(child)) => f("UPPER", child)
-      case Lower(expressionExtractor(child)) => f("LOWER", child)
-      case Left(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
-        f("LEFT", str, len, child)
-      case Right(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
-        f("RIGHT", str, len, child)
+      case Upper(expressionExtractor(child))          => f("UPPER", child)
+      case Lower(expressionExtractor(child))          => f("LOWER", child)
       case ConcatWs(expressionExtractor(Some(child))) => f("CONCAT_WS", child)
 
       case StringSpace(expressionExtractor(child)) =>
