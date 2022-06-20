@@ -29,7 +29,7 @@ class LoadbalanceTest extends IntegrationSuiteBase {
     props.setProperty("user", "root")
     props.setProperty("password", masterPassword)
 
-    val conn = DriverManager.getConnection(s"jdbc:singlestore://$hostport")
+    val conn = DriverManager.getConnection(s"jdbc:singlestore://$hostport", props)
     try {
       // we only use write queries since read queries are always increasing due to internal status checks
       val rows =
