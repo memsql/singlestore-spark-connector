@@ -5,6 +5,8 @@
 /.idea/*
 !/.idea/codeStyles/*
 !/.idea/runConfigurations/*
+!/.idea/scala_settings.xml
+!/.idea/vcs.xml
 
 # JIRA plugin
 atlassian-ide-plugin.xml
