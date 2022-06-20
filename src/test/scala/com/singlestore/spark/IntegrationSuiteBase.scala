@@ -49,10 +49,10 @@ trait IntegrationSuiteBase
   )
 
   val version: SinglestoreVersion = {
-    val conn      = JdbcUtils.createConnectionFactory(jdbcOptsDefault)()
-    val resultSet = executeQuery(conn, "select @@memsql_version")
-
-    SinglestoreVersion(resultSet.next().getString(0))
+    JdbcUtils.withConnection(jdbcOptsDefault)(conn => {
+      val resultSet = executeQuery(conn, "select @@memsql_version")
+      SinglestoreVersion(resultSet.next().getString(0))
+    })
   }
 
   val canDoParallelReadFromAggregators: Boolean = version.atLeast("7.5.0") && !forceReadFromLeaves
@@ -61,16 +61,13 @@ trait IntegrationSuiteBase
     // override global JVM timezone to GMT
     TimeZone.setDefault(TimeZone.getTimeZone("GMT"))
 
-    val conn = JdbcUtils.createConnectionFactory(jdbcOptsDefault)()
-    try {
+    JdbcUtils.withConnection(jdbcOptsDefault)(conn => {
       // make singlestore use less memory
       executeQuery(conn, "set global default_partitions_per_leaf = 2")
 
       executeQuery(conn, "drop database if exists testdb")
       executeQuery(conn, "create database testdb")
-    } finally {
-      conn.close()
-    }
+    })
   }
 
   override def withFixture(test: NoArgTest): Outcome = {
