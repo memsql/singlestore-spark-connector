@@ -793,8 +793,6 @@ object ExpressionGen extends LazyLogging {
       //  We need to wait for the engine to implement precise cbrt
 
       // nullExpressions.scala
-      case IfNull(expressionExtractor(left), expressionExtractor(right), _) =>
-        f("COALESCE", left, right)
       case NullIf(expressionExtractor(left), expressionExtractor(right), _) =>
         f("NULLIF", left, right)
       case Nvl(expressionExtractor(left), expressionExtractor(right), _) =>
