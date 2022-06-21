@@ -566,6 +566,33 @@ spark.conf.set("spark.datasource.singlestore.disableSslHostnameVerification", "t
 More information on the above parameters can be found at SingleStore JDBC driver documentation here:
 https://docs.singlestore.com/db/latest/en/developer-resources/connect-with-application-development-tools/connect-with-java-jdbc/the-singlestore-jdbc-driver.html#tls-parameters
 
+
+### JWT authentication
+
+You may authenticate your connection to the SingleStoreDB cluster using the SingleStore Spark connector with a JWT.
+To use JWT-based authentication:
+ - specify `JWT` in the `credentialType` option 
+ - provide the actual JWT in the `password` option
+
+Here is an example of configurations for JWT authentication:
+```
+SparkConf conf = new SparkConf();
+conf.set("spark.datasource.singlestore.ddlEndpoint", "singlestore-master.cluster.internal")
+conf.set("spark.datasource.singlestore.dmlEndpoints", "singlestore-master.cluster.internal,singlestore-child-1.cluster.internal:3307")
+conf.set("spark.datasource.singlestore.credentialType", "JWT")
+conf.set("spark.datasource.singlestore.useSsl", "true")
+conf.set("spark.datasource.singlestore.user", "s2user")
+conf.set("spark.datasource.singlestore.password", "eyJhbGci.eyJzdWIiOiIxMjM0NTY3.masHf")
+```
+
+> note: To authenticate your connection to the SingleStore cluster via SingleStore Spark connector using JWTs,
+> the SingleStore user must connect via SSL and use JWT for authentication.
+> To create a SingleStore user that can authenticate with a JWT, execute the following command:
+>
+> `CREATE USER 'email@example.com'@'%' IDENTIFIED WITH authentication_jwt REQUIRE SSL;`
+
+See [Authenticate via JWT](https://docs.singlestore.com/managed-service/en/security/authentication/authenticate-via-jwt.html) for more information.
+
 ## Filing issues
 
 When filing issues please include as much information as possible as well as any
