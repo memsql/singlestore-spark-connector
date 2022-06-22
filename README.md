@@ -26,7 +26,7 @@ SingleStore JDBC driver installed.  This library is tested against the following
 SingleStore driver version:
 
 ```
-"com.singlestore" % "singlestore-jdbc-client"  % "1.0.1"
+"com.singlestore" % "singlestore-jdbc-client"  % "1.1.0"
 ```
 
 Once you have everything installed, you're almost ready to run your first
