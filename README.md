@@ -26,7 +26,7 @@ SingleStore JDBC driver installed.  This library is tested against the following
 SingleStore driver version:
 
 ```
-"com.singlestore" % "singlestore-jdbc-client"  % "1.0.1"
+"com.singlestore" % "singlestore-jdbc-client"  % "1.1.0"
 ```
 
 Once you have everything installed, you're almost ready to run your first
@@ -565,6 +565,32 @@ spark.conf.set("spark.datasource.singlestore.disableSslHostnameVerification", "t
 
 More information on the above parameters can be found at SingleStore JDBC driver documentation here:
 https://docs.singlestore.com/db/latest/en/developer-resources/connect-with-application-development-tools/connect-with-java-jdbc/the-singlestore-jdbc-driver.html#tls-parameters
+
+
+### JWT authentication
+
+You may authenticate your connection to the SingleStoreDB cluster using the SingleStore Spark connector with a JWT.
+To use JWT-based authentication, specify the following parameters:
+ - `credentialType=JWT` 
+ - `password=<jwt-token>`
+
+Here's a sample configuration that uses JWT-based authentication:
+```
+SparkConf conf = new SparkConf();
+conf.set("spark.datasource.singlestore.ddlEndpoint", "singlestore-master.cluster.internal")
+conf.set("spark.datasource.singlestore.dmlEndpoints", "singlestore-master.cluster.internal,singlestore-child-1.cluster.internal:3307")
+conf.set("spark.datasource.singlestore.credentialType", "JWT")
+conf.set("spark.datasource.singlestore.useSsl", "true")
+conf.set("spark.datasource.singlestore.user", "s2user")
+conf.set("spark.datasource.singlestore.password", "eyJhbGci.eyJzdWIiOiIxMjM0NTY3.masHf")
+```
+
+> note: To authenticate your connection to the SingleStoreDB cluster using the SingleStore Spark connector with a JWT,
+> the SingleStoreDB user must connect via SSL and use a JWT for authentication.
+>
+> See [Create a JWT User](https://docs.singlestore.com/managed-service/en/security/authentication/authenticate-via-jwt.html#create-a-jwt-user-751086) for more information.
+
+See [Authenticate via JWT](https://docs.singlestore.com/managed-service/en/security/authentication/authenticate-via-jwt.html) for more information.
 
 ## Filing issues
 
