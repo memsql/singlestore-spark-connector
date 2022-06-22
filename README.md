@@ -570,11 +570,11 @@ https://docs.singlestore.com/db/latest/en/developer-resources/connect-with-appli
 ### JWT authentication
 
 You may authenticate your connection to the SingleStoreDB cluster using the SingleStore Spark connector with a JWT.
-To use JWT-based authentication:
- - specify `JWT` in the `credentialType` option 
- - provide the actual JWT in the `password` option
+To use JWT-based authentication, specify the following parameters:
+ - `credentialType=JWT` 
+ - `password=<jwt-token>`
 
-Here is an example of configurations for JWT authentication:
+Here's a sample configuration that uses JWT-based authentication:
 ```
 SparkConf conf = new SparkConf();
 conf.set("spark.datasource.singlestore.ddlEndpoint", "singlestore-master.cluster.internal")
@@ -585,11 +585,10 @@ conf.set("spark.datasource.singlestore.user", "s2user")
 conf.set("spark.datasource.singlestore.password", "eyJhbGci.eyJzdWIiOiIxMjM0NTY3.masHf")
 ```
 
-> note: To authenticate your connection to the SingleStore cluster via SingleStore Spark connector using JWTs,
-> the SingleStore user must connect via SSL and use JWT for authentication.
-> To create a SingleStore user that can authenticate with a JWT, execute the following command:
+> note: To authenticate your connection to the SingleStoreDB cluster using the SingleStore Spark connector with a JWT,
+> the SingleStoreDB user must connect via SSL and use a JWT for authentication.
 >
-> `CREATE USER 'email@example.com'@'%' IDENTIFIED WITH authentication_jwt REQUIRE SSL;`
+> See [Create a JWT User](https://docs.singlestore.com/managed-service/en/security/authentication/authenticate-via-jwt.html#create-a-jwt-user-751086) for more information.
 
 See [Authenticate via JWT](https://docs.singlestore.com/managed-service/en/security/authentication/authenticate-via-jwt.html) for more information.
 
