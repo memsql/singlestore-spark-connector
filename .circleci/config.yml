@@ -35,7 +35,7 @@ jobs:
       SINGLESTORE_PORT: 5506
       SINGLESTORE_USER: root
       SINGLESTORE_DB: test
-      JAVA_HOME: /usr/lib/jvm/jdk1.8.0
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64/
       CONTINUOUS_INTEGRATION: true
       SBT_OPTS: "-Xmx256M"
     steps:
