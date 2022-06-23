@@ -11,6 +11,7 @@ commands:
           name: Setup Machine
           command: |
             sudo apt update
+            sudo update-alternatives --set java /usr/lib/jvm/java-11-openjdk-amd64/bin/java
             sudo apt install -y curl
             sudo wget https://github.com/sbt/sbt/releases/download/v<< parameters.sbt_version >>/sbt-<< parameters.sbt_version >>.tgz
             sudo tar xzvf sbt-<< parameters.sbt_version >>.tgz -C /usr/share/
