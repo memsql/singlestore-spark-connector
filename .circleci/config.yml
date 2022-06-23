@@ -5,7 +5,7 @@ commands:
     parameters:
       sbt_version:
         type: string
-        default: 1.3.6
+        default: 1.3.5
     steps:
       - run:
           name: Setup Machine
@@ -61,7 +61,7 @@ jobs:
   publish:
     machine: true
     environment:
-      JAVA_HOME: /usr/lib/jvm/jdk1.8.0
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64/
       SONATYPE_USERNAME: memsql
     steps:
       - setup_environment
@@ -91,8 +91,6 @@ workflows:
           filters:
             tags:
               only: /^v.*/
-            branches:
-              ignore: /.*/
           matrix:
             parameters:
               spark_version:
