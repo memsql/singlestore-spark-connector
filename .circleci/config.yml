@@ -47,8 +47,7 @@ jobs:
       - run:
           name: Run tests
           command: |
-            export SINGLESTORE_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' singlestore-integration)
-            sbt ++2.12.12 "testOnly -- -l  ExcludeFromSpark31" -Dspark.version=<< parameters.spark_version >>
+            sbt ++2.12.12 -Dspark.version=<< parameters.spark_version >>
 
   publish:
     machine: true
