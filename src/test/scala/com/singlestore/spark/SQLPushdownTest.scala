@@ -3708,7 +3708,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("Base64") {
-      it("works") {
+      it("works", ExcludeFromSpark33) {
         testQuery("select id, base64(critic_review) as x from movies")
       }
       it("partial pushdown with udf") {
@@ -3718,9 +3718,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("UnBase64") {
-      it("works") {
-        testQuery(
-          "select id, unbase64(concat('TG9yZW0gaXBzdW0gZG9sb3Igc2l0IGFtZXQsIGNvbnNlY3RldHVlciBhZGlwaXNjaW5nIGVsaXQu\nIFByb2luIHJpc3VzLiBQcmFlc2VudCBsZWN0dXMuCgpWZXN0aWJ1bHVtIHF1YW0gc2FwaWVuLCB2\nYXJpdXMgdXQsIGJsYW5kaXQgbm9uLCBpbnRlcmR1bSBpbiwgYW50ZS4gVmVzdGlidWx1bSBhbnRl\nIGlwc3VtIHByaW1pcyBpbiBmYXVjaWJ1cyBvcmNpIGx1Y3R1cyBldCB1bHRyaWNlcyBwb3N1ZXJl\nIGN1YmlsaWEgQ3VyYWU7IER1aXMgZmF1Y2lidXMgYWNjdW1zYW4gb2Rpby4gQ3VyYWJpdHVyIGNv\n', 'bnZhbGxpcy4=', left(title, 0))) as x from movies")
+      it("works", ExcludeFromSpark33) {
+        testQuery("select id, unbase64(base64(critic_review)) as x from movies")
       }
       it("partial pushdown with udf") {
         testQuery("select id, unbase64(base64(stringIdentity(critic_review))) from movies",
