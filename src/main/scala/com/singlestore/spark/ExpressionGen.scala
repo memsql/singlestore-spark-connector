@@ -835,8 +835,6 @@ object ExpressionGen extends LazyLogging {
       case Ascii(expressionExtractor(child))       => f("ASCII", child)
       case Chr(expressionExtractor(child)) =>
         f("IF", f("ISNULL", child), StringVar(null), f("CHAR", child))
-      case Base64(expressionExtractor(child))   => f("TO_BASE64", child)
-      case UnBase64(expressionExtractor(child)) => f("FROM_BASE64", child)
 
       case versionSpecificExpressionGen(child) => child
 

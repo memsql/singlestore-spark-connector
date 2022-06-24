@@ -190,6 +190,9 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case Right(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
       Some(f("RIGHT", str, len, child))
 
+    case Base64(expressionExtractor(child))   => Some(f("TO_BASE64", child))
+    case UnBase64(expressionExtractor(child)) => Some(f("FROM_BASE64", child))
+
     case _ => None
   }
 }
