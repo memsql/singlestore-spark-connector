@@ -37,7 +37,7 @@ then
   echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark32"'
 else
   echo 'export SPARK_VERSION="3.3.0"'
-  echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark32"'
+  echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark33"'
 fi
 
 
