@@ -75,10 +75,15 @@ class DefaultSource
     JdbcHelpers.prepareTableForWrite(conf, table, mode, data.schema)
     val isReferenceTable = JdbcHelpers.isReferenceTable(conf, table)
     val partitionWriterFactory =
-      if (conf.onDuplicateKeySQL.isEmpty) {
-        new LoadDataWriterFactory(table, conf)
-      } else {
+      if (conf.onDuplicateKeySQL.isDefined ||
+          // clientEndpoint options should be used with Cloud deployment
+          // On Cloud we don't provide access to the MA
+          // Forwarding of LOAD DATA query to the reference table is not implemented
+          // Using INSERT INTO query for this case
+          (opts.isDefinedAt(SinglestoreOptions.CLIENT_ENDPOINT) && isReferenceTable)) {
         new BatchInsertWriterFactory(table, conf)
+      } else {
+        new LoadDataWriterFactory(table, conf)
       }
 
     val schema        = data.schema

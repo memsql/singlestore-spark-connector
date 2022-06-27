@@ -39,70 +39,77 @@ locally when constructing a DataFrame.  The options are named the same, however
 global options have the prefix `spark.datasource.singlestore.`.
 
 #### Basic options
-| Option                                             | Description
-| -                                                  | -
-| `ddlEndpoint`  (required)                          | Hostname or IP address of the SingleStore Master Aggregator in the format `host[:port]` (port is optional). Ex. `master-agg.foo.internal:3308` or `master-agg.foo.internal`
-| `dmlEndpoints`                                     | Hostname or IP address of SingleStore Aggregator nodes to run queries against in the format `host[:port],host[:port],...` (port is optional, multiple hosts separated by comma). Ex. `child-agg:3308,child-agg2` (default: `ddlEndpoint`)
-| `user`                                             | SingleStore username (default: `root`)
-| `password`                                         | SingleStore password (default: no password)
-| `query`                                            | The query to run (mutually exclusive with dbtable)
-| `dbtable`                                          | The table to query (mutually exclusive with query)
-| `database`                                         | If set, all connections will default to using this database (default: empty)
+| Option                                              | Description
+| -                                                   | -
+| `ddlEndpoint`    (On-Premise deployment) (required) | Hostname or IP address of the SingleStore Master Aggregator in the format `host[:port]` (port is optional). Ex. `master-agg.foo.internal:3308` or `master-agg.foo.internal`
+| `dmlEndpoints`   (On-Premise deployment)            | Hostname or IP address of SingleStore Aggregator nodes to run queries against in the format `host[:port],host[:port],...` (port is optional, multiple hosts separated by comma). Ex. `child-agg:3308,child-agg2` (default: `ddlEndpoint`)
+| `clientEndpoint` (Cloud deployment) (required)      | Hostname or IP address to the SingleStoreDB Cloud cluster or workspace to run queries against in the format `host[:port]` (port is optional). Ex. `myhost:3306`
+| `user`                                              | SingleStore username (default: `root`)
+| `password`                                          | SingleStore password (default: no password)
+| `query`                                             | The query to run (mutually exclusive with dbtable)
+| `dbtable`                                           | The table to query (mutually exclusive with query)
+| `database`                                          | If set, all connections will default to using this database (default: empty)
 
 #### Read options
-| Option                                             | Description
-| -                                                  | -
-| `disablePushdown`                                  | Disable SQL Pushdown when running queries (default: false)
-| `enableParallelRead`                               | Enable reading data in parallel for some query shapes; one of (`disabled`, `automaticLite`, `automatic`, `forced`) (default: `automaticLite`)
-| `parallelRead.Features`                            | Specify comma separated list of parallel read features that will be tried. The order in which features are listed determines their priority. Supported features: `ReadFromLeaves`, `ReadFromAggregators`, `ReadFromAggregatorsMaterialized`. Ex. `ReadFromLeaves,ReadFromAggregators` (default: `ReadFromAggregators`).
-| `parallelRead.tableCreationTimeoutMS`              | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregators` feature is used; 0 means no timeout (default: `0`)
-| `parallelRead.tableCreationTimeoutMaterializedMS`  | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregatorsMaterialized` feature is used; 0 means no timeout (default: `0`)
-| `parallelRead.maxNumPartitions`                   | Maximum number of partitions in the resulting DataFrame; 0 means no limit (default: `0`)
-| `parallelRead.repartition`                         | Repartition data before reading it (default: `false`)
-| `parallelRead.repartition.columns`                 | Comma separated list of column names that are used for repartitioning, if `parallelRead.repartition` is enabled. By default, repartitioning is done using an additional column with `RAND()` value.
+| Option                                              | Description
+| -                                                   | -
+| `disablePushdown`                                   | Disable SQL Pushdown when running queries (default: false)
+| `enableParallelRead`                                | Enable reading data in parallel for some query shapes; one of (`disabled`, `automaticLite`, `automatic`, `forced`) (default: `automaticLite`)
+| `parallelRead.Features`                             | Specify comma separated list of parallel read features that will be tried. The order in which features are listed determines their priority. Supported features: `ReadFromLeaves`, `ReadFromAggregators`, `ReadFromAggregatorsMaterialized`. Ex. `ReadFromLeaves,ReadFromAggregators` (default: `ReadFromAggregators`).
+| `parallelRead.tableCreationTimeoutMS`               | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregators` feature is used; 0 means no timeout (default: `0`)
+| `parallelRead.tableCreationTimeoutMaterializedMS`   | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregatorsMaterialized` feature is used; 0 means no timeout (default: `0`)
+| `parallelRead.maxNumPartitions`                     | Maximum number of partitions in the resulting DataFrame; 0 means no limit (default: `0`)
+| `parallelRead.repartition`                          | Repartition data before reading it (default: `false`)
+| `parallelRead.repartition.columns`                  | Comma separated list of column names that are used for repartitioning, if `parallelRead.repartition` is enabled. By default, repartitioning is done using an additional column with `RAND()` value.
 
 #### Write options
-| Option                                             | Description
-| -                                                  | -
-| `overwriteBehavior`                                | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
-| `truncate`                                         | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
-| `loadDataCompression`                              | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
-| `loadDataFormat`                                   | Serialize data on load; one of (`Avro`, `CSV`) (default: CSV)
-| `tableKey`                                         | Specify additional keys to add to tables created by the connector (See below for more details)
-| `onDuplicateKeySQL`                                | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, SingleStore will instead perform an UPDATE of the old row. See examples below
-| `insertBatchSize`                                  | Size of the batch for row insertion (default: `10000`)
-| `maxErrors`                                        | The maximum number of errors in a single `LOAD DATA` request. When this limit is reached, the load fails. If this property equals to `0`, no error limit exists (default: `0`)
-| `createRowstoreTable`                              | If enabled, the connector creates a rowstore table (default: `false`).
+| Option                                              | Description
+| -                                                   | -
+| `overwriteBehavior`                                 | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
+| `truncate`                                          | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
+| `loadDataCompression`                               | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
+| `loadDataFormat`                                    | Serialize data on load; one of (`Avro`, `CSV`) (default: CSV)
+| `tableKey`                                          | Specify additional keys to add to tables created by the connector (See below for more details)
+| `onDuplicateKeySQL`                                 | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, SingleStore will instead perform an UPDATE of the old row. See examples below
+| `insertBatchSize`                                   | Size of the batch for row insertion (default: `10000`)
+| `maxErrors`                                         | The maximum number of errors in a single `LOAD DATA` request. When this limit is reached, the load fails. If this property equals to `0`, no error limit exists (default: `0`)
+| `createRowstoreTable`                               | If enabled, the connector creates a rowstore table (default: `false`).
 
 #### Connection pool options
-| Option                                             | Description
-| -                                                  | -
-| `driverConnectionPool.Enabled`                     | Enable using of connection pool on the driver. (default: `true`)
-| `driverConnectionPool.MaxOpenConns`                | The maximum number of active connections with the same options that can be allocated from the driver pool at the same time, or negative for no limit. (default: `-1`)
-| `driverConnectionPool.MaxIdleConns`                | The maximum number of connections with the same options that can remain idle in the driver pool, without extra ones being released, or negative for no limit. (default: `8`)
-| `driverConnectionPool.MinEvictableIdleTimeMs`      | The minimum amount of time an object may sit idle in the driver pool before it is eligible for eviction by the idle object evictor (if any). (default: `30000` - 30 sec)
-| `driverConnectionPool.TimeBetweenEvictionRunsMS`   | The number of milliseconds to sleep between runs of the idle object evictor thread on the driver. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
-| `driverConnectionPool.MaxWaitMS`                   | The maximum number of milliseconds that the driver pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
-| `driverConnectionPool.MaxConnLifetimeMS`           | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the driver pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
-| `executorConnectionPool.Enabled`                   | Enable using of connection pool on executors. (default: `true`)
-| `executorConnectionPool.MaxOpenConns`              | The maximum number of active connections with the same options that can be allocated from the executor pool at the same time, or negative for no limit. (default: `true`)
-| `executorConnectionPool.MaxIdleConns`              | The maximum number of connections with the same options that can remain idle in the executor pool, without extra ones being released, or negative for no limit. (default: `8`)
-| `executorConnectionPool.MinEvictableIdleTimeMs`    | The minimum amount of time an object may sit idle in the executor pool before it is eligible for eviction by the idle object evictor (if any). (default: `2000` - 2 sec)
-| `executorConnectionPool.TimeBetweenEvictionRunsMS` | The number of milliseconds to sleep between runs of the idle object evictor thread on the executor. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
-| `executorConnectionPool.MaxWaitMS`                 | The maximum number of milliseconds that the executor pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
-| `executorConnectionPool.MaxConnLifetimeMS`         | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the executor pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
+| Option                                              | Description
+| -                                                   | -
+| `driverConnectionPool.Enabled`                      | Enable using of connection pool on the driver. (default: `true`)
+| `driverConnectionPool.MaxOpenConns`                 | The maximum number of active connections with the same options that can be allocated from the driver pool at the same time, or negative for no limit. (default: `-1`)
+| `driverConnectionPool.MaxIdleConns`                 | The maximum number of connections with the same options that can remain idle in the driver pool, without extra ones being released, or negative for no limit. (default: `8`)
+| `driverConnectionPool.MinEvictableIdleTimeMs`       | The minimum amount of time an object may sit idle in the driver pool before it is eligible for eviction by the idle object evictor (if any). (default: `30000` - 30 sec)
+| `driverConnectionPool.TimeBetweenEvictionRunsMS`    | The number of milliseconds to sleep between runs of the idle object evictor thread on the driver. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
+| `driverConnectionPool.MaxWaitMS`                    | The maximum number of milliseconds that the driver pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
+| `driverConnectionPool.MaxConnLifetimeMS`            | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the driver pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
+| `executorConnectionPool.Enabled`                    | Enable using of connection pool on executors. (default: `true`)
+| `executorConnectionPool.MaxOpenConns`               | The maximum number of active connections with the same options that can be allocated from the executor pool at the same time, or negative for no limit. (default: `true`)
+| `executorConnectionPool.MaxIdleConns`               | The maximum number of connections with the same options that can remain idle in the executor pool, without extra ones being released, or negative for no limit. (default: `8`)
+| `executorConnectionPool.MinEvictableIdleTimeMs`     | The minimum amount of time an object may sit idle in the executor pool before it is eligible for eviction by the idle object evictor (if any). (default: `2000` - 2 sec)
+| `executorConnectionPool.TimeBetweenEvictionRunsMS`  | The number of milliseconds to sleep between runs of the idle object evictor thread on the executor. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
+| `executorConnectionPool.MaxWaitMS`                  | The maximum number of milliseconds that the executor pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
+| `executorConnectionPool.MaxConnLifetimeMS`          | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the executor pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
 
 ## Examples
 
-Example of configuring the `singlestore-spark-connector` globally:
+Example of configuring the `singlestore-spark-connector` globally for On-Premise deployment of the SingleStoreDB:
 ```scala
 spark.conf.set("spark.datasource.singlestore.ddlEndpoint", "singlestore-master.cluster.internal")
 spark.conf.set("spark.datasource.singlestore.dmlEndpoints", "singlestore-master.cluster.internal,singlestore-child-1.cluster.internal:3307")
 spark.conf.set("spark.datasource.singlestore.user", "admin")
 spark.conf.set("spark.datasource.singlestore.password", "s3cur3-pa$$word")
 ```
+Example of configuring the `singlestore-spark-connector` globally for Cloud deployment of the SingleStoreDB:
+```scala
+spark.conf.set("spark.datasource.singlestore.clientEndpoint", "singlestore-host")
+spark.conf.set("spark.datasource.singlestore.user", "admin")
+spark.conf.set("spark.datasource.singlestore.password", "s3cur3-pa$$word")
+```
 
-Example of configuring the `singlestore-spark-connector` using the read API:
+Example of configuring the `singlestore-spark-connector` using the read API for On-Premise deployment of the SingleStoreDB:
 ```scala
 val df = spark.read
     .format("singlestore")
@@ -111,9 +118,23 @@ val df = spark.read
     .load("foo")
 ```
 
-Example of configuring the `singlestore-spark-connector` using an external table in Spark SQL:
+Example of configuring the `singlestore-spark-connector` using the read API for Cloud deployment of the SingleStoreDB:
+```scala
+val df = spark.read
+    .format("singlestore")
+    .option("clientEndpoint", "singlestore-host")
+    .option("user", "admin")
+    .load("foo")
+```
+
+Example of configuring the `singlestore-spark-connector` using an external table in Spark SQL for On-Premise deployment of the SingleStoreDB:
 ```sql
 CREATE TABLE bar USING singlestore OPTIONS ('ddlEndpoint'='singlestore-master.cluster.internal','dbtable'='foo.bar')
+```
+
+Example of configuring the `singlestore-spark-connector` using an external table in Spark SQL for Cloud deployment of the SingleStoreDB:
+```sql
+CREATE TABLE bar USING singlestore OPTIONS ('clientEndpoint'='singlestore-host','dbtable'='foo.bar')
 ```
 
 For Java/Python versions of some of these examples, visit the section ["Java & Python Example"](#java-python-example)
