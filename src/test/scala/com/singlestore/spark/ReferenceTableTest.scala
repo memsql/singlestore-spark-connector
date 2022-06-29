@@ -2,8 +2,7 @@ package com.singlestore.spark
 
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
 import org.apache.spark.sql.types.IntegerType
-import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
-import com.singlestore.spark.SQLHelper._
+import org.apache.spark.sql.{DataFrame, SaveMode}
 
 import scala.util.Try
 
@@ -95,33 +94,6 @@ class ReferenceTableTest extends IntegrationSuiteBase {
         1046 = Database name not provided
        * */
       assert(TestHelper.isSQLExceptionWithCode(result.failed.get, List(1046)))
-    }
-  }
-
-  it("clientEndpoint option") {
-    if (version.atLeast("7.5.0")) {
-      val cloudSpark = SparkSession
-        .builder()
-        .master("local")
-        .appName("singlestore-integration-jwt-test")
-        .config("spark.datasource.singlestore.clientEndpoint",
-                s"${childAggregatorHost}:${childAggregatorPort}")
-        .config("spark.datasource.singlestore.user", "root")
-        .config("spark.datasource.singlestore.password", masterPassword)
-        .config("spark.datasource.singlestore.database", "testdb")
-        .getOrCreate()
-
-      spark.executeSinglestoreQuery(
-        s"create reference table if not exists $dbName.$referenceCollectionName (id INT NOT NULL, PRIMARY KEY (id))")
-
-      val df = cloudSpark.createDF(
-        List(4, 5, 6),
-        List(("id", IntegerType, true))
-      )
-      df.write
-        .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
-        .mode(SaveMode.Append)
-        .save(s"${dbName}.${referenceCollectionName}")
     }
   }
 }

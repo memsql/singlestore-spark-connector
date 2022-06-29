@@ -298,15 +298,12 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
   }
 
   it("clientEndpoint option") {
-    val cloudSpark = SparkSession
-      .builder()
-      .master("local")
-      .appName("singlestore-integration-jwt-test")
-      .config("spark.datasource.singlestore.clientEndpoint", s"${masterHost}:${masterPort}")
-      .config("spark.datasource.singlestore.user", "root")
-      .config("spark.datasource.singlestore.password", masterPassword)
-      .config("spark.datasource.singlestore.database", "testdb")
-      .getOrCreate()
+    val cloudSpark = spark.newSession()
+
+    cloudSpark.conf.unset("spark.datasource.singlestore.ddlEndpoint")
+    cloudSpark.conf.unset("spark.datasource.singlestore.dmlEndpoint")
+    cloudSpark.conf.set("spark.datasource.singlestore.clientEndpoint",
+                        s"${masterHost}:${masterPort}")
 
     val jwtDF = cloudSpark.read
       .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
