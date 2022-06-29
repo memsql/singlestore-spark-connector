@@ -7,7 +7,7 @@ You can find the latest version of the connector on Maven Central and
 spark-packages.org.  The group is `com.singlestore` and the artifact is
 `singlestore-spark-connector_2.11` for Spark 2 and `singlestore-spark-connector_2.12` for Spark 3.
 
-* [Maven Central](https://search.maven.org/artifact/com.singlestore/singlestore-spark-connector_2.11)
+* [Maven Central (Spark 2)](https://search.maven.org/artifact/com.singlestore/singlestore-spark-connector_2.11)
 * [Maven Central (Spark 3)](https://search.maven.org/artifact/com.singlestore/singlestore-spark-connector_2.12)
 * [spark-packages.org](https://spark-packages.org/package/memsql/memsql-spark-connector)
 
@@ -16,10 +16,12 @@ You can add the connector to your Spark application using: spark-shell, pyspark,
 $SPARK_HOME/bin/spark-shell --packages com.singlestore:singlestore-spark-connector_2.12:4.1.0-spark-3.1.0
 ```
 
-We release two versions of the `singlestore-spark-connector`, one per Spark version.
-An example version number is: `.4.1.0-spark-3.1.0` which is the 4.1.0
-version of the connector, compiled and tested against Spark 3.1.0. Make sure
-you are using the most recent version of the connector.
+We release several versions of the `singlestore-spark-connector`, one per Spark version.
+The connector follows the `x.x.x-spark-y.y.y` naming convention, where `x.x.x` represents the connector version 
+and `y.y.y` represents the corresponding Spark version. 
+For example, in connector `4.1.0-spark-3.2.1`, 4.1.0 is the version of the connector, 
+compiled and tested against Spark version 3.2.1. 
+It is critical to select the connector version that corresponds to the Spark version in use.
 
 In addition to adding the `singlestore-spark-connector`, you will also need to have the
 SingleStore JDBC driver installed.  This library is tested against the following
@@ -39,58 +41,58 @@ locally when constructing a DataFrame.  The options are named the same, however
 global options have the prefix `spark.datasource.singlestore.`.
 
 #### Basic options
-| Option                                             | Description
-| -                                                  | -
-| `ddlEndpoint`  (required)                          | Hostname or IP address of the SingleStore Master Aggregator in the format `host[:port]` (port is optional). Ex. `master-agg.foo.internal:3308` or `master-agg.foo.internal`
-| `dmlEndpoints`                                     | Hostname or IP address of SingleStore Aggregator nodes to run queries against in the format `host[:port],host[:port],...` (port is optional, multiple hosts separated by comma). Ex. `child-agg:3308,child-agg2` (default: `ddlEndpoint`)
-| `user`                                             | SingleStore username (default: `root`)
-| `password`                                         | SingleStore password (default: no password)
-| `query`                                            | The query to run (mutually exclusive with dbtable)
-| `dbtable`                                          | The table to query (mutually exclusive with query)
-| `database`                                         | If set, all connections will default to using this database (default: empty)
+| Option                                             | Default value                                         | Description
+| -                                                  | -                                                     | -
+| `ddlEndpoint`  (required)                          | -                                                     | The hostname or IP address of the SingleStore Master Aggregator in the `host[:port]` format, where port is an optional parameter. Example: `master-agg.foo.internal:3308` or `master-agg.foo.internal`.
+| `dmlEndpoints`                                     | ddlEndpoint                                           | The hostname or IP address of SingleStore Aggregator nodes to run queries against in the `host[:port],host[:port],...` format, where :port is an optional parameter (multiple hosts separated by comma). Example: `child-agg:3308,child-agg2`.
+| `user`                                             | `root`                                                | SingleStore username.
+| `password`                                         | -                                                     | SingleStore password.
+| `query`                                            | -                                                     | The query to run (mutually exclusive with dbtable).
+| `dbtable`                                          | -                                                     | The table to query (mutually exclusive with query).
+| `database`                                         | -                                                     | If set, all connections will default to using this database.
 
 #### Read options
-| Option                                             | Description
-| -                                                  | -
-| `disablePushdown`                                  | Disable SQL Pushdown when running queries (default: false)
-| `enableParallelRead`                               | Enable reading data in parallel for some query shapes; one of (`disabled`, `automaticLite`, `automatic`, `forced`) (default: `automaticLite`)
-| `parallelRead.Features`                            | Specify comma separated list of parallel read features that will be tried. The order in which features are listed determines their priority. Supported features: `ReadFromLeaves`, `ReadFromAggregators`, `ReadFromAggregatorsMaterialized`. Ex. `ReadFromLeaves,ReadFromAggregators` (default: `ReadFromAggregators`).
-| `parallelRead.tableCreationTimeoutMS`              | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregators` feature is used; 0 means no timeout (default: `0`)
-| `parallelRead.tableCreationTimeoutMaterializedMS`  | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregatorsMaterialized` feature is used; 0 means no timeout (default: `0`)
-| `parallelRead.maxNumPartitions`                   | Maximum number of partitions in the resulting DataFrame; 0 means no limit (default: `0`)
-| `parallelRead.repartition`                         | Repartition data before reading it (default: `false`)
-| `parallelRead.repartition.columns`                 | Comma separated list of column names that are used for repartitioning, if `parallelRead.repartition` is enabled. By default, repartitioning is done using an additional column with `RAND()` value.
+| Option                                             | Default value                                         | Description
+| -                                                  | -                                                     | -
+| `disablePushdown`                                  | `false`                                               |Disable SQL Pushdown when running queries.
+| `enableParallelRead`                               | `automaticLite`                                       | Enable reading data in parallel for some query shapes. It can have of the following values: `disabled`, `automaticLite`, `automatic`, and `forced`. For more information, see [Parallel Read Support](#parallel-read-support).
+| `parallelRead.Features`                            | `ReadFromAggregators,ReadFromAggregatorsMaterialized` | Specifies a comma separated list of parallel read features that are tried in the order they are listed. We support the following features: `ReadFromLeaves`, `ReadFromAggregators`, and `ReadFromAggregatorsMaterialized`. Example: `ReadFromAggregators,ReadFromAggregatorsMaterialized`. For more information, see [Parallel Read Support](#parallel-read-support).
+| `parallelRead.tableCreationTimeoutMS`              | `0`                                                   | Specifies the amount of time (in milliseconds) the reader waits for the result table creation when using the `ReadFromAggregators` feature. If set to `0`, timeout is disabled.
+| `parallelRead.tableCreationTimeoutMaterializedMS`  | `0`                                                   | Specifies the amount of time (in milliseconds) the reader waits for the result table creation when using the `ReadFromAggregatorsMaterialized` feature. If set to `0`, timeout is disabled.
+| `parallelRead.maxNumPartitions`                    | `0`                                                   | Specifies the Maximum number of partitions in the resulting DataFrame. If set to `0`, no limit is applied.
+| `parallelRead.repartition`                         | `false`                                               | Repartition data before reading.
+| `parallelRead.repartition.columns`                 | `RAND()`                                              | Specifies a comma separated list of columns that are used for repartitioning (when `parallelRead.repartition` is enabled). By default, an additional column with `RAND()` value is used for repartitioning.
 
 #### Write options
-| Option                                             | Description
-| -                                                  | -
-| `overwriteBehavior`                                | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
-| `truncate`                                         | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
-| `loadDataCompression`                              | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
-| `loadDataFormat`                                   | Serialize data on load; one of (`Avro`, `CSV`) (default: CSV)
-| `tableKey`                                         | Specify additional keys to add to tables created by the connector (See below for more details)
-| `onDuplicateKeySQL`                                | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, SingleStore will instead perform an UPDATE of the old row. See examples below
-| `insertBatchSize`                                  | Size of the batch for row insertion (default: `10000`)
-| `maxErrors`                                        | The maximum number of errors in a single `LOAD DATA` request. When this limit is reached, the load fails. If this property equals to `0`, no error limit exists (default: `0`)
-| `createRowstoreTable`                              | If enabled, the connector creates a rowstore table (default: `false`).
+| Option                                             | Default value                                         | Description
+| -                                                  | -                                                     | -
+| `overwriteBehavior`                                | `dropAndCreate`                                       | Specifies the behavior during Overwrite. It can have one of the following values: `dropAndCreate`, `truncate`, `merge`.
+| `truncate`                                         | `false`                                               | :warning: **This option is deprecated, please use `overwriteBehavior` instead.** Truncates instead of dropping an existing table during Overwrite.
+| `loadDataCompression`                              | `Gzip`                                                | Compresses data on load. It can have one of the following three values: `GZip`, `LZ4`, and `Skip`.
+| `loadDataFormat`                                   | `CSV`                                                 | Serializes data on load. It can have one of the following values: `Avro` or `CSV`.
+| `tableKey`                                         | -                                                     | Specifies additional keys to add to tables created by the connector. See [Specifying keys for tables created by the Spark Connector](#specifying-keys-for-tables-created-by-the-spark-connector) for more information.
+| `onDuplicateKeySQL`                                | -                                                     | If this option is specified and a new row with duplicate `PRIMARY KEY` or `UNIQUE` index is inserted, SingleStore performs an `UPDATE` operation on the existing row. See [Inserting rows into the table with ON DUPLICATE KEY UPDATE](#inserting-rows-into-the-table-with-on-duplicate-key-update) for more information.
+| `insertBatchSize`                                  | `10000`                                               | Specifies the size of the batch for row insertion.
+| `maxErrors`                                        | `0`                                                   | The maximum number of errors in a single LOAD DATA request. When this limit is reached, the load fails. If this property is set to `0`, no error limit exists.
+| `createRowstoreTable`                              | `rowstore`                                            | If enabled, the connector creates a rowstore table.
 
 #### Connection pool options
-| Option                                             | Description
-| -                                                  | -
-| `driverConnectionPool.Enabled`                     | Enable using of connection pool on the driver. (default: `true`)
-| `driverConnectionPool.MaxOpenConns`                | The maximum number of active connections with the same options that can be allocated from the driver pool at the same time, or negative for no limit. (default: `-1`)
-| `driverConnectionPool.MaxIdleConns`                | The maximum number of connections with the same options that can remain idle in the driver pool, without extra ones being released, or negative for no limit. (default: `8`)
-| `driverConnectionPool.MinEvictableIdleTimeMs`      | The minimum amount of time an object may sit idle in the driver pool before it is eligible for eviction by the idle object evictor (if any). (default: `30000` - 30 sec)
-| `driverConnectionPool.TimeBetweenEvictionRunsMS`   | The number of milliseconds to sleep between runs of the idle object evictor thread on the driver. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
-| `driverConnectionPool.MaxWaitMS`                   | The maximum number of milliseconds that the driver pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
-| `driverConnectionPool.MaxConnLifetimeMS`           | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the driver pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
-| `executorConnectionPool.Enabled`                   | Enable using of connection pool on executors. (default: `true`)
-| `executorConnectionPool.MaxOpenConns`              | The maximum number of active connections with the same options that can be allocated from the executor pool at the same time, or negative for no limit. (default: `true`)
-| `executorConnectionPool.MaxIdleConns`              | The maximum number of connections with the same options that can remain idle in the executor pool, without extra ones being released, or negative for no limit. (default: `8`)
-| `executorConnectionPool.MinEvictableIdleTimeMs`    | The minimum amount of time an object may sit idle in the executor pool before it is eligible for eviction by the idle object evictor (if any). (default: `2000` - 2 sec)
-| `executorConnectionPool.TimeBetweenEvictionRunsMS` | The number of milliseconds to sleep between runs of the idle object evictor thread on the executor. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
-| `executorConnectionPool.MaxWaitMS`                 | The maximum number of milliseconds that the executor pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
-| `executorConnectionPool.MaxConnLifetimeMS`         | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the executor pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
+| Option                                             | Default value                                         | Description
+| -                                                  | -                                                     | -
+| `driverConnectionPool.Enabled`                     | `true`                                                | Enable using of connection pool on the driver. (default: `true`)
+| `driverConnectionPool.MaxOpenConns`                | `-1`                                                  | The maximum number of active connections with the same options that can be allocated from the driver pool at the same time, or negative for no limit. (default: `-1`)
+| `driverConnectionPool.MaxIdleConns`                | `8`                                                   | The maximum number of connections with the same options that can remain idle in the driver pool, without extra ones being released, or negative for no limit. (default: `8`)
+| `driverConnectionPool.MinEvictableIdleTimeMs`      | `30000` (30 sec)                                      | The minimum amount of time an object may sit idle in the driver pool before it is eligible for eviction by the idle object evictor (if any). (default: `30000` - 30 sec)
+| `driverConnectionPool.TimeBetweenEvictionRunsMS`   | `1000` (1 sec)                                        | The number of milliseconds to sleep between runs of the idle object evictor thread on the driver. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
+| `driverConnectionPool.MaxWaitMS`                   | `-1`                                                  | The maximum number of milliseconds that the driver pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
+| `driverConnectionPool.MaxConnLifetimeMS`           | `-1`                                                  | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the driver pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
+| `executorConnectionPool.Enabled`                   | `true`                                                | Enable using of connection pool on executors. (default: `true`)
+| `executorConnectionPool.MaxOpenConns`              | `true`                                                | The maximum number of active connections with the same options that can be allocated from the executor pool at the same time, or negative for no limit. (default: `true`)
+| `executorConnectionPool.MaxIdleConns`              | `8`                                                   | The maximum number of connections with the same options that can remain idle in the executor pool, without extra ones being released, or negative for no limit. (default: `8`)
+| `executorConnectionPool.MinEvictableIdleTimeMs`    | `2000`                                                | The minimum amount of time an object may sit idle in the executor pool before it is eligible for eviction by the idle object evictor (if any). (default: `2000` - 2 sec)
+| `executorConnectionPool.TimeBetweenEvictionRunsMS` | `1000`                                                | The number of milliseconds to sleep between runs of the idle object evictor thread on the executor. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
+| `executorConnectionPool.MaxWaitMS`                 | `-1`                                                  | The maximum number of milliseconds that the executor pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
+| `executorConnectionPool.MaxConnLifetimeMS`         | `-1`                                                  | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the executor pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
 
 ## Examples
 

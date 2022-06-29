@@ -20,7 +20,7 @@ docker pull memsql/cluster-in-a-box
 ```
 docker run -i --init \
 --name singlestore-ciab-for-zeppelin \
--e LICENSE_KEY=[INPUT_YOUR_LICENSE_KEY] \
+-e LICENSE_KEY=$LICENSE \
 -e ROOT_PASSWORD=my_password \
 -p 3306:3306 -p 8081:8080 \
 --net=zeppelin-ciab-network \
