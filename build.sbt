@@ -4,7 +4,7 @@ import xerial.sbt.Sonatype._
   To run tests or publish with a specific spark version use this java option:
     -Dspark.version=3.0.0
  */
-val sparkVersion       = sys.props.get("spark.version").getOrElse("3.2.1")
+val sparkVersion       = sys.props.get("spark.version").getOrElse("3.3.0")
 val scalaVersionStr    = "2.12.12"
 val scalaVersionPrefix = scalaVersionStr.substring(0, 4)
 
@@ -19,6 +19,7 @@ lazy val root = project
       case "3.0.0" => "scala-sparkv3.0"
       case "3.1.3" => "scala-sparkv3.1"
       case "3.2.1" => "scala-sparkv3.2"
+      case "3.3.0" => "scala-sparkv3.3"
     }),
     version := s"4.1.0-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(

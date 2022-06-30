@@ -55,8 +55,11 @@ jobs:
             elif [ << parameters.spark_version >> == '3.1.3' ]
             then
               sbt ++2.12.12 "testOnly -- -l  ExcludeFromSpark31" -Dspark.version=<< parameters.spark_version >>
-            else
+            elif [ << parameters.spark_version >> == '3.2.1' ]
+            then
               sbt ++2.12.12 "testOnly -- -l  ExcludeFromSpark32" -Dspark.version=<< parameters.spark_version >>
+            else
+              sbt ++2.12.12 "testOnly -- -l  ExcludeFromSpark33" -Dspark.version=<< parameters.spark_version >>
             fi
 
   publish:
@@ -84,6 +87,10 @@ jobs:
           name: Publish Spark 3.2.1
           command: |
             sbt ++2.12.12 -Dspark.version=3.2.1 clean publishSigned sonatypeBundleRelease
+      - run:
+          name: Publish Spark 3.3.0
+          command: |
+            sbt ++2.12.12 -Dspark.version=3.3.0 clean publishSigned sonatypeBundleRelease
 
 workflows:
   test:
@@ -100,6 +107,7 @@ workflows:
                 - 3.0.0
                 - 3.1.3
                 - 3.2.1
+                - 3.3.0
               singlestore_image:
                 - memsql/cluster-in-a-box:centos-7.3.2-a364d4b31f-3.0.0-1.9.3
                 - memsql/cluster-in-a-box:centos-7.5.8-12c73130aa-3.2.11-1.11.11

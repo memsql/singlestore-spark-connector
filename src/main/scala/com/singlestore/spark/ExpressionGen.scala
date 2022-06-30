@@ -793,8 +793,6 @@ object ExpressionGen extends LazyLogging {
       //  We need to wait for the engine to implement precise cbrt
 
       // nullExpressions.scala
-      case IfNull(expressionExtractor(left), expressionExtractor(right), _) =>
-        f("COALESCE", left, right)
       case NullIf(expressionExtractor(left), expressionExtractor(right), _) =>
         f("NULLIF", left, right)
       case Nvl(expressionExtractor(left), expressionExtractor(right), _) =>
@@ -824,12 +822,8 @@ object ExpressionGen extends LazyLogging {
       case SortOrder(expressionExtractor(child), Descending, NullsLast, _) => block(child) + "DESC"
 
       // stringExpressions.scala
-      case Upper(expressionExtractor(child)) => f("UPPER", child)
-      case Lower(expressionExtractor(child)) => f("LOWER", child)
-      case Left(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
-        f("LEFT", str, len, child)
-      case Right(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
-        f("RIGHT", str, len, child)
+      case Upper(expressionExtractor(child))          => f("UPPER", child)
+      case Lower(expressionExtractor(child))          => f("LOWER", child)
       case ConcatWs(expressionExtractor(Some(child))) => f("CONCAT_WS", child)
 
       case StringSpace(expressionExtractor(child)) =>
@@ -841,8 +835,6 @@ object ExpressionGen extends LazyLogging {
       case Ascii(expressionExtractor(child))       => f("ASCII", child)
       case Chr(expressionExtractor(child)) =>
         f("IF", f("ISNULL", child), StringVar(null), f("CHAR", child))
-      case Base64(expressionExtractor(child))   => f("TO_BASE64", child)
-      case UnBase64(expressionExtractor(child)) => f("FROM_BASE64", child)
 
       case versionSpecificExpressionGen(child) => child
 

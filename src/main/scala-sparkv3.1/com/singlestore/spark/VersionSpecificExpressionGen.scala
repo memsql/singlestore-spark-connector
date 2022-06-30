@@ -211,6 +211,19 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
       Some(block(Raw("CASE") + caseBranches + elseBranch + Raw("END")))
     }
 
+    // nullExpressions.scala
+    case IfNull(expressionExtractor(left), expressionExtractor(right), _) =>
+      Some(f("COALESCE", left, right))
+
+    // stringExpressions.scala
+    case Left(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
+      Some(f("LEFT", str, len, child))
+    case Right(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
+      Some(f("RIGHT", str, len, child))
+
+    case Base64(expressionExtractor(child))   => Some(f("TO_BASE64", child))
+    case UnBase64(expressionExtractor(child)) => Some(f("FROM_BASE64", child))
+
     case _ => None
   }
 }

@@ -21,6 +21,7 @@ trait IntegrationSuiteBase
     with BeforeAndAfterAll
     with DataFrameComparer
     with LazyLogging {
+  object ExcludeFromSpark33 extends Tag("ExcludeFromSpark33")
   object ExcludeFromSpark32 extends Tag("ExcludeFromSpark32")
   object ExcludeFromSpark31 extends Tag("ExcludeFromSpark31")
   object ExcludeFromSpark30 extends Tag("ExcludeFromSpark30")
@@ -38,20 +39,16 @@ trait IntegrationSuiteBase
 
   var spark: SparkSession = _
 
-  var jdbcOptsDefault = new JDBCOptions(
-    Map(
-      JDBCOptions.JDBC_URL          -> s"jdbc:mysql://$masterHost:$masterPort",
-      JDBCOptions.JDBC_TABLE_NAME   -> "XXX",
-      JDBCOptions.JDBC_DRIVER_CLASS -> "org.mariadb.jdbc.Driver",
-      "user"                        -> "root",
-      "password"                    -> masterPassword
-    )
-  )
+  val jdbcDefaultProps = new Properties()
+  jdbcDefaultProps.setProperty(JDBCOptions.JDBC_TABLE_NAME, "XXX")
+  jdbcDefaultProps.setProperty(JDBCOptions.JDBC_DRIVER_CLASS, "org.mariadb.jdbc.Driver")
+  jdbcDefaultProps.setProperty("user", "root")
+  jdbcDefaultProps.setProperty("password", masterPassword)
 
   val version: SinglestoreVersion = {
-    val conn      = JdbcUtils.createConnectionFactory(jdbcOptsDefault)()
+    val conn =
+      DriverManager.getConnection(s"jdbc:mysql://$masterHost:$masterPort", jdbcDefaultProps)
     val resultSet = executeQuery(conn, "select @@memsql_version")
-
     SinglestoreVersion(resultSet.next().getString(0))
   }
 
@@ -61,7 +58,8 @@ trait IntegrationSuiteBase
     // override global JVM timezone to GMT
     TimeZone.setDefault(TimeZone.getTimeZone("GMT"))
 
-    val conn = JdbcUtils.createConnectionFactory(jdbcOptsDefault)()
+    val conn =
+      DriverManager.getConnection(s"jdbc:mysql://$masterHost:$masterPort", jdbcDefaultProps)
     try {
       // make singlestore use less memory
       executeQuery(conn, "set global default_partitions_per_leaf = 2")
