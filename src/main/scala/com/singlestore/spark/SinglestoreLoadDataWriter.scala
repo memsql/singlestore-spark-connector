@@ -43,7 +43,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
     extends WriterFactory
     with LazyLogging {
 
-  final val BUFFER_SIZE = 10
+  final val BUFFER_SIZE = 524288
 
   type ImplementsSetInfileStream = {
     def setLocalInfileInputStream(input: InputStream)
