@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets
 import java.sql.Connection
 import java.util.Base64
 import java.util.zip.GZIPOutputStream
-
 import com.singlestore.spark.SinglestoreOptions.CompressionType
 import com.singlestore.spark.vendor.apache.SchemaConverters
 import net.jpountz.lz4.LZ4FrameOutputStream
@@ -18,7 +17,7 @@ import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.{Row, SaveMode}
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import java.util.concurrent.{ExecutorService, Executors}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
 
@@ -44,7 +43,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
     extends WriterFactory
     with LazyLogging {
 
-  final val BUFFER_SIZE = 524288
+  final val BUFFER_SIZE = 10
 
   type ImplementsSetInfileStream = {
     def setLocalInfileInputStream(input: InputStream)
@@ -143,9 +142,11 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
       }
     )()
 
+    val writerThreadPool = Executors.newFixedThreadPool(1)
     val writer = Future[Long] {
       try {
         val stmt = conn.createStatement()
+
         try {
           stmt
             .asInstanceOf[ImplementsSetInfileStream]
@@ -157,18 +158,23 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
           stmt.close()
         }
       } finally {
+        inputstream.close()
         conn.close()
       }
-    }
+    }(ExecutionContext.fromExecutor(writerThreadPool))
+
     if (loadDataFormat == SinglestoreOptions.LoadDataFormat.Avro) {
-      new AvroDataWriter(avroSchema, outputstream, writer, conn)
+      new AvroDataWriter(avroSchema, outputstream, writer, writerThreadPool, conn)
     } else {
-      new LoadDataWriter(outputstream, writer, conn)
+      new LoadDataWriter(outputstream, writer, writerThreadPool, conn)
     }
   }
 }
 
-class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn: Connection)
+class LoadDataWriter(outputstream: OutputStream,
+                     writeFuture: Future[Long],
+                     writerThreadPool: ExecutorService,
+                     conn: Connection)
     extends DataWriter[Row] {
 
   override def write(row: Row): Unit = {
@@ -207,19 +213,24 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
   override def commit(): WriterCommitMessage = {
     outputstream.close()
     Await.result(writeFuture, Duration.Inf)
+    writerThreadPool.shutdownNow()
     new WriteSuccess
   }
 
   override def abort(): Unit = {
-    conn.abort(ExecutionContext.global)
+    if (!conn.isClosed) {
+      conn.abort(ExecutionContext.global)
+    }
     outputstream.close()
-    Await.ready(writeFuture, Duration.Inf)
+    writerThreadPool.shutdownNow()
+    Await.result(writeFuture, Duration.Inf)
   }
 }
 
 class AvroDataWriter(avroSchema: Schema,
                      outputstream: OutputStream,
                      writeFuture: Future[Long],
+                     writerThreadPool: ExecutorService,
                      conn: Connection)
     extends DataWriter[Row] {
 
@@ -251,12 +262,16 @@ class AvroDataWriter(avroSchema: Schema,
     encoder.flush()
     outputstream.close()
     Await.result(writeFuture, Duration.Inf)
+    writerThreadPool.shutdownNow()
     new WriteSuccess
   }
 
   override def abort(): Unit = {
-    conn.abort(ExecutionContext.global)
+    if (!conn.isClosed) {
+      conn.abort(ExecutionContext.global)
+    }
     outputstream.close()
-    Await.ready(writeFuture, Duration.Inf)
+    writerThreadPool.shutdownNow()
+    Await.result(writeFuture, Duration.Inf)
   }
 }
