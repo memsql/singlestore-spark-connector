@@ -224,8 +224,7 @@ class LoadDataWriter(outputstream: OutputStream,
     }
 
     writerThreadPool.shutdownNow()
-    val a = Try(outputstream.close())
-    a match {
+    Try(outputstream.close()) match {
       // if the pipe is already closed then the error occurred in the thread which ran the query
       // and we need to return the error from it
       case Failure(e: IOException) if e.getMessage.contains("Pipe closed") =>
