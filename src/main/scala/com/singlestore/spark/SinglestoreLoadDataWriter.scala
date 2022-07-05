@@ -1,12 +1,11 @@
 package com.singlestore.spark
 
-import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
+import java.io.{IOException, InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.sql.Connection
 import java.util.Base64
 import java.util.zip.GZIPOutputStream
-
 import com.singlestore.spark.JdbcHelpers.{getDDLConnProperties, getDMLConnProperties}
 import com.singlestore.spark.SinglestoreOptions.CompressionType
 import com.singlestore.spark.vendor.apache.SchemaConverters
@@ -19,9 +18,10 @@ import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.{Row, SaveMode}
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import java.util.concurrent.{ExecutorService, Executors}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.util.{Failure, Try}
 
 abstract class WriterCommitMessage extends Serializable {}
 case class WriteSuccess()          extends WriterCommitMessage
@@ -142,6 +142,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
       getDMLConnProperties(conf, isOnExecutor = true)
     })
 
+    val writerThreadPool = Executors.newFixedThreadPool(1)
     val writer = Future[Long] {
       try {
         val stmt = conn.createStatement()
@@ -158,18 +159,23 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
           stmt.close()
         }
       } finally {
+        inputstream.close()
         conn.close()
       }
-    }
+    }(ExecutionContext.fromExecutor(writerThreadPool))
+
     if (loadDataFormat == SinglestoreOptions.LoadDataFormat.Avro) {
-      new AvroDataWriter(avroSchema, outputstream, writer, conn)
+      new AvroDataWriter(avroSchema, outputstream, writer, writerThreadPool, conn)
     } else {
-      new LoadDataWriter(outputstream, writer, conn)
+      new LoadDataWriter(outputstream, writer, writerThreadPool, conn)
     }
   }
 }
 
-class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn: Connection)
+class LoadDataWriter(outputstream: OutputStream,
+                     writeFuture: Future[Long],
+                     writerThreadPool: ExecutorService,
+                     conn: Connection)
     extends DataWriter[Row] {
 
   override def write(row: Row): Unit = {
@@ -206,8 +212,9 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
   }
 
   override def commit(): WriterCommitMessage = {
-    outputstream.close()
+    Try(outputstream.close())
     Await.result(writeFuture, Duration.Inf)
+    writerThreadPool.shutdownNow()
     new WriteSuccess
   }
 
@@ -215,14 +222,23 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
     if (!conn.isClosed) {
       conn.abort(ExecutionContext.global)
     }
-    outputstream.close()
-    Await.ready(writeFuture, Duration.Inf)
+
+    writerThreadPool.shutdownNow()
+    val a = Try(outputstream.close())
+    a match {
+      // if the pipe is already closed then the error occurred in the thread which ran the query
+      // and we need to return the error from it
+      case Failure(e: IOException) if e.getMessage.contains("Pipe closed") =>
+        Await.result(writeFuture, Duration.Inf)
+      case _ => Await.ready(writeFuture, Duration.Inf)
+    }
   }
 }
 
 class AvroDataWriter(avroSchema: Schema,
                      outputstream: OutputStream,
                      writeFuture: Future[Long],
+                     writerThreadPool: ExecutorService,
                      conn: Connection)
     extends DataWriter[Row] {
 
@@ -252,8 +268,9 @@ class AvroDataWriter(avroSchema: Schema,
 
   override def commit(): WriterCommitMessage = {
     encoder.flush()
-    outputstream.close()
+    Try(outputstream.close())
     Await.result(writeFuture, Duration.Inf)
+    writerThreadPool.shutdownNow()
     new WriteSuccess
   }
 
@@ -261,7 +278,14 @@ class AvroDataWriter(avroSchema: Schema,
     if (!conn.isClosed) {
       conn.abort(ExecutionContext.global)
     }
-    outputstream.close()
-    Await.ready(writeFuture, Duration.Inf)
+
+    writerThreadPool.shutdownNow()
+    Try(outputstream.close()) match {
+      // if the pipe is already closed then the error occurred in the thread which ran the query
+      // and we need to return the error from it
+      case Failure(e: IOException) if e.getMessage.contains("Pipe closed") =>
+        Await.result(writeFuture, Duration.Inf)
+      case _ => Await.ready(writeFuture, Duration.Inf)
+    }
   }
 }

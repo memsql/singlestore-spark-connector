@@ -234,4 +234,21 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
         List(("id", IntegerType, true), ("name", StringType, true), ("age", IntegerType, true))
       ))
   }
+
+  it("non-existing column") {
+    executeQueryWithLog("DROP TABLE IF EXISTS loaddata")
+    executeQueryWithLog("CREATE TABLE loaddata(id INT, name TEXT)")
+
+    df = spark.createDF(
+      List((5, "EBCEFGRHFED" * 10000000, 50)),
+      List(("id", IntegerType, true), ("name", StringType, true), ("age", IntegerType, true))
+    )
+
+    try {
+      writeTable("testdb.loaddata", df, SaveMode.Append)
+      fail()
+    } catch {
+      case e: Exception if e.getMessage.contains("Unknown column 'age' in 'field list'") =>
+    }
+  }
 }
