@@ -45,9 +45,9 @@
     },
     {
       "title": "Configure Spark",
-      "text": "%spark.conf\n\n// Comma-separated list of Maven coordinates of jars to include on the driver and executor classpaths\nspark.jars.packages com.singlestore:singlestore-spark-connector_2.12:4.1.0-spark-3.0.0\n\n// Hostname or IP address of the SingleStore Master Aggregator in the format host[:port] (port is optional). \n// singlestore-ciab-for-zeppelin - hostname of the docker created by https://hub.docker.com/r/singlestore/cluster-in-a-box\n// 3306 - port on which SingleStore Master Aggregator is started\nspark.datasource.singlestore.ddlEndpoint singlestore-ciab-for-zeppelin:3306\n\n// Hostname or IP address of SingleStore Aggregator nodes to run queries against in the format host[:port],host[:port],...\n// (port is optional, multiple hosts separated by comma) (default: ddlEndpoint)\n// Example\n// spark.datasource.singlestore.dmlEndpoints child-agg:3308,child-agg2\nspark.datasource.singlestore.dmlEndpoints singlestore-ciab-for-zeppelin:3306\n\n// SingleStore username (default: root)\nspark.datasource.singlestore.user root\n\n// SingleStore password (default: no password)\nspark.datasource.singlestore.password my_password\n\n// If set, all connections will default to using this database (default: empty)\n// Example\n// spark.datasource.singlestore.database demoDB\nspark.datasource.singlestore.database\n\n// Disable SQL Pushdown when running queries (default: false)\nspark.datasource.singlestore.disablePushdown false\n\n// Enable reading data in parallel for some query shapes (default: false)\nspark.datasource.singlestore.enableParallelRead false\n\n// Truncate instead of drop an existing table during Overwrite (default: false)\nspark.datasource.singlestore.truncate false\n\n// Compress data on load; one of (GZip, LZ4, Skip) (default: GZip)\nspark.datasource.singlestore.loadDataCompression GZip\n\n// Specify additional keys to add to tables created by the connector\n// Examples\n// * A primary key on the id column\n// spark.datasource.singlestore.tableKey.primary id\n// * A regular key on the columns created, firstname with the key name created_firstname\n// spark.datasource.singlestore.tableKey.key.created_firstname created, firstName\n// * A unique key on the username column\n// spark.datasource.singlestore.tableKey.unique username\nspark.datasource.singlestore.tableKey",
+      "text": "%spark.conf\n\n// Comma-separated list of Maven coordinates of jars to include on the driver and executor classpaths\nspark.jars.packages com.singlestore:singlestore-spark-connector_2.12:4.1.0-spark-3.0.0\n\n// The hostname or IP address of the SingleStore Master Aggregator in the `host[:port]` format, where port is an optional parameter\n// singlestore-ciab-for-zeppelin - hostname of the docker created by https://hub.docker.com/r/singlestore/cluster-in-a-box\n// 3306 - port on which SingleStore Master Aggregator is started\nspark.datasource.singlestore.ddlEndpoint singlestore-ciab-for-zeppelin:3306\n\n// The hostname or IP address of SingleStore Aggregator nodes to run queries against in the `host[:port],host[:port],...` format, \n// where :port is an optional parameter (multiple hosts separated by comma) (default: ddlEndpoint)\n// Example\n// spark.datasource.singlestore.dmlEndpoints child-agg:3308,child-agg2\nspark.datasource.singlestore.dmlEndpoints singlestore-ciab-for-zeppelin:3306\n\n// SingleStore username (default: root)\nspark.datasource.singlestore.user root\n\n// SingleStore password (default: no password)\nspark.datasource.singlestore.password my_password",
       "user": "anonymous",
-      "dateUpdated": "2021-09-23 10:50:07.416",
+      "dateUpdated": "2022-07-06 11:26:15.232",
       "progress": 0,
       "config": {
         "lineNumbers": false,
@@ -79,30 +79,26 @@
       "jobName": "paragraph_1587553845761_760134801",
       "id": "paragraph_1587546884632_-2089202077",
       "dateCreated": "2020-04-22 11:10:45.761",
-      "dateStarted": "2021-09-23 10:50:07.421",
-      "dateFinished": "2021-09-23 10:50:07.427",
+      "dateStarted": "2022-07-06 11:26:15.237",
+      "dateFinished": "2022-07-06 11:26:15.245",
       "status": "FINISHED"
     },
     {
-      "title": "Create a database using JDBC",
-      "text": "import java.sql.{Connection, DriverManager}\nimport java.util.{Properties, TimeZone}\n\nval connProperties \u003d new Properties()\nconnProperties.put(\"user\", \"root\")\nconnProperties.put(\"password\", \"my_password\")\n\nval conn \u003d DriverManager.getConnection(\n        s\"jdbc:mysql://singlestore-ciab-for-zeppelin\",\n        connProperties\n      )\n\nval statement \u003d conn.createStatement()\nstatement.execute(\"create database if not exists demoDB\")\nstatement.close()\nconn.close()",
+      "title": "Create a database using SQLHelpers",
+      "text": "import com.singlestore.spark.SQLHelper.QueryMethods\n\nspark.executeSinglestoreQuery(\"create database if not exists demoDB\")",
       "user": "anonymous",
-      "dateUpdated": "2021-09-23 10:50:07.519",
+      "dateUpdated": "2022-07-06 11:32:33.191",
       "progress": 0,
       "config": {
+        "lineNumbers": true,
+        "tableHide": false,
+        "editorSetting": {},
         "colWidth": 12.0,
         "fontSize": 13.0,
-        "enabled": true,
-        "results": {},
-        "editorSetting": {
-          "language": "scala",
-          "editOnDblClick": false,
-          "completionKey": "TAB",
-          "completionSupport": true
-        },
-        "editorMode": "ace/mode/scala",
+        "editorHide": false,
         "title": true,
-        "editorHide": false
+        "results": {},
+        "enabled": true
       },
       "settings": {
         "params": {},
@@ -113,26 +109,26 @@
         "msg": [
           {
             "type": "TEXT",
-            "data": "import java.sql.{Connection, DriverManager}\nimport java.util.{Properties, TimeZone}\n\u001b[1m\u001b[34mconnProperties\u001b[0m: \u001b[1m\u001b[32mjava.util.Properties\u001b[0m \u003d {user\u003droot, password\u003dmy_password}\n\u001b[1m\u001b[34mconn\u001b[0m: \u001b[1m\u001b[32mjava.sql.Connection\u001b[0m \u003d org.mariadb.jdbc.MariaDbConnection@31b419a4\n\u001b[1m\u001b[34mstatement\u001b[0m: \u001b[1m\u001b[32mjava.sql.Statement\u001b[0m \u003d org.mariadb.jdbc.MariaDbStatement@459a5cd8\n"
+            "data": "import com.singlestore.spark.SQLHelper.QueryMethods\n\u001b[1m\u001b[34mres1\u001b[0m: \u001b[1m\u001b[32mIterator[org.apache.spark.sql.Row]\u001b[0m \u003d \u003citerator\u003e\n"
           }
         ]
       },
       "apps": [],
       "runtimeInfos": {},
       "progressUpdateIntervalMs": 500,
-      "jobName": "paragraph_1587585329076_1567672881",
-      "id": "paragraph_1587585329076_1567672881",
-      "dateCreated": "2020-04-22 19:55:29.076",
-      "dateStarted": "2021-09-23 10:50:07.522",
-      "dateFinished": "2021-09-23 10:50:29.126",
+      "jobName": "paragraph_1657106390307_996443657",
+      "id": "paragraph_1657106390307_996443657",
+      "dateCreated": "2022-07-06 11:19:50.307",
+      "dateStarted": "2022-07-06 11:26:22.057",
+      "dateFinished": "2022-07-06 11:27:04.138",
       "status": "FINISHED"
     },
     {
       "title": "Writing to SingleStore",
       "text": "%spark.pyspark\n\npeople1 \u003d spark.createDataFrame([\n    (1, \"andy\", 5, \"USA\"), \n    (2, \"jeff\", 23, \"China\"), \n    (3, \"james\", 62, \"USA\")\n    ]).toDF(\"id\", \"name\", \"age\", \"country\")\npeople1.printSchema\npeople1.show()\n\npeople1.write \\\n    .format(\"singlestore\") \\\n    .mode(\"overwrite\") \\\n    .save(\"demoDB.people\") # write to table `people` in database `demoDB`\n    \npeople2 \u003d people1.withColumn(\"age2\", people1[\"age\"] + 1)\npeople1.printSchema\npeople2.show()\n\npeople2.write \\\n    .format(\"singlestore\") \\\n    .option(\"loadDataCompression\", \"LZ4\") \\\n    .mode(\"overwrite\") \\\n    .save(\"demoDB.people\") # write to table `people` in database `demoDB` ",
       "user": "anonymous",
-      "dateUpdated": "2021-09-23 10:50:29.142",
-      "progress": 100,
+      "dateUpdated": "2022-07-06 11:27:10.614",
+      "progress": 0,
       "config": {
         "lineNumbers": true,
         "tableHide": false,
@@ -172,28 +168,28 @@
           "group": "spark",
           "values": [
             {
-              "jobUrl": "http://0b0c704b005b:4040/jobs/job?id\u003d0"
+              "jobUrl": "http://322bfd970e79:4040/jobs/job?id\u003d0"
             },
             {
-              "jobUrl": "http://0b0c704b005b:4040/jobs/job?id\u003d1"
+              "jobUrl": "http://322bfd970e79:4040/jobs/job?id\u003d1"
             },
             {
-              "jobUrl": "http://0b0c704b005b:4040/jobs/job?id\u003d2"
+              "jobUrl": "http://322bfd970e79:4040/jobs/job?id\u003d2"
             },
             {
-              "jobUrl": "http://0b0c704b005b:4040/jobs/job?id\u003d3"
+              "jobUrl": "http://322bfd970e79:4040/jobs/job?id\u003d3"
             },
             {
-              "jobUrl": "http://0b0c704b005b:4040/jobs/job?id\u003d4"
+              "jobUrl": "http://322bfd970e79:4040/jobs/job?id\u003d4"
             },
             {
-              "jobUrl": "http://0b0c704b005b:4040/jobs/job?id\u003d5"
+              "jobUrl": "http://322bfd970e79:4040/jobs/job?id\u003d5"
             },
             {
-              "jobUrl": "http://0b0c704b005b:4040/jobs/job?id\u003d6"
+              "jobUrl": "http://322bfd970e79:4040/jobs/job?id\u003d6"
             },
             {
-              "jobUrl": "http://0b0c704b005b:4040/jobs/job?id\u003d7"
+              "jobUrl": "http://322bfd970e79:4040/jobs/job?id\u003d7"
             }
           ],
           "interpreterSettingId": "spark"
@@ -203,16 +199,16 @@
       "jobName": "paragraph_1587553845761_-1027258033",
       "id": "paragraph_1587547555609_-348809680",
       "dateCreated": "2020-04-22 11:10:45.761",
-      "dateStarted": "2021-09-23 10:50:29.145",
-      "dateFinished": "2021-09-23 10:50:41.705",
+      "dateStarted": "2022-07-06 11:27:10.622",
+      "dateFinished": "2022-07-06 11:27:22.543",
       "status": "FINISHED"
     },
     {
       "title": "Reading from SingleStore",
       "text": "%spark.pyspark\n\npeople \u003d spark.read \\\n    .format(\"singlestore\") \\\n    .load(\"demoDB.people\")\npeople.printSchema\npeople.show()\n\nchildren \u003d spark.read \\\n    .format(\"singlestore\") \\\n    .load(\"demoDB.people\") \\\n    .filter(\"age \u003c 10\")\npeople.printSchema\nchildren.show()",
       "user": "anonymous",
-      "dateUpdated": "2021-09-23 10:50:41.782",
-      "progress": 100,
+      "dateUpdated": "2022-07-06 11:27:30.331",
+      "progress": 0,
       "config": {
         "tableHide": false,
         "editorSetting": {
@@ -237,7 +233,7 @@
         "msg": [
           {
             "type": "TEXT",
-            "data": "+---+-----+---+-------+----+\n| id| name|age|country|age2|\n+---+-----+---+-------+----+\n|  1| andy|  5|    USA|   6|\n|  2| jeff| 23|  China|  24|\n|  3|james| 62|    USA|  63|\n+---+-----+---+-------+----+\n\n+---+----+---+-------+----+\n| id|name|age|country|age2|\n+---+----+---+-------+----+\n|  1|andy|  5|    USA|   6|\n+---+----+---+-------+----+\n\n"
+            "data": "+---+-----+---+-------+----+\n| id| name|age|country|age2|\n+---+-----+---+-------+----+\n|  3|james| 62|    USA|  63|\n|  1| andy|  5|    USA|   6|\n|  2| jeff| 23|  China|  24|\n+---+-----+---+-------+----+\n\n+---+----+---+-------+----+\n| id|name|age|country|age2|\n+---+----+---+-------+----+\n|  1|andy|  5|    USA|   6|\n+---+----+---+-------+----+\n\n"
           }
         ]
       },
@@ -250,10 +246,10 @@
           "group": "spark",
           "values": [
             {
-              "jobUrl": "http://0b0c704b005b:4040/jobs/job?id\u003d8"
+              "jobUrl": "http://322bfd970e79:4040/jobs/job?id\u003d8"
             },
             {
-              "jobUrl": "http://0b0c704b005b:4040/jobs/job?id\u003d9"
+              "jobUrl": "http://322bfd970e79:4040/jobs/job?id\u003d9"
             }
           ],
           "interpreterSettingId": "spark"
@@ -263,8 +259,8 @@
       "jobName": "paragraph_1587553845762_-1342936354",
       "id": "paragraph_1587548897148_-478225566",
       "dateCreated": "2020-04-22 11:10:45.762",
-      "dateStarted": "2021-09-23 10:50:41.786",
-      "dateFinished": "2021-09-23 10:50:43.750",
+      "dateStarted": "2022-07-06 11:27:30.333",
+      "dateFinished": "2022-07-06 11:27:33.067",
       "status": "FINISHED"
     }
   ],
@@ -278,7 +274,5 @@
   "config": {
     "isZeppelinNotebookCronEnable": false
   },
-  "info": {
-    "isRunning": false
-  }
+  "info": {}
 }
