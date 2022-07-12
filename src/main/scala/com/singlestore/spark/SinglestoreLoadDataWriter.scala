@@ -213,17 +213,23 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
     new WriteSuccess
   }
 
-  override def abort(e: Exception): Unit = {
+  override def abort(writerException: Exception): Unit = {
     if (!conn.isClosed) {
       conn.abort(ExecutionContext.global)
     }
     Try(outputstream.close())
-    e match {
-      // if we got pipe closed error then the error occurred in the thread which ran the query
-      // and we need to retrieve the actual error from it
-      case e: IOException if e.getMessage.contains("Pipe closed") =>
-        Await.result(writeFuture, Duration.Inf)
-      case _ => Await.ready(writeFuture, Duration.Inf)
+    try {
+      Await.result(writeFuture, Duration.Inf)
+    } catch {
+      case readerException: Exception => {
+        // if we got pipe closed error from the thread that writes data to stream
+        // then the error actual occurred in the thread that ran the query
+        // and we need to return the actual error
+        if (writerException
+              .isInstanceOf[IOException] && writerException.getMessage.contains("Pipe closed")) {
+          throw readerException
+        }
+      }
     }
   }
 }
@@ -265,17 +271,23 @@ class AvroDataWriter(avroSchema: Schema,
     new WriteSuccess
   }
 
-  override def abort(e: Exception): Unit = {
+  override def abort(writerException: Exception): Unit = {
     if (!conn.isClosed) {
       conn.abort(ExecutionContext.global)
     }
     Try(outputstream.close())
-    e match {
-      // if we got pipe closed error then the error occurred in the thread which ran the query
-      // and we need to retrieve the actual error from it
-      case e: IOException if e.getMessage.contains("Pipe closed") =>
-        Await.result(writeFuture, Duration.Inf)
-      case _ => Await.ready(writeFuture, Duration.Inf)
+    try {
+      Await.result(writeFuture, Duration.Inf)
+    } catch {
+      case readerException: Exception => {
+        // if we got pipe closed error from the thread that writes data to stream
+        // then the error actual occurred in the thread that ran the query
+        // and we need to return the actual error
+        if (writerException
+              .isInstanceOf[IOException] && writerException.getMessage.contains("Pipe closed")) {
+          throw readerException
+        }
+      }
     }
   }
 }
