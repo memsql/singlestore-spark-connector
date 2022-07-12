@@ -99,7 +99,7 @@ class BatchInsertWriter(batchSize: Int, writeBatch: ListBuffer[Row] => Long, con
     new WriteSuccess
   }
 
-  override def abort(): Unit = {
+  override def abort(e: Exception): Unit = {
     buff = ListBuffer.empty[Row]
     conn.abort(ExecutionContext.global)
     conn.close()

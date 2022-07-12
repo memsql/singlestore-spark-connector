@@ -18,7 +18,7 @@ import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.{Row, SaveMode}
 
-import java.util.concurrent.{ExecutorService, Executors}
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Try}
@@ -29,7 +29,7 @@ case class WriteSuccess()          extends WriterCommitMessage
 abstract class DataWriter[T] {
   def write(record: T): Unit
   def commit(): WriterCommitMessage
-  def abort(): Unit
+  def abort(e: Exception): Unit
 }
 
 abstract class WriterFactory extends Serializable {
@@ -142,7 +142,6 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
       getDMLConnProperties(conf, isOnExecutor = true)
     })
 
-    val writerThreadPool = Executors.newFixedThreadPool(1)
     val writer = Future[Long] {
       try {
         val stmt = conn.createStatement()
@@ -162,20 +161,17 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
         inputstream.close()
         conn.close()
       }
-    }(ExecutionContext.fromExecutor(writerThreadPool))
+    }
 
     if (loadDataFormat == SinglestoreOptions.LoadDataFormat.Avro) {
-      new AvroDataWriter(avroSchema, outputstream, writer, writerThreadPool, conn)
+      new AvroDataWriter(avroSchema, outputstream, writer, conn)
     } else {
-      new LoadDataWriter(outputstream, writer, writerThreadPool, conn)
+      new LoadDataWriter(outputstream, writer, conn)
     }
   }
 }
 
-class LoadDataWriter(outputstream: OutputStream,
-                     writeFuture: Future[Long],
-                     writerThreadPool: ExecutorService,
-                     conn: Connection)
+class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn: Connection)
     extends DataWriter[Row] {
 
   override def write(row: Row): Unit = {
@@ -214,20 +210,18 @@ class LoadDataWriter(outputstream: OutputStream,
   override def commit(): WriterCommitMessage = {
     Try(outputstream.close())
     Await.result(writeFuture, Duration.Inf)
-    writerThreadPool.shutdownNow()
     new WriteSuccess
   }
 
-  override def abort(): Unit = {
+  override def abort(e: Exception): Unit = {
     if (!conn.isClosed) {
       conn.abort(ExecutionContext.global)
     }
-
-    writerThreadPool.shutdownNow()
-    Try(outputstream.close()) match {
-      // if the pipe is already closed then the error occurred in the thread which ran the query
-      // and we need to return the error from it
-      case Failure(e: IOException) if e.getMessage.contains("Pipe closed") =>
+    Try(outputstream.close())
+    e match {
+      // if we got pipe closed error then the error occurred in the thread which ran the query
+      // and we need to retrieve the actual error from it
+      case e: IOException if e.getMessage.contains("Pipe closed") =>
         Await.result(writeFuture, Duration.Inf)
       case _ => Await.ready(writeFuture, Duration.Inf)
     }
@@ -237,7 +231,6 @@ class LoadDataWriter(outputstream: OutputStream,
 class AvroDataWriter(avroSchema: Schema,
                      outputstream: OutputStream,
                      writeFuture: Future[Long],
-                     writerThreadPool: ExecutorService,
                      conn: Connection)
     extends DataWriter[Row] {
 
@@ -269,20 +262,18 @@ class AvroDataWriter(avroSchema: Schema,
     encoder.flush()
     Try(outputstream.close())
     Await.result(writeFuture, Duration.Inf)
-    writerThreadPool.shutdownNow()
     new WriteSuccess
   }
 
-  override def abort(): Unit = {
+  override def abort(e: Exception): Unit = {
     if (!conn.isClosed) {
       conn.abort(ExecutionContext.global)
     }
-
-    writerThreadPool.shutdownNow()
-    Try(outputstream.close()) match {
-      // if the pipe is already closed then the error occurred in the thread which ran the query
-      // and we need to return the error from it
-      case Failure(e: IOException) if e.getMessage.contains("Pipe closed") =>
+    Try(outputstream.close())
+    e match {
+      // if we got pipe closed error then the error occurred in the thread which ran the query
+      // and we need to retrieve the actual error from it
+      case e: IOException if e.getMessage.contains("Pipe closed") =>
         Await.result(writeFuture, Duration.Inf)
       case _ => Await.ready(writeFuture, Duration.Inf)
     }
