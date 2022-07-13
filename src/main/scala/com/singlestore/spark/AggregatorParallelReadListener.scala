@@ -60,10 +60,6 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
     })
   }
 
-  override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
-    log.info("ENDING")
-  }
-
   override def onStageSubmitted(stageSubmitted: SparkListenerStageSubmitted): Unit = {
     stageSubmitted.stageInfo.rddInfos.foreach(rddInfo => {
       if (rddInfo.name == "SinglestoreRDD") {
