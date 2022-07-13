@@ -296,4 +296,19 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
       .load()
     assertSmallDataFrameEquality(jwtDF, df, orderedComparison = false)
   }
+
+  it("clientEndpoint option") {
+    val cloudSpark = spark.newSession()
+
+    cloudSpark.conf.unset("spark.datasource.singlestore.ddlEndpoint")
+    cloudSpark.conf.unset("spark.datasource.singlestore.dmlEndpoint")
+    cloudSpark.conf.set("spark.datasource.singlestore.clientEndpoint",
+                        s"${masterHost}:${masterPort}")
+
+    val jwtDF = cloudSpark.read
+      .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+      .option(SinglestoreOptions.TABLE_NAME, "testdb.foo")
+      .load()
+    assertSmallDataFrameEquality(jwtDF, df, orderedComparison = false)
+  }
 }

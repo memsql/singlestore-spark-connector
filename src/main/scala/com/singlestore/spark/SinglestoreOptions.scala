@@ -86,8 +86,9 @@ object SinglestoreOptions extends LazyLogging {
     name
   }
 
-  final val DDL_ENDPOINT  = newOption("ddlEndpoint")
-  final val DML_ENDPOINTS = newOption("dmlEndpoints")
+  final val DDL_ENDPOINT    = newOption("ddlEndpoint")
+  final val DML_ENDPOINTS   = newOption("dmlEndpoints")
+  final val CLIENT_ENDPOINT = newOption("clientEndpoint")
 
   final val USER     = newOption("user")
   final val PASSWORD = newOption("password")
@@ -233,7 +234,16 @@ object SinglestoreOptions extends LazyLogging {
   def apply(options: CaseInsensitiveMap[String]): SinglestoreOptions = {
     val table = getTable(options)
 
-    require(options.isDefinedAt(DDL_ENDPOINT), s"Option '$DDL_ENDPOINT' is required.")
+    require(
+      options.isDefinedAt(DDL_ENDPOINT) || options.isDefinedAt(CLIENT_ENDPOINT),
+      s"One of the following options must be specified: '$DDL_ENDPOINT', '$CLIENT_ENDPOINT'"
+    )
+
+    require(
+      !(options.isDefinedAt(CLIENT_ENDPOINT) &&
+        (options.isDefinedAt(DDL_ENDPOINT) || options.isDefinedAt(DML_ENDPOINTS))),
+      s"The '$CLIENT_ENDPOINT' option cannot be specified along with a '${DDL_ENDPOINT}' or '${DML_ENDPOINTS}'."
+    )
 
     val loadDataCompression = CompressionType.fromOption(LOAD_DATA_COMPRESSION,
                                                          options.get(LOAD_DATA_COMPRESSION),
@@ -270,9 +280,12 @@ object SinglestoreOptions extends LazyLogging {
       .toList
 
     new SinglestoreOptions(
-      ddlEndpoint = options(DDL_ENDPOINT),
-      dmlEndpoints =
-        options.getOrElse(DML_ENDPOINTS, options(DDL_ENDPOINT)).split(",").toList.sorted,
+      ddlEndpoint = options.getOrElse(DDL_ENDPOINT, options(CLIENT_ENDPOINT)),
+      dmlEndpoints = options
+        .getOrElse(DML_ENDPOINTS, options.getOrElse(DDL_ENDPOINT, options(CLIENT_ENDPOINT)))
+        .split(",")
+        .toList
+        .sorted,
       user = options.getOrElse(USER, "root"),
       password = options.getOrElse(PASSWORD, ""),
       database = options.get(DATABASE).orElse(table.flatMap(t => t.database)),

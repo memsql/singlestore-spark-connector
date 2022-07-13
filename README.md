@@ -1,4 +1,4 @@
-# SingleStore Spark Connector
+# SingleStoreDB Spark Connector
 ## Version: 4.1.0 [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 ## Getting Started
@@ -22,15 +22,15 @@ version of the connector, compiled and tested against Spark 3.1.0. Make sure
 you are using the most recent version of the connector.
 
 In addition to adding the `singlestore-spark-connector`, you will also need to have the
-SingleStore JDBC driver installed.  This library is tested against the following
-SingleStore driver version:
+SingleStoreDB JDBC driver installed.  This library is tested against the following
+SingleStoreDB driver version:
 
 ```
 "com.singlestore" % "singlestore-jdbc-client"  % "1.1.0"
 ```
 
 Once you have everything installed, you're almost ready to run your first
-queries against SingleStore!
+queries against SingleStoreDB!
 
 ## Configuration
 
@@ -39,62 +39,89 @@ locally when constructing a DataFrame.  The options are named the same, however
 global options have the prefix `spark.datasource.singlestore.`.
 
 #### Basic options
-| Option                                             | Description
-| -                                                  | -
-| `ddlEndpoint`  (required)                          | Hostname or IP address of the SingleStore Master Aggregator in the format `host[:port]` (port is optional). Ex. `master-agg.foo.internal:3308` or `master-agg.foo.internal`
-| `dmlEndpoints`                                     | Hostname or IP address of SingleStore Aggregator nodes to run queries against in the format `host[:port],host[:port],...` (port is optional, multiple hosts separated by comma). Ex. `child-agg:3308,child-agg2` (default: `ddlEndpoint`)
-| `user`                                             | SingleStore username (default: `root`)
-| `password`                                         | SingleStore password (default: no password)
-| `query`                                            | The query to run (mutually exclusive with dbtable)
-| `dbtable`                                          | The table to query (mutually exclusive with query)
-| `database`                                         | If set, all connections will default to using this database (default: empty)
+| Option                                              | Description
+| -                                                   | -
+| `ddlEndpoint`    (On-Premise deployment) (required) | Hostname or IP address of the SingleStoreDB Master Aggregator in the format `host[:port]` (port is optional). Ex. `master-agg.foo.internal:3308` or `master-agg.foo.internal`
+| `dmlEndpoints`   (On-Premise deployment)            | Hostname or IP address of SingleStoreDB Aggregator nodes to run queries against in the format `host[:port],host[:port],...` (port is optional, multiple hosts separated by comma). Ex. `child-agg:3308,child-agg2` (default: `ddlEndpoint`)
+| `clientEndpoint` (Cloud deployment) (required)      | Hostname or IP address to the SingleStoreDB Cloud workspace to run queries against in the format `host[:port]` (port is optional). Ex. `svc-b093ff56-7d9e-499f-b970-7913852facc4-ddl.aws-oregon-2.svc.singlestore.com:3306`
+| `user`                                              | The SingleStoreDB username (default: `root`)
+| `password`                                          | Password of the SingleStoreDB user (default: no password)
+| `query`                                             | The query to run (mutually exclusive with dbtable)
+| `dbtable`                                           | The table to query (mutually exclusive with query)
+| `database`                                          | If set, all connections use the specified database by default (default: empty)
 
 #### Read options
-| Option                                             | Description
-| -                                                  | -
-| `disablePushdown`                                  | Disable SQL Pushdown when running queries (default: false)
-| `enableParallelRead`                               | Enable reading data in parallel for some query shapes; one of (`disabled`, `automaticLite`, `automatic`, `forced`) (default: `automaticLite`)
-| `parallelRead.Features`                            | Specify comma separated list of parallel read features that will be tried. The order in which features are listed determines their priority. Supported features: `ReadFromLeaves`, `ReadFromAggregators`, `ReadFromAggregatorsMaterialized`. Ex. `ReadFromLeaves,ReadFromAggregators` (default: `ReadFromAggregators`).
-| `parallelRead.tableCreationTimeoutMS`              | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregators` feature is used; 0 means no timeout (default: `0`)
-| `parallelRead.tableCreationTimeoutMaterializedMS`  | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregatorsMaterialized` feature is used; 0 means no timeout (default: `0`)
-| `parallelRead.maxNumPartitions`                   | Maximum number of partitions in the resulting DataFrame; 0 means no limit (default: `0`)
-| `parallelRead.repartition`                         | Repartition data before reading it (default: `false`)
-| `parallelRead.repartition.columns`                 | Comma separated list of column names that are used for repartitioning, if `parallelRead.repartition` is enabled. By default, repartitioning is done using an additional column with `RAND()` value.
+| Option                                              | Description
+| -                                                   | -
+| `disablePushdown`                                   | Disables SQL Pushdown when running queries (default: false)
+| `enableParallelRead`                                | Enables reading data in parallel for some query shapes. It can have the following values: `disabled`, `automaticLite`, `automatic`, or `forced`. (default: `automaticLite`)
+| `parallelRead.Features`                             | Specifies a comma separated list of parallel read features that will be tried. The order in which features are listed determines their priority. Supported features: `ReadFromLeaves`, `ReadFromAggregators`, `ReadFromAggregatorsMaterialized`. Ex. `ReadFromLeaves,ReadFromAggregators` (default: `ReadFromAggregators`).
+| `parallelRead.tableCreationTimeoutMS`               | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregators` feature is used; 0 means no timeout (default: `0`)
+| `parallelRead.tableCreationTimeoutMaterializedMS`   | Number of milliseconds reader will wait for the result table creation when the `ReadFromAggregatorsMaterialized` feature is used; 0 means no timeout (default: `0`)
+| `parallelRead.maxNumPartitions`                     | Maximum number of partitions in the resulting DataFrame; 0 means no limit (default: `0`)
+| `parallelRead.repartition`                          | Repartitions data before reading it (default: `false`)
+| `parallelRead.repartition.columns`                  | Comma separated list of column names that are used for repartitioning, if `parallelRead.repartition` is enabled. By default, repartitioning is done using an additional column with `RAND()` value.
 
 #### Write options
-| Option                                             | Description
-| -                                                  | -
-| `overwriteBehavior`                                | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
-| `truncate`                                         | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
-| `loadDataCompression`                              | Compress data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
-| `loadDataFormat`                                   | Serialize data on load; one of (`Avro`, `CSV`) (default: CSV)
-| `tableKey`                                         | Specify additional keys to add to tables created by the connector (See below for more details)
-| `onDuplicateKeySQL`                                | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, SingleStore will instead perform an UPDATE of the old row. See examples below
-| `insertBatchSize`                                  | Size of the batch for row insertion (default: `10000`)
-| `maxErrors`                                        | The maximum number of errors in a single `LOAD DATA` request. When this limit is reached, the load fails. If this property equals to `0`, no error limit exists (default: `0`)
-| `createRowstoreTable`                              | If enabled, the connector creates a rowstore table (default: `false`).
+| Option                                              | Description
+| -                                                   | -
+| `overwriteBehavior`                                 | Specify the behavior during Overwrite; one of `dropAndCreate`, `truncate`, `merge` (default: `dropAndCreate`)
+| `truncate`                                          | :warning: **Deprecated option, please use `overwriteBehavior` instead** Truncate instead of drop an existing table during Overwrite (default: false)
+| `loadDataCompression`                               | Compresses data on load; one of (`GZip`, `LZ4`, `Skip`) (default: GZip)
+| `loadDataFormat`                                    | Serializes data on load. It can have the following values: `Avro` or `CSV` (default: `CSV`)
+| `tableKey`                                          | Specifies additional keys to add to tables created by the connector (See below for more details)
+| `onDuplicateKeySQL`                                 | If this option is specified, and a row is to be inserted that would result in a duplicate value in a PRIMARY KEY or UNIQUE index, SingleStoreDB will instead perform an UPDATE of the old row. See examples below
+| `insertBatchSize`                                   | Size of the batch for row insertion (default: `10000`)
+| `maxErrors`                                         | The maximum number of errors in a single `LOAD DATA` request. When this limit is reached, the load fails. If this property equals to `0`, no error limit exists (default: `0`)
+| `createRowstoreTable`                               | If enabled, the connector creates a rowstore table (default: `false`).
 
 #### Connection pool options
-| Option                                             | Description
-| -                                                  | -
-| `driverConnectionPool.Enabled`                     | Enable using of connection pool on the driver. (default: `true`)
-| `driverConnectionPool.MaxOpenConns`                | The maximum number of active connections with the same options that can be allocated from the driver pool at the same time, or negative for no limit. (default: `-1`)
-| `driverConnectionPool.MaxIdleConns`                | The maximum number of connections with the same options that can remain idle in the driver pool, without extra ones being released, or negative for no limit. (default: `8`)
-| `driverConnectionPool.MinEvictableIdleTimeMs`      | The minimum amount of time an object may sit idle in the driver pool before it is eligible for eviction by the idle object evictor (if any). (default: `30000` - 30 sec)
-| `driverConnectionPool.TimeBetweenEvictionRunsMS`   | The number of milliseconds to sleep between runs of the idle object evictor thread on the driver. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
-| `driverConnectionPool.MaxWaitMS`                   | The maximum number of milliseconds that the driver pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
-| `driverConnectionPool.MaxConnLifetimeMS`           | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the driver pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
-| `executorConnectionPool.Enabled`                   | Enable using of connection pool on executors. (default: `true`)
-| `executorConnectionPool.MaxOpenConns`              | The maximum number of active connections with the same options that can be allocated from the executor pool at the same time, or negative for no limit. (default: `true`)
-| `executorConnectionPool.MaxIdleConns`              | The maximum number of connections with the same options that can remain idle in the executor pool, without extra ones being released, or negative for no limit. (default: `8`)
-| `executorConnectionPool.MinEvictableIdleTimeMs`    | The minimum amount of time an object may sit idle in the executor pool before it is eligible for eviction by the idle object evictor (if any). (default: `2000` - 2 sec)
-| `executorConnectionPool.TimeBetweenEvictionRunsMS` | The number of milliseconds to sleep between runs of the idle object evictor thread on the executor. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
-| `executorConnectionPool.MaxWaitMS`                 | The maximum number of milliseconds that the executor pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
-| `executorConnectionPool.MaxConnLifetimeMS`         | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the executor pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
+| Option                                              | Description
+| -                                                   | -
+| `driverConnectionPool.Enabled`                      | Enables the use of connection pool on the driver. (default: `true`)
+| `driverConnectionPool.MaxOpenConns`                 | The maximum number of active connections with the same options that can be allocated from the driver pool at the same time, or negative for no limit. (default: `-1`)
+| `driverConnectionPool.MaxIdleConns`                 | The maximum number of connections with the same options that can remain idle in the driver pool, without extra ones being released, or negative for no limit. (default: `8`)
+| `driverConnectionPool.MinEvictableIdleTimeMs`       | The minimum amount of time an object may sit idle in the driver pool before it is eligible for eviction by the idle object evictor (if any). (default: `30000` - 30 sec)
+| `driverConnectionPool.TimeBetweenEvictionRunsMS`    | The number of milliseconds to sleep between runs of the idle object evictor thread on the driver. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
+| `driverConnectionPool.MaxWaitMS`                    | The maximum number of milliseconds that the driver pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
+| `driverConnectionPool.MaxConnLifetimeMS`            | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the driver pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
+| `executorConnectionPool.Enabled`                    | Enables the use of connection pool on executors. (default: `true`)
+| `executorConnectionPool.MaxOpenConns`               | The maximum number of active connections with the same options that can be allocated from the executor pool at the same time, or negative for no limit. (default: `true`)
+| `executorConnectionPool.MaxIdleConns`               | The maximum number of connections with the same options that can remain idle in the executor pool, without extra ones being released, or negative for no limit. (default: `8`)
+| `executorConnectionPool.MinEvictableIdleTimeMs`     | The minimum amount of time an object may sit idle in the executor pool before it is eligible for eviction by the idle object evictor (if any). (default: `2000` - 2 sec)
+| `executorConnectionPool.TimeBetweenEvictionRunsMS`  | The number of milliseconds to sleep between runs of the idle object evictor thread on the executor. When non-positive, no idle object evictor thread will be run. (default: `1000` - 1 sec)
+| `executorConnectionPool.MaxWaitMS`                  | The maximum number of milliseconds that the executor pool will wait (when there are no available connections) for a connection to be returned before throwing an exception, or `-1` to wait indefinitely. (default: `-1`)
+| `executorConnectionPool.MaxConnLifetimeMS`          | The maximum lifetime in milliseconds of a connection. After this time is exceeded the connection will fail the next activation, passivation, or validation test and won’t be returned by the executor pool. A value of zero or less means the connection has an infinite lifetime. (default: `-1`)
 
 ## Examples
 
-Example of configuring the `singlestore-spark-connector` globally:
+### Configure `singlestore-spark-connector` for SingleStoreDB Cloud
+The following example configures the `singlestore-spark-connector` globally:
+```scala
+spark.conf.set("spark.datasource.singlestore.clientEndpoint", "singlestore-host")
+spark.conf.set("spark.datasource.singlestore.user", "admin")
+spark.conf.set("spark.datasource.singlestore.password", "s3cur3-pa$$word")
+```
+
+The following example configures the `singlestore-spark-connector` using the read API:
+```scala
+val df = spark.read
+    .format("singlestore")
+    .option("clientEndpoint", "singlestore-host")
+    .option("user", "admin")
+    .load("foo")
+```
+
+The following example configures the `singlestore-spark-connector` using an external table in Spark SQL:
+```sql
+CREATE TABLE bar USING singlestore OPTIONS ('clientEndpoint'='singlestore-host','dbtable'='foo.bar')
+```
+
+> note: `singlestore-spark-connector`doesn't support writing to the reference table for SingleStoreDB Cloud
+> note: `singlestore-spark-connector`doesn't support read-only databases for SingleStoreDB Cloud
+
+### Configure `singlestore-spark-connector` for SingleStoreDB On-Premises
+The following example configures the `singlestore-spark-connector` globally:
 ```scala
 spark.conf.set("spark.datasource.singlestore.ddlEndpoint", "singlestore-master.cluster.internal")
 spark.conf.set("spark.datasource.singlestore.dmlEndpoints", "singlestore-master.cluster.internal,singlestore-child-1.cluster.internal:3307")
@@ -102,7 +129,7 @@ spark.conf.set("spark.datasource.singlestore.user", "admin")
 spark.conf.set("spark.datasource.singlestore.password", "s3cur3-pa$$word")
 ```
 
-Example of configuring the `singlestore-spark-connector` using the read API:
+The following example configures the `singlestore-spark-connector` using the read API:
 ```scala
 val df = spark.read
     .format("singlestore")
@@ -111,16 +138,16 @@ val df = spark.read
     .load("foo")
 ```
 
-Example of configuring the `singlestore-spark-connector` using an external table in Spark SQL:
+The following example configures the `singlestore-spark-connector` using an external table in Spark SQL:
 ```sql
 CREATE TABLE bar USING singlestore OPTIONS ('ddlEndpoint'='singlestore-master.cluster.internal','dbtable'='foo.bar')
 ```
 
 For Java/Python versions of some of these examples, visit the section ["Java & Python Example"](#java-python-example)
 
-## Writing to SingleStore
+## Writing to SingleStoreDB
 
-The `singlestore-spark-connector` supports saving dataframes to SingleStore using the Spark write API. Here is a basic example of using this API:
+The `singlestore-spark-connector` supports saving dataframes to SingleStoreDB using the Spark write API. Here is a basic example of using this API:
 
 ```scala
 df.write
@@ -131,7 +158,7 @@ df.write
     .save("foo.bar") // in format: database.table
 ```
 
-If the target table ("foo" in the example above) does not exist in SingleStore the
+If the target table ("foo" in the example above) does not exist in SingleStoreDB the
 `singlestore-spark-connector` will automatically attempt to create the table. If you
 specify SaveMode.Overwrite, if the target table already exists, it will be
 recreated or truncated before load. Specify `overwriteBehavior = truncate` to truncate rather
@@ -157,7 +184,7 @@ When creating a table, the `singlestore-spark-connector` will read options prefi
 with `tableKey`. These options must be formatted in a specific way in order to
 correctly specify the keys.
 
-> :warning: The default table type is SingleStore Columnstore.
+> :warning: The default table type is SingleStoreDB Columnstore.
 > To create a rowstore table instead, enable the `createRowstoreTable` option.
 
 To explain we will refer to the following example:
@@ -196,7 +223,7 @@ df.write
 
 When updating a table it is possible to insert rows with `ON DUPLICATE KEY UPDATE` option.
 See [sql reference](https://docs.singlestore.com/db/latest/en/reference/sql-reference/data-manipulation-language-dml/insert.html) for more details.
-> :warning: This feature doesn't work for columnstore tables with SingleStore 7.1.
+> :warning: This feature doesn't work for columnstore tables with SingleStoreDB 7.1.
 > :warning: Do not allow to update a table on unique key.
 ```scala
 df.write
@@ -237,7 +264,7 @@ df.write
 
 <h2 id="merging-on-save">Merging on save</h2>
 
-When saving dataframes or datasets to SingleStore, you can manage how SaveMode.Overwrite is interpreted by the connector via the option overwriteBehavior.
+When saving dataframes or datasets to SingleStoreDB, you can manage how SaveMode.Overwrite is interpreted by the connector via the option overwriteBehavior.
 This option can take one of the following values:
 
 1. `dropAndCreate`(default) - drop and create the table before writing new values.
@@ -292,8 +319,8 @@ After the save is complete, the table will look like this:
 ## SQL Pushdown
 
 The `singlestore-spark-connector` has extensive support for rewriting Spark SQL query
-plans into standalone SingleStore queries. This allows most of the computation to be
-pushed into the SingleStore distributed system without any manual intervention. The
+plans into standalone SingleStoreDB queries. This allows most of the computation to be
+pushed into the SingleStoreDB distributed system without any manual intervention. The
 SQL rewrites are enabled automatically, but can be disabled either globally or
 per-query using the `disablePushdown` option.
 
@@ -348,11 +375,11 @@ Parallel read can be enabled using `enableParallelRead` option. This can drastic
  When this option is used and push down of outer sorting operation is done, non-parallel read is used.
  * `automatic` - check if at least one parallel read feature specified in `parallelRead.Features` can be used and if it is,
  use parallel read, otherwise do non-parallel read.
- When parallel read is performed with this option, we are unable to push down an outer sorting operation into SingleStore.
+ When parallel read is performed with this option, we are unable to push down an outer sorting operation into SingleStoreDB.
  Final sorting is done on the Spark side.
  * `forced` - check if at least one parallel read feature specified in `parallelRead.Features` can be used and if it is,
  use parallel read, otherwise throw an error.
- When parallel read is performed with this option, we are unable to push down an outer sorting operation into SingleStore.
+ When parallel read is performed with this option, we are unable to push down an outer sorting operation into SingleStoreDB.
  Final sorting is done on the Spark side.
 
 The default value is `automaticLite`
@@ -368,8 +395,8 @@ By default, it is `readFromAggregators`. Connector will use the first feature sp
 for which all requirements are satisfied.
 
 #### readFromAggregators
-When this feature is used, `singlestore-spark-connector` will use [SingleStore parallel read functionality](https://docs.singlestore.com/db/latest/en/query-data/query-procedures/read-query-results-in-parallel.html).
-By default, the number of partitions in the resulting DataFrame is the lesser of the number of partitions in the SingleStore database and Spark parallelism level
+When this feature is used, `singlestore-spark-connector` will use [SingleStoreDB parallel read functionality](https://docs.singlestore.com/db/latest/en/query-data/query-procedures/read-query-results-in-parallel.html).
+By default, the number of partitions in the resulting DataFrame is the lesser of the number of partitions in the SingleStoreDB database and Spark parallelism level
 (i.e., sum of `(spark.executor.cores/spark.task.cpus)` for all executors).
 Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` option.
 To use this feature, all reading tasks must start at the same time. Hence, the number of partitions in the resulting DataFrame should not be greater than the parallelism level of the Spark cluster.
@@ -377,24 +404,24 @@ To use this feature, all reading tasks must start at the same time. Hence, the n
 You can set a timeout for result table creation using the `parallelRead.tableCreationTimeoutMS` option.
 
 Requirements:
- * SingleStore version is 7.5 or above
+ * SingleStoreDB version is 7.5 or above
  * `database` option is set, or database name is provided in `load`
- * Generated query is supported by SingleStore parallel read functionality
+ * Generated query is supported by SingleStoreDB parallel read functionality
 
 #### readFromAggregatorsMaterialized
 This feature is very similar to `readFromAggregators`. The only difference is that the result table is created using
 the `MATERIALIZED` option. For this feature, reading tasks don't need to be started at the same time, so parallelism level on
-spark cluster doesn't matter. On the other side, the `MATERIALIZED` option may cause the query to fail if SingleStore
+spark cluster doesn't matter. On the other side, the `MATERIALIZED` option may cause the query to fail if SingleStoreDB
 doesn't have enough memory to materialize the result set.
-By default, the number of partitions in the resulting DataFrame is equal to the number of partitions in the SingleStore database.
+By default, the number of partitions in the resulting DataFrame is equal to the number of partitions in the SingleStoreDB database.
 Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` option.
 
 You can set a timeout for materialized result table creation using the `parallelRead.tableCreationTimeoutMaterializedMS` option.
 
 Requirements:
- * SingleStore version is 7.5 or above
+ * SingleStoreDB version is 7.5 or above
  * `database` option is set, or database name is provided in `load`
- * Generated query is supported by SingleStore parallel read functionality
+ * Generated query is supported by SingleStoreDB parallel read functionality
 
 #### readFromLeaves
 When this feature is used, `singlestore-spark-connector` reads directly from partitions
@@ -407,7 +434,7 @@ It supports only query-shapes which do not perform work on the Aggregator and th
 In order to use `readFromLeaves` feature, the username and password provided to the
 `singlestore-spark-connector` must be the same across all nodes in the cluster.
 
-By default, the number of partitions in the resulting DataFrame is equal to the number of partitions in the SingleStore database.
+By default, the number of partitions in the resulting DataFrame is equal to the number of partitions in the SingleStoreDB database.
 Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` option.
 
 Requirements:
@@ -448,12 +475,12 @@ In the following example, connector will check requirements for `readFromAggrega
 If they are satisfied, it will use this feature.
 Otherwise, it will check requirements for `readFromLeaves`.
 If they are satisfied, connector will use this feature. Otherwise, it will use non-parallel read.
-If the connector uses `readFromAggregators`, it will repartition the result on the SingleStore side before reading it
+If the connector uses `readFromAggregators`, it will repartition the result on the SingleStoreDB side before reading it
 and it will fail if creation of the result table will take longer than `1000` milliseconds.
 
 ## Running SQL queries
 The methods `executeSinglestoreQuery(query: String, variables: Any*)` and `executeSinglestoreQueryDB(db: String, query: String, variables: Any*)`
-allow you to run SQL queries on a SingleStore database directly using the existing `SparkSession` object. The method `executeSinglestoreQuery`
+allow you to run SQL queries on a SingleStoreDB database directly using the existing `SparkSession` object. The method `executeSinglestoreQuery`
 uses the database defined in the `SparkContext` object you use. `executeSinglestoreQueryDB` allows you to specify the database that
 will be used for querying.
 The following examples demonstrate their usage (assuming you already have
@@ -464,7 +491,7 @@ initialized `SparkSession` object named `spark`). The methods return `Iterator[o
 // executeSinglestoreQuery and executeSinglestoreQueryDB to SparkSession class
 import com.singlestore.spark.SQLHelper.QueryMethods
 
-// You can pass an empty database to executeSinglestoreQueryDB to connect to SingleStore without specifying a database.
+// You can pass an empty database to executeSinglestoreQueryDB to connect to SingleStoreDB without specifying a database.
 // This allows you to create a database which is defined in the SparkSession config for example.
 spark.executeSinglestoreQueryDB("", "CREATE DATABASE foo")
 // the next query can be used if the database field has been specified in spark object
@@ -497,12 +524,12 @@ var s = executeSinglestoreQueryDB(spark, "foo", "SHOW TABLES")
 
 ### Connecting with a Kerberos-authenticated User
 
-You can use the SingleStore Spark Connector with a Kerberized user without any additional configuration.
-To use a Kerberized user, you need to configure the connector with the given SingleStore database user that is authenticated with Kerberos
+You can use the SingleStoreDB Spark Connector with a Kerberized user without any additional configuration.
+To use a Kerberized user, you need to configure the connector with the given SingleStoreDB database user that is authenticated with Kerberos
 (via the `user` option). Please visit our documentation [here](https://docs.singlestore.com/db/latest/en/security/authentication/kerberos-authentication.html)
-to learn about how to configure SingleStore users with Kerberos.
+to learn about how to configure SingleStoreDB users with Kerberos.
 
-Here is an example of configuring the Spark connector globally with a Kerberized SingleStore user called `krb_user`.
+Here is an example of configuring the Spark connector globally with a Kerberized SingleStoreDB user called `krb_user`.
 
 ```scala
 spark = SparkSession.builder()
@@ -511,13 +538,13 @@ spark = SparkSession.builder()
 ```
 
 You do not need to provide a password when configuring a Spark Connector user that is Kerberized.
-The connector driver (SingleStore JDBC driver) will be able to authenticate the Kerberos user from the cache by the provided username.
+The connector driver (SingleStoreDB JDBC driver) will be able to authenticate the Kerberos user from the cache by the provided username.
 Other than omitting a password with this configuration, using a Kerberized user with the Connector is no different than using a standard user.
 Note that if you do provide a password, it will be ignored.
 
 ### SQL Permissions
 
-SingleStore has a [permission matrix](https://docs.singlestore.com/db/latest/en/reference/sql-reference/security-management-commands/permissions-matrix.html)
+SingleStoreDB has a [permission matrix](https://docs.singlestore.com/db/latest/en/reference/sql-reference/security-management-commands/permissions-matrix.html)
 which describes the permissions required to run each command.
 
 To make any SQL operations through Spark connector you should have different
@@ -536,9 +563,9 @@ For more information on GRANTING privileges, see this [documentation](https://do
 
 ### SSL Support
 
-The SingleStore Spark Connector uses the SingleStore JDBC Driver under the hood and thus
+The SingleStoreDB Spark Connector uses the SingleStoreDB JDBC Driver under the hood and thus
 supports SSL configuration out of the box. In order to configure SSL, first
-ensure that your SingleStore cluster has SSL configured. Documentation on how to set
+ensure that your SingleStoreDB cluster has SSL configured. Documentation on how to set
 this up can be found here:
 https://docs.singlestore.com/latest/guides/security/encryption/ssl/
 
@@ -563,13 +590,13 @@ spark.conf.set("spark.datasource.singlestore.trustServerCertificate", "true")
 spark.conf.set("spark.datasource.singlestore.disableSslHostnameVerification", "true")
 ```
 
-More information on the above parameters can be found at SingleStore JDBC driver documentation here:
+More information on the above parameters can be found at SingleStoreDB JDBC driver documentation here:
 https://docs.singlestore.com/db/latest/en/developer-resources/connect-with-application-development-tools/connect-with-java-jdbc/the-singlestore-jdbc-driver.html#tls-parameters
 
 
 ### JWT authentication
 
-You may authenticate your connection to the SingleStoreDB cluster using the SingleStore Spark connector with a JWT.
+You may authenticate your connection to the SingleStoreDB cluster using the SingleStoreDB Spark connector with a JWT.
 To use JWT-based authentication, specify the following parameters:
  - `credentialType=JWT` 
  - `password=<jwt-token>`
@@ -585,7 +612,7 @@ conf.set("spark.datasource.singlestore.user", "s2user")
 conf.set("spark.datasource.singlestore.password", "eyJhbGci.eyJzdWIiOiIxMjM0NTY3.masHf")
 ```
 
-> note: To authenticate your connection to the SingleStoreDB cluster using the SingleStore Spark connector with a JWT,
+> note: To authenticate your connection to the SingleStoreDB cluster using the SingleStoreDB Spark connector with a JWT,
 > the SingleStoreDB user must connect via SSL and use a JWT for authentication.
 >
 > See [Create a JWT User](https://docs.singlestore.com/managed-service/en/security/authentication/authenticate-via-jwt.html#create-a-jwt-user-751086) for more information.
@@ -596,7 +623,7 @@ See [Authenticate via JWT](https://docs.singlestore.com/managed-service/en/secur
 
 When filing issues please include as much information as possible as well as any
 reproduction steps. It's hard for us to reproduce issues if the problem depends
-on specific data in your SingleStore table for example.  Whenever possible please try
+on specific data in your SingleStoreDB table for example.  Whenever possible please try
 to construct a minimal reproduction of the problem and include the table
 definition and table contents in the issue.
 
@@ -631,10 +658,10 @@ Happy querying!
  * `greatest` and `least` return null if at least one argument is null (in spark these functions skip nulls)
  * When value can not be converted to numeric or fractional type MemSQL returns 0 (spark returns `null`)
  * `Atanh(x)`, for x ∈ (-∞, -1] ∪ [1, ∞) returns, `null` (spark returns `NaN`)
- * When string is casted to numeric type, singlestore takes the prefix of it which is numeric (spark returns `null` if the whole string is not numeric)
- * When numeric type is casted to the smaller one singlestore truncates it. For example `500` casted to the Byte will be `127`
+ * When string is casted to numeric type, SingleStoreDB takes the prefix of it which is numeric (spark returns `null` if the whole string is not numeric)
+ * When numeric type is casted to the smaller one SingleStoreDB truncates it. For example `500` casted to the Byte will be `127`
  Note: spark optimizer can optimize casts for literals and then behaviour for them will match custom spark behaviour
- * When fractional type is casted to integral type singlestore rounds it to the closest value
+ * When fractional type is casted to integral type SingleStoreDB rounds it to the closest value
  * `Log` instead of `NaN`, `Infinity`, `-Infinity` returns `null`
  * `Round` rounds down, if the number that should be rounded is followed by 5 and it is `DOUBLE` or `FLOAT` (`DECIMAL` will be rounded up)
  * `Conv` works differently if the number contains non alphanumeric characters
@@ -647,15 +674,15 @@ Happy querying!
 
 ## Major changes from the 2.0.0 connector
 
-The SingleStore Spark Connector 4.1.0 has a number of key features and enhancements:
+The SingleStoreDB Spark Connector 4.1.0 has a number of key features and enhancements:
 
 * Introduces SQL Optimization & Rewrite for most query shapes and compatible expressions
 * Implemented as a native Spark SQL plugin
 * Supports both the DataSource and DataSourceV2 API for maximum support of current and future functionality
 * Contains deep integrations with the Catalyst query optimizer
 * Is compatible with Spark 3.0, 3.1 and 3.2
-* Leverages SingleStore LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
-* Takes advantage of all the latest and greatest features in SingleStore 7.x
+* Leverages SingleStoreDB LOAD DATA to accelerate ingest from Spark via compression, vectorized cpu instructions, and optimized segment sizes
+* Takes advantage of all the latest and greatest features in SingleStoreDB 7.x
 
 <h2 id="java-python-example">Java & Python Examples</h2>
 
