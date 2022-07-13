@@ -1,12 +1,11 @@
 package com.singlestore.spark
 
-import java.io.{InputStream, OutputStream, PipedInputStream, PipedOutputStream}
+import java.io.{IOException, InputStream, OutputStream, PipedInputStream, PipedOutputStream}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.sql.Connection
 import java.util.Base64
 import java.util.zip.GZIPOutputStream
-
 import com.singlestore.spark.JdbcHelpers.{getDDLConnProperties, getDMLConnProperties}
 import com.singlestore.spark.SinglestoreOptions.CompressionType
 import com.singlestore.spark.vendor.apache.SchemaConverters
@@ -22,6 +21,7 @@ import org.apache.spark.sql.{Row, SaveMode}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.util.{Failure, Try}
 
 abstract class WriterCommitMessage extends Serializable {}
 case class WriteSuccess()          extends WriterCommitMessage
@@ -29,7 +29,7 @@ case class WriteSuccess()          extends WriterCommitMessage
 abstract class DataWriter[T] {
   def write(record: T): Unit
   def commit(): WriterCommitMessage
-  def abort(): Unit
+  def abort(e: Exception): Unit
 }
 
 abstract class WriterFactory extends Serializable {
@@ -158,9 +158,11 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
           stmt.close()
         }
       } finally {
+        inputstream.close()
         conn.close()
       }
     }
+
     if (loadDataFormat == SinglestoreOptions.LoadDataFormat.Avro) {
       new AvroDataWriter(avroSchema, outputstream, writer, conn)
     } else {
@@ -206,17 +208,29 @@ class LoadDataWriter(outputstream: OutputStream, writeFuture: Future[Long], conn
   }
 
   override def commit(): WriterCommitMessage = {
-    outputstream.close()
+    Try(outputstream.close())
     Await.result(writeFuture, Duration.Inf)
     new WriteSuccess
   }
 
-  override def abort(): Unit = {
+  override def abort(writerException: Exception): Unit = {
     if (!conn.isClosed) {
       conn.abort(ExecutionContext.global)
     }
-    outputstream.close()
-    Await.ready(writeFuture, Duration.Inf)
+    Try(outputstream.close())
+    try {
+      Await.result(writeFuture, Duration.Inf)
+    } catch {
+      case readerException: Exception => {
+        // if we got pipe closed error from the thread that writes data to stream
+        // then the error actual occurred in the thread that ran the query
+        // and we need to return the actual error
+        if (writerException
+              .isInstanceOf[IOException] && writerException.getMessage.contains("Pipe closed")) {
+          throw readerException
+        }
+      }
+    }
   }
 }
 
@@ -252,16 +266,28 @@ class AvroDataWriter(avroSchema: Schema,
 
   override def commit(): WriterCommitMessage = {
     encoder.flush()
-    outputstream.close()
+    Try(outputstream.close())
     Await.result(writeFuture, Duration.Inf)
     new WriteSuccess
   }
 
-  override def abort(): Unit = {
+  override def abort(writerException: Exception): Unit = {
     if (!conn.isClosed) {
       conn.abort(ExecutionContext.global)
     }
-    outputstream.close()
-    Await.ready(writeFuture, Duration.Inf)
+    Try(outputstream.close())
+    try {
+      Await.result(writeFuture, Duration.Inf)
+    } catch {
+      case readerException: Exception => {
+        // if we got pipe closed error from the thread that writes data to stream
+        // then the error actual occurred in the thread that ran the query
+        // and we need to return the actual error
+        if (writerException
+              .isInstanceOf[IOException] && writerException.getMessage.contains("Pipe closed")) {
+          throw readerException
+        }
+      }
+    }
   }
 }

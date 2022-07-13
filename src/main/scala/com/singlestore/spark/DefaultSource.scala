@@ -98,7 +98,7 @@ class DefaultSource
         MetricsHandler.setRecordsWritten(totalRowCount)
       } catch {
         case e: Exception =>
-          writer.abort()
+          writer.abort(e)
           throw e
       }
     })
