@@ -79,9 +79,7 @@ workflows:
               spark_version:
                 - 2.4.7
               memsql_image:
-                - memsql/cluster-in-a-box:centos-7.0.15-619d118712-1.9.5-1.5.0
-                - memsql/cluster-in-a-box:centos-6.8.15-029542cbf3-1.9.3-1.4.1
-                - memsql/cluster-in-a-box:6.7.18-db1caffe94-1.6.1-1.1.1
+                - memsql/cluster-in-a-box:centos-7.6.13-39da2f5c72-4.0.4-1.13.5
   publish:
     jobs:
       - approve-publish:

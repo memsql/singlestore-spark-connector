@@ -4,6 +4,8 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/memsql-spark-connector.iml" filepath="$PROJECT_DIR$/.idea/modules/memsql-spark-connector.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/memsql-spark-connector-build.iml" filepath="$PROJECT_DIR$/.idea/modules/memsql-spark-connector-build.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/project.memsql-spark-connector-build.iml" filepath="$PROJECT_DIR$/.idea/modules/project.memsql-spark-connector-build.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/singlestore-spark-connector.memsql-spark-connector.iml" filepath="$PROJECT_DIR$/.idea/modules/singlestore-spark-connector.memsql-spark-connector.iml" />
     </modules>
   </component>
 </project>
