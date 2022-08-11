@@ -20,8 +20,9 @@ trait IntegrationSuiteBase
     with BeforeAndAfterAll
     with DataFrameComparer
     with LazyLogging {
-  final val masterHost: String = sys.props.getOrElse("memsql.host", "localhost")
-  final val masterPort: String = sys.props.getOrElse("memsql.port", "5506")
+  final val masterHost: String     = sys.props.getOrElse("memsql.host", "localhost")
+  final val masterPort: String     = sys.props.getOrElse("memsql.port", "5506")
+  final val masterPassword: String = sys.env.getOrElse("SINGLESTORE_PASSWORD", "1")
 
   final val continuousIntegration: Boolean = sys.env
     .getOrElse("CONTINUOUS_INTEGRATION", "false") == "true"
@@ -33,7 +34,8 @@ trait IntegrationSuiteBase
       JDBCOptions.JDBC_URL          -> s"jdbc:mysql://$masterHost:$masterPort",
       JDBCOptions.JDBC_TABLE_NAME   -> "XXX",
       JDBCOptions.JDBC_DRIVER_CLASS -> "org.mariadb.jdbc.Driver",
-      "user"                        -> "root"
+      "user"                        -> "root",
+      "password"                    -> masterPassword
     )
   )
 
@@ -126,7 +128,7 @@ trait IntegrationSuiteBase
     "url"      -> s"jdbc:mysql://$masterHost:$masterPort",
     "dbtable"  -> dbtable,
     "user"     -> "root",
-    "password" -> ""
+    "password" -> masterPassword
   )
 
   def jdbcOptionsSQL(dbtable: String): String =
