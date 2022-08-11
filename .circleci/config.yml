@@ -29,6 +29,7 @@ jobs:
       memsql_image:
         type: string
     machine: true
+    resource_class: large
     environment:
       MEMSQL_IMAGE: << parameters.memsql_image >>
       MEMSQL_PORT: 5506
