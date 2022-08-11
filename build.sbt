@@ -20,7 +20,7 @@ lazy val root = project
     resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven",
     libraryDependencies ++= Seq(
       // runtime dependencies
-      "org.apache.spark"       %% "spark-core"             % sparkVersion % "provided, test",
+      "org.apache.spark"       %% "spark-core_2.11"        % sparkVersion % "provided, test",
       "org.apache.spark"       %% "spark-sql"              % sparkVersion % "provided, test",
       "org.apache.avro"        % "avro"                    % "1.8.2",
       "org.apache.commons"     % "commons-dbcp2"           % "2.7.0",
@@ -28,8 +28,8 @@ lazy val root = project
       "org.mariadb.jdbc"       % "mariadb-java-client"     % "2.+",
       "io.spray"               %% "spray-json"             % "1.3.5",
       // test dependencies
-      "org.scalatest"       %% "scalatest"       % "3.1.0"  % Test,
-      "org.scalacheck"      %% "scalacheck"      % "1.14.1" % Test,
+      "org.scalatest"       %% "scalatest"        % "3.1.0"  % Test,
+      "org.scalacheck"      %% "scalacheck"       % "1.14.1" % Test,
       "com.github.mrpowers" %% "spark-daria"      % "0.38.2" % Test,
       "com.github.mrpowers" %% "spark-fast-tests" % "0.21.3" % Test
     ),
