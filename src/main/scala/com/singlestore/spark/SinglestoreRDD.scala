@@ -100,7 +100,10 @@ case class SinglestoreRDD(query: String,
 
     conn = SinglestoreConnectionPool.getConnection(partition.connectionInfo)
     if (aggregatorParallelReadUsed) {
-      val tableName = JdbcHelpers.getResultTableName(applicationId, context.stageId(), id)
+      val tableName = JdbcHelpers.getResultTableName(applicationId,
+                                                     context.stageId(),
+                                                     id,
+                                                     context.attemptNumber())
 
       stmt =
         conn.prepareStatement(JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index))

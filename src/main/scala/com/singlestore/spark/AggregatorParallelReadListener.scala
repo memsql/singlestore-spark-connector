@@ -68,8 +68,10 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
             rddInfos.get(rddInfo.id)
           )
           .foreach(singleStoreRDDInfo => {
-            val stageId   = stageSubmitted.stageInfo.stageId
-            val tableName = JdbcHelpers.getResultTableName(applicationId, stageId, rddInfo.id)
+            val stageId       = stageSubmitted.stageInfo.stageId
+            val attemptNumber = stageSubmitted.stageInfo.attemptNumber()
+            val tableName =
+              JdbcHelpers.getResultTableName(applicationId, stageId, rddInfo.id, attemptNumber)
 
             // Create connection and save it in the map
             val conn =
@@ -97,8 +99,10 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
   override def onStageCompleted(stageCompleted: SparkListenerStageCompleted): Unit = {
     stageCompleted.stageInfo.rddInfos.foreach(rddInfo => {
       if (rddInfo.name == "SinglestoreRDD") {
-        val stageId   = stageCompleted.stageInfo.stageId
-        val tableName = JdbcHelpers.getResultTableName(applicationId, stageId, rddInfo.id)
+        val stageId       = stageCompleted.stageInfo.stageId
+        val attemptNumber = stageCompleted.stageInfo.attemptNumber()
+        val tableName =
+          JdbcHelpers.getResultTableName(applicationId, stageId, rddInfo.id, attemptNumber)
 
         connectionsMap.synchronized(
           connectionsMap
