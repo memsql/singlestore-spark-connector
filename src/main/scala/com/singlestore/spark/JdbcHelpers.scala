@@ -413,8 +413,11 @@ object JdbcHelpers extends LazyLogging {
     }
   }
 
-  def getResultTableName(applicationId: String, stageId: Int, rddId: Int): String = {
-    s"rt_${applicationId.replace("-", "")}_${stageId}_${rddId}"
+  def getResultTableName(applicationId: String,
+                         stageId: Int,
+                         rddId: Int,
+                         attemptNumber: Int): String = {
+    s"rt_${applicationId.replace("-", "")}_${stageId}_${rddId}_${attemptNumber}"
   }
 
   def getCreateResultTableQuery(tableName: String,
