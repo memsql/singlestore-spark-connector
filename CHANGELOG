@@ -1,3 +1,6 @@
+2023-02-21 Version 4.1.2
+    * Fixed issue that caused `Table has reached its quota of 1 reader(s)` error in the case when parallel read was retried
+
 2022-07-13 Version 4.1.1
     * Added clientEndpoint option for Cloud deployment of the SingleStoreDB
     * Fixed bug in the error handling that caused deadlock
