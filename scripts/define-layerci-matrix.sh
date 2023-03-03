@@ -13,7 +13,7 @@ elif [ "$TEST_NUM" == '8'] || ["$TEST_NUM" == '9' ] || ["$TEST_NUM" == '10' ] ||
   then
     echo 'export SINGLESTORE_IMAGE="memsql/cluster-in-a-box:centos-7.6.5-018454f4e3-4.0.1-1.13.0"'
 else
-  echo 'export SINGLESTORE_IMAGE="singlestore/cluster-in-a-box:alma-7.8.2-8c7b918527-4.0.4-1.13.6"'
+  echo 'export SINGLESTORE_IMAGE="memsql/cluster-in-a-box:alma-7.9.5-9465d4a282-beta-4.0.7-1.13.9"'
 fi
 
 if [ "$TEST_NUM" == '16' ]
