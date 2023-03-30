@@ -63,6 +63,7 @@ trait IntegrationSuiteBase
     try {
       // make singlestore use less memory
       executeQuery(conn, "set global default_partitions_per_leaf = 2")
+      executeQuery(conn, "set global data_conversion_compatibility_level = '6.0'")
 
       executeQuery(conn, "drop database if exists testdb")
       executeQuery(conn, "create database testdb")

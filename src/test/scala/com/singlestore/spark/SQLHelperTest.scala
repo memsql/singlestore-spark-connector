@@ -71,11 +71,7 @@ class SQLHelperTest extends IntegrationSuiteBase with BeforeAndAfterEach {
         for (row <- res)
           yield row.getString(1)
 
-      if (canDoParallelReadFromAggregators) {
-        assert(out.toList.sorted == List("Cat", "CatDog", "Dog"))
-      } else {
-        assert(out.toList == List("Cat", "Dog", "CatDog"))
-      }
+      assert(out.toList.sorted == List("Cat", "CatDog", "Dog"))
     }
 
     it("executeSingleStoreQuery without explicitly specified db") {
@@ -84,11 +80,7 @@ class SQLHelperTest extends IntegrationSuiteBase with BeforeAndAfterEach {
         for (row <- res)
           yield row.getString(1)
 
-      if (canDoParallelReadFromAggregators) {
-        assert(out.toList.sorted == List("Cat", "CatDog", "Dog"))
-      } else {
-        assert(out.toList == List("Cat", "Dog", "CatDog"))
-      }
+      assert(out.toList.sorted == List("Cat", "CatDog", "Dog"))
     }
 
     it("executeSinglestoreQuery with query params") {
@@ -160,11 +152,7 @@ class SQLHelperTest extends IntegrationSuiteBase with BeforeAndAfterEach {
         for (row <- res)
           yield row.getString(1)
 
-      if (canDoParallelReadFromAggregators) {
-        assert(out.toList.sorted == List("Cat", "CatDog", "Dog"))
-      } else {
-        assert(out.toList == List("Cat", "Dog", "CatDog"))
-      }
+      assert(out.toList.sorted == List("Cat", "CatDog", "Dog"))
     }
 
     it("executeSinglestoreQuery without explicitly specified db") {
@@ -173,11 +161,7 @@ class SQLHelperTest extends IntegrationSuiteBase with BeforeAndAfterEach {
         for (row <- res)
           yield row.getString(1)
 
-      if (canDoParallelReadFromAggregators) {
-        assert(out.toList.sorted == List("Cat", "CatDog", "Dog"))
-      } else {
-        assert(out.toList == List("Cat", "Dog", "CatDog"))
-      }
+      assert(out.toList.sorted == List("Cat", "CatDog", "Dog"))
     }
 
     it("executeSinglestoreQuery with query params") {
