@@ -3826,8 +3826,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     it("should return the same value for the same input") {
-      val df1 = spark.sql("select rand(100)*id from testdb.users")
-      val df2 = spark.sql("select rand(100)*id from testdb.users")
+      val df1 = spark.sql("select rand(100)*id as a from testdb.users order by a")
+      val df2 = spark.sql("select rand(100)*id as a from testdb.users order by a")
       assertApproximateDataFrameEquality(df1, df2, 0.001, orderedComparison = false)
     }
   }
