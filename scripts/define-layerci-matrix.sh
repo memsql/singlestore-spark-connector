@@ -5,15 +5,15 @@ TEST_NUM=${SPLIT:-"0"}
 
 if [ "$TEST_NUM" == '0' ] || [ "$TEST_NUM" == '1' ] || [ "$TEST_NUM" == '2' ] || [ "$TEST_NUM" == '3' ]
 then
-   echo 'export SINGLESTORE_IMAGE="memsql/cluster-in-a-box:centos-7.3.2-a364d4b31f-3.0.0-1.9.3"'
+   echo 'export SINGLESTORE_IMAGE="singlestore/cluster-in-a-box:centos-7.5.12-3112a491c2-4.0.0-1.12.5"'
 elif [ "$TEST_NUM" == '4' ] || [ "$TEST_NUM" == '5' ] || [ "$TEST_NUM" == '6' ] || [ "$TEST_NUM" == '7' ]
 then
-  echo 'export SINGLESTORE_IMAGE="memsql/cluster-in-a-box:centos-7.5.8-12c73130aa-3.2.11-1.11.11"'
+  echo 'export SINGLESTORE_IMAGE="singlestore/cluster-in-a-box:alma-7.6.14-6f67cb4355-4.0.4-1.13.6"'
 elif [ "$TEST_NUM" == '8'] || ["$TEST_NUM" == '9' ] || ["$TEST_NUM" == '10' ] || ["$TEST_NUM" == '11' ]
   then
-    echo 'export SINGLESTORE_IMAGE="memsql/cluster-in-a-box:centos-7.6.5-018454f4e3-4.0.1-1.13.0"'
+    echo 'export SINGLESTORE_IMAGE="singlestore/cluster-in-a-box:alma-7.8.19-4263b2d130-4.0.10-1.14.4"'
 else
-  echo 'export SINGLESTORE_IMAGE="singlestore/cluster-in-a-box:alma-7.8.2-8c7b918527-4.0.4-1.13.6"'
+  echo 'export SINGLESTORE_IMAGE="singlestore/cluster-in-a-box:alma-8.0.15-0b9b66384f-4.0.11-1.15.2"'
 fi
 
 if [ "$TEST_NUM" == '16' ]
