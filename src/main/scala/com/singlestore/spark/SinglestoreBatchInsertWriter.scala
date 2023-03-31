@@ -21,7 +21,8 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
                        attemptNumber: Int,
                        isReferenceTable: Boolean,
                        mode: SaveMode): DataWriter[Row] = {
-    val queryPrefix = s"INSERT INTO ${table.quotedString} VALUES "
+    val columnNames = schema.map(s => SinglestoreDialect.quoteIdentifier(s.name))
+    val queryPrefix = s"INSERT INTO ${table.quotedString} (${columnNames.mkString(", ")}) VALUES "
     val querySuffix = s" ON DUPLICATE KEY UPDATE ${conf.onDuplicateKeySQL.get}"
 
     val rowTemplate = "(" + schema

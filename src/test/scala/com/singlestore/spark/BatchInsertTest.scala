@@ -232,7 +232,7 @@ class BatchInsertTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       insertValues("testdb.batchinsert", df, "age = age + 1", 10)
       fail()
     } catch {
-      case e: Exception if e.getMessage.contains("Column count doesn't match value count") =>
+      case e: Exception if e.getMessage.contains("Unknown column 'age' in 'field list'") =>
     }
   }
 }
