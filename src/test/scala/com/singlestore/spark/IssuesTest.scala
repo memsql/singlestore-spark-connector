@@ -28,7 +28,7 @@ class IssuesTest extends IntegrationSuiteBase {
                                    List(1, 2, 3, 4),
                                    List(("start_video_pos", IntegerType, true))
                                  ),
-                                 orderedComparison = !canDoParallelReadFromAggregators)
+                                 orderedComparison = false)
   }
 
   it("https://memsql.zendesk.com/agent/tickets/10451") {

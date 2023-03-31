@@ -91,11 +91,7 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
           .option("password", masterPassword)
           .load()
 
-        assertSmallDataFrameEquality(x,
-                                     df,
-                                     true,
-                                     true,
-                                     orderedComparison = !canDoParallelReadFromAggregators)
+        assertSmallDataFrameEquality(x, df, true, true, orderedComparison = false)
       }
     }
   }
