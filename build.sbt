@@ -21,7 +21,7 @@ lazy val root = project
       case "3.2.1" => "scala-sparkv3.2"
       case "3.3.0" => "scala-sparkv3.3"
     }),
-    version := s"4.1.2-spark-${sparkVersion}",
+    version := s"4.1.3-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
     ),
@@ -33,7 +33,7 @@ lazy val root = project
       "org.apache.avro"        % "avro"                    % "1.8.2",
       "org.apache.commons"     % "commons-dbcp2"           % "2.7.0",
       "org.scala-lang.modules" %% "scala-java8-compat"     % "0.9.0",
-      "com.singlestore"        % "singlestore-jdbc-client" % "1.1.0",
+      "com.singlestore"        % "singlestore-jdbc-client" % "1.1.5",
       "io.spray"               %% "spray-json"             % "1.3.5",
       "io.netty"               % "netty-buffer"            % "4.1.70.Final",
       "org.apache.commons"     % "commons-dbcp2"           % "2.9.0",
