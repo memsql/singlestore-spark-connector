@@ -218,4 +218,21 @@ class BatchInsertTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       )
     )
   }
+
+  it("non-existing column") {
+    executeQueryWithLog("DROP TABLE IF EXISTS batchinsert")
+    executeQueryWithLog("CREATE TABLE batchinsert(id INT, name TEXT)")
+
+    df = spark.createDF(
+      List((5, "EBCEFGRHFED" * 10000000, 50)),
+      List(("id", IntegerType, true), ("name", StringType, true), ("age", IntegerType, true))
+    )
+
+    try {
+      insertValues("testdb.batchinsert", df, "age = age + 1", 10)
+      fail()
+    } catch {
+      case e: Exception if e.getMessage.contains("Unknown column 'age' in 'field list'") =>
+    }
+  }
 }
