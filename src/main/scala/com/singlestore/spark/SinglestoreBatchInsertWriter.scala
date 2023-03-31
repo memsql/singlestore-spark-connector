@@ -21,7 +21,8 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
                        attemptNumber: Int,
                        isReferenceTable: Boolean,
                        mode: SaveMode): DataWriter[Row] = {
-    val queryPrefix = s"INSERT INTO ${table.quotedString} VALUES "
+    val columnNames = schema.map(s => SinglestoreDialect.quoteIdentifier(s.name))
+    val queryPrefix = s"INSERT INTO ${table.quotedString} (${columnNames.mkString(", ")}) VALUES "
     val querySuffix = s" ON DUPLICATE KEY UPDATE ${conf.onDuplicateKeySQL.get}"
 
     val rowTemplate = "(" + schema
@@ -101,7 +102,8 @@ class BatchInsertWriter(batchSize: Int, writeBatch: ListBuffer[Row] => Long, con
 
   override def abort(e: Exception): Unit = {
     buff = ListBuffer.empty[Row]
-    conn.abort(ExecutionContext.global)
-    conn.close()
+    if (!conn.isClosed) {
+      conn.abort(ExecutionContext.global)
+    }
   }
 }
