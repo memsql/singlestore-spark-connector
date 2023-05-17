@@ -11,6 +11,8 @@ import org.apache.spark.sql.sources.{
   RelationProvider
 }
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
+import org.apache.log4j.Level
+import org.apache.log4j.LogManager
 
 object DefaultSource {
 
@@ -43,6 +45,7 @@ class DefaultSource
 
   override def createRelation(sqlContext: SQLContext,
                               parameters: Map[String, String]): BaseRelation = {
+    // LogManager.getLogger("com.singlestore.spark").setLevel(Level.INFO)
     val params  = CaseInsensitiveMap(includeGlobalParams(sqlContext, parameters))
     val options = SinglestoreOptions(params)
     if (options.disablePushdown) {
@@ -62,6 +65,7 @@ class DefaultSource
                               mode: SaveMode,
                               parameters: Map[String, String],
                               data: DataFrame): BaseRelation = {
+    LogManager.getLogger("com.singlestore.spark").setLevel(Level.INFO)
     val opts = CaseInsensitiveMap(includeGlobalParams(sqlContext, parameters))
     val conf = SinglestoreOptions(opts)
 

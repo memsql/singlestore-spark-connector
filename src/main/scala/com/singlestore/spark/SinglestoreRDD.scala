@@ -15,6 +15,11 @@ import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskCon
 import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Await, ExecutionContext, Future}
+import org.apache.log4j.LogManager
+import org.apache.spark.sql.catalyst.encoders.RowEncoder
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.util.NextIterator
+import org.apache.log4j.Level
 
 case class SinglestoreRDD(query: String,
                           variables: VariableList,
@@ -25,6 +30,24 @@ case class SinglestoreRDD(query: String,
                           parallelReadRepartitionColumns: Seq[String],
                           @transient val sc: SparkContext)
     extends RDD[Row](sc, Nil) {
+
+  class LoggableIterator[+T](val delegate: Iterator[T], index: Integer) extends Iterator[T] {
+
+  def hasNext: Boolean = {
+    log.info(s"SINGLESTORE SPARK $index: Checking if result has more rows")
+    val res = delegate.hasNext
+    log.info(s"SINGLESTORE SPARK $index: Checked that result has more rows ($res)")
+    res
+  }
+
+  def next(): T = {
+    log.info(s"SINGLESTORE SPARK $index: Getting row")
+    val res = delegate.next()
+    log.info(s"SINGLESTORE SPARK $index: Got row")
+    res
+  }
+}
+
   val (parallelReadType, partitions_) = SinglestorePartitioner(this).getPartitions
 
   // Spark serializes RDD object and sends it to executor
@@ -51,6 +74,8 @@ case class SinglestoreRDD(query: String,
   override protected def getPartitions: Array[Partition] = partitions_
 
   override def compute(rawPartition: Partition, context: TaskContext): Iterator[Row] = {
+    LogManager.getLogger("com.singlestore.spark.SinglestoreRDD").setLevel(Level.INFO)
+
     val multiPartition: SinglestoreMultiPartition =
       rawPartition.asInstanceOf[SinglestoreMultiPartition]
     val threadPool = Executors.newFixedThreadPool(multiPartition.partitions.size)
@@ -73,6 +98,8 @@ case class SinglestoreRDD(query: String,
     var stmt: PreparedStatement         = null
     var conn: Connection                = null
     val partition: SinglestorePartition = rawPartition.asInstanceOf[SinglestorePartition]
+    val index = partition.index
+    log.info(s"SINGLESTORE SPARK $index: Reading from partition")
 
     def tryClose(name: String, what: AutoCloseable): Unit = {
       try {
@@ -86,9 +113,11 @@ case class SinglestoreRDD(query: String,
 
     def close(): Unit = {
       if (closed) { return }
+      log.info(s"SINGLESTORE SPARK $index: closing connection")    
       tryClose("resultset", rs)
       tryClose("statement", stmt)
       tryClose("connection", conn)
+      log.info(s"SINGLESTORE SPARK $index: closed connection")    
       closed = true
     }
 
@@ -105,8 +134,10 @@ case class SinglestoreRDD(query: String,
                                                      id,
                                                      context.attemptNumber())
 
+      log.info(s"SINGLESTORE SPARK $index: Preparing query ${JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index)}")
       stmt =
         conn.prepareStatement(JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index))
+      log.info(s"SINGLESTORE SPARK $index: Preparied query ${JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index)}")
 
       val startTime = System.currentTimeMillis()
       val timeout = parallelReadType match {
@@ -118,6 +149,8 @@ case class SinglestoreRDD(query: String,
           0
       }
 
+ 
+      log.info(s"SINGLESTORE SPARK $index: Executing query ${JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index)}")
       var lastError: java.sql.SQLException = null
       while (rs == null && (timeout == 0 || System.currentTimeMillis() - startTime < timeout)) {
         try {
@@ -128,17 +161,25 @@ case class SinglestoreRDD(query: String,
             Thread.sleep(10)
         }
       }
+      log.info(s"SINGLESTORE SPARK $index: Executed query ${JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index)}, result set: ${rs}")
 
       if (rs == null) {
         throw new java.sql.SQLException("Failed to read data from result table", lastError)
       }
     } else {
+      log.info(s"SINGLESTORE SPARK $index: Preparing query ${partition.query}")
       stmt = conn.prepareStatement(partition.query)
+      log.info(s"SINGLESTORE SPARK $index: Prepared query ${partition.query}")
       JdbcHelpers.fillStatement(stmt, partition.variables)
+      log.info(s"SINGLESTORE SPARK $index: Executing query ${partition.query}")
       rs = stmt.executeQuery()
+      log.info(s"SINGLESTORE SPARK $index: Executed query ${partition.query}, result set: ${rs}")
     }
 
+    log.info(s"SINGLESTORE SPARK $index: converting result set to rows")
     var rowsIter = JdbcUtils.resultSetToRows(rs, schema)
+    log.info(s"SINGLESTORE SPARK $index: converted result set to rows")    
+    rowsIter = new LoggableIterator[Row](rowsIter, index)
 
     if (expectedOutput.nonEmpty) {
       val schemaDatatypes   = schema.map(_.dataType)
@@ -178,7 +219,12 @@ case class SinglestoreRDD(query: String,
         }
 
         rowsIter = rowsIter
-          .map(row => Row.fromSeq(columnEncoders.map(_(row))))
+          .map(row => {
+            log.info(s"SINGLESTORE SPARK $index: mapping row to correct types")    
+            val res = Row.fromSeq(columnEncoders.map(_(row)))
+            log.info(s"SINGLESTORE SPARK $index: mapped row to correct types")    
+            res
+          })
       }
     }
 

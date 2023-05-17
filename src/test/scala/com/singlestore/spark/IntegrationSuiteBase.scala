@@ -110,7 +110,7 @@ trait IntegrationSuiteBase
 
     spark = SparkSession
       .builder()
-      .master(if (canDoParallelReadFromAggregators) "local[2]" else "local")
+      .master("local[2]")
       .appName("singlestore-integration-tests")
       .config("spark.sql.shuffle.partitions", "1")
       .config("spark.driver.bindAddress", "localhost")
@@ -121,10 +121,9 @@ trait IntegrationSuiteBase
       .config("spark.datasource.singlestore.user", "root-ssl")
       .config("spark.datasource.singlestore.password", "")
       .config("spark.datasource.singlestore.enableAsserts", "true")
-      .config("spark.datasource.singlestore.enableParallelRead", "automaticLite")
-      .config("spark.datasource.singlestore.parallelRead.Features",
-              if (forceReadFromLeaves) "ReadFromLeaves" else "ReadFromAggregators,ReadFromLeaves")
-      .config("spark.datasource.singlestore.database", "testdb")
+      .config("spark.datasource.singlestore.enableParallelRead", "forced")
+      .config("spark.datasource.singlestore.parallelRead.Features", "ReadFromAggregatorsMaterialized")
+      .config("spark.datasource.singlestore.database", "db")
       .config("spark.datasource.singlestore.useSSL", "true")
       .config("spark.datasource.singlestore.serverSslCert",
               s"${System.getProperty("user.dir")}/scripts/ssl/test-ca-cert.pem")

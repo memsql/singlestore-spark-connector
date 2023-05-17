@@ -48,7 +48,7 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
   final val BUFFER_SIZE = 524288
 
   type ImplementsSetInfileStream = {
-    def setNextLocalInfileInputStream(input: InputStream)
+    def setNextLocalInfileInputStream(input: InputStream): Unit
   }
 
   def createDataWriter(schema: StructType,
