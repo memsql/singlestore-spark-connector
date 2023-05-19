@@ -13,7 +13,6 @@ import org.apache.log4j.Level
 class IssuesTest extends IntegrationSuiteBase {
   it("test") {
     val df = spark.read.format("singlestore").load("db.t")
-    df.show()
-    log.error("AAAAA")
+    log.error("AAAAA " + df.cache().count())
   }
 }
