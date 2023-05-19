@@ -165,6 +165,7 @@ class ExternalHostTest
         Map.empty[String, String],
         false,
         false,
+        0,
         Automatic,
         List(ReadFromLeaves),
         0,

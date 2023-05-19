@@ -15,6 +15,7 @@ case class SinglestoreOptions(
     enableAsserts: Boolean,
     // read options
     disablePushdown: Boolean,
+    readFetchSize: Int,
     enableParallelRead: ParallelReadEnablement,
     parallelReadFeatures: List[ParallelReadType],
     parallelReadTableCreationTimeoutMS: Long,
@@ -120,6 +121,7 @@ object SinglestoreOptions extends LazyLogging {
 
   final val ENABLE_ASSERTS       = newOption("enableAsserts")
   final val DISABLE_PUSHDOWN     = newOption("disablePushdown")
+  final val READ_FETCH_SIZE      = newOption("readFetchSize")
   final val ENABLE_PARALLEL_READ = newOption("enableParallelRead")
 
   final val DRIVER_CONNECTION_POOL_ENABLED        = newOption("driverConnectionPool.Enabled")
@@ -297,6 +299,7 @@ object SinglestoreOptions extends LazyLogging {
         .map(identity),
       enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean,
       disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean,
+      readFetchSize = options.get(READ_FETCH_SIZE).getOrElse("0").toInt,
       enableParallelRead =
         ParallelReadEnablement(options.get(ENABLE_PARALLEL_READ).getOrElse("automaticLite")),
       overwriteBehavior = {

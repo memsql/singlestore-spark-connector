@@ -145,7 +145,9 @@ case class SinglestoreRDD(query: String,
       //log.info(s"SINGLESTORE SPARK $index: Preparing query ${JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index)}")
       stmt =
         conn.prepareStatement(JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index))
-      stmt.setFetchSize(25000);
+      if (options.readFetchSize != 0) {
+        stmt.setFetchSize(options.readFetchSize);
+      }
       //log.info(s"SINGLESTORE SPARK $index: Preparied query ${JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index)}")
 
       val startTime = System.currentTimeMillis()

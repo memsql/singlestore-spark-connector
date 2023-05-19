@@ -12,7 +12,10 @@ import org.apache.log4j.Level
 
 class IssuesTest extends IntegrationSuiteBase {
   it("test") {
-    val df = spark.read.format("singlestore").load("db.t")
+    val df = spark.read.format("singlestore")
+    .option("readAheadInputRateLimit", "12345")
+    .option("readFetchSize", "10000")
+    .load("db.t")
     log.error("AAAAA " + df.cache().count())
   }
 }
