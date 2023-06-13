@@ -49,17 +49,20 @@ jobs:
           name: Run tests
           command: |
             export SINGLESTORE_HOST=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' singlestore-integration)
-            if [ << parameters.spark_version >> == '3.0.0' ]
+            if [ << parameters.spark_version >> == '3.0.3' ]
             then
               sbt ++2.12.12 "testOnly -- -l  ExcludeFromSpark30" -Dspark.version=<< parameters.spark_version >>
             elif [ << parameters.spark_version >> == '3.1.3' ]
             then
               sbt ++2.12.12 "testOnly -- -l  ExcludeFromSpark31" -Dspark.version=<< parameters.spark_version >>
-            elif [ << parameters.spark_version >> == '3.2.1' ]
+            elif [ << parameters.spark_version >> == '3.2.4' ]
             then
               sbt ++2.12.12 "testOnly -- -l  ExcludeFromSpark32" -Dspark.version=<< parameters.spark_version >>
-            else
+            elif [ << parameters.spark_version >> == '3.3.2' ]
+            then
               sbt ++2.12.12 "testOnly -- -l  ExcludeFromSpark33" -Dspark.version=<< parameters.spark_version >>
+            else
+              sbt ++2.12.12 "testOnly -- -l  ExcludeFromSpark34" -Dspark.version=<< parameters.spark_version >>
             fi
 
   publish:
@@ -76,21 +79,25 @@ jobs:
             openssl enc -d -aes-256-cbc -K ${ENCRYPTION_KEY} -iv ${ENCRYPTION_IV} -in ci/secring.asc.enc -out ci/secring.asc
             gpg --import ci/secring.asc
       - run:
-          name: Publish Spark 3.0.0
+          name: Publish Spark 3.0.3
           command: |
-            sbt ++2.12.12 -Dspark.version=3.0.0 clean publishSigned sonatypeBundleRelease
+            sbt ++2.12.12 -Dspark.version=3.0.3 clean publishSigned sonatypeBundleRelease
       - run:
           name: Publish Spark 3.1.3
           command: |
             sbt ++2.12.12 -Dspark.version=3.1.3 clean publishSigned sonatypeBundleRelease
       - run:
-          name: Publish Spark 3.2.1
+          name: Publish Spark 3.2.4
           command: |
-            sbt ++2.12.12 -Dspark.version=3.2.1 clean publishSigned sonatypeBundleRelease
+            sbt ++2.12.12 -Dspark.version=3.2.4 clean publishSigned sonatypeBundleRelease
       - run:
-          name: Publish Spark 3.3.0
+          name: Publish Spark 3.3.2
           command: |
-            sbt ++2.12.12 -Dspark.version=3.3.0 clean publishSigned sonatypeBundleRelease
+            sbt ++2.12.12 -Dspark.version=3.3.2 clean publishSigned sonatypeBundleRelease
+      - run:
+          name: Publish Spark 3.4.0
+          command: |
+            sbt ++2.12.12 -Dspark.version=3.4.0 clean publishSigned sonatypeBundleRelease
 
 workflows:
   test:
@@ -104,15 +111,17 @@ workflows:
           matrix:
             parameters:
               spark_version:
-                - 3.0.0
+                - 3.0.3
                 - 3.1.3
-                - 3.2.1
-                - 3.3.0
+                - 3.2.4
+                - 3.3.2
+                - 3.4.0
               singlestore_image:
                 - singlestore/cluster-in-a-box:centos-7.5.12-3112a491c2-4.0.0-1.12.5
                 - singlestore/cluster-in-a-box:alma-7.6.14-6f67cb4355-4.0.4-1.13.6
                 - singlestore/cluster-in-a-box:alma-7.8.19-4263b2d130-4.0.10-1.14.4
-                - singlestore/cluster-in-a-box:alma-8.0.15-0b9b66384f-4.0.11-1.15.2
+                - singlestore/cluster-in-a-box:alma-8.0.19-f48780d261-4.0.11-1.16.0
+                - singlestore/cluster-in-a-box:alma-8.1.6-74913b66cc-4.0.11-1.16.0
   publish:
     jobs:
       - approve-publish:
