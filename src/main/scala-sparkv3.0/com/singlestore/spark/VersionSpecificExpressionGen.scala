@@ -193,6 +193,22 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case Base64(expressionExtractor(child))   => Some(f("TO_BASE64", child))
     case UnBase64(expressionExtractor(child)) => Some(f("FROM_BASE64", child))
 
+    case Round(expressionExtractor(child), expressionExtractor(scale))    => Some(f("ROUND", child, scale))
+    case Unhex(expressionExtractor(child))     => Some(f("UNHEX", child))
+
+    // ----------------------------------
+    // Ternary Expressions
+    // ----------------------------------
+
+    // mathExpressions.scala
+    case Conv(expressionExtractor(numExpr),
+              intFoldableExtractor(fromBase),
+              intFoldableExtractor(toBase))
+        // SingleStore supports bases only from [2, 36]
+        if fromBase >= 2 && fromBase <= 36 &&
+          toBase >= 2 && toBase <= 36 =>
+      Some(f("CONV", numExpr, IntVar(fromBase), IntVar(toBase)))
+
     case _ => None
   }
 }

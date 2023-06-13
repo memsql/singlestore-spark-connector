@@ -463,7 +463,6 @@ object ExpressionGen extends LazyLogging {
       case ShiftRightUnsigned(expressionExtractor(left), expressionExtractor(right)) =>
         op(">>", left, right)
       case Logarithm(expressionExtractor(left), expressionExtractor(right)) => f("LOG", left, right)
-      case Round(expressionExtractor(child), expressionExtractor(scale))    => f("ROUND", child, scale)
       case Hypot(expressionExtractor(left), expressionExtractor(right)) =>
         f("SQRT", op("+", f("POW", left, "2"), f("POW", right, "2")))
 
@@ -568,19 +567,6 @@ object ExpressionGen extends LazyLogging {
       // mathExpressions.scala
       case EulerNumber() => math.E.toString
       case Pi()          => "PI()"
-
-      // ----------------------------------
-      // Ternary Expressions
-      // ----------------------------------
-
-      // mathExpressions.scala
-      case Conv(expressionExtractor(numExpr),
-                intFoldableExtractor(fromBase),
-                intFoldableExtractor(toBase))
-          // SingleStore supports bases only from [2, 36]
-          if fromBase >= 2 && fromBase <= 36 &&
-            toBase >= 2 && toBase <= 36 =>
-        f("CONV", numExpr, IntVar(fromBase), IntVar(toBase))
 
       // TODO: case RegExpExtract(expressionExtractor(subject), expressionExtractor(regexp), expressionExtractor(idx)) => ???
 
@@ -744,7 +730,6 @@ object ExpressionGen extends LazyLogging {
       case ToRadians(expressionExtractor(child)) => f("RADIANS", child)
       case Bin(expressionExtractor(child))       => f("BIN", child)
       case Hex(expressionExtractor(child))       => f("HEX", child)
-      case Unhex(expressionExtractor(child))     => f("UNHEX", child)
 
       //    case BoolAnd(expressionExtractor(arg)) => // Spark can't apply bool_and to smallint (Input to function 'bool_and' should have been boolean, but it's [smallint])
       //    case BoolOr(expressionExtractor(arg))  => // Spark can't apply bool_or to smallint (Input to function 'bool_or' should have been boolean, but it's [smallint])
