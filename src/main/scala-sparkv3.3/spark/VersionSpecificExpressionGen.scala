@@ -54,23 +54,23 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
 
     case Elt(expressionExtractor(Some(child)), false) => Some(f("ELT", child))
 
-    case IntegralDivide(expressionExtractor(left), expressionExtractor(right), EvalMode.LEGACY) =>
+    case IntegralDivide(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(f("FLOOR", op("/", left, right)))
 
     // arithmetic.scala
-    case Add(expressionExtractor(left), expressionExtractor(right), EvalMode.LEGACY) =>
+    case Add(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("+", left, right))
-    case Subtract(expressionExtractor(left), expressionExtractor(right), EvalMode.LEGACY) =>
+    case Subtract(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("-", left, right))
-    case Multiply(expressionExtractor(left), expressionExtractor(right), EvalMode.LEGACY) =>
+    case Multiply(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("*", left, right))
-    case Divide(expressionExtractor(left), expressionExtractor(right), EvalMode.LEGACY) =>
+    case Divide(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("/", left, right))
-    case Remainder(expressionExtractor(left), expressionExtractor(right), EvalMode.LEGACY) =>
+    case Remainder(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("%", left, right))
     case Abs(expressionExtractor(child), false) => Some(f("ABS", child))
 
-    case Pmod(expressionExtractor(left), expressionExtractor(right), EvalMode.LEGACY) =>
+    case Pmod(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(block(block(block(left + "%" + right) + "+" + right) + "%" + right))
 
     // SingleStore and spark support other date formats
@@ -116,7 +116,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case Rand(expressionExtractor(child), false) => Some(f("RAND", child))
 
     // Cast.scala
-    case Cast(e @ expressionExtractor(child), dataType, _, EvalMode.LEGACY) => {
+    case Cast(e @ expressionExtractor(child), dataType, _, false) => {
       dataType match {
         case TimestampType => {
           e.dataType match {

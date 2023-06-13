@@ -87,11 +87,11 @@ case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: Expr
         )
 
       // First.scala
-      case First(expressionExtractor(child), Literal(false, BooleanType)) =>
+      case First(expressionExtractor(child), false) =>
         Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
       // Last.scala
-      case Last(expressionExtractor(child), Literal(false, BooleanType)) =>
+      case Last(expressionExtractor(child), false) =>
         Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
       // Sum.scala
