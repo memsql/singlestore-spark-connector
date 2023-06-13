@@ -3241,7 +3241,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |    ) or 
             |    critic_rating is null""".stripMargin)
       }
-      it("works with null", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
+      it("works with null", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33, ExcludeFromSpark34) {
         // in 3.1 version, spark simplifies this query and doesn't send it to the database, so it is read from single partition
         testQuery(
           "select format_number(critic_rating, null) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
@@ -3708,7 +3708,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("Base64") {
-      it("works", ExcludeFromSpark33) {
+      it("works", ExcludeFromSpark33, ExcludeFromSpark34) {
         testQuery("select id, base64(critic_review) as x from movies")
       }
       it("partial pushdown with udf") {
@@ -3718,7 +3718,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("UnBase64") {
-      it("works", ExcludeFromSpark33) {
+      it("works", ExcludeFromSpark33, ExcludeFromSpark34) {
         testQuery("select id, unbase64(base64(critic_review)) as x from movies")
       }
       it("partial pushdown with udf") {
@@ -3818,7 +3818,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("null literal") {
       testQuery("select rand(null)*id from users", expectSameResult = false)
     }
-    it("empty arguments", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
+    it("empty arguments", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33, ExcludeFromSpark34) {
       // TODO PLAT-5759
       testQuery("select rand()*id from users",
                 expectSameResult = false,

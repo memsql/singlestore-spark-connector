@@ -21,6 +21,7 @@ trait IntegrationSuiteBase
     with BeforeAndAfterAll
     with DataFrameComparer
     with LazyLogging {
+  object ExcludeFromSpark34 extends Tag("ExcludeFromSpark34")
   object ExcludeFromSpark33 extends Tag("ExcludeFromSpark33")
   object ExcludeFromSpark32 extends Tag("ExcludeFromSpark32")
   object ExcludeFromSpark31 extends Tag("ExcludeFromSpark31")
