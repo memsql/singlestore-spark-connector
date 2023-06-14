@@ -3985,7 +3985,15 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                     expectPartialPushdown = true)
         }
       }
-      it("very simple patterns", ExcludeFromSpark30) {
+      it("very simple patterns", ExcludeFromSpark30, ExcludeFromSpark34) {
+        for (f <- functions) {
+          log.debug(s"testing $f")
+          //Sparks computes such in more optimal way and does not invoke pushdown
+          testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')",
+                    expectPartialPushdown = true)
+        }
+      }
+      it("very simple patterns", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
         for (f <- functions) {
           log.debug(s"testing $f")
           //Sparks computes such in more optimal way and does not invoke pushdown
