@@ -60,6 +60,7 @@ object JdbcHelpers extends LazyLogging {
     properties.setProperty("driverClassName", "com.singlestore.jdbc.Driver")
     properties.setProperty("username", conf.user)
     properties.setProperty("password", conf.password)
+    properties.setProperty("connectionAttributes", s"_connector_name:SingleStore Spark Connector,_connector_version:4.1.3-spark-3.4.0,_product_version:")
     properties.setProperty(
       "connectionProperties",
       (Map(
