@@ -23,7 +23,8 @@ case class SinglestoreRDD(query: String,
                           expectedOutput: Seq[Attribute],
                           resultMustBeSorted: Boolean,
                           parallelReadRepartitionColumns: Seq[String],
-                          @transient val sc: SparkContext)
+                          @transient val sc: SparkContext,
+                          randHex: String)
     extends RDD[Row](sc, Nil) {
   val (parallelReadType, partitions_) = SinglestorePartitioner(this).getPartitions
 
@@ -103,7 +104,8 @@ case class SinglestoreRDD(query: String,
       val tableName = JdbcHelpers.getResultTableName(applicationId,
                                                      context.stageId(),
                                                      id,
-                                                     context.attemptNumber())
+                                                     context.attemptNumber(),
+                                                     randHex)
 
       stmt =
         conn.prepareStatement(JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index))
