@@ -36,7 +36,7 @@ case class SinglestoreReaderNoPushdown(query: String,
       )
       // Add random hex to the name
       // It is needed to generate unique names for result tables during parallel read
-      .setName("SingleStoreRDD" + Random.nextInt().toHexString)
+      .setName("SingleStoreRDD" + randHex)
     if (rdd.parallelReadType.contains(ReadFromAggregators)) {
       // Wrap an RDD with barrier stage, to force all readers start reading at the same time.
       // Repartition it to force spark to read data and do all other computations in different stages.
@@ -83,7 +83,7 @@ case class SinglestoreReader(query: String,
       )     
       // Add random hex to the name
       // It is needed to generate unique names for result tables during parallel read
-      .setName("SingleStoreRDD" + Random.nextInt().toHexString)
+      .setName("SingleStoreRDD" + randHex)
     if (rdd.parallelReadType.contains(ReadFromAggregators)) {
       // Wrap an RDD with barrier stage, to force all readers start reading at the same time.
       // Repartition it to force spark to read data and do all other computations in different stages.

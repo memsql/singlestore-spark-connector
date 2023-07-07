@@ -62,7 +62,7 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
 
   override def onStageSubmitted(stageSubmitted: SparkListenerStageSubmitted): Unit = {
     stageSubmitted.stageInfo.rddInfos.foreach(rddInfo => {
-      if (rddInfo.name.startsWith("SinglestoreRDD")) {
+      if (rddInfo.name.startsWith("SingleStoreRDD")) {
         rddInfos
           .synchronized(
             rddInfos.get(rddInfo.id)
@@ -70,7 +70,7 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
           .foreach(singleStoreRDDInfo => {
             val stageId       = stageSubmitted.stageInfo.stageId
             val attemptNumber = stageSubmitted.stageInfo.attemptNumber()
-            val randHex = rddInfo.name.substring("SinglestoreRDD".size)
+            val randHex = rddInfo.name.substring("SingleStoreRDD".size)
             val tableName =
               JdbcHelpers.getResultTableName(applicationId, stageId, rddInfo.id, attemptNumber, randHex)
 
@@ -99,10 +99,10 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
 
   override def onStageCompleted(stageCompleted: SparkListenerStageCompleted): Unit = {
     stageCompleted.stageInfo.rddInfos.foreach(rddInfo => {
-      if (rddInfo.name.startsWith("SinglestoreRDD")) {
+      if (rddInfo.name.startsWith("SingleStoreRDD")) {
         val stageId       = stageCompleted.stageInfo.stageId
         val attemptNumber = stageCompleted.stageInfo.attemptNumber()
-        val randHex = rddInfo.name.substring("SinglestoreRDD".size)
+        val randHex = rddInfo.name.substring("SingleStoreRDD".size)
         val tableName =
           JdbcHelpers.getResultTableName(applicationId, stageId, rddInfo.id, attemptNumber, randHex)
 
