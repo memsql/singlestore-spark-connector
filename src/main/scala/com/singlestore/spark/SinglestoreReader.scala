@@ -8,6 +8,8 @@ import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression => Catal
 import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
 import org.apache.spark.sql.{Row, SQLContext}
 
+import scala.util.Random;
+
 case class SinglestoreReaderNoPushdown(query: String,
                                        options: SinglestoreOptions,
                                        @transient val sqlContext: SQLContext)
@@ -17,6 +19,7 @@ case class SinglestoreReaderNoPushdown(query: String,
   override lazy val schema = JdbcHelpers.loadSchema(options, query, Nil)
 
   override def buildScan: RDD[Row] = {
+    val randHex = Random.nextInt().toHexString
     val rdd =
       SinglestoreRDD(
         query,
@@ -28,8 +31,12 @@ case class SinglestoreReaderNoPushdown(query: String,
         schema
           .filter(sf => options.parallelReadRepartitionColumns.contains(sf.name))
           .map(sf => SQLGen.Ident(sf.name).sql),
-        sqlContext.sparkContext
+        sqlContext.sparkContext,
+        randHex
       )
+      // Add random hex to the name
+      // It is needed to generate unique names for result tables during parallel read
+      .setName("SingleStoreRDD" + Random.nextInt().toHexString)
     if (rdd.parallelReadType.contains(ReadFromAggregators)) {
       // Wrap an RDD with barrier stage, to force all readers start reading at the same time.
       // Repartition it to force spark to read data and do all other computations in different stages.
@@ -59,6 +66,7 @@ case class SinglestoreReader(query: String,
   override lazy val schema = JdbcHelpers.loadSchema(options, query, variables)
 
   override def buildScan: RDD[Row] = {
+    val randHex = Random.nextInt().toHexString
     val rdd =
       SinglestoreRDD(
         query,
@@ -70,8 +78,12 @@ case class SinglestoreReader(query: String,
         expectedOutput
           .filter(attr => options.parallelReadRepartitionColumns.contains(attr.name))
           .map(attr => context.ident(attr.name, attr.exprId)),
-        sqlContext.sparkContext
-      )
+        sqlContext.sparkContext,
+        randHex
+      )     
+      // Add random hex to the name
+      // It is needed to generate unique names for result tables during parallel read
+      .setName("SingleStoreRDD" + Random.nextInt().toHexString)
     if (rdd.parallelReadType.contains(ReadFromAggregators)) {
       // Wrap an RDD with barrier stage, to force all readers start reading at the same time.
       // Repartition it to force spark to read data and do all other computations in different stages.
