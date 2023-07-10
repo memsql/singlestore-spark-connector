@@ -10,10 +10,12 @@ class SinglestoreOptionsTest extends IntegrationSuiteBase {
       assert(
         SinglestoreOptions(
           CaseInsensitiveMap(
-            requiredOptions ++ Map("dmlEndpoints" -> "host1:3302,host2:3302,host1:3342"))) ==
+            requiredOptions ++ Map("dmlEndpoints" -> "host1:3302,host2:3302,host1:3342")),
+            spark.sparkContext) ==
           SinglestoreOptions(
             CaseInsensitiveMap(
-              requiredOptions ++ Map("dmlEndpoints" -> "host2:3302,host1:3302,host1:3342"))),
+              requiredOptions ++ Map("dmlEndpoints" -> "host2:3302,host1:3302,host1:3342")),
+              spark.sparkContext),
         "Should sort dmlEndpoints"
       )
     }

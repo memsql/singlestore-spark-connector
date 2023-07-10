@@ -15,7 +15,8 @@ class SinglestoreConnectionPoolTest extends IntegrationSuiteBase {
     properties = JdbcHelpers.getConnProperties(
       SinglestoreOptions(
         CaseInsensitiveMap(
-          Map("ddlEndpoint" -> s"$masterHost:$masterPort", "password" -> masterPassword))),
+          Map("ddlEndpoint" -> s"$masterHost:$masterPort", "password" -> masterPassword)),
+          spark.sparkContext),
       isOnExecutor = false,
       s"$masterHost:$masterPort"
     )

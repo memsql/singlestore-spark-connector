@@ -44,7 +44,7 @@ class DefaultSource
   override def createRelation(sqlContext: SQLContext,
                               parameters: Map[String, String]): BaseRelation = {
     val params  = CaseInsensitiveMap(includeGlobalParams(sqlContext, parameters))
-    val options = SinglestoreOptions(params)
+    val options = SinglestoreOptions(params, sqlContext.sparkSession.sparkContext)
     if (options.disablePushdown) {
       SQLPushdownRule.ensureRemoved(sqlContext.sparkSession)
       SinglestoreReaderNoPushdown(SinglestoreOptions.getQuery(params), options, sqlContext)
@@ -63,7 +63,7 @@ class DefaultSource
                               parameters: Map[String, String],
                               data: DataFrame): BaseRelation = {
     val opts = CaseInsensitiveMap(includeGlobalParams(sqlContext, parameters))
-    val conf = SinglestoreOptions(opts)
+    val conf = SinglestoreOptions(opts, sqlContext.sparkSession.sparkContext)
 
     val table = SinglestoreOptions
       .getTable(opts)
