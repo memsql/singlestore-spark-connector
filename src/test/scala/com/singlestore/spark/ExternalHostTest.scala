@@ -181,7 +181,8 @@ class ExternalHostTest
         10,
         false,
         SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 30000, 1000, -1, -1),
-        SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 2000, 1000, -1, -1)
+        SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 2000, 1000, -1, -1),
+        "3.4.0"
       )
 
       val conn =

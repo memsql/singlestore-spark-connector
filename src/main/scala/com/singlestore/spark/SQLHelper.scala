@@ -27,7 +27,7 @@ object SQLHelper extends LazyLogging {
         }
       }
 
-      val conf = SinglestoreOptions(CaseInsensitiveMap(opts))
+      val conf = SinglestoreOptions(CaseInsensitiveMap(opts), spark.sparkContext)
       val conn =
         SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
       try {

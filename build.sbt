@@ -11,6 +11,7 @@ val scalaVersionPrefix = scalaVersionStr.substring(0, 4)
 lazy val root = project
   .withId("singlestore-spark-connector")
   .in(file("."))
+  .enablePlugins(BuildInfoPlugin)
   .settings(
     name := "singlestore-spark-connector",
     organization := "com.singlestore",
@@ -47,7 +48,9 @@ lazy val root = project
       "com.github.mrpowers" %% "spark-daria"        % "0.38.2"  % Test
     ),
     Test / testOptions += Tests.Argument("-oF"),
-    Test / fork := true
+    Test / fork := true,
+    buildInfoKeys := Seq[BuildInfoKey](version),
+    buildInfoPackage := "com.singlestore.spark"
   )
 
 credentials += Credentials(

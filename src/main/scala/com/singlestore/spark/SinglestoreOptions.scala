@@ -4,6 +4,7 @@ import com.singlestore.spark.SinglestoreOptions.TableKey
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.parser.CatalystSqlParser
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
+import org.apache.spark.SparkContext
 
 case class SinglestoreOptions(
     ddlEndpoint: String,
@@ -32,7 +33,8 @@ case class SinglestoreOptions(
     insertBatchSize: Int,
     createRowstoreTable: Boolean,
     driverConnectionPoolOptions: SinglestoreConnectionPoolOptions,
-    executorConnectionPoolOptions: SinglestoreConnectionPoolOptions
+    executorConnectionPoolOptions: SinglestoreConnectionPoolOptions,
+    sparkVersion: String
 ) extends LazyLogging {
 
   def assert(condition: Boolean, message: String) = {
@@ -231,7 +233,7 @@ object SinglestoreOptions extends LazyLogging {
     }
   }
 
-  def apply(options: CaseInsensitiveMap[String]): SinglestoreOptions = {
+  def apply(options: CaseInsensitiveMap[String], sc: SparkContext): SinglestoreOptions = {
     val table = getTable(options)
 
     require(
@@ -372,6 +374,7 @@ object SinglestoreOptions extends LazyLogging {
         options.getOrElse(DRIVER_CONNECTION_POOL_MAX_WAIT_MS, "-1").toLong,
         options.getOrElse(DRIVER_CONNECTION_POOL_MAX_CONN_LIFETIME_MS, "-1").toLong,
       ),
+      sparkVersion = sc.version
     )
   }
 }

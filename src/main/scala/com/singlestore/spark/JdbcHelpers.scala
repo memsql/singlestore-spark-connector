@@ -19,6 +19,7 @@ import org.apache.spark.sql.jdbc.JdbcDialects
 import org.apache.spark.sql.types.{StringType, StructType}
 
 import scala.util.{Failure, Success, Try}
+import org.apache.spark.SparkContext
 
 case class SinglestorePartitionInfo(ordinal: Int, name: String, hostport: String)
 
@@ -60,6 +61,7 @@ object JdbcHelpers extends LazyLogging {
     properties.setProperty("driverClassName", "com.singlestore.jdbc.Driver")
     properties.setProperty("username", conf.user)
     properties.setProperty("password", conf.password)
+    properties.setProperty("connectionAttributes", s"_connector_name:SingleStore Spark Connector,_connector_version:${BuildInfo.version},_product_version:${conf.sparkVersion}")
     properties.setProperty(
       "connectionProperties",
       (Map(

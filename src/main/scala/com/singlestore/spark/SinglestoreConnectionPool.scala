@@ -27,6 +27,8 @@ object SinglestoreConnectionPool {
           properties, {
             deleteEmptyDataSources()
             val newDataSource = BasicDataSourceFactory.createDataSource(properties)
+            newDataSource.addConnectionProperty("connectionAttributes", 
+                                                properties.getProperty("connectionAttributes"))
             dataSources += (properties -> newDataSource)
             newDataSource
           }
