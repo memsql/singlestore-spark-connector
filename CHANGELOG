@@ -1,3 +1,9 @@
+2023-07-18 Version 4.1.4
+    * Added support of Spark 3.4
+    * Added connection attributes
+    * Fixed conflicts of result table names during parallel read
+    * Updated version of the SingleStore JDBC driver
+
 2023-03-31 Version 4.1.3
     * Updated version of the SingleStore JDBC driver
     * Fixed error handling when `onDuplicateKeySQL` option is used
