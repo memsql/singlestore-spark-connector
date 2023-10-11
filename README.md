@@ -23,17 +23,6 @@ For example, in connector `4.1.4-spark-3.4.0`, 4.1.4 is the version of the conne
 compiled and tested against Spark version 3.4.0. 
 It is critical to select the connector version that corresponds to the Spark version in use.
 
-In addition to adding the `singlestore-spark-connector`, you will also need to have the
-SingleStoreDB JDBC driver installed. This library is tested against the following
-SingleStoreDB driver version:
-
-```
-"com.singlestore" % "singlestore-jdbc-client" % "1.1.0"
-```
-
-Once you have everything installed, you're almost ready to run your first
-queries against SingleStoreDB!
-
 ## Configuration
 
 The `singlestore-spark-connector` is configurable globally via Spark options and
