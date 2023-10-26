@@ -11,7 +11,7 @@ commands:
           name: Setup Machine
           command: |
             sudo apt update
-            sudo update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java
+            sudo update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/bin/java
             sudo apt install -y curl
             sudo wget https://github.com/sbt/sbt/releases/download/v<< parameters.sbt_version >>/sbt-<< parameters.sbt_version >>.tgz
             sudo tar xzvf sbt-<< parameters.sbt_version >>.tgz -C /usr/share/
@@ -39,7 +39,6 @@ jobs:
       JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64/
       CONTINUOUS_INTEGRATION: true
       SBT_OPTS: "-Xmx256M"
-      JAVA_OPTS: "--add-exports java.base/sun.nio.ch=ALL-UNNAMED,java.base/java.lang=ALL-UNNAMED,java.base/java.lang.invoke=ALL-UNNAMED,java.base/java.lang.reflect=ALL-UNNAMED,java.base/java.io=ALL-UNNAMED,java.base/java.net=ALL-UNNAMED,java.base/java.nio=ALL-UNNAMED,java.base/java.util=ALL-UNNAMED,java.base/java.util.concurrent=ALL-UNNAMED,java.base/java.util.concurrent.atomic=ALL-UNNAMED,java.base/sun.nio.cs=ALL-UNNAMED,java.base/sun.security.action=ALL-UNNAMED,java.base/sun.util.calendar=ALL-UNNAMED,java.security.jgss/sun.security.krb5=ALL-UNNAMED"
     steps:
       - setup_environment
       - checkout
