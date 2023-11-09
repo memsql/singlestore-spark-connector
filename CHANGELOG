@@ -28,7 +28,7 @@
     * Added connection pooling
 
 2022-01-20 Version 4.0.0
-    * Changed connector to use SinleStore JDBC Driver instead of MariaDB JDBC Driver
+    * Changed connector to use SingleStore JDBC Driver instead of MariaDB JDBC Driver
 
 2021-12-23 Version 3.2.2
     * Added possibility to repartition result by columns in parallel read from aggregators
