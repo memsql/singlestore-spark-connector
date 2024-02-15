@@ -48,7 +48,7 @@ global options have the prefix `spark.datasource.singlestore.`.
 | `enableParallelRead`                               | `automaticLite`                                       | Enables reading data in parallel for some query shapes. It can have of the following values: `disabled`, `automaticLite`, `automatic`, and `forced`. For more information, see [Parallel Read Support](#parallel-read-support).
 | `parallelRead.Features`                            | `ReadFromAggregators,ReadFromAggregatorsMaterialized` | Specifies a comma separated list of parallel read features that are tried in the order they are listed. We support the following features: `ReadFromLeaves`, `ReadFromAggregators`, and `ReadFromAggregatorsMaterialized`. Example: `ReadFromAggregators,ReadFromAggregatorsMaterialized`. For more information, see [Parallel Read Support](#parallel-read-support).
 | `parallelRead.tableCreationTimeoutMS`              | `0`                                                   | Specifies the amount of time (in milliseconds) the reader waits for the result table creation when using the `ReadFromAggregators` feature. If set to `0`, timeout is disabled.
-| `parallelRead.tableCreationTimeoutMaterializedMS`  | `0`                                                   | Specifies the amount of time (in milliseconds) the reader waits for the result table creation when using the `ReadFromAggregatorsMaterialized` feature. If set to `0`, timeout is disabled.
+| `parallelRead.materializedTableCreationTimeoutMS`  | `0`                                                   | Specifies the amount of time (in milliseconds) the reader waits for the result table creation when using the `ReadFromAggregatorsMaterialized` feature. If set to `0`, timeout is disabled.
 | `parallelRead.maxNumPartitions`                    | `0`                                                   | Specifies the Maximum number of partitions in the resulting DataFrame. If set to `0`, no limit is applied.
 | `parallelRead.repartition`                         | `false`                                               | Repartition data before reading.
 | `parallelRead.repartition.columns`                 | `RAND()`                                              | Specifies a comma separated list of columns that are used for repartitioning (when `parallelRead.repartition` is enabled). By default, an additional column with `RAND()` value is used for repartitioning.
@@ -436,7 +436,7 @@ Although, using the `MATERIALIZED` option may cause a query to fail if SingleSto
 By default, the number of partitions in the resulting DataFrame is equal to the number of partitions in the SingleStoreDB database.
 Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` option.
 
-Use the `parallelRead.tableCreationTimeoutMaterializedMS` option to specify a timeout for materialized result table creation.
+Use the `parallelRead.materializedTableCreationTimeoutMS` option to specify a timeout for materialized result table creation.
 
 Requirements:
  * SingleStoreDB version 7.5+
