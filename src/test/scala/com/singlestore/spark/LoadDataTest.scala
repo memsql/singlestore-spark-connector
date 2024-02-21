@@ -251,4 +251,52 @@ class LoadDataTest extends IntegrationSuiteBase with BeforeAndAfterEach with Bef
       case e: Exception if e.getMessage.contains("Unknown column 'age' in 'field list'") =>
     }
   }
+
+  it("load data in batches") {
+    val df1 = spark.createDF(
+      List(
+        (5, "Jack", 20),
+        (6, "Mark", 30),
+        (7, "Fred", 15),
+        (8, "Jany", 40),
+        (9, "Monica", 5)
+      ),
+      List(("id", IntegerType, true), ("name", StringType, true), ("age", IntegerType, true))
+    )
+    val df2 = spark.createDF(
+      List(
+        (10, "Jany", 40),
+        (11, "Monica", 5)
+      ),
+      List(("id", IntegerType, true), ("name", StringType, true), ("age", IntegerType, true))
+    )
+    val df3 = spark.createDF(
+      List(),
+      List(("id", IntegerType, true), ("name", StringType, true), ("age", IntegerType, true))
+    )
+
+    df1.write
+      .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+      .option("insertBatchSize", 2)
+      .mode(SaveMode.Append)
+      .save("testdb.loadDataBatches")
+    df2.write
+      .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+      .option("insertBatchSize", 2)
+      .mode(SaveMode.Append)
+      .save("testdb.loadDataBatches")
+    df3.write
+      .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+      .option("insertBatchSize", 2)
+      .mode(SaveMode.Append)
+      .save("testdb.loadDataBatches")
+
+    val actualDF =
+      spark.read.format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT).load("testdb.loadDataBatches")
+    assertSmallDataFrameEquality(
+      actualDF,
+      df1.union(df2).union(df3),
+      orderedComparison = false
+    )
+  }
 }
