@@ -74,7 +74,6 @@ mysql -u root -h 127.0.0.1 -P 5508 -p"${SINGLESTORE_PASSWORD}" -e 'grant all pri
 echo "Done!"
 echo "Setting up root-jwt user"
 mysql -h 127.0.0.1 -u root -P 5506 -p"${SINGLESTORE_PASSWORD}" -e "CREATE USER 'test_jwt_user' IDENTIFIED WITH authentication_jwt"
-mysql -u root -h 127.0.0.1 -P 5506 -p"${SINGLESTORE_PASSWORD}" -e "CREATE USER 'test_jwt_user'@'%'"
 mysql -h 127.0.0.1 -u root -P 5506 -p"${SINGLESTORE_PASSWORD}" -e "GRANT ALL PRIVILEGES ON *.* TO 'test_jwt_user'@'%'"
 echo "Done!"
 
