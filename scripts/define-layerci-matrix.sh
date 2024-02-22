@@ -1,52 +1,37 @@
 #!/usr/bin/env bash
 set -eu
 
+SINGLESTORE_IMAGE_TAGS=(
+    "alma-7.8.19-4263b2d130-4.0.10-1.14.4"
+    "alma-8.0.19-f48780d261-4.0.11-1.16.0"
+    "alma-8.1.32-e3d3cde6da-4.0.16-1.17.6"
+    "alma-8.5.7-bf633c1a54-4.0.17-1.17.8"
+)
+SINGLESTORE_IMAGE_TAGS_COUNT=${#SINGLESTORE_IMAGE_TAGS[@]}
+SPARK_VERSIONS=(
+    "3.5.0"
+    "3.4.2"
+    "3.3.4"
+)
+SPARK_VERSIONS_COUNT=${#SPARK_VERSIONS[@]}
+
 TEST_NUM=${SPLIT:-"0"}
 
-if [ "$TEST_NUM" == '0' ] || [ "$TEST_NUM" == '1' ] || [ "$TEST_NUM" == '2' ] || [ "$TEST_NUM" == '3' ] || [ "$TEST_NUM" == '4' ] || [ "$TEST_NUM" == '5' ]
-then
-  echo 'export SINGLESTORE_IMAGE="singlestore/cluster-in-a-box:alma-7.6.27-51e282b615-4.0.12-1.16.1"'
-elif [ "$TEST_NUM" == '6' ] || [ "$TEST_NUM" == '7' ] || [ "$TEST_NUM" == '8' ] || [ "$TEST_NUM" == '9' ] || [ "$TEST_NUM" == '10' ] || [ "$TEST_NUM" == '11' ]
-then
-  echo 'export SINGLESTORE_IMAGE="singlestore/cluster-in-a-box:alma-7.8.19-4263b2d130-4.0.10-1.14.4"'
-elif [ "$TEST_NUM" == '12' ] || [ "$TEST_NUM" == '13' ] || [ "$TEST_NUM" == '14' ] || [ "$TEST_NUM" == '15' ] || [ "$TEST_NUM" == '16' ] || [ "$TEST_NUM" == '17' ]
-then
-  echo 'export SINGLESTORE_IMAGE="singlestore/cluster-in-a-box:alma-8.0.19-f48780d261-4.0.11-1.16.0"'
-else
-  echo 'export SINGLESTORE_IMAGE="singlestore/cluster-in-a-box:alma-8.1.26-810da32787-4.0.14-1.17.4"'
-fi
+SINGLESTORE_IMAGE_TAG_INDEX=$(( $TEST_NUM / $SPARK_VERSIONS_COUNT))
+SINGLESTORE_IMAGE_TAG_INDEX=$((SINGLESTORE_IMAGE_TAG_INDEX>=SINGLESTORE_IMAGE_TAGS_COUNT ? SINGLESTORE_IMAGE_TAGS_COUNT-1 : SINGLESTORE_IMAGE_TAG_INDEX))
+SINGLESTORE_IMAGE_TAG=${SINGLESTORE_IMAGE_TAGS[SINGLESTORE_IMAGE_TAG_INDEX]}
 
-if [ "$TEST_NUM" == '24' ]
+SPARK_VERSION_INDEX=$(( $TEST_NUM % $SPARK_VERSIONS_COUNT))
+SPARK_VERSION=${SPARK_VERSIONS[SPARK_VERSION_INDEX]}
+
+if [ $TEST_NUM == $(($SINGLESTORE_IMAGE_TAGS_COUNT*$SPARK_VERSIONS_COUNT)) ]
 then
   echo 'export FORCE_READ_FROM_LEAVES=TRUE'
 else
   echo 'export FORCE_READ_FROM_LEAVES=FALSE'
 fi
 
-if [ "$TEST_NUM" == '0' ] || [ "$TEST_NUM" == '6' ] || [ "$TEST_NUM" == '12' ] || [ "$TEST_NUM" == '18' ]
-then
-  echo 'export SPARK_VERSION="3.0.3"'
-  echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark30"'
-elif [ "$TEST_NUM" == '1' ] || [ "$TEST_NUM" == '7' ] || [ "$TEST_NUM" == '13' ] || [ "$TEST_NUM" == '19' ]
-then
-  echo 'export SPARK_VERSION="3.1.3"'
-  echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark31"'
-elif [ "$TEST_NUM" == '2' ] || [ "$TEST_NUM" == '8' ] || [ "$TEST_NUM" == '14' ] || [ "$TEST_NUM" == '20' ]
-then
-  echo 'export SPARK_VERSION="3.2.4"'
-  echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark32"'
-elif [ "$TEST_NUM" == '3' ] || [ "$TEST_NUM" == '9' ] || [ "$TEST_NUM" == '15' ] || [ "$TEST_NUM" == '21' ]
-then
-  echo 'export SPARK_VERSION="3.3.3"'
-  echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark33"'
-elif [ "$TEST_NUM" == '4' ] || [ "$TEST_NUM" == '10' ] || [ "$TEST_NUM" == '16' ] || [ "$TEST_NUM" == '22' ]
-then
-  echo 'export SPARK_VERSION="3.4.1"'
-  echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark34"'
-else
-  echo 'export SPARK_VERSION="3.5.0"'
-  echo 'export TEST_FILTER="testOnly -- -l  ExcludeFromSpark35"'
-fi
-
-
-echo 'export SCALA_VERSION="2.12.12"'
+echo "export SINGLESTORE_IMAGE='singlestore/cluster-in-a-box:$SINGLESTORE_IMAGE_TAG'"
+echo "export SPARK_VERSION='$SPARK_VERSION'"
+echo "export TEST_FILTER='testOnly -- -l  ExcludeFromSpark${SPARK_VERSION:0:1}${SPARK_VERSION:2:1}'"
+echo "export SCALA_VERSION='2.12.12'"
