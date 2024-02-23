@@ -24,9 +24,6 @@ trait IntegrationSuiteBase
   object ExcludeFromSpark35 extends Tag("ExcludeFromSpark35")
   object ExcludeFromSpark34 extends Tag("ExcludeFromSpark34")
   object ExcludeFromSpark33 extends Tag("ExcludeFromSpark33")
-  object ExcludeFromSpark32 extends Tag("ExcludeFromSpark32")
-  object ExcludeFromSpark31 extends Tag("ExcludeFromSpark31")
-  object ExcludeFromSpark30 extends Tag("ExcludeFromSpark30")
 
   final val masterHost: String = sys.props.getOrElse("singlestore.host", "localhost")
   final val masterPort: String = sys.props.getOrElse("singlestore.port", "5506")
@@ -146,10 +143,11 @@ trait IntegrationSuiteBase
   }
 
   def jdbcOptions(dbtable: String): Map[String, String] = Map(
-    "url"      -> s"jdbc:mysql://$masterHost:$masterPort",
-    "dbtable"  -> dbtable,
-    "user"     -> "root",
-    "password" -> masterPassword
+    "url"               -> s"jdbc:mysql://$masterHost:$masterPort",
+    "dbtable"           -> dbtable,
+    "user"              -> "root",
+    "password"          -> masterPassword,
+    "pushDownPredicate" -> "false"
   )
 
   def jdbcOptionsSQL(dbtable: String): String =

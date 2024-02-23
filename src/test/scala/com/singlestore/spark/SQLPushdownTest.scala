@@ -981,10 +981,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("bitwiseGet") {
-      it("numbers", ExcludeFromSpark30, ExcludeFromSpark31) {
+      it("numbers") {
         testQuery("select bit_get(id, 2) from users_sample")
       }
-      it("negative left argument", ExcludeFromSpark30, ExcludeFromSpark31) {
+      it("negative left argument") {
         try {
           testQuery("select bit_get(id, -2) from users_sample")
         } catch {
@@ -996,10 +996,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             }
         }
       }
-      it("negative right argument", ExcludeFromSpark30, ExcludeFromSpark31) {
+      it("negative right argument") {
         testQuery("select bit_get(-200, 2), id from users_sample")
       }
-      it("exceeds upper limit left argument", ExcludeFromSpark30, ExcludeFromSpark31) {
+      it("exceeds upper limit left argument") {
         try {
           testQuery("select bit_get(id, 100000) from users_sample")
         } catch {
@@ -1011,18 +1011,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             }
         }
       }
-      it("big int right argument", ExcludeFromSpark30, ExcludeFromSpark31) {
+      it("big int right argument") {
         testQuery("select bit_get(1000000000000000, 2), id from users_sample")
       }
-      it("partial pushdown because of udf in the left argument",
-         ExcludeFromSpark30,
-         ExcludeFromSpark31) {
+      it("partial pushdown because of udf in the left argument") {
         testQuery("select bit_get(cast(stringIdentity(movie_id) as integer), 2) from reviews",
                   expectPartialPushdown = true)
       }
-      it("partial pushdown because of udf in the right argument",
-         ExcludeFromSpark30,
-         ExcludeFromSpark31) {
+      it("partial pushdown because of udf in the right argument") {
         testQuery("select bit_get(movie_id, cast(stringIdentity(2) as integer)) from reviews",
                   expectPartialPushdown = true)
       }
@@ -1577,60 +1573,60 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("WidthBucket") {
-      it("works with int, simple case", ExcludeFromSpark30) {
+      it("works with int, simple case") {
         testQuery("select id, width_bucket(id, 10, 90, 10) as x from movies")
       }
-      it("works with int, negative value", ExcludeFromSpark30) {
+      it("works with int, negative value") {
         testQuery("select width_bucket(-id, -90, -10, 10) as x from movies")
       }
-      it("many small buckets", ExcludeFromSpark30) {
+      it("many small buckets") {
         testQuery("select id, width_bucket(id, 10, 90, 1000000000) as x from movies")
       }
-      it("works with int, max < min", ExcludeFromSpark30) {
+      it("works with int, max < min") {
         testQuery("select id, width_bucket(id, 90, 10, 10) as x from movies")
       }
-      it("num_buckets is float", ExcludeFromSpark30) {
+      it("num_buckets is float") {
         testQuery("select id, width_bucket(id, 90, 10, 6.6) as x from movies")
       }
-      it("num_buckets is non-constant  float", ExcludeFromSpark30) {
+      it("num_buckets is non-constant  float") {
         testQuery(
           "select id, width_bucket(id, 10, 90, id/10 + 1) as x from movies where id/10 - floor(id/10) < 0.5")
       }
-      it("works with float, simple case", ExcludeFromSpark30) {
+      it("works with float, simple case") {
         testQuery(
           "select id, width_bucket(critic_rating, 10 + critic_rating, 90, 10) as x from movies")
       }
-      it("works with string", ExcludeFromSpark30) {
+      it("works with string") {
         testQuery("select id, width_bucket(-critic_rating, '10.2', '0.4', '10') as x from movies")
       }
-      it("all args are not const", ExcludeFromSpark30) {
+      it("all args are not const") {
         testQuery("select id, width_bucket(critic_rating, id-10, id, id + 200) as x from movies")
       }
-      it("works with int, max = min", ExcludeFromSpark30) {
+      it("works with int, max = min") {
         testQuery("select id, width_bucket(id, 90, 90, 10) as x from movies")
       }
-      it("num_buckets is negative", ExcludeFromSpark30) {
+      it("num_buckets is negative") {
         testQuery("select id, width_bucket(id, 90, 10, -1) as x from movies")
       }
-      it("num_buckets = 0", ExcludeFromSpark30) {
+      it("num_buckets = 0") {
         testQuery("select id, width_bucket(id, 90, 10, 0) as x from movies")
       }
-      it("udf in the first arg", ExcludeFromSpark30) {
+      it("udf in the first arg") {
         testQuery(
           "select id, width_bucket(stringIdentity(critic_rating), 10, 100, 200) as x from movies",
           expectPartialPushdown = true)
       }
-      it("udf in the second arg", ExcludeFromSpark30) {
+      it("udf in the second arg") {
         testQuery(
           "select id, width_bucket(id, stringIdentity(critic_rating), 100, 200) as x from movies",
           expectPartialPushdown = true)
       }
-      it("udf in the third arg", ExcludeFromSpark30) {
+      it("udf in the third arg") {
         testQuery(
           "select id, width_bucket(id, 10, stringIdentity(critic_rating), 200) as x from movies",
           expectPartialPushdown = true)
       }
-      it("udf in the fourth arg", ExcludeFromSpark30) {
+      it("udf in the fourth arg") {
         testQuery(
           "select id, width_bucket(id, 100, 200, stringIdentity(critic_rating)) as x from movies",
           expectPartialPushdown = true)
@@ -1848,7 +1844,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                                  SinglestoreVersion(7, 6, 0))
         }
       }
-      it("filter for equal range population(std = 0)", ExcludeFromSpark30) {
+      it("filter for equal range population(std = 0)") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testSingleReadForOldS2(s"select $f(age) filter (where age = 60) from users",
@@ -2948,21 +2944,21 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("Now") {
       testQuery("select now() from users", expectSameResult = false)
     }
-    it("DateFromUnixDate", ExcludeFromSpark30) {
+    it("DateFromUnixDate") {
       testQuery("select date_from_unix_date(1234567) from users")
     }
-    it("CurrentTimestamp", ExcludeFromSpark30) {
+    it("CurrentTimestamp") {
       testQuery("select current_timestamp() from users", expectSameResult = false)
     }
 
     describe("UnixDate") {
-      it("Simple query, one day after epoch", ExcludeFromSpark30) {
+      it("Simple query, one day after epoch") {
         testQuery("select unix_date(date('1970-01-02')) from users")
       }
-      it("works", ExcludeFromSpark30) {
+      it("works") {
         testQuery("select unix_date(birthday) from users")
       }
-      it("partial pushdown", ExcludeFromSpark30) {
+      it("partial pushdown") {
         testQuery("select unix_date(date(stringIdentity(birthday))) from users",
                   expectPartialPushdown = true)
       }
@@ -2970,14 +2966,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("unix seconds functions") {
       val functions = Seq("unix_seconds", "unix_micros", "unix_millis")
-      it("works with timestamp", ExcludeFromSpark30) {
+      it("works with timestamp") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select $f(created) from reviews")
         }
       }
 
-      it("partial pushdown", ExcludeFromSpark30) {
+      it("partial pushdown") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select $f(timestamp(stringIdentity(created))) from reviews",
@@ -2988,21 +2984,21 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("converting (milli/micro)seconds to timestamp functions") {
       val functions = Seq("timestamp_seconds", "timestamp_millis", "timestamp_micros")
-      it("works", ExcludeFromSpark30) {
+      it("works") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select created, $f(user_id) from reviews")
         }
       }
 
-      it("works with negative data", ExcludeFromSpark30) {
+      it("works with negative data") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select $f(-movie_id) from reviews")
         }
       }
 
-      it("partial pushdown", ExcludeFromSpark30) {
+      it("partial pushdown") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select $f(int(stringIdentity(id))) from users", expectPartialPushdown = true)
@@ -3241,7 +3237,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |    ) or 
             |    critic_rating is null""".stripMargin)
       }
-      it("works with null", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35) {
+      it("works with null", ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35) {
         // in 3.1 version, spark simplifies this query and doesn't send it to the database, so it is read from single partition
         testQuery(
           "select format_number(critic_rating, null) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
@@ -3818,7 +3814,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("null literal") {
       testQuery("select rand(null)*id from users", expectSameResult = false)
     }
-    it("empty arguments", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35) {
+    it("empty arguments", ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35) {
       // TODO PLAT-5759
       testQuery("select rand()*id from users",
                 expectSameResult = false,
@@ -3906,44 +3902,44 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("(not) like all/any patterns functions") {
       val functions = Seq("like all", "like any", "not like all", "not like any")
-      it("simple", ExcludeFromSpark30) {
+      it("simple") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select id, first_name from users where first_name $f ('An%te%')")
         }
       }
-      it("simple, both fields", ExcludeFromSpark30) {
+      it("simple, both fields") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select id, first_name from users where first_name $f (last_name, 'Al%')")
         }
       }
-      it("repeated pattern", ExcludeFromSpark30) {
+      it("repeated pattern") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(
             s"select id, first_name from users where first_name $f ('Al%', last_name, 'Al%')")
         }
       }
-      it("character wildcard", ExcludeFromSpark30) {
+      it("character wildcard") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select * from users where first_name $f ('A___e', '_n__e')")
         }
       }
-      it("string wildcard", ExcludeFromSpark30) {
+      it("string wildcard") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select * from users where first_name $f ('Kon%ce', '%tan%', '%Kon%tan%ce%')")
         }
       }
-      it("dumb true", ExcludeFromSpark30) {
+      it("dumb true") {
         for (i <- 0 to 1) {
           log.debug(s"testing ${functions(i)}")
           testQuery(s"select * from users where '1' ${functions(i)} ('1')")
         }
       }
-      it("dumb false", ExcludeFromSpark30) {
+      it("dumb false") {
         for (i <- 0 to 1) {
           log.debug(s"testing ${functions(i)}")
           testQuery(s"select * from users where id ${functions(i)} ('D%', 'A%bbbb%')",
@@ -3954,7 +3950,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           testQuery(s"select * from users where id ${functions(i)} ('D%', 'A%bbbb%')")
         }
       }
-      it("dumb true once more", ExcludeFromSpark30) {
+      it("dumb true once more") {
         for (i <- 0 to 1) {
           log.debug(s"testing ${functions(i)}")
           testQuery(s"select * from users where first_name ${functions(i)} (first_name)")
@@ -3965,27 +3961,27 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                     expectEmpty = true)
         }
       }
-      it("null", ExcludeFromSpark30) {
+      it("null") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select critic_review $f (null) from movies")
         }
       }
-      it("partial pushdown left", ExcludeFromSpark30) {
+      it("partial pushdown left") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select * from users where stringIdentity(first_name) $f ('Ali%')",
                     expectPartialPushdown = true)
         }
       }
-      it("partial pushdown right", ExcludeFromSpark30) {
+      it("partial pushdown right") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select * from users where first_name $f (stringIdentity('Ali%'))",
                     expectPartialPushdown = true)
         }
       }
-      it("very simple patterns", ExcludeFromSpark30, ExcludeFromSpark34, ExcludeFromSpark35) {
+      it("very simple patterns", ExcludeFromSpark34, ExcludeFromSpark35) {
         for (f <- functions) {
           log.debug(s"testing $f")
           //Sparks computes such in more optimal way and does not invoke pushdown
@@ -3993,13 +3989,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                     expectPartialPushdown = true)
         }
       }
-      it("very simple patterns full pushdown", ExcludeFromSpark30, ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
+      it("very simple patterns full pushdown", ExcludeFromSpark33) {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')")
         }
       }
-      it("empty patterns arg", ExcludeFromSpark30) {
+      it("empty patterns arg") {
         for (f <- functions) {
           log.debug(s"testing $f")
           try {
@@ -4059,10 +4055,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("non-literals") {
         testQuery("select regexp_replace(first_name, first_name, first_name) from users")
       }
-      it("with position", ExcludeFromSpark30) {
+      it("with position") {
         testQuery("select regexp_replace(first_name, 'a', 'd', 3) from users")
       }
-      it("big position", ExcludeFromSpark30) {
+      it("big position") {
         testQuery("select regexp_replace(first_name, 'a', 'd', 100) from users")
       }
     }
@@ -4132,10 +4128,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("LengthOfJsonArray") {
-      it("works", ExcludeFromSpark30) {
+      it("works") {
         testQuery("select id, json_array_length(same_rate_movies) from movies_rating")
       }
-      it("udf", ExcludeFromSpark30) {
+      it("udf") {
         testQuery(
           "select id, json_array_length(stringIdentity(same_rate_movies)) from movies_rating",
           expectPartialPushdown = true)

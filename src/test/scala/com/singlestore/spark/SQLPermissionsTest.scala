@@ -1,11 +1,12 @@
 package com.singlestore.spark
 
 import java.util.UUID
-
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
+import com.singlestore.spark.JdbcHelpers.executeQuery
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.types.IntegerType
 
+import java.sql.DriverManager
 import scala.util.Try
 
 class SQLPermissionsTest extends IntegrationSuiteBase {
@@ -13,6 +14,13 @@ class SQLPermissionsTest extends IntegrationSuiteBase {
   val testUserName   = "sparkuserselect"
   val dbName         = "testdb"
   val collectionName = "temps_test"
+
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    val conn =
+      DriverManager.getConnection(s"jdbc:mysql://$masterHost:$masterPort", jdbcDefaultProps)
+    executeQuery(conn, s"CREATE USER '${testUserName}'@'%'")
+  }
 
   override def beforeEach(): Unit = {
     super.beforeEach()
