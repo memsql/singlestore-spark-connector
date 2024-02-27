@@ -90,10 +90,8 @@ workflows:
     jobs:
       - test:
           filters:
-            tags:
-              only: /^v.*/
             branches:
-              ignore: /.*/
+              only: testGPG
           matrix:
             parameters:
               spark_version:
