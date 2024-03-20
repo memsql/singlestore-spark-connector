@@ -5,16 +5,17 @@ commands:
     parameters:
       sbt_version:
         type: string
-        default: 1.3.5
+        default: 1.3.6
     steps:
       - run:
           name: Setup Machine
           command: |
             sudo apt update
+            sudo update-alternatives --set java /usr/lib/jvm/java-8-openjdk-amd64/bin/java
             sudo apt install -y curl
-            sudo wget https://github.com/sbt/sbt/releases/download/v1.3.5/sbt-1.3.5.tgz
-            sudo tar xzvf sbt-1.3.5.tgz -C /usr/share/
-            sudo rm sbt-1.3.5.tgz
+            sudo wget https://github.com/sbt/sbt/releases/download/v1.3.6/sbt-1.3.6.tgz
+            sudo tar xzvf sbt-1.3.6.tgz -C /usr/share/
+            sudo rm sbt-1.3.6.tgz
             sudo update-alternatives --install /usr/bin/sbt sbt /usr/share/sbt/bin/sbt 100
             sudo apt-get update
             sudo apt-get install -y python-pip git mariadb-client-core-10.6
