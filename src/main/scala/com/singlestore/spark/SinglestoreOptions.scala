@@ -21,6 +21,7 @@ case class SinglestoreOptions(
     parallelReadTableCreationTimeoutMS: Long,
     parallelReadMaterializedTableCreationTimeoutMS: Long,
     parallelReadMaxNumPartitions: Int,
+    parallelReadNumPartitions: Int,
     parallelReadRepartition: Boolean,
     parallelReadRepartitionColumns: Set[String],
     // write options
@@ -111,6 +112,7 @@ object SinglestoreOptions extends LazyLogging {
   final val PARALLEL_READ_REPARTITION         = newOption("parallelRead.repartition")
   final val PARALLEL_READ_REPARTITION_COLUMNS = newOption("parallelRead.repartition.columns")
   final val PARALLEL_READ_MAX_NUM_PARTITIONS  = newOption("parallelRead.maxNumPartitions")
+  final val PARALLEL_READ_NUM_PARTITIONS      = newOption("parallelRead.numPartitions")
 
   final val LOAD_DATA_COMPRESSION = newOption("loadDataCompression")
   final val TABLE_KEYS            = newOption("tableKey")
@@ -281,6 +283,14 @@ object SinglestoreOptions extends LazyLogging {
       }
       .toList
 
+    val parallelReadMaxNumPartitions =
+      options.getOrElse(PARALLEL_READ_MAX_NUM_PARTITIONS, "0").toInt
+    val parallelReadNumPartitions = options.getOrElse(PARALLEL_READ_MAX_NUM_PARTITIONS, "0").toInt
+    if (parallelReadNumPartitions > parallelReadMaxNumPartitions) {
+      sys.error(
+        s"Option 'parallelRead.numPartitions' is greater then 'parallelRead.maxNumPartitions'")
+    }
+
     new SinglestoreOptions(
       ddlEndpoint = options.getOrElse(DDL_ENDPOINT, options(CLIENT_ENDPOINT)),
       dmlEndpoints = options
@@ -349,7 +359,8 @@ object SinglestoreOptions extends LazyLogging {
       parallelReadMaterializedTableCreationTimeoutMS = {
         options.getOrElse(PARALLEL_READ_MATERIALIZED_TABLE_CREATION_TIMEOUT_MS, "0").toInt
       },
-      parallelReadMaxNumPartitions = options.getOrElse(PARALLEL_READ_MAX_NUM_PARTITIONS, "0").toInt,
+      parallelReadMaxNumPartitions = parallelReadMaxNumPartitions,
+      parallelReadNumPartitions = parallelReadNumPartitions,
       parallelReadRepartition = options.get(PARALLEL_READ_REPARTITION).getOrElse("false").toBoolean,
       parallelReadRepartitionColumns =
         splitEscapedColumns(options.get(PARALLEL_READ_REPARTITION_COLUMNS).getOrElse(""))
