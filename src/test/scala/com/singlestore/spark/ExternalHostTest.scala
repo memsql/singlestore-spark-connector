@@ -170,6 +170,7 @@ class ExternalHostTest
         0,
         0,
         0,
+        0,
         true,
         Set.empty,
         Truncate,
