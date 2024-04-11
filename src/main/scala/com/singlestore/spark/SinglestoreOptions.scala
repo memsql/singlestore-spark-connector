@@ -286,7 +286,7 @@ object SinglestoreOptions extends LazyLogging {
     val parallelReadMaxNumPartitions =
       options.getOrElse(PARALLEL_READ_MAX_NUM_PARTITIONS, "0").toInt
     val parallelReadNumPartitions = options.getOrElse(PARALLEL_READ_NUM_PARTITIONS, "0").toInt
-    if (parallelReadNumPartitions > parallelReadMaxNumPartitions) {
+    if (parallelReadMaxNumPartitions != 0 && parallelReadNumPartitions > parallelReadMaxNumPartitions) {
       sys.error(
         s"Option 'parallelRead.numPartitions' is greater then 'parallelRead.maxNumPartitions'")
     }
