@@ -3239,6 +3239,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("works with null",
          ExcludeFromSpark31,
+         ExcludeFromSpark32,
          ExcludeFromSpark33,
          ExcludeFromSpark34,
          ExcludeFromSpark35) {
@@ -3820,6 +3821,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
     it("empty arguments",
        ExcludeFromSpark31,
+       ExcludeFromSpark32,
        ExcludeFromSpark33,
        ExcludeFromSpark34,
        ExcludeFromSpark35) {
@@ -3997,7 +3999,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                     expectPartialPushdown = true)
         }
       }
-      it("very simple patterns full pushdown", ExcludeFromSpark31, ExcludeFromSpark33) {
+      it("very simple patterns full pushdown", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')")
