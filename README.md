@@ -19,7 +19,7 @@ $SPARK_HOME/bin/spark-shell --packages com.singlestore:singlestore-spark-connect
 We release multiple versions of the `singlestore-spark-connector`, one for each supported Spark version.
 The connector follows the `x.x.x-spark-y.y.y` naming convention, where `x.x.x` represents the connector version 
 and `y.y.y` represents the corresponding Spark version. 
-For example, in connector `4.1.6-spark-3.5.0`, 4.1.6-beta is the version of the connector, 
+For example, in connector `4.1.6-spark-3.5.0`, 4.1.6 is the version of the connector, 
 compiled and tested against Spark version 3.5.0. 
 It is critical to select the connector version that corresponds to the Spark version in use.
 
