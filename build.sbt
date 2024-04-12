@@ -8,6 +8,8 @@ val sparkVersion       = sys.props.get("spark.version").getOrElse("3.5.0")
 val scalaVersionStr    = "2.12.12"
 val scalaVersionPrefix = scalaVersionStr.substring(0, 4)
 val jacksonDatabindVersion = sparkVersion match {
+  case "3.1.3" => "2.10.0"
+  case "3.2.4" => "2.12.3"
   case "3.3.4" => "2.13.4.2"
   case "3.4.2" => "2.14.2"
   case "3.5.0" => "2.15.2"
@@ -22,11 +24,13 @@ lazy val root = project
     organization := "com.singlestore",
     scalaVersion := scalaVersionStr,
     Compile / unmanagedSourceDirectories += (Compile / sourceDirectory).value / (sparkVersion match {
+      case "3.1.3" => "scala-sparkv3.1"
+      case "3.2.4" => "scala-sparkv3.2"
       case "3.3.4" => "scala-sparkv3.3"
       case "3.4.2" => "scala-sparkv3.4"
       case "3.5.0" => "scala-sparkv3.5"
     }),
-    version := s"4.1.5-spark-${sparkVersion}",
+    version := s"4.1.6-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
     ),
@@ -63,6 +67,11 @@ credentials += Credentials(
   "CDD996495CF08BB2041D86D8D1EB3D14F1CD334F",
   "ignored" // this field is ignored; passwords are supplied by pinentry
 )
+
+assemblyMergeStrategy in assembly := {
+  case PathList("META-INF", _*) => MergeStrategy.discard
+  case _                        => MergeStrategy.first
+}
 
 publishTo := sonatypePublishToBundle.value
 publishMavenStyle := true

@@ -24,6 +24,8 @@ trait IntegrationSuiteBase
   object ExcludeFromSpark35 extends Tag("ExcludeFromSpark35")
   object ExcludeFromSpark34 extends Tag("ExcludeFromSpark34")
   object ExcludeFromSpark33 extends Tag("ExcludeFromSpark33")
+  object ExcludeFromSpark32 extends Tag("ExcludeFromSpark32")
+  object ExcludeFromSpark31 extends Tag("ExcludeFromSpark31")
 
   final val masterHost: String = sys.props.getOrElse("singlestore.host", "localhost")
   final val masterPort: String = sys.props.getOrElse("singlestore.port", "5506")

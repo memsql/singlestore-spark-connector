@@ -39,9 +39,9 @@ MEMORY 8G
 MEMORY 12G
 MEMORY 16G
 
-# split to 13 states
+# split to 16 states
 # each of them will run different version of the singlestore and spark
-SPLIT 13
+SPLIT 16
 
 # copy the entire git repository
 COPY . .

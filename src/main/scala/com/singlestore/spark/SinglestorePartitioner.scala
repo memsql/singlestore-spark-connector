@@ -153,11 +153,14 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
             JdbcHelpers.getConnProperties(options, isOnExecutor = true, p.hostport)
         ))
 
-    val partitionsNum = if (options.parallelReadMaxNumPartitions > 0) {
-      singlePartitions.length.min(options.parallelReadMaxNumPartitions)
-    } else {
-      singlePartitions.length
-    }
+    val partitionsNum =
+      if (options.parallelReadNumPartitions > 0) {
+        singlePartitions.length.min(options.parallelReadNumPartitions)
+      } else if (options.parallelReadMaxNumPartitions > 0) {
+        singlePartitions.length.min(options.parallelReadMaxNumPartitions)
+      } else {
+        singlePartitions.length
+      }
 
     Some(coalescePartitions(singlePartitions, partitionsNum))
   }
@@ -237,7 +240,9 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
                        "the query is not supported by aggregator parallel read")
       None
     } else {
-      val numPartitions = if (options.parallelReadMaxNumPartitions > 0) {
+      val numPartitions = if (options.parallelReadNumPartitions > 0) {
+        databasePartitionCount.min(options.parallelReadNumPartitions)
+      } else if (options.parallelReadMaxNumPartitions > 0) {
         databasePartitionCount.min(options.parallelReadMaxNumPartitions)
       } else {
         databasePartitionCount
@@ -254,6 +259,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
 
     val conn =
       SinglestoreConnectionPool.getConnection(getDDLConnProperties(options, isOnExecutor = true))
+    val maxNumConcurrentTasks = MaxNumConcurrentTasks.get(rdd)
 
     if (!JdbcHelpers.isValidQuery(
           conn,
@@ -269,8 +275,16 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
         )) {
       saveErrorMessageReadFromAggregators("the query is not supported by aggregator parallel read")
       None
+    } else if (options.parallelReadNumPartitions == 0 && maxNumConcurrentTasks == 0) {
+      saveErrorMessageReadFromAggregators(
+        "failed to retrieve maximum number of concurrent tasks and number of partitions is not specified.\n" +
+          "Try to set `parallelRead.numPartitions` parameter.")
+      None
     } else {
-      val numPartitions = if (options.parallelReadMaxNumPartitions > 0) {
+      val numPartitions = if (options.parallelReadNumPartitions > 0) {
+        databasePartitionCount
+          .min(options.parallelReadNumPartitions)
+      } else if (options.parallelReadMaxNumPartitions > 0) {
         databasePartitionCount
           .min(MaxNumConcurrentTasks.get(rdd))
           .min(options.parallelReadMaxNumPartitions)

@@ -314,40 +314,42 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
     val conn = SinglestoreConnectionPool.getConnection(
       JdbcHelpers.getDDLConnProperties(
         new SinglestoreOptions(
-        s"$masterHost:$masterPort",
-        List.empty[String],
-        "root",
-        masterPassword,
-        None,
-        Map.empty[String, String],
-        false,
-        false,
-        Automatic,
-        List(ReadFromLeaves),
-        0,
-        0,
-        0,
-        true,
-        Set.empty,
-        Truncate,
-        SinglestoreOptions.CompressionType.GZip,
-        SinglestoreOptions.LoadDataFormat.CSV,
-        List.empty[SinglestoreOptions.TableKey],
-        None,
-        10,
-        10,
-        false,
-        SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 30000, 1000, -1, -1),
-        SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 2000, 1000, -1, -1),
-        "3.4.0"
-      ), 
-      false)
+          s"$masterHost:$masterPort",
+          List.empty[String],
+          "root",
+          masterPassword,
+          None,
+          Map.empty[String, String],
+          false,
+          false,
+          Automatic,
+          List(ReadFromLeaves),
+          0,
+          0,
+          0,
+          0,
+          true,
+          Set.empty,
+          Truncate,
+          SinglestoreOptions.CompressionType.GZip,
+          SinglestoreOptions.LoadDataFormat.CSV,
+          List.empty[SinglestoreOptions.TableKey],
+          None,
+          10,
+          10,
+          false,
+          SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 30000, 1000, -1, -1),
+          SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 2000, 1000, -1, -1),
+          "3.4.0"
+        ),
+        false
+      )
     )
-    
+
     val expectedAttributes = Map[String, String](
-      "_connector_name" -> "SingleStore Spark Connector", 
+      "_connector_name"    -> "SingleStore Spark Connector",
       "_connector_version" -> BuildInfo.version,
-      "_product_version" -> spark.sparkContext.version
+      "_product_version"   -> spark.sparkContext.version
     )
 
     var actualAttributes = Map[String, String]()
@@ -358,11 +360,11 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
         try {
           while (rs.next()) {
             actualAttributes = actualAttributes + (rs.getString(3) -> rs.getString(4))
-          }  
+          }
         } finally {
           rs.close()
         }
-      }  finally {
+      } finally {
         stmt.close()
       }
 

@@ -1,5 +1,5 @@
 # SingleStoreDB Spark Connector
-## Version: 4.1.5 [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## Version: 4.1.6 [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 ## Getting Started
 
@@ -13,13 +13,13 @@ spark-packages.org. The group is `com.singlestore` and the artifact is
 
 You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
 ```
-$SPARK_HOME/bin/spark-shell --packages com.singlestore:singlestore-spark-connector_2.12:4.1.5-spark-3.5.0
+$SPARK_HOME/bin/spark-shell --packages com.singlestore:singlestore-spark-connector_2.12:4.1.6-spark-3.5.0
 ```
 
 We release multiple versions of the `singlestore-spark-connector`, one for each supported Spark version.
 The connector follows the `x.x.x-spark-y.y.y` naming convention, where `x.x.x` represents the connector version 
 and `y.y.y` represents the corresponding Spark version. 
-For example, in connector `4.1.5-spark-3.5.0`, 4.1.5 is the version of the connector, 
+For example, in connector `4.1.6-spark-3.5.0`, 4.1.6 is the version of the connector, 
 compiled and tested against Spark version 3.5.0. 
 It is critical to select the connector version that corresponds to the Spark version in use.
 
@@ -42,16 +42,17 @@ global options have the prefix `spark.datasource.singlestore.`.
 | `database`                                          | -                                                     | If set, all connections use the specified database by default.
 
 #### Read options
-| Option                                             | Default value                                         | Description
-| -                                                  | -                                                     | -
-| `disablePushdown`                                  | `false`                                               |Disable SQL Pushdown when running queries.
-| `enableParallelRead`                               | `automaticLite`                                       | Enables reading data in parallel for some query shapes. It can have of the following values: `disabled`, `automaticLite`, `automatic`, and `forced`. For more information, see [Parallel Read Support](#parallel-read-support).
-| `parallelRead.Features`                            | `ReadFromAggregators,ReadFromAggregatorsMaterialized` | Specifies a comma separated list of parallel read features that are tried in the order they are listed. We support the following features: `ReadFromLeaves`, `ReadFromAggregators`, and `ReadFromAggregatorsMaterialized`. Example: `ReadFromAggregators,ReadFromAggregatorsMaterialized`. For more information, see [Parallel Read Support](#parallel-read-support).
-| `parallelRead.tableCreationTimeoutMS`              | `0`                                                   | Specifies the amount of time (in milliseconds) the reader waits for the result table creation when using the `ReadFromAggregators` feature. If set to `0`, timeout is disabled.
-| `parallelRead.materializedTableCreationTimeoutMS`  | `0`                                                   | Specifies the amount of time (in milliseconds) the reader waits for the result table creation when using the `ReadFromAggregatorsMaterialized` feature. If set to `0`, timeout is disabled.
-| `parallelRead.maxNumPartitions`                    | `0`                                                   | Specifies the Maximum number of partitions in the resulting DataFrame. If set to `0`, no limit is applied.
-| `parallelRead.repartition`                         | `false`                                               | Repartition data before reading.
-| `parallelRead.repartition.columns`                 | `RAND()`                                              | Specifies a comma separated list of columns that are used for repartitioning (when `parallelRead.repartition` is enabled). By default, an additional column with `RAND()` value is used for repartitioning.
+| Option                                            | Default value                                         | Description
+|---------------------------------------------------| -                                                     | -
+| `disablePushdown`                                 | `false`                                               |Disable SQL Pushdown when running queries.
+| `enableParallelRead`                              | `automaticLite`                                       | Enables reading data in parallel for some query shapes. It can have of the following values: `disabled`, `automaticLite`, `automatic`, and `forced`. For more information, see [Parallel Read Support](#parallel-read-support).
+| `parallelRead.Features`                           | `ReadFromAggregators,ReadFromAggregatorsMaterialized` | Specifies a comma separated list of parallel read features that are tried in the order they are listed. SingleStore supports the following features: `ReadFromLeaves`, `ReadFromAggregators`, and `ReadFromAggregatorsMaterialized`. Example: `ReadFromAggregators,ReadFromAggregatorsMaterialized`. For more information, see [Parallel Read Support](#parallel-read-support).
+| `parallelRead.tableCreationTimeoutMS`             | `0`                                                   | Specifies the amount of time (in milliseconds) the reader waits for the result table creation when using the `ReadFromAggregators` feature. If set to `0`, timeout is disabled.
+| `parallelRead.materializedTableCreationTimeoutMS` | `0`                                                   | Specifies the amount of time (in milliseconds) the reader waits for the result table creation when using the `ReadFromAggregatorsMaterialized` feature. If set to `0`, timeout is disabled.
+| `parallelRead.numPartitions`                      | `0`                                                   | Specifies the exact number of partitions in the resulting DataFrame. If set to `0`, value is ignored.
+| `parallelRead.maxNumPartitions`                   | `0`                                                   | Specifies the Maximum number of partitions in the resulting DataFrame. If set to `0`, no limit is applied.
+| `parallelRead.repartition`                        | `false`                                               | Repartition data before reading.
+| `parallelRead.repartition.columns`                | `RAND()`                                              | Specifies a comma separated list of columns that are used for repartitioning (when `parallelRead.repartition` is enabled). By default, an additional column with `RAND()` value is used for repartitioning.
 
 #### Write options
 | Option                                             | Default value                                         | Description
@@ -418,8 +419,10 @@ See [Parallel Read Repartitioning](#parallel-read-repartitioning) for more infor
 When this feature is used, the `singlestore-spark-connector` will use [SingleStoreDB parallel read functionality](https://docs.singlestore.com/db/latest/en/query-data/query-procedures/read-query-results-in-parallel.html).
 By default, the number of partitions in the resulting DataFrame is the least of the number of partitions in the SingleStoreDB database and Spark parallelism level
 (i.e., sum of `(spark.executor.cores/spark.task.cpus)` for all executors).
-Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` option.
-To use this feature, all reading tasks must start at the same time. Hence, the number of partitions in the resulting DataFrame should not be greater than the parallelism level of the Spark cluster.
+Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` and `parallelRead.numPartitions` options.
+To use this feature, all reading queries must start at the same time. 
+Connector tries to retrieve maximum number of tasks that can be run concurrently and uses this value to distribute reading queries.
+In some cases, connector is not able to retrieve this value (for example, with AWS Glue). In such cases, `parallelRead.numPartitions` option is required.
 
 Use the `parallelRead.tableCreationTimeoutMS` option to specify a timeout for result table creation.
 
@@ -427,6 +430,7 @@ Requirements:
  * SingleStoreDB version 7.5+
  * Either the `database` option is set, or the database name is specified in the `load` option
  * SingleStoreDB parallel read functionality supports the generated query
+ * `parallelRead.numPartitioins` option is set, or connector is able to compute maximum number of concurrent tasks that can be run on Spark cluster
 
 #### readFromAggregatorsMaterialized
 This feature is very similar to `readFromAggregators`. The only difference is that `readFromAggregatorsMaterialized` uses the 
@@ -434,7 +438,7 @@ This feature is very similar to `readFromAggregators`. The only difference is th
 Hence, the parallelism level on the Spark cluster does not affect the reading tasks. 
 Although, using the `MATERIALIZED` option may cause a query to fail if SingleStoreDB does not have enough memory to materialize the result set.
 By default, the number of partitions in the resulting DataFrame is equal to the number of partitions in the SingleStoreDB database.
-Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` option.
+Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` and `parallelRead.numPartitions` options.
 
 Use the `parallelRead.materializedTableCreationTimeoutMS` option to specify a timeout for materialized result table creation.
 
@@ -455,7 +459,7 @@ In order to use `readFromLeaves` feature, the username and password provided to 
 `singlestore-spark-connector` must be the same across all nodes in the cluster.
 
 By default, the number of partitions in the resulting DataFrame is equal to the number of partitions in the SingleStoreDB database.
-Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` option.
+Number of partitions in the resulting DataFrame can be controlled using `parallelRead.maxNumPartitions` and `parallelRead.numPartitions` options.
 
 Requirements:
  * Either the `database` option is set, or the database name is specified in the `load` option
