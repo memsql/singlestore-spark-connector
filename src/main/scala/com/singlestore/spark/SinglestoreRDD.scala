@@ -104,7 +104,7 @@ case class SinglestoreRDD(query: String,
       val tableName = JdbcHelpers.getResultTableName(applicationId,
                                                      context.stageId(),
                                                      id,
-                                                     context.attemptNumber(),
+                                                     context.stageAttemptNumber(),
                                                      randHex)
 
       stmt =
