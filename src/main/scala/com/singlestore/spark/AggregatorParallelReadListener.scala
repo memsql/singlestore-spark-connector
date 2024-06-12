@@ -82,6 +82,7 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
               connectionsMap += (tableName -> conn)
             )
 
+            log.info(s"Creating result table '$tableName'")
             try {
               // Create result table
               JdbcHelpers.createResultTable(
@@ -94,9 +95,13 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
                 singleStoreRDDInfo.needsRepartition,
                 singleStoreRDDInfo.repartitionColumns
               )
+              log.info(s"Successfully created result table '$tableName'")
             } catch {
               // Cancel execution if we failed to create a result table
-              case _: SQLException => singleStoreRDDInfo.sc.cancelStage(stageId)
+              case e: SQLException => {
+                singleStoreRDDInfo.sc.cancelStage(stageId)
+                throw e
+              }
             }
           })
       }
@@ -117,7 +122,9 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
             .get(tableName)
             .foreach(conn => {
               // Drop result table
+              log.info(s"Dropping result table '$tableName'")
               JdbcHelpers.dropResultTable(conn, tableName)
+              log.info(s"Successfully dropped result table '$tableName'")
               // Close connection
               conn.close()
               // Delete connection from map

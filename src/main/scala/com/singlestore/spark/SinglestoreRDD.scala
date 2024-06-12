@@ -1,8 +1,7 @@
 package com.singlestore.spark
 
-import java.sql.{Connection, PreparedStatement, ResultSet, SQLTransientConnectionException}
-import java.util.concurrent.Executors
-
+import java.sql.{Connection, PreparedStatement, ResultSet}
+import java.util.concurrent.{Executors, ForkJoinPool}
 import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -54,7 +53,7 @@ case class SinglestoreRDD(query: String,
   override def compute(rawPartition: Partition, context: TaskContext): Iterator[Row] = {
     val multiPartition: SinglestoreMultiPartition =
       rawPartition.asInstanceOf[SinglestoreMultiPartition]
-    val threadPool = Executors.newFixedThreadPool(multiPartition.partitions.size)
+    val threadPool = new ForkJoinPool(multiPartition.partitions.size)
     try {
       val executionContext =
         ExecutionContext.fromExecutor(threadPool)
@@ -121,13 +120,16 @@ case class SinglestoreRDD(query: String,
       }
 
       var lastError: java.sql.SQLException = null
+      var delay                            = 50
+      val maxDelay                         = 10000
       while (rs == null && (timeout == 0 || System.currentTimeMillis() - startTime < timeout)) {
         try {
           rs = stmt.executeQuery()
         } catch {
           case e: java.sql.SQLException if e.getErrorCode == ErrResultTableNotExistCode =>
             lastError = e
-            Thread.sleep(10)
+            delay = Math.min(maxDelay, delay * 2)
+            Thread.sleep(delay)
         }
       }
 
