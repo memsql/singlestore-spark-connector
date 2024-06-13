@@ -31,7 +31,8 @@ case object SinglestoreDialect extends JdbcDialect {
   override def getCatalystType(sqlType: Int,
                                typeName: String,
                                size: Int,
-                               md: MetadataBuilder): Option[DataType] = {
+                               md: MetadataBuilder,
+                               forPushDown: Boolean): Option[DataType] = {
     (sqlType, typeName) match {
       case (Types.REAL, "FLOAT")        => Option(FloatType)
       case (Types.BIT, "BIT")           => Option(BinaryType)
