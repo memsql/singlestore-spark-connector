@@ -4,41 +4,68 @@ import xerial.sbt.Sonatype._
   To run tests or publish with a specific spark version use this java option:
     -Dspark.version=3.0.0
  */
-val sparkVersion       = sys.props.get("spark.version").getOrElse("3.5.0")
-val scalaVersionStr    = "2.12.12"
+
+val aiqSparkVersion    = "3-3-2-aiq89"
+val sparkVersion       = sys.props.get("spark.version").getOrElse(aiqSparkVersion.substring(0,5).replace("-", "."))
+val scalaVersionStr    = "2.12.15"
 val scalaVersionPrefix = scalaVersionStr.substring(0, 4)
 val jacksonDatabindVersion = sparkVersion match {
   case "3.1.3" => "2.10.0"
   case "3.2.4" => "2.12.3"
-  case "3.3.4" => "2.13.4.2"
+  case "3.3.2" | "3.3.4" => "2.13.4.2"
   case "3.4.2" => "2.14.2"
   case "3.5.0" => "2.15.2"
 }
 
+// increment this version when making a new release
+val sparkConnectorVersion = "4.1.7-aiq0"
+
 lazy val root = project
   .withId("singlestore-spark-connector")
   .in(file("."))
-  .enablePlugins(BuildInfoPlugin)
+  .enablePlugins(PublishToArtifactory, BuildInfoPlugin)
   .settings(
     name := "singlestore-spark-connector",
     organization := "com.singlestore",
     scalaVersion := scalaVersionStr,
+    scalacOptions ++= Seq("-release", "17"),
+    javacOptions ++= Seq("-source", "17", "-target", "17"),
+    javaOptions ++= Seq(
+      "--add-opens=java.base/java.lang=ALL-UNNAMED",
+      "--add-opens=java.base/java.math=ALL-UNNAMED",
+      "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+      "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED",
+      "--add-opens=java.base/java.io=ALL-UNNAMED",
+      "--add-opens=java.base/java.net=ALL-UNNAMED",
+      "--add-opens=java.base/java.nio=ALL-UNNAMED",
+      "--add-opens=java.base/java.util=ALL-UNNAMED",
+      "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
+      "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED",
+      "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+      "--add-opens=java.base/sun.nio.cs=ALL-UNNAMED",
+      "--add-opens=java.base/sun.security.action=ALL-UNNAMED",
+      "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
+    ),
     Compile / unmanagedSourceDirectories += (Compile / sourceDirectory).value / (sparkVersion match {
       case "3.1.3" => "scala-sparkv3.1"
       case "3.2.4" => "scala-sparkv3.2"
-      case "3.3.4" => "scala-sparkv3.3"
+      case "3.3.2" | "3.3.4" => "scala-sparkv3.3"
       case "3.4.2" => "scala-sparkv3.4"
       case "3.5.0" => "scala-sparkv3.5"
     }),
-    version := s"4.1.7-spark-${sparkVersion}",
-    licenses += "Apache-2.0" -> url(
-      "http://opensource.org/licenses/Apache-2.0"
+    version := s"${sparkConnectorVersion}-spark-${sparkVersion}",
+    licenses += "Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"),
+    resolvers ++= Seq(
+      "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven",
+      "aiq-artifacts".at("s3://s3-us-east-1.amazonaws.com/aiq-artifacts/releases"),
+      "Artifactory".at("https://actioniq.jfrog.io/artifactory/aiq-sbt-local/"),
+      DefaultMavenRepository,
+      Resolver.mavenLocal,
     ),
-    resolvers += "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven",
     libraryDependencies ++= Seq(
       // runtime dependencies
-      "org.apache.spark"       %% "spark-core"             % sparkVersion % "provided, test",
-      "org.apache.spark"       %% "spark-sql"              % sparkVersion % "provided, test",
+      "org.apache.spark"       %% "spark-core"             % aiqSparkVersion % "provided, test",
+      "org.apache.spark"       %% "spark-sql"              % aiqSparkVersion % "provided, test",
       "org.apache.avro"        % "avro"                    % "1.11.3",
       "org.apache.commons"     % "commons-dbcp2"           % "2.7.0",
       "org.scala-lang.modules" %% "scala-java8-compat"     % "0.9.0",
@@ -61,19 +88,7 @@ lazy val root = project
     buildInfoPackage := "com.singlestore.spark"
   )
 
-credentials += Credentials(
-  "GnuPG Key ID",
-  "gpg",
-  "CDD996495CF08BB2041D86D8D1EB3D14F1CD334F",
-  "ignored" // this field is ignored; passwords are supplied by pinentry
-)
-
 assemblyMergeStrategy in assembly := {
   case PathList("META-INF", _*) => MergeStrategy.discard
   case _                        => MergeStrategy.first
 }
-
-publishTo := sonatypePublishToBundle.value
-publishMavenStyle := true
-sonatypeSessionName := s"[sbt-sonatype] ${name.value} ${version.value}"
-sonatypeProjectHosting := Some(GitHubHosting("memsql", "memsql-spark-connector", "carl@memsql.com"))
