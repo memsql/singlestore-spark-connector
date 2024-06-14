@@ -1,3 +1,8 @@
+2024-06-14 Version 4.1.8
+    * Changed retry during reading from result table to use exponential backoff
+    * Used ForkJoinPool instead of FixedThreadPool
+    * Added more logging
+
 2024-05-13 Version 4.1.7
     * Fixed bug that caused reading from the wrong result table when the task was restarted
 
