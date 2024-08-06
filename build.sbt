@@ -4,7 +4,10 @@ import xerial.sbt.Sonatype._
   To run tests or publish with a specific spark version use this java option:
     -Dspark.version=3.0.0
  */
+
+// update this version when picking up a new Flame release
 val aiqSparkVersion    = "3-3-2-aiq100"
+
 val sparkVersion       = sys.props.get("spark.version").getOrElse(aiqSparkVersion.substring(0,5).replace("-", "."))
 val scalaVersionStr    = "2.12.15"
 val scalaVersionPrefix = scalaVersionStr.substring(0, 4)
@@ -17,7 +20,7 @@ val jacksonDatabindVersion = sparkVersion match {
 }
 
 // increment this version when making a new release
-val sparkConnectorVersion = "4.1.8-aiq0-yt1"
+val sparkConnectorVersion = "4.1.8-aiq0-yt2"
 
 lazy val root = project
   .withId("singlestore-spark-connector")
