@@ -4,21 +4,20 @@ import xerial.sbt.Sonatype._
   To run tests or publish with a specific spark version use this java option:
     -Dspark.version=3.0.0
  */
-
-val aiqSparkVersion    = "3-3-2-aiq89"
+val aiqSparkVersion    = "3-3-2-aiq100"
 val sparkVersion       = sys.props.get("spark.version").getOrElse(aiqSparkVersion.substring(0,5).replace("-", "."))
 val scalaVersionStr    = "2.12.15"
 val scalaVersionPrefix = scalaVersionStr.substring(0, 4)
 val jacksonDatabindVersion = sparkVersion match {
-  case "3.1.3" => "2.10.0"
-  case "3.2.4" => "2.12.3"
+  case "3.1.3"           => "2.10.0"
+  case "3.2.4"           => "2.12.3"
   case "3.3.2" | "3.3.4" => "2.13.4.2"
-  case "3.4.2" => "2.14.2"
-  case "3.5.0" => "2.15.2"
+  case "3.4.2"           => "2.14.2"
+  case "3.5.0"           => "2.15.2"
 }
 
 // increment this version when making a new release
-val sparkConnectorVersion = "4.1.7-aiq0"
+val sparkConnectorVersion = "4.1.8-aiq0-yt1"
 
 lazy val root = project
   .withId("singlestore-spark-connector")
@@ -47,11 +46,11 @@ lazy val root = project
       "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
     ),
     Compile / unmanagedSourceDirectories += (Compile / sourceDirectory).value / (sparkVersion match {
-      case "3.1.3" => "scala-sparkv3.1"
-      case "3.2.4" => "scala-sparkv3.2"
+      case "3.1.3"           => "scala-sparkv3.1"
+      case "3.2.4"           => "scala-sparkv3.2"
       case "3.3.2" | "3.3.4" => "scala-sparkv3.3"
-      case "3.4.2" => "scala-sparkv3.4"
-      case "3.5.0" => "scala-sparkv3.5"
+      case "3.4.2"           => "scala-sparkv3.4"
+      case "3.5.0"           => "scala-sparkv3.5"
     }),
     version := s"${sparkConnectorVersion}-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"),
