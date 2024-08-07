@@ -21,6 +21,7 @@ atlassian-ide-plugin.xml
 
 # sbt project stuff
 project/target/
+project/project/
 /target
 /build
 /spark-warehouse
