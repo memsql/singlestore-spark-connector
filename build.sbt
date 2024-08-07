@@ -8,7 +8,7 @@ import xerial.sbt.Sonatype._
 // update this version when picking up a new Flame release
 val aiqSparkVersion    = "3-3-2-aiq100"
 
-val sparkVersion       = sys.props.get("spark.version").getOrElse(aiqSparkVersion.substring(0,5).replace("-", "."))
+val sparkVersion       = aiqSparkVersion.substring(0,5).replace("-", ".")
 val scalaVersionStr    = "2.12.15"
 val scalaVersionPrefix = scalaVersionStr.substring(0, 4)
 val jacksonDatabindVersion = sparkVersion match {
