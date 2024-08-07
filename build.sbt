@@ -71,7 +71,7 @@ lazy val root = project
       "org.apache.avro"        % "avro"                    % "1.11.3",
       "org.apache.commons"     % "commons-dbcp2"           % "2.7.0",
       "org.scala-lang.modules" %% "scala-java8-compat"     % "0.9.0",
-      "com.singlestore"        % "singlestore-jdbc-client" % "1.2.0",
+      "com.singlestore"        % "singlestore-jdbc-client" % "1.2.3",
       "io.spray"               %% "spray-json"             % "1.3.5",
       "io.netty"               % "netty-buffer"            % "4.1.70.Final",
       "org.apache.commons"     % "commons-dbcp2"           % "2.9.0",
