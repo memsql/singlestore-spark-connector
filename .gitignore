@@ -20,9 +20,7 @@ atlassian-ide-plugin.xml
 /*.iws
 
 # sbt project stuff
-/project/*
-!/project/build.properties
-!/project/plugins.sbt
+project/target/
 /target
 /build
 /spark-warehouse
