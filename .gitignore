@@ -20,11 +20,12 @@ atlassian-ide-plugin.xml
 /*.iws
 
 # sbt project stuff
-/project/*
-!/project/build.properties
-!/project/plugins.sbt
+project/target/
+project/project/
 /target
 /build
 /spark-warehouse
 
 /ci/secring.asc
+
+.bsp/
