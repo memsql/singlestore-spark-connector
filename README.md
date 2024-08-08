@@ -676,13 +676,13 @@ Happy querying!
  * in Intellij IDEA choose `Open` and select path to singlestore-spark-connector
  * run `Test Spark 3.0` (it should succeed)
 
-### Setting up development environment to run Tests
+## Setting up development environment to run Tests
 
  * make sure Docker is installed in your laptop as part of the setup of the Development Environment: https://actioniq.atlassian.net/wiki/spaces/ENG/pages/2289238057/4.+Development+Environment
  * follow the steps outlined here https://www.singlestore.com/blog/running-singlestoredb-on-your-mac-m1/ to get a free License Key & SingleStore Password to run SingleStore locally on your laptop (if you already don't have access to them)
  * run `export LICENSE_KEY=<FILL_IN_WITH_OUTPUT_FROM_ABOVE>` on your terminal
  * run `export SINGLESTORE_PASSWORD=<FILL_IN_WITH_OUTPUT_FROM_ABOVE>` on your terminal
- * run ./scripts/setup-cluster.sh to setup the docker image and container
+ * run `./scripts/setup-cluster.sh` to setup the docker image and container
  * `sbt test` (a full run of the tests can take up to ~1hr)
 
 <h2 id="java-python-example">Java & Python Examples</h2>
