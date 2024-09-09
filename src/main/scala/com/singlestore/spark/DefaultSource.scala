@@ -4,12 +4,9 @@ import com.singlestore.spark.SQLGen.SQLGenContext
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.metrics.source.MetricsHandler
-import org.apache.spark.sql.sources.{
-  BaseRelation,
-  CreatableRelationProvider,
-  DataSourceRegister,
-  RelationProvider
-}
+import org.apache.spark.sql.execution.datasources.jdbc.JDBCOptions
+import org.apache.spark.sql.jdbc.JdbcDialects
+import org.apache.spark.sql.sources.{BaseRelation, CreatableRelationProvider, DataSourceRegister, DataSourceTelemetryProvider, RelationProvider}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 
 object DefaultSource {
@@ -27,9 +24,14 @@ class DefaultSource
     extends RelationProvider
     with DataSourceRegister
     with CreatableRelationProvider
-    with LazyLogging {
+    with LazyLogging
+    with DataSourceTelemetryProvider {
 
   override def shortName(): String = DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT
+
+  override def dataSourceType(): String = "spark_connector"
+
+  override def dataWarehouseName(parameters: Map[String, String]): String = DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT
 
   private def includeGlobalParams(sqlContext: SQLContext,
                                   params: Map[String, String]): Map[String, String] =
@@ -45,6 +47,9 @@ class DefaultSource
                               parameters: Map[String, String]): BaseRelation = {
     val params  = CaseInsensitiveMap(includeGlobalParams(sqlContext, parameters))
     val options = SinglestoreOptions(params, sqlContext.sparkSession.sparkContext)
+
+    initializeRelationTelemetry(sqlContext, parameters)
+
     if (options.disablePushdown) {
       SQLPushdownRule.ensureRemoved(sqlContext.sparkSession)
       SinglestoreReaderNoPushdown(SinglestoreOptions.getQuery(params), options, sqlContext)

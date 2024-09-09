@@ -7,7 +7,9 @@ import org.apache.spark.sql.jdbc.{JdbcDialect, JdbcType}
 import org.apache.spark.sql.types._
 
 case object SinglestoreDialect extends JdbcDialect {
-  override def canHandle(url: String): Boolean = url.startsWith("jdbc:memsql")
+  override def canHandle(url: String): Boolean = {
+    url.startsWith("jdbc:memsql") || url.startsWith("jdbc:singlestore")
+  }
 
   val SINGLESTORE_DECIMAL_MAX_SCALE = 30
 
@@ -56,6 +58,8 @@ case object SinglestoreDialect extends JdbcDialect {
       case _ => None
     }
   }
+
+  override def dataSourceName: String = "singlestore"
 
   override def quoteIdentifier(colName: String): String = {
     s"`${colName.replace("`", "``")}`"
