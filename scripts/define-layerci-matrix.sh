@@ -4,7 +4,8 @@ set -eu
 SINGLESTORE_IMAGE_TAGS=(
     "alma-8.0.19-f48780d261-4.0.11-1.16.0"
     "alma-8.1.32-e3d3cde6da-4.0.16-1.17.6"
-    "alma-8.5.7-bf633c1a54-4.0.17-1.17.8"
+    "alma-8.5.22-fe61f40cd1-4.1.0-1.17.11"
+    "alma-8.7.12-483e5f8acb-4.1.0-1.17.15"
 )
 SINGLESTORE_IMAGE_TAGS_COUNT=${#SINGLESTORE_IMAGE_TAGS[@]}
 SPARK_VERSIONS=(
