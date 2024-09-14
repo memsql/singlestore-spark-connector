@@ -1,8 +1,8 @@
 package com.singlestore.spark
 
 import java.sql.SQLSyntaxErrorException
-
 import com.singlestore.spark.SQLGen.{ExpressionExtractor, SQLGenContext, VariableList}
+import org.apache.spark.{DataSourceTelemetry, DataSourceTelemetryHelpers}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression => CatalystExpression}
 import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
@@ -32,7 +32,11 @@ case class SinglestoreReaderNoPushdown(query: String,
           .filter(sf => options.parallelReadRepartitionColumns.contains(sf.name))
           .map(sf => SQLGen.Ident(sf.name).sql),
         sqlContext.sparkContext,
-        randHex
+        randHex,
+        DataSourceTelemetryHelpers.createDataSourceTelemetry(
+          sqlContext.sparkContext,
+          Some("SinglestoreReaderNoPushdown")
+        )
       )
       // Add random hex to the name
       // It is needed to generate unique names for result tables during parallel read
@@ -79,7 +83,11 @@ case class SinglestoreReader(query: String,
           .filter(attr => options.parallelReadRepartitionColumns.contains(attr.name))
           .map(attr => context.ident(attr.name, attr.exprId)),
         sqlContext.sparkContext,
-        randHex
+        randHex,
+        DataSourceTelemetryHelpers.createDataSourceTelemetry(
+          sqlContext.sparkContext,
+          Some("SinglestoreReader")
+        )
       )     
       // Add random hex to the name
       // It is needed to generate unique names for result tables during parallel read

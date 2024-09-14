@@ -9,7 +9,7 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 import org.apache.spark.sql.types._
 import org.apache.spark.util.TaskCompletionListener
-import org.apache.spark.{InterruptibleIterator, Partition, SparkContext, TaskContext}
+import org.apache.spark.{DataSourceTelemetry, InterruptibleIterator, Partition, SparkContext, TaskContext}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -23,7 +23,8 @@ case class SinglestoreRDD(query: String,
                           resultMustBeSorted: Boolean,
                           parallelReadRepartitionColumns: Seq[String],
                           @transient val sc: SparkContext,
-                          randHex: String)
+                          randHex: String,
+                          telemetryMetrics: DataSourceTelemetry)
     extends RDD[Row](sc, Nil) {
   val (parallelReadType, partitions_) = SinglestorePartitioner(this).getPartitions
 
@@ -98,6 +99,8 @@ case class SinglestoreRDD(query: String,
       }
     }
 
+    telemetryMetrics.setPartitionId(Some(partition.index.toString))
+
     conn = SinglestoreConnectionPool.getConnection(partition.connectionInfo)
     if (aggregatorParallelReadUsed) {
       val tableName = JdbcHelpers.getResultTableName(applicationId,
@@ -106,12 +109,11 @@ case class SinglestoreRDD(query: String,
                                                      context.stageAttemptNumber(),
                                                      randHex)
 
-      stmt = conn.prepareStatement(
-        JdbcHelpers.appendTagsToQuery(
-          options,
-          JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index)
-        )
+      val finalQuery = JdbcHelpers.appendTagsToQuery(
+        options,
+        JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index)
       )
+      stmt = conn.prepareStatement(finalQuery)
 
       val startTime = System.currentTimeMillis()
       val timeout = parallelReadType match {
@@ -128,6 +130,11 @@ case class SinglestoreRDD(query: String,
       val maxDelay                         = 10000
       while (rs == null && (timeout == 0 || System.currentTimeMillis() - startTime < timeout)) {
         try {
+          context.emitMetricsLog(
+            telemetryMetrics.compileGlobalTelemetryTagsMap(Some(finalQuery))
+          )
+
+          telemetryMetrics.setQuerySubmissionTime()
           rs = stmt.executeQuery()
         } catch {
           case e: java.sql.SQLException if e.getErrorCode == ErrResultTableNotExistCode =>
@@ -141,12 +148,22 @@ case class SinglestoreRDD(query: String,
         throw new java.sql.SQLException("Failed to read data from result table", lastError)
       }
     } else {
-      stmt = conn.prepareStatement(JdbcHelpers.appendTagsToQuery(options, partition.query))
+      val finalQuery = JdbcHelpers.appendTagsToQuery(options, partition.query)
+      stmt = conn.prepareStatement(finalQuery)
+
+      context.emitMetricsLog(
+        telemetryMetrics.compileGlobalTelemetryTagsMap(Some(finalQuery))
+      )
+
       JdbcHelpers.fillStatement(stmt, partition.variables)
+
+      telemetryMetrics.setQuerySubmissionTime()
       rs = stmt.executeQuery()
     }
 
     var rowsIter = JdbcUtils.resultSetToRows(rs, schema)
+
+    telemetryMetrics.readColumnCount.set(rs.getMetaData.getColumnCount)
 
     if (expectedOutput.nonEmpty) {
       val schemaDatatypes   = schema.map(_.dataType)
@@ -190,7 +207,7 @@ case class SinglestoreRDD(query: String,
       }
     }
 
-    CompletionIterator[Row, Iterator[Row]](new InterruptibleIterator[Row](context, rowsIter), close)
+    CompletionIterator[Row, Iterator[Row]](new InterruptibleIterator[Row](context, rowsIter, telemetryMetrics), close)
   }
 
 }
