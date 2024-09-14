@@ -586,4 +586,21 @@ object JdbcHelpers extends LazyLogging {
       conn.close()
     }
   }
+
+  def appendTagsToQuery(conf: SinglestoreOptions, query: String): String = {
+    val jdbcProps = conf.jdbcExtraOptions
+    val aiqPropsString = jdbcProps.collect {
+      case (k, v) if k.contains("aiq_") =>
+        val regex = ".*aiq_".r
+        regex.replaceAllIn(k, "") + ":" + v
+    }.toSeq.sorted.mkString(",")
+
+    val finalQuery = if (aiqPropsString.nonEmpty) {
+      s"/* $aiqPropsString */\n$query"
+    } else {
+      query
+    }
+
+    finalQuery
+  }
 }

@@ -106,8 +106,12 @@ case class SinglestoreRDD(query: String,
                                                      context.stageAttemptNumber(),
                                                      randHex)
 
-      stmt =
-        conn.prepareStatement(JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index))
+      stmt = conn.prepareStatement(
+        JdbcHelpers.appendTagsToQuery(
+          options,
+          JdbcHelpers.getSelectFromResultTableQuery(tableName, partition.index)
+        )
+      )
 
       val startTime = System.currentTimeMillis()
       val timeout = parallelReadType match {
@@ -137,7 +141,7 @@ case class SinglestoreRDD(query: String,
         throw new java.sql.SQLException("Failed to read data from result table", lastError)
       }
     } else {
-      stmt = conn.prepareStatement(partition.query)
+      stmt = conn.prepareStatement(JdbcHelpers.appendTagsToQuery(options, partition.query))
       JdbcHelpers.fillStatement(stmt, partition.variables)
       rs = stmt.executeQuery()
     }
