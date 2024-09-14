@@ -31,7 +31,7 @@ class DefaultSource
 
   override def dataSourceType(): String = "spark_connector"
 
-  override def dataWarehouseName(parameters: Map[String, String]): String = DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT
+  override def dataWarehouseName(parameters: Map[String, String]): String = shortName()
 
   private def includeGlobalParams(sqlContext: SQLContext,
                                   params: Map[String, String]): Map[String, String] =
