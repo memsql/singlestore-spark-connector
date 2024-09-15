@@ -2,7 +2,7 @@ package com.singlestore.spark
 
 import java.sql.SQLSyntaxErrorException
 import com.singlestore.spark.SQLGen.{ExpressionExtractor, SQLGenContext, VariableList}
-import org.apache.spark.{DataSourceTelemetry, DataSourceTelemetryHelpers}
+import org.apache.spark.DataSourceTelemetryHelpers
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression => CatalystExpression}
 import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
@@ -65,7 +65,8 @@ case class SinglestoreReader(query: String,
     extends BaseRelation
     with LazyLogging
     with TableScan
-    with CatalystScan {
+    with CatalystScan
+    with DataSourceTelemetryHelpers {
 
   override lazy val schema = JdbcHelpers.loadSchema(options, query, variables)
 
@@ -141,7 +142,7 @@ case class SinglestoreReader(query: String,
     val newReader = copy(query = stmt.sql, variables = stmt.variables, expectedOutput = stmt.output)
 
     if (log.isTraceEnabled) {
-      log.trace(s"CatalystScan additional rewrite:\n${newReader}")
+      log.trace(logEventNameTagger(s"CatalystScan additional rewrite:\n$newReader"))
     }
 
     newReader.buildScan
