@@ -4,17 +4,16 @@ import java.sql.{Connection, SQLException}
 import java.util.Properties
 import com.singlestore.spark.JdbcHelpers.getDDLConnProperties
 import com.singlestore.spark.SQLGen.VariableList
-import org.apache.spark.SparkContext
-import org.apache.spark.scheduler.{
-  SparkListener,
-  SparkListenerStageCompleted,
-  SparkListenerStageSubmitted
-}
+import org.apache.spark.{DataSourceTelemetryHelpers, SparkContext}
+import org.apache.spark.scheduler.{SparkListener, SparkListenerStageCompleted, SparkListenerStageSubmitted}
 import org.apache.spark.sql.types.StructType
 
 import scala.collection.mutable
 
-class AggregatorParallelReadListener(applicationId: String) extends SparkListener with LazyLogging {
+class AggregatorParallelReadListener(applicationId: String)
+  extends SparkListener
+    with LazyLogging
+    with DataSourceTelemetryHelpers {
   // connectionsMap is a map from the result table name to the connection with which this table was created
   private val connectionsMap: mutable.Map[String, Connection] =
     new mutable.HashMap[String, Connection]()
@@ -82,7 +81,7 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
               connectionsMap += (tableName -> conn)
             )
 
-            log.info(s"Creating result table '$tableName'")
+            log.info(logEventNameTagger(s"Creating result table '$tableName'"))
             try {
               // Create result table
               JdbcHelpers.createResultTable(
@@ -95,7 +94,7 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
                 singleStoreRDDInfo.needsRepartition,
                 singleStoreRDDInfo.repartitionColumns
               )
-              log.info(s"Successfully created result table '$tableName'")
+              log.info(logEventNameTagger(s"Successfully created result table '$tableName'"))
             } catch {
               // Cancel execution if we failed to create a result table
               case e: SQLException => {
@@ -122,9 +121,9 @@ class AggregatorParallelReadListener(applicationId: String) extends SparkListene
             .get(tableName)
             .foreach(conn => {
               // Drop result table
-              log.info(s"Dropping result table '$tableName'")
+              log.info(logEventNameTagger(s"Dropping result table '$tableName'"))
               JdbcHelpers.dropResultTable(conn, tableName)
-              log.info(s"Successfully dropped result table '$tableName'")
+              log.info(logEventNameTagger(s"Successfully dropped result table '$tableName'"))
               // Close connection
               conn.close()
               // Delete connection from map

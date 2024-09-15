@@ -1,15 +1,8 @@
 package com.singlestore.spark
 
-import java.sql.{
-  Connection,
-  PreparedStatement,
-  SQLException,
-  SQLInvalidAuthorizationSpecException,
-  Statement
-}
+import java.sql.{Connection, PreparedStatement, SQLException, SQLInvalidAuthorizationSpecException, Statement}
 import java.util.Properties
 import java.util.UUID.randomUUID
-
 import com.singlestore.spark.SinglestoreOptions.{TableKey, TableKeyType}
 import com.singlestore.spark.SQLGen.{SinglestoreVersion, StringVar, VariableList}
 import org.apache.spark.sql.{Row, SaveMode}
@@ -19,11 +12,11 @@ import org.apache.spark.sql.jdbc.JdbcDialects
 import org.apache.spark.sql.types.{StringType, StructType}
 
 import scala.util.{Failure, Success, Try}
-import org.apache.spark.SparkContext
+import org.apache.spark.{DataSourceTelemetryHelpers, SparkContext}
 
 case class SinglestorePartitionInfo(ordinal: Int, name: String, hostport: String)
 
-object JdbcHelpers extends LazyLogging {
+object JdbcHelpers extends LazyLogging with DataSourceTelemetryHelpers {
   final val SINGLESTORE_CONNECT_TIMEOUT = "10000" // 10 seconds in ms
 
   // register the SingleStoreDialect
@@ -152,7 +145,7 @@ object JdbcHelpers extends LazyLogging {
     val conn =
       SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
     try {
-      val statement = conn.prepareStatement(s"EXPLAIN $query")
+      val statement = conn.prepareStatement(appendTagsToQuery(conf, s"EXPLAIN $query"))
       try {
         fillStatement(statement, variables)
         val rs = statement.executeQuery()
@@ -179,7 +172,7 @@ object JdbcHelpers extends LazyLogging {
     val conn =
       SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
     try {
-      val statement = conn.prepareStatement(s"EXPLAIN JSON ${query}")
+      val statement = conn.prepareStatement(appendTagsToQuery(conf, s"EXPLAIN JSON $query"))
       try {
         fillStatement(statement, variables)
         val rs = statement.executeQuery()
@@ -372,8 +365,8 @@ object JdbcHelpers extends LazyLogging {
   def getSinglestoreVersion(conf: SinglestoreOptions): String = {
     val conn =
       SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
-    val sql = "select @@memsql_version"
-    log.trace(s"Executing SQL:\n$sql")
+    val sql = appendTagsToQuery(conf, "select @@memsql_version")
+    log.trace(logEventNameTagger(s"Executing SQL:\n$sql"))
     val resultSet = conn.withStatement(stmt => {
       try {
         stmt.executeQuery(sql)
@@ -397,14 +390,14 @@ object JdbcHelpers extends LazyLogging {
                   version: SinglestoreVersion): Unit = {
     val sql =
       s"CREATE ${if (createRowstoreTable && version.atLeast("7.3.0")) "ROWSTORE" else ""} TABLE ${table.quotedString} ${schemaToString(schema, tableKeys, createRowstoreTable)}"
-    log.trace(s"Executing SQL:\n$sql")
+    log.trace(logEventNameTagger(s"Executing SQL:\n$sql"))
     conn.withStatement(stmt => stmt.executeUpdate(sql))
   }
 
   def getPartitionsCount(conn: Connection, database: String): Int = {
     val sql =
       s"SELECT num_partitions FROM information_schema.DISTRIBUTED_DATABASES WHERE database_name = '$database'"
-    log.trace(s"Executing SQL:\n$sql")
+    log.trace(logEventNameTagger(s"Executing SQL:\n$sql"))
     val resultSet = conn.withStatement(stmt => stmt.executeQuery(sql))
 
     if (resultSet.next()) {
@@ -462,7 +455,7 @@ object JdbcHelpers extends LazyLogging {
                                 materialized,
                                 needsRepartition,
                                 repartitionColumns)
-    log.trace(s"Executing SQL:\n$sql")
+    log.trace(logEventNameTagger(s"Executing SQL:\n$sql"))
 
     conn.withPreparedStatement(sql, stmt => {
       JdbcHelpers.fillStatement(stmt, variables)
@@ -472,7 +465,7 @@ object JdbcHelpers extends LazyLogging {
 
   def dropResultTable(conn: Connection, tableName: String): Unit = {
     val sql = s"DROP RESULT TABLE $tableName"
-    log.trace(s"Executing SQL:\n$sql")
+    log.trace(logEventNameTagger(s"Executing SQL:\n$sql"))
 
     conn.withStatement(stmt => {
       stmt.executeUpdate(sql)
@@ -481,7 +474,7 @@ object JdbcHelpers extends LazyLogging {
 
   def isValidQuery(conn: Connection, query: String, variables: VariableList): Boolean = {
     val sql = s"EXPLAIN $query"
-    log.trace(s"Executing SQL:\n$sql")
+    log.trace(logEventNameTagger(s"Executing SQL:\n$sql"))
 
     Try {
       conn.withPreparedStatement(sql, stmt => {
@@ -502,13 +495,13 @@ object JdbcHelpers extends LazyLogging {
 
   def truncateTable(conn: Connection, table: TableIdentifier): Unit = {
     val sql = s"TRUNCATE TABLE ${table.quotedString}"
-    log.trace(s"Executing SQL:\n$sql")
+    log.trace(logEventNameTagger(s"Executing SQL:\n$sql"))
     conn.withStatement(stmt => stmt.executeUpdate(sql))
   }
 
   def dropTable(conn: Connection, table: TableIdentifier): Unit = {
     val sql = s"DROP TABLE ${table.quotedString}"
-    log.trace(s"Executing SQL:\n$sql")
+    log.trace(logEventNameTagger(s"Executing SQL:\n$sql"))
     conn.withStatement(stmt => stmt.executeUpdate(sql))
   }
 
@@ -520,8 +513,8 @@ object JdbcHelpers extends LazyLogging {
       table.database
         .orElse(conf.database)
         .getOrElse(throw new IllegalArgumentException("Database name should be defined"))
-    val sql = s"using $databaseName show tables extended like '${table.table}'"
-    log.trace(s"Executing SQL:\n$sql")
+    val sql = appendTagsToQuery(conf, s"using $databaseName show tables extended like '${table.table}'")
+    log.trace(logEventNameTagger(s"Executing SQL:\n$sql"))
     val resultSet = conn.withStatement(stmt => {
       Try {
         try {
