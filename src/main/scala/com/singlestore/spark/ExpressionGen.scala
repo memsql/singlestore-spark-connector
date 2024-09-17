@@ -235,6 +235,10 @@ object ExpressionGen extends LazyLogging {
               if context.singlestoreVersionAtLeast("7.0.1") =>
             Some(ExpressionGen.aggregateWithFilter("BIT_XOR", child, filter))
 
+          // HyperLogLogPlusPlus.scala
+          case HyperLogLogPlusPlus(expressionExtractor(child), _, _, _) =>
+            Some(aggregateWithFilter("APPROX_COUNT_DISTINCT", child, filter))
+
           case versionSpecificAggregateExpressionExtractor(statement) => Some(statement)
 
           //    case AggregateExpression(MaxBy(expressionExtractor(valueExpr), expressionExtractor(orderingExpr)), _, _, None, _) =>
@@ -285,6 +289,135 @@ object ExpressionGen extends LazyLogging {
     }
   }
 
+  case class AiqDayStartExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: AiqDayStart): Option[Joinable] = {
+      expressionExtractor.unapply(
+        UnixMillis(
+          TruncTimestamp(
+            Literal("DAY"),
+            DateAdd(ConvertTimezone(CurrentTimeZone(), arg.timestamp, arg.timezone), arg.plusDays),
+          )
+        )
+      )
+    }
+  }
+
+  case class AiqStringToDateExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: AiqStringToDate): Option[Joinable] = {
+      if (arg.format.foldable) {
+        expressionExtractor.unapply(
+          UnixMillis(
+            ConvertTimezone(
+              arg.timeZone,
+              Literal("UTC"),
+              ParseToTimestamp(arg.dateStr, Some(arg.format), TimestampType),
+            )
+          )
+        )
+      } else { None }
+    }
+  }
+
+  case class AiqDateToStringExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: AiqDateToString): Option[Joinable] = {
+      if (arg.dateFormat.foldable) {
+        expressionExtractor.unapply(
+          DateFormatClass(
+            ConvertTimezone(CurrentTimeZone(), arg.timezoneId, arg.timestamp),
+            arg.dateFormat,
+          )
+        )
+      } else { None }
+    }
+  }
+
+  case class AiqDayDiffExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: AiqDayDiff): Option[Joinable] = {
+      expressionExtractor.unapply(
+        DateDiff(
+          ConvertTimezone(CurrentTimeZone(), arg.timezoneId, arg.endTs),    // endDate
+          ConvertTimezone(CurrentTimeZone(), arg.timezoneId, arg.startTs),  // startDate
+        )
+      )
+    }
+  }
+
+  // This is an AIQ map to the offset of the epoch date to the imposed "first day of the week."
+  // (Default Sunday). The Epoch date is a thursday (offset = 0).
+  // scalastyle:off line.size.limit
+  // https://github.com/ActionIQ/aiq/blob/master/libs/flame_utils/src/main/scala/co/actioniq/flame/SqlFunctions.scala#L356-L366
+  // scalastyle:on line.size.limit
+  private def getAiqDayOfWeekFromString(dayStr: String): Int = {
+    val dowString = dayStr.toUpperCase()
+    dowString match {
+      case "SU" | "SUN" | "SUNDAY" => 4
+      case "MO" | "MON" | "MONDAY" => 3
+      case "TU" | "TUE" | "TUESDAY" => 2
+      case "WE" | "WED" | "WEDNESDAY" => 1
+      case "TH" | "THU" | "THURSDAY" => 0
+      case "FR" | "FRI" | "FRIDAY" => 6
+      case "SA" | "SAT" | "SATURDAY" => 5
+      case _ =>
+        throw new IllegalArgumentException(s"""Illegal input for day of week: $dayStr""")
+    }
+  }
+
+  case class AiqWeekDiffExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: AiqWeekDiff): Option[Joinable] = {
+      if (arg.startDay.foldable) {
+        val startDayInt = getAiqDayOfWeekFromString(arg.startDay.eval().toString)
+        val Seq(daysSinceEndExpr, daysSinceStartExpr) =
+          Seq(arg.endTs, arg.startTs).map { expr =>
+            // Wrapping in `FLOOR` because Casting to Int in Snowflake is
+            // creating data issues. Example:
+            // - Java/Spark: (18140 + 3) / 7 = 2591 (Original value: 2591.8571428571427)
+            // - Snowflake: SELECT ((18140 + 3) / 7) ::int = 2592 (Original value: 2591.857143)
+            Floor(
+              Divide(
+                Add(AiqDayDiff(Literal(0L), expr, arg.timezoneId), Literal(startDayInt)),
+                Literal(7),
+              )
+            )
+          }
+
+        expressionExtractor.unapply(Subtract(daysSinceEndExpr, daysSinceStartExpr))
+      } else { None }
+    }
+  }
+
+  case class AiqDayOfTheWeekExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: AiqDayOfTheWeek): Option[Joinable] = {
+      expressionExtractor.unapply(
+        Decode(
+          Seq(
+            WeekDay(ConvertTimezone(CurrentTimeZone(), arg.timezoneId, arg.epochTimestamp)),
+            Literal(0), Literal("monday"),
+            Literal(1), Literal("tuesday"),
+            Literal(2), Literal("wednesday"),
+            Literal(3), Literal("thursday"),
+            Literal(4), Literal("friday"),
+            Literal(5), Literal("saturday"),
+            Literal(6), Literal("sunday"),
+          ),
+          Literal.default(NullType),
+        )
+      )
+    }
+  }
+
+  case class AiqFromUnixTimeExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: AiqFromUnixTime): Option[Joinable] = {
+      if (arg.format.foldable) {
+        expressionExtractor.unapply(
+          DateFormatClass(
+            ConvertTimezone(CurrentTimeZone(), arg.timeZone, arg.sec),
+            arg.format,
+          )
+        )
+      } else { None }
+    }
+  }
+
   def aggregateWithFilter(funcName: String, child: Joinable, filter: Option[Joinable]) = {
     filter match {
       case Some(filterExpression) =>
@@ -294,16 +427,25 @@ object ExpressionGen extends LazyLogging {
   }
 
   val intFoldableExtractor: FoldableExtractor[Int]               = FoldableExtractor[Int]()
+  val strFoldableExtractor: FoldableExtractor[String]            = FoldableExtractor[String]()
   val utf8StringFoldableExtractor: FoldableExtractor[UTF8String] = FoldableExtractor[UTF8String]()
 
   def apply(expressionExtractor: ExpressionExtractor): PartialFunction[Expression, Joinable] = {
-    val caseWhenExpressionExtractor       = CaseWhenExpressionExtractor(expressionExtractor)
-    val windowBoundaryExpressionExtractor = WindowBoundaryExpressionExtractor(expressionExtractor)
-    val monthsBetweenExpressionExtractor  = MonthsBetweenExpressionExtractor(expressionExtractor)
-    val context                           = expressionExtractor.context
-    val aggregateExpressionExtractor      = AggregateExpressionExtractor(expressionExtractor, context)
-    val decimalExpressionExtractor        = DecimalExpressionExtractor(expressionExtractor)
-    val versionSpecificExpressionGen      = VersionSpecificExpressionGen(expressionExtractor)
+    val caseWhenExpressionExtractor        = CaseWhenExpressionExtractor(expressionExtractor)
+    val windowBoundaryExpressionExtractor  = WindowBoundaryExpressionExtractor(expressionExtractor)
+    val monthsBetweenExpressionExtractor   = MonthsBetweenExpressionExtractor(expressionExtractor)
+    val context                            = expressionExtractor.context
+    val aggregateExpressionExtractor       = AggregateExpressionExtractor(expressionExtractor, context)
+    val decimalExpressionExtractor         = DecimalExpressionExtractor(expressionExtractor)
+    val versionSpecificExpressionGen       = VersionSpecificExpressionGen(expressionExtractor)
+
+    val aiqDayStartExpressionExtractor     = AiqDayStartExpressionExtractor(expressionExtractor)
+    val aiqStringToDateExpressionExtractor = AiqStringToDateExpressionExtractor(expressionExtractor)
+    val aiqDateToStringExpressionExtractor = AiqDateToStringExpressionExtractor(expressionExtractor)
+    val aiqDayDiffExpressionExtractor      = AiqDayDiffExpressionExtractor(expressionExtractor)
+    val aiqWeekDiffExpressionExtractor     = AiqWeekDiffExpressionExtractor(expressionExtractor)
+    val aiqDayOfTheWeekExpressionExtractor = AiqDayOfTheWeekExpressionExtractor(expressionExtractor)
+    val aiqFromUnixTimeExpressionExtractor = AiqFromUnixTimeExpressionExtractor(expressionExtractor)
 
     return {
       // ----------------------------------
@@ -453,6 +595,21 @@ object ExpressionGen extends LazyLogging {
 
       case DateDiff(expressionExtractor(endDate), expressionExtractor(startDate)) =>
         f("DATEDIFF", endDate, startDate)
+
+      case ParseToTimestamp(expressionExtractor(left),
+                            e @ expressionExtractor(Some(format)), _, _) if e.forall(_.foldable) =>
+        f("TO_TIMESTAMP", left, format)
+
+      case DateFormatClass(expressionExtractor(left), expressionExtractor(right), _) =>
+        f("DATE_FORMAT", left, right)
+
+      case aiqDayStartExpressionExtractor(aiqDayStartStatement)         => aiqDayStartStatement
+      case aiqStringToDateExpressionExtractor(aiqStringToDateStatement) => aiqStringToDateStatement
+      case aiqDateToStringExpressionExtractor(aiqDateToStringStatement) => aiqDateToStringStatement
+      case aiqDayDiffExpressionExtractor(aiqDayDiffStatement)           => aiqDayDiffStatement
+      case aiqWeekDiffExpressionExtractor(aiqWeekDiffStatement)         => aiqWeekDiffStatement
+      case aiqDayOfTheWeekExpressionExtractor(aiqDayOfTheWeekStatement) => aiqDayOfTheWeekStatement
+      case aiqFromUnixTimeExpressionExtractor(aiqFromUnixTimeStatement) => aiqFromUnixTimeStatement
 
       // mathExpressions.scala
       case Atan2(expressionExtractor(left), expressionExtractor(right))     => f("ATAN2", left, right)
@@ -635,6 +792,9 @@ object ExpressionGen extends LazyLogging {
         replaceContent
       }
 
+      case Decode(expressionExtractor(Some(params)), expressionExtractor(replacement)) =>
+        f("DECODE", params, replacement)
+
       // ----------------------------------
       // Unary Expressions
       // ----------------------------------
@@ -666,7 +826,10 @@ object ExpressionGen extends LazyLogging {
       case Now()                                   => f("NOW")
 
       //    case DatePart(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child)) => // Converts to CAST(field)
-      //    case Extract(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child))  => // Converts to CAST(field)
+
+      case Extract(strFoldableExtractor(field), expressionExtractor(source), expressionExtractor(replacement)) =>
+        "EXTRACT" + block( Raw(field) + "FROM" + source )
+
       //    case MakeInterval(_, _, _, _, _, _, _) => ???
 
       // MakeDecimal and UnscaledValue value are used in DecimalAggregates optimizer
@@ -826,7 +989,8 @@ object ExpressionGen extends LazyLogging {
       case Uuid(_) if context.singlestoreVersionAtLeast("7.5.0") => "UUID()"
 
       case InitCap(expressionExtractor(child)) => f("INITCAP", child)
-      // TODO: case StringReverse(expressionExtractor(child)) => ???
+
+      case Reverse(e @ expressionExtractor(child)) if e.dataType.isInstanceOf[StringType] => f("REVERSE", child)
       // TODO: case SoundEx(expressionExtractor(child)) => ???
     }
   }

@@ -109,6 +109,10 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
             rep,
             StringVar("g"))))
 
+    // numberFormatExpressions.scala
+    case ToNumber(expressionExtractor(left), expressionExtractor(right)) =>
+      Some(f("TO_NUMBER", left, right))
+
     case UnaryMinus(expressionExtractor(child), false) => Some(f("-", child))
 
     // randomExpression.scala
@@ -156,6 +160,13 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
         case _ => Some(child)
       }
     }
+
+    // datetimeExpressions.scala
+
+    case ConvertTimezone(expressionExtractor(sourceTz),
+                         expressionExtractor(targetTz),
+                         expressionExtractor(sourceTs)) =>
+      Some(f("CONVERT_TZ", sourceTs, sourceTz, targetTz))
 
     case DateFromUnixDate(expressionExtractor(child)) => Some(f("FROM_UNIXTIME", child))
     case UnixDate(expressionExtractor(child)) =>
