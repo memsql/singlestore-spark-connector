@@ -1,20 +1,8 @@
 package com.singlestore.spark
 
-import com.singlestore.spark.SQLGen.{ExpressionExtractor, SQLGenContext, Statement}
-import com.singlestore.spark.ExpressionGen.{aggregateWithFilter, f, op}
-import org.apache.spark.sql.catalyst.expressions.aggregate.{
-  AggregateFunction,
-  Average,
-  First,
-  Kurtosis,
-  Last,
-  Skewness,
-  StddevPop,
-  StddevSamp,
-  Sum,
-  VariancePop,
-  VarianceSamp
-}
+import com.singlestore.spark.SQLGen.{DoubleVar, ExpressionExtractor, SQLGenContext, Statement}
+import com.singlestore.spark.ExpressionGen.{aggregateWithFilter, doubleFoldableExtractor, f, op}
+import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateFunction, ApproximatePercentile, Average, Kurtosis, Skewness, StddevPop, StddevSamp, Sum, VariancePop, VarianceSamp}
 
 case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: ExpressionExtractor,
                                                        context: SQLGenContext,
@@ -90,20 +78,30 @@ case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: Expr
         )
 
       // First.scala
-      case First(expressionExtractor(child), false) =>
-        Some(aggregateWithFilter("ANY_VALUE", child, filter))
+      // TODO: First(expressionExtractor(child), false) => Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
       // Last.scala
-      case Last(expressionExtractor(child), false) =>
-        Some(aggregateWithFilter("ANY_VALUE", child, filter))
+      // TODO: case Last(expressionExtractor(child), false) => Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
       // Sum.scala
-      case Sum(expressionExtractor(child), false) =>
+      //
+      // Note: no apparent reason to match-pushdown ONLY when useAnsiAdd = false so
+      // altering the original Connector Implementation to be less strict
+      case Sum(expressionExtractor(child), _) =>
         Some(aggregateWithFilter("SUM", child, filter))
 
       // Average.scala
+      //
+      // Note: no apparent reason to match-pushdown ONLY when useAnsiAdd = false so
+      // altering the original Connector Implementation to be less strict
       case Average(expressionExtractor(child), false) =>
         Some(aggregateWithFilter("AVG", child, filter))
+
+      // ApproximatePercentile.scala
+      case ApproximatePercentile(expressionExtractor(child), doubleFoldableExtractor(percentage), _, _, _)
+        // SingleStore supports percentage only from [0, 1]
+        if percentage >= 0.0 && percentage <= 1.0 =>
+        Some(aggregateWithFilter("APPROX_PERCENTILE", child, filter, Seq(DoubleVar(percentage))))
 
       case _ => None
     }

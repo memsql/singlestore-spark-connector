@@ -1,5 +1,6 @@
 package com.singlestore.spark
 
+import org.apache.spark.DataSourceTelemetryHelpers
 import org.apache.spark.sql.catalyst.expressions.aggregate._
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
@@ -8,7 +9,7 @@ import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 
 import scala.reflect.ClassTag
 
-object ExpressionGen extends LazyLogging {
+object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
   import SQLGen._
 
   final val SINGLESTORE_DECIMAL_MAX_PRECISION = 65
@@ -25,6 +26,150 @@ object ExpressionGen extends LazyLogging {
 
     dayFormats.zipWithIndex.map { case (day, ind) => (day, (ind % 7 + 1).toString) }.toMap
   }
+
+  /**
+   * Function to convert a Spark date format to a SingleStore date format symbols
+   *
+   * Spark -> https://spark.apache.org/docs/latest/sql-ref-datetime-pattern.html
+   * SingleStore -> https://docs.singlestore.com/cloud/reference/sql-reference/date-and-time-functions/date-format/
+   */
+  final def sparkDateFmtToSingleStoreFmtSymbols(format: UTF8String): String = {
+    val translatedDateFmt = format.toString match {
+      case "YYYY" | "yyyy" => "%Y"
+      case "YY" | "yy"     => "%y"
+      case "MMM"           => "%b"
+      case "MM"            => "%m"
+      case "M"             => "%c"
+      case "d"             => "%e"
+      case "HH"            => "%H"
+      case "H"             => "%k"
+      case "hh"            => "%h"
+      case "h"             => "%l"
+      case fmt =>
+        // Note: Order of string replacement for groups matters
+        fmt
+          // SingleStore Time, 24-hour (hh:mm:ss)
+          .replaceAll("HH:mm:ss", "%T")
+
+          // SingleStore Time, 12-hour (hh:mm:ss followed by AM or PM)
+          .replaceAll("hh:mm:ss a", "%r")
+
+          // SingleStore Year, numeric, four digits
+          .replaceAll("(?<=[^Y])Y{4}(?=[^Y])", "%Y")
+          .replaceAll("(?<=[^y])y{4}(?=[^y])", "%Y")
+          // SingleStore Year, numeric (two digits)
+          .replaceAll("(?<=[^Y])Y{2}(?=[^Y])", "%y")
+          .replaceAll("(?<=[^y])y{2}(?=[^y])", "%y")
+
+          // SingleStore Day of year (001 to 366)
+          .replaceAll("D{1,3}", "%j")
+
+          // SingleStore Month name (January to December)
+          .replaceAll("M{4,}", "%M")
+          // SingleStore Abbreviated month (Jan, Feb, Mar…)
+          .replaceAll("(?<=[^M])M{3}(?=[^M])", "%b")
+          // SingleStore Month number, padded (00 to 12)
+          .replaceAll("(?<=[^M])M{2}(?=[^M])", "%m")
+          // SingleStore Month number (0 to 12)
+          .replaceAll("(?<=[^M])M(?=[^M])", "%c")
+
+          // SingleStore Day of the month, padded (00 to 31)
+          .replaceAll("d{3,}", "%d")
+          .replaceAll("(?<=[^d])d{2}(?=[^d])", "%d")
+          // SingleStore Day of the month (0 to 31)
+          .replaceAll("(?<=[^d])d(?=[^d])", "%e")
+
+          // SingleStore Hour of day, padded 24h format (00 to 23)
+          .replaceAll("H{3,}", "%H")
+          .replaceAll("(?<=[^H])H{2}(?=[^H])", "%H")
+          // SingleStore Hour of day, 24h format (0 to 23)
+          .replaceAll("(?<=[^H])H(?=[^H])", "%k")
+
+          // SingleStore Hour of day, padded 12h format (01 to 12)
+          .replaceAll("h{3,}", "%h")
+          .replaceAll("(?<=[^h])h{2}(?=[^h])", "%h")
+          // SingleStore Hour of day, 12h format (1 to 12)
+          .replaceAll("(?<=[^h])h(?=[^h])", "%l")
+
+          // SingleStore Minute of hour (00 to 59)
+          .replaceAll("m{2,}", "%i")
+
+          // SingleStore Seconds (00 to 59)
+          .replaceAll("s+", "%s")
+
+          // SingleStore Microseconds (000000 to 999999)
+          .replaceAll("S+", "%f")
+
+          // SingleStore AM or PM
+          .replaceAll("a", "%p")
+
+          // SingleStore Week (01 to 53) starting Monday
+          .replaceAll("w+", "%v")
+
+          // NOTE:
+          //  Spark:       select from_unixtime(0, 'EE') -> Wed
+          //  SingleStore: select FROM_UNIXTIME(0, '%a') -> Thu
+          //
+          // SingleStore Weekday name (Sunday to Saturday)
+          .replaceAll("E{4,}", "%W")
+          // SingleStore Abbreviated day of week (Sun, Mon, Tue, etc)
+          .replaceAll("E{1,3}", "%a")
+    }
+
+    log.info(
+      logEventNameTagger(
+        s"Translated Spark Date Format: `${format.toString}` " +
+          s"to SingleStore Date Format Symbols: `$translatedDateFmt`."
+      )
+    )
+
+    translatedDateFmt
+  }
+
+  /**
+   * Function to convert a Spark date format to a SingleStore date format specifiers
+   *
+   * Spark -> https://spark.apache.org/docs/latest/sql-ref-datetime-pattern.html
+   * SingleStore -> https://docs.singlestore.com/cloud/reference/sql-reference/date-and-time-functions/to-char/
+   */
+  final def sparkDateFmtToSingleStoreFmtSpecifiers(format: UTF8String): String = {
+    val translatedDateFmt =
+      // Note: Order of string replacement for groups matters
+      format
+        .toString
+        // SingleStore Four digit year
+        .replaceAll("y{4}+", "YYYY")
+        // SingleStore Two digit year
+        .replaceAll("y{2}+", "YY")
+        // SingleStore Month (January - December)
+        .replaceAll("M{4}+", "MONTH")
+        // SingleStore Three letter month (Jan - Dec)
+        .replaceAll("M{3}+", "MON")
+        // SingleStore Abbreviated day of week (Sun, Mon, Tue, etc)
+        .replaceAll("E{1,3}", "DY")
+        // SingleStore Day (1 - 31)
+        .replaceAll("d{1,2}+", "DD")
+        // SingleStore Hour (0 - 23)
+        .replaceAll("H{1,2}+", "HH24")
+        // SingleStore Hour (1 - 12)
+        .replaceAll("h{1,2}+", "HH12")
+        // SingleStore Minute (0 - 59)
+        .replaceAll("m{1,2}+", "MI")
+        // SingleStore Second (0 - 59)
+        .replaceAll("s{1,2}+", "SS")
+        // SingleStore AM or PM
+        .replaceAll("a", "AM")
+
+    log.info(
+      logEventNameTagger(
+        s"Translated Spark Date Format: `${format.toString}` " +
+          s"to SingleStore Date Format Specifiers: `$translatedDateFmt`."
+      )
+    )
+
+    translatedDateFmt
+  }
+
 
   // helpers to keep this code sane
   def f(n: String, c: Joinable*): Statement              = func(n, c: _*)
@@ -368,10 +513,9 @@ object ExpressionGen extends LazyLogging {
         val startDayInt = getAiqDayOfWeekFromString(arg.startDay.eval().toString)
         val Seq(daysSinceEndExpr, daysSinceStartExpr) =
           Seq(arg.endTs, arg.startTs).map { expr =>
-            // Wrapping in `FLOOR` because Casting to Int in Snowflake is
-            // creating data issues. Example:
+            // Wrapping in `FLOOR` because Casting to Int creates data issues. Example:
             // - Java/Spark: (18140 + 3) / 7 = 2591 (Original value: 2591.8571428571427)
-            // - Snowflake: SELECT ((18140 + 3) / 7) ::int = 2592 (Original value: 2591.857143)
+            // - SingleStore: SELECT ((18140 + 3) / 7) !:>int = 2592 (Original value: 2591.8571)
             Floor(
               Divide(
                 Add(AiqDayDiff(Literal(0L), expr, arg.timezoneId), Literal(startDayInt)),
@@ -418,19 +562,36 @@ object ExpressionGen extends LazyLogging {
     }
   }
 
-  def aggregateWithFilter(funcName: String, child: Joinable, filter: Option[Joinable]) = {
+  case class AiqStringCompareCiExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: AiqStringCompareCi): Option[Joinable] = {
+      expressionExtractor.unapply(EqualTo(Lower(arg.left), Lower(arg.right)))
+    }
+  }
+
+  case class AiqStringCompareNeqCiExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: AiqStringCompareNeqCi): Option[Joinable] = {
+      expressionExtractor.unapply(Not(AiqStringCompareCi(arg.left, arg.right)))
+    }
+  }
+
+  def aggregateWithFilter(
+    funcName: String,
+    child: Joinable,
+    filter: Option[Joinable],
+    extraArgs: Seq[Joinable] = Seq()
+  ) = {
     filter match {
       case Some(filterExpression) =>
-        f(funcName, f("IF", filterExpression, child, StringVar(null)))
-      case None => f(funcName, child)
+        f(funcName, Seq(f("IF", filterExpression, child, StringVar(null))) ++ extraArgs: _*)
+      case None => f(funcName, Seq(child) ++ extraArgs: _*)
     }
   }
 
   val intFoldableExtractor: FoldableExtractor[Int]               = FoldableExtractor[Int]()
-  val strFoldableExtractor: FoldableExtractor[String]            = FoldableExtractor[String]()
+  val doubleFoldableExtractor: FoldableExtractor[Double]         = FoldableExtractor[Double]()
   val utf8StringFoldableExtractor: FoldableExtractor[UTF8String] = FoldableExtractor[UTF8String]()
 
-  def apply(expressionExtractor: ExpressionExtractor): PartialFunction[Expression, Joinable] = {
+  def apply(expressionExtractor: ExpressionExtractor): PartialFunction[Expression, Any] = {
     val caseWhenExpressionExtractor        = CaseWhenExpressionExtractor(expressionExtractor)
     val windowBoundaryExpressionExtractor  = WindowBoundaryExpressionExtractor(expressionExtractor)
     val monthsBetweenExpressionExtractor   = MonthsBetweenExpressionExtractor(expressionExtractor)
@@ -446,6 +607,9 @@ object ExpressionGen extends LazyLogging {
     val aiqWeekDiffExpressionExtractor     = AiqWeekDiffExpressionExtractor(expressionExtractor)
     val aiqDayOfTheWeekExpressionExtractor = AiqDayOfTheWeekExpressionExtractor(expressionExtractor)
     val aiqFromUnixTimeExpressionExtractor = AiqFromUnixTimeExpressionExtractor(expressionExtractor)
+
+    val aiqStringCompareCiExpressionExtractor    = AiqStringCompareCiExpressionExtractor(expressionExtractor)
+    val aiqStringCompareNeqCiExpressionExtractor = AiqStringCompareNeqCiExpressionExtractor(expressionExtractor)
 
     return {
       // ----------------------------------
@@ -539,9 +703,7 @@ object ExpressionGen extends LazyLogging {
       case ToUTCTimestamp(expressionExtractor(timestamp), expressionExtractor(timezone)) =>
         f("CONVERT_TZ", timestamp, timezone, StringVar("UTC"))
 
-      case TruncTimestamp(expressionExtractor(format),
-                          expressionExtractor(timestamp),
-                          timeZoneId) => {
+      case TruncTimestamp(expressionExtractor(format), expressionExtractor(timestamp), _) =>
         f(
           "DATE_TRUNC",
           sqlMapValueCaseInsensitive(
@@ -558,9 +720,8 @@ object ExpressionGen extends LazyLogging {
           ),
           timestamp
         )
-      }
 
-      case TruncDate(expressionExtractor(date), expressionExtractor(format)) => {
+      case TruncDate(expressionExtractor(date), expressionExtractor(format)) =>
         f(
           "DATE_TRUNC",
           sqlMapValueCaseInsensitive(
@@ -576,7 +737,6 @@ object ExpressionGen extends LazyLogging {
           ),
           date
         )
-      }
 
       case monthsBetweenExpressionExtractor((date1, date2)) =>
         f("MONTHS_BETWEEN", date1, date2)
@@ -589,19 +749,31 @@ object ExpressionGen extends LazyLogging {
       // SingleStore and spark support other date formats
       // UnixTime doesn't use format if time is already a dataType or TimestampType
 
-      case FromUnixTime(expressionExtractor(sec), utf8StringFoldableExtractor(format), timeZoneId)
-          if format == SINGLESTORE_DEFAULT_TIME_FORMAT =>
-        f("FROM_UNIXTIME", sec)
+      case FromUnixTime(expressionExtractor(sec), utf8StringFoldableExtractor(format), _) =>
+        val funcArgs = if (format == SINGLESTORE_DEFAULT_TIME_FORMAT) {
+          Seq(sec)
+        } else {
+          Seq(sec, Raw(sparkDateFmtToSingleStoreFmtSymbols(format)))
+        }
+
+        f("FROM_UNIXTIME", funcArgs: _*)
 
       case DateDiff(expressionExtractor(endDate), expressionExtractor(startDate)) =>
         f("DATEDIFF", endDate, startDate)
 
       case ParseToTimestamp(expressionExtractor(left),
-                            e @ expressionExtractor(Some(format)), _, _) if e.forall(_.foldable) =>
-        f("TO_TIMESTAMP", left, format)
+                            e @ expressionExtractor(Some(utf8StringFoldableExtractor(format))), _, _)
+        if e.forall(_.foldable) =>
+        f("TO_TIMESTAMP", left, sparkDateFmtToSingleStoreFmtSpecifiers(format))
 
-      case DateFormatClass(expressionExtractor(left), expressionExtractor(right), _) =>
-        f("DATE_FORMAT", left, right)
+      case ParseToDate(expressionExtractor(left),
+                       e @ expressionExtractor(Some(utf8StringFoldableExtractor(format))), _)
+        if e.forall(_.foldable) =>
+        f("TO_DATE", left, sparkDateFmtToSingleStoreFmtSpecifiers(format))
+
+      case DateFormatClass(expressionExtractor(left),
+                           e @ expressionExtractor(utf8StringFoldableExtractor(right)), _) if e.foldable =>
+        f("DATE_FORMAT", left, sparkDateFmtToSingleStoreFmtSymbols(right))
 
       case aiqDayStartExpressionExtractor(aiqDayStartStatement)         => aiqDayStartStatement
       case aiqStringToDateExpressionExtractor(aiqStringToDateStatement) => aiqStringToDateStatement
@@ -617,8 +789,7 @@ object ExpressionGen extends LazyLogging {
       case ShiftLeft(expressionExtractor(left), expressionExtractor(right)) => op("<<", left, right)
       case ShiftRight(expressionExtractor(left), expressionExtractor(right)) =>
         op(">>", left, right)
-      case ShiftRightUnsigned(expressionExtractor(left), expressionExtractor(right)) =>
-        op(">>", left, right)
+      // TODO: case ShiftRightUnsigned(expressionExtractor(left), expressionExtractor(right)) => op(">>", left, right)
       case Logarithm(expressionExtractor(left), expressionExtractor(right)) => f("LOG", left, right)
       case Hypot(expressionExtractor(left), expressionExtractor(right)) =>
         f("SQRT", op("+", f("POW", left, "2"), f("POW", right, "2")))
@@ -683,23 +854,22 @@ object ExpressionGen extends LazyLogging {
           ifNeg(times, IntVar(0), times) + "*" + f("CHAR_LENGTH", child),
           child)
 
-      case StringTrim(expressionExtractor(srcStr), None) =>
-        f("TRIM", Raw("BOTH") + "FROM" + srcStr)
-      case StringTrim(expressionExtractor(srcStr), Some(utf8StringFoldableExtractor(trimStr)))
-          if trimStr == UTF8String.fromString(" ") =>
-        f("TRIM", Raw("BOTH") + "FROM" + srcStr)
+      case StringTrim(expressionExtractor(srcStr), expressionExtractor(trimStrOpt)) =>
+        trimStrOpt.map { trimStr =>
+          f("TRIM", Raw("BOTH") + trimStr + "FROM" + srcStr)
+        }.getOrElse { f("TRIM", Raw("BOTH") + "FROM" + srcStr) }
 
-      case StringTrimLeft(expressionExtractor(srcStr), None) =>
-        f("LTRIM", srcStr)
-      case StringTrimLeft(expressionExtractor(srcStr), Some(utf8StringFoldableExtractor(trimStr)))
-          if trimStr == UTF8String.fromString(" ") =>
-        f("LTRIM", srcStr)
+      case StringTrimLeft(expressionExtractor(srcStr), expressionExtractor(trimStrOpt)) =>
+        trimStrOpt.map { trimStr =>
+          // https://docs.singlestore.com/cloud/reference/sql-reference/string-functions/trim/
+          f("TRIM", Raw("LEADING") + trimStr + "FROM" + srcStr)
+        }.getOrElse { f("LTRIM", srcStr) }
 
-      case StringTrimRight(expressionExtractor(srcStr), None) =>
-        f("RTRIM", srcStr)
-      case StringTrimRight(expressionExtractor(srcStr), Some(utf8StringFoldableExtractor(trimStr)))
-          if trimStr == UTF8String.fromString(" ") =>
-        f("RTRIM", srcStr)
+      case StringTrimRight(expressionExtractor(srcStr), expressionExtractor(trimStrOpt)) =>
+        trimStrOpt.map { trimStr =>
+          // https://docs.singlestore.com/cloud/reference/sql-reference/string-functions/trim/
+          f("TRIM", Raw("TRAILING") + trimStr + "FROM" + srcStr)
+        }.getOrElse { f("RTRIM", srcStr) }
 
       case FindInSet(expressionExtractor(left), utf8StringFoldableExtractor(right)) => {
         val str_array    = right.toString.split(',')
@@ -795,6 +965,9 @@ object ExpressionGen extends LazyLogging {
       case Decode(expressionExtractor(Some(params)), expressionExtractor(replacement)) =>
         f("DECODE", params, replacement)
 
+      case aiqStringCompareCiExpressionExtractor(aiqStringCompareCiStatement)       => aiqStringCompareCiStatement
+      case aiqStringCompareNeqCiExpressionExtractor(aiqStringCompareNeqCiStatement) => aiqStringCompareNeqCiStatement
+
       // ----------------------------------
       // Unary Expressions
       // ----------------------------------
@@ -827,8 +1000,8 @@ object ExpressionGen extends LazyLogging {
 
       //    case DatePart(expressionExtractor(field), expressionExtractor(source), expressionExtractor(child)) => // Converts to CAST(field)
 
-      case Extract(strFoldableExtractor(field), expressionExtractor(source), expressionExtractor(replacement)) =>
-        "EXTRACT" + block( Raw(field) + "FROM" + source )
+      case Extract(utf8StringFoldableExtractor(field), expressionExtractor(source), _) =>
+        f("EXTRACT", field.toString + "FROM" + source)
 
       //    case MakeInterval(_, _, _, _, _, _, _) => ???
 
@@ -851,9 +1024,17 @@ object ExpressionGen extends LazyLogging {
         f("SHA2", left, right.toString)
       case Crc32(expressionExtractor(child)) => f("CRC32", child)
 
+      // misc.scala
+      case AesEncrypt(expressionExtractor(input), expressionExtractor(key), expressionExtractor(mode), _) =>
+        f("AES_ENCRYPT", input, key, StringVar(null), mode)
+      case AesDecrypt(expressionExtractor(expr), expressionExtractor(key), expressionExtractor(mode), _) =>
+        f("AES_DECRYPT", expr, key, StringVar(null), mode)
+      case _: CurrentDatabase => "DATABASE()"
+      case _: CurrentUser => "USER()"
+
       //jsonExpressions.scala
       case GetJsonObject(expressionExtractor(json), utf8StringFoldableExtractor(path))
-          if path.toString.length >= 2 & path.toString.startsWith("$.") => {
+          if path.toString.length >= 2 & path.toString.startsWith("$.") =>
         val pathParts = path.toString.substring(2).split("\\.")
         val goalPath  = pathParts.last
         var jsonQuery = json
@@ -868,8 +1049,6 @@ object ExpressionGen extends LazyLogging {
           f("JSON_EXTRACT_STRING", jsonQuery, StringVar(goalPath)),
           f("JSON_EXTRACT_JSON", jsonQuery, StringVar(goalPath))
         )
-
-      }
 
       // mathExpressions.scala
       case Acos(expressionExtractor(child))      => f("ACOS", child)
