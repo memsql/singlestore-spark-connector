@@ -1,7 +1,6 @@
 package com.singlestore.spark
 
 import java.sql.{Date, Timestamp}
-
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.logical._
@@ -9,11 +8,12 @@ import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.types._
 import org.slf4j.{Logger, LoggerFactory}
 import com.singlestore.spark.JdbcHelpers.getDMLConnProperties
+import org.apache.spark.DataSourceTelemetryHelpers
 
 import scala.collection.immutable.HashMap
 import scala.collection.{breakOut, mutable}
 
-object SQLGen extends LazyLogging {
+object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
   type VariableList = List[Var[_]]
 
   trait Joinable {
@@ -204,7 +204,7 @@ object SQLGen extends LazyLogging {
         reader.schema
       } catch {
         case e: Exception => {
-          log.error(s"Failed to compute schema for reader:\n${reader.toString}")
+          log.error(logFailureTagger(s"Failed to compute schema for reader:\n${reader.toString}"))
           throw e
         }
       }
