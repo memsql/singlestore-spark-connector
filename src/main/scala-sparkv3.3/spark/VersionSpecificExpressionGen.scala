@@ -120,16 +120,15 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case Rand(expressionExtractor(child), _) => Some(f("RAND", child))
 
     // Cast.scala
-    case Cast(e @ expressionExtractor(child), dataType, _, false) => {
+    case Cast(e @ expressionExtractor(child), dataType, _, false) =>
       dataType match {
-        case TimestampType => {
+        case TimestampType =>
           e.dataType match {
             case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
                 DoubleType | _: DecimalType =>
               Some(cast(f("FROM_UNIXTIME", child), "DATETIME(6)"))
             case _ => Some(cast(child, "DATETIME(6)"))
           }
-        }
         case DateType => Some(cast(child, "DATE"))
 
         case StringType => Some(cast(child, "CHAR"))
@@ -159,7 +158,6 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
         // SingleStore doesn't know how to handle this cast, pass it through AS is
         case _ => Some(child)
       }
-    }
 
     // datetimeExpressions.scala
 
@@ -210,14 +208,10 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
                          StringVar(null)
                        )))
 
-    case TimeAdd(expressionExtractor(start),
-                 Literal(v: Long, DayTimeIntervalType(_, _)),
-                 timeZoneId) =>
+    case TimeAdd(expressionExtractor(start), Literal(v: Long, DayTimeIntervalType(_, _)), _) =>
       Some(addMicroseconds(start, v))
 
-    case TimestampAddYMInterval(expressionExtractor(start),
-                                Literal(v: Int, YearMonthIntervalType(_, _)),
-                                timeZoneId) =>
+    case TimestampAddYMInterval(expressionExtractor(start), Literal(v: Int, YearMonthIntervalType(_, _)), _) =>
       Some(addMonths(start, v))
 
     case Lead(expressionExtractor(input),
@@ -239,23 +233,19 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case BitwiseGet(expressionExtractor(left), expressionExtractor(right)) =>
       Some(op("&", op(">>", left, right), "1"))
 
-    case LikeAny(expressionExtractor(child), patterns) if patterns.size > 0 => {
+    case LikeAny(expressionExtractor(child), patterns) if patterns.size > 0 =>
       Some(likePatterns(child, patterns, "OR"))
-    }
-    case NotLikeAny(expressionExtractor(child), patterns) if patterns.size > 0 => {
+    case NotLikeAny(expressionExtractor(child), patterns) if patterns.size > 0 =>
       Some(f("NOT", likePatterns(child, patterns, "AND")))
-    }
-    case LikeAll(expressionExtractor(child), patterns) if patterns.size > 0 => {
+    case LikeAll(expressionExtractor(child), patterns) if patterns.size > 0 =>
       Some(likePatterns(child, patterns, "AND"))
-    }
-    case NotLikeAll(expressionExtractor(child), patterns) if patterns.size > 0 => {
+    case NotLikeAll(expressionExtractor(child), patterns) if patterns.size > 0 =>
       Some(f("NOT", likePatterns(child, patterns, "OR")))
-    }
 
     case WidthBucket(expressionExtractor(value),
                      expressionExtractor(minValue),
                      expressionExtractor(maxValue),
-                     expressionExtractor(numBucket)) => {
+                     expressionExtractor(numBucket)) =>
       var caseBranches = stringToJoinable("")
       // when (numBucket <= 0) or (minValue = maxValue) then null
       caseBranches += Raw("WHEN") + op(
@@ -286,7 +276,6 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
         IntVar(1)
       )
       Some(block(Raw("CASE") + caseBranches + elseBranch + Raw("END")))
-    }
 
     // stringExpressions.scala
     case Left(expressionExtractor(str), expressionExtractor(len)) =>

@@ -33,7 +33,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
    * Spark -> https://spark.apache.org/docs/latest/sql-ref-datetime-pattern.html
    * SingleStore -> https://docs.singlestore.com/cloud/reference/sql-reference/date-and-time-functions/date-format/
    */
-  final def sparkDateFmtToSingleStoreFmtSymbols(format: UTF8String): String = {
+  private final def sparkDateFmtToSingleStoreFmtSymbols(format: UTF8String): String = {
     val translatedDateFmt = format.toString match {
       case "YYYY" | "yyyy" => "%Y"
       case "YY" | "yy"     => "%y"
@@ -132,7 +132,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
    * Spark -> https://spark.apache.org/docs/latest/sql-ref-datetime-pattern.html
    * SingleStore -> https://docs.singlestore.com/cloud/reference/sql-reference/date-and-time-functions/to-char/
    */
-  final def sparkDateFmtToSingleStoreFmtSpecifiers(format: UTF8String): String = {
+  private final def sparkDateFmtToSingleStoreFmtSpecifiers(format: UTF8String): String = {
     val translatedDateFmt =
       // Note: Order of string replacement for groups matters
       format
@@ -591,7 +591,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
   val doubleFoldableExtractor: FoldableExtractor[Double]         = FoldableExtractor[Double]()
   val utf8StringFoldableExtractor: FoldableExtractor[UTF8String] = FoldableExtractor[UTF8String]()
 
-  def apply(expressionExtractor: ExpressionExtractor): PartialFunction[Expression, Any] = {
+  def apply(expressionExtractor: ExpressionExtractor): PartialFunction[Expression, Joinable] = {
     val caseWhenExpressionExtractor        = CaseWhenExpressionExtractor(expressionExtractor)
     val windowBoundaryExpressionExtractor  = WindowBoundaryExpressionExtractor(expressionExtractor)
     val monthsBetweenExpressionExtractor   = MonthsBetweenExpressionExtractor(expressionExtractor)
@@ -684,9 +684,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
       case DateSub(expressionExtractor(startDate), expressionExtractor(days)) =>
         f("SUBDATE", startDate, days)
 
-      case TimeAdd(expressionExtractor(start),
-                   Literal(v: CalendarInterval, CalendarIntervalType),
-                   timeZoneId) => {
+      case TimeAdd(expressionExtractor(start), Literal(v: CalendarInterval, CalendarIntervalType), _) =>
         def addDays(start: Joinable) =
           if (v.days == 0) {
             start
@@ -695,7 +693,6 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
           }
 
         addMicroseconds(addDays(addMonths(start, v)), v)
-      }
 
       case FromUTCTimestamp(expressionExtractor(timestamp), expressionExtractor(timezone)) =>
         f("CONVERT_TZ", timestamp, StringVar("UTC"), timezone)
@@ -871,7 +868,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
           f("TRIM", Raw("TRAILING") + trimStr + "FROM" + srcStr)
         }.getOrElse { f("RTRIM", srcStr) }
 
-      case FindInSet(expressionExtractor(left), utf8StringFoldableExtractor(right)) => {
+      case FindInSet(expressionExtractor(left), utf8StringFoldableExtractor(right)) =>
         val str_array    = right.toString.split(',')
         var caseBranches = stringToJoinable("")
         for (i <- 1 to str_array.length) {
@@ -879,7 +876,6 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
           caseBranches += Raw(s"THEN '${i.toString}'")
         }
         block(Raw("CASE") + left + caseBranches + Raw("ELSE 0 END"))
-      }
 
       // TODO: case _: Levenshtein => None
 
@@ -942,7 +938,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
 
       case StringTranslate(expressionExtractor(srcExpr),
                            utf8StringFoldableExtractor(matchingExpr),
-                           utf8StringFoldableExtractor(replaceExpr)) => {
+                           utf8StringFoldableExtractor(replaceExpr)) =>
         var replaceContent  = srcExpr
         val replaceExprLen  = replaceExpr.toString.length
         val matchingExprLen = matchingExpr.toString.length
@@ -960,7 +956,6 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
           replaceContent = f("REPLACE", replaceContent, matchingCurrCharacter, replaceCurrCharacter)
         }
         replaceContent
-      }
 
       case Decode(expressionExtractor(Some(params)), expressionExtractor(replacement)) =>
         f("DECODE", params, replacement)

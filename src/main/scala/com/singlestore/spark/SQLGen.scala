@@ -620,7 +620,7 @@ object SQLGen extends LazyLogging {
           case e: NullPointerException =>
             s"${arg.prettyName} (failed to convert expression to string)"
         }
-        log.trace(s"Warning: SingleStore SQL pushdown was unable to convert expression: $argStr")
+        log.trace(s"Warning: SingleStore SQL PushDown was unable to convert expression: $argStr")
       }
 
       out
