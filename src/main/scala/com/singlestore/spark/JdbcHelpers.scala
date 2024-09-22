@@ -124,7 +124,7 @@ object JdbcHelpers extends LazyLogging with DataSourceTelemetryHelpers {
       SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
     try {
       val statement =
-        conn.prepareStatement(SinglestoreDialect.getSchemaQuery(s"($query) AS q"))
+        conn.prepareStatement(appendTagsToQuery(conf, SinglestoreDialect.getSchemaQuery(s"($query) AS q")))
       try {
         fillStatement(statement, variables)
         val rs = statement.executeQuery()
