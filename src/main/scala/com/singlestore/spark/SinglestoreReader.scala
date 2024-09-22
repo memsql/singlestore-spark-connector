@@ -141,21 +141,24 @@ case class SinglestoreReader(query: String,
 
     val newReader = copy(query = stmt.sql, variables = stmt.variables, expectedOutput = stmt.output)
 
-    if (log.isTraceEnabled) {
-      log.trace(logEventNameTagger(s"CatalystScan additional rewrite:\n$newReader"))
-    }
+    log.info(logEventNameTagger(s"CatalystScan additional rewrite:\n$newReader"))
 
     newReader.buildScan
   }
 
   override def toString: String = {
-    val explain =
-      try {
+    val explain = if (log.isTraceEnabled) {
+      val explainStr = try {
         JdbcHelpers.explainQuery(options, query, variables)
       } catch {
         case e: SQLSyntaxErrorException => e.toString
         case e: Exception               => throw e
       }
+      s"""
+         |\nEXPLAIN:
+         |$explainStr
+         """.stripMargin
+    } else { "" }
     val v = variables.map(_.variable).mkString(", ")
 
     s"""
@@ -163,10 +166,7 @@ case class SinglestoreReader(query: String,
       |SingleStore Query
       |Variables: ($v)
       |SQL:
-      |$query
-      |
-      |EXPLAIN:
-      |$explain
+      |$query$explain
       |---------------
       """.stripMargin
   }

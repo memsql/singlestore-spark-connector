@@ -203,10 +203,9 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
       val schema = try {
         reader.schema
       } catch {
-        case e: Exception => {
+        case e: Exception =>
           log.error(logFailureTagger(s"Failed to compute schema for reader:\n${reader.toString}"))
           throw e
-        }
       }
 
       val castedOutputExpr = output
@@ -617,10 +616,12 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
         val argStr: String = try {
           arg.asCode
         } catch {
-          case e: NullPointerException =>
+          case _: NullPointerException =>
             s"${arg.prettyName} (failed to convert expression to string)"
         }
-        log.trace(s"Warning: SingleStore SQL PushDown was unable to convert expression: $argStr")
+        log.info(
+          logEventNameTagger(s"SingleStore SQL PushDown was unable to convert expression: $argStr")
+        )
       }
 
       out

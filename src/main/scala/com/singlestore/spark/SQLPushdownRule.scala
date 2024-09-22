@@ -1,11 +1,12 @@
 package com.singlestore.spark
 
 import com.singlestore.spark.SQLGen.{ExpressionExtractor, SQLGenContext}
+import org.apache.spark.DataSourceTelemetryHelpers
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.rules.Rule
 
-class SQLPushdownRule extends Rule[LogicalPlan] {
+class SQLPushdownRule extends Rule[LogicalPlan] with DataSourceTelemetryHelpers {
   override def apply(root: LogicalPlan): LogicalPlan = {
     var context: SQLGenContext = null
     val needsPushdown = root
@@ -65,8 +66,8 @@ class SQLPushdownRule extends Rule[LogicalPlan] {
       case SQLGen.Relation(relation) if !relation.isFinal => relation.castOutputAndFinalize
     })
 
-    if (log.isTraceEnabled) {
-      log.trace(s"Optimized Plan:\n${out.treeString(true)}")
+    if (needsPushdown) {
+      log.info(logEventNameTagger(s"Optimized Plan:\n${out.treeString(true)}"))
     }
 
     out
