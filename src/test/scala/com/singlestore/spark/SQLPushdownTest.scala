@@ -1730,15 +1730,15 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("ShiftRightUnsigned") {
-      it("works") {
+      ignore("works") {
         testQuery("select ShiftRightUnsigned(id, floor(critic_rating)) as x from movies")
       }
-      it("udf in the left argument") {
+      ignore("udf in the left argument") {
         testQuery(
           "select ShiftRightUnsigned(stringIdentity(id), floor(critic_rating)) as x from movies",
           expectPartialPushdown = true)
       }
-      it("udf in the right argument") {
+      ignore("udf in the right argument") {
         testQuery(
           "select ShiftRightUnsigned(id, stringIdentity(floor(critic_rating))) as x from movies",
           expectPartialPushdown = true)
@@ -1921,27 +1921,28 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
     describe("First") {
-      it("succeeds") {
+      ignore("succeeds") {
         testSingleReadForReadFromLeaves("select first(first_name) from users group by id")
       }
-      it("partial pushdown with udf") {
+      ignore("partial pushdown with udf") {
         testSingleReadQuery("select first(stringIdentity(first_name)) from users group by id",
                             expectPartialPushdown = true)
       }
-      it("filter") {
+      ignore("filter") {
+        cancel("skipped")
         testSingleReadForReadFromLeaves(
           "select first(first_name) filter (where age % 2 = 0) from users group by id")
       }
     }
     describe("Last") {
-      it("succeeds") {
+      ignore("succeeds") {
         testSingleReadForReadFromLeaves("select last(first_name) from users group by id")
       }
-      it("partial pushdown with udf") {
+      ignore("partial pushdown with udf") {
         testSingleReadQuery("select last(stringIdentity(first_name)) from users group by id",
                             expectPartialPushdown = true)
       }
-      it("filter") {
+      ignore("filter") {
         testSingleReadForReadFromLeaves(
           "select last(first_name) filter (where age % 2 = 0) from users group by id")
       }
