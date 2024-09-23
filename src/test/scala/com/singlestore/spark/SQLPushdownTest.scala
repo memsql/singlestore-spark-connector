@@ -3154,8 +3154,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery("select id, trim(both ' ' from first_name) from users")
       }
       it("partial pushdown when trimStr is not None and not ' '") {
-        testQuery("select id, trim(both 'abc' from first_name) from users",
-                  expectPartialPushdown = true)
+        testQuery("select id, trim(both 'abc' from first_name) from users")
       }
       it("partial pushdown with udf") {
         testQuery("select id, trim(stringIdentity(first_name)) from users",
