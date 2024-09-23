@@ -78,7 +78,7 @@ case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: Expr
         )
 
       // First.scala
-      // TODO: First(expressionExtractor(child), false) => Some(aggregateWithFilter("ANY_VALUE", child, filter))
+      // TODO: case First(expressionExtractor(child), false) => Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
       // Last.scala
       // TODO: case Last(expressionExtractor(child), false) => Some(aggregateWithFilter("ANY_VALUE", child, filter))
