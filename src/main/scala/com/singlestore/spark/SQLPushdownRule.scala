@@ -1,18 +1,21 @@
 package com.singlestore.spark
 
 import com.singlestore.spark.SQLGen.{ExpressionExtractor, SQLGenContext}
-import org.apache.spark.DataSourceTelemetryHelpers
+import org.apache.spark.{DataSourceTelemetryHelpers, SparkContext}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.plans.logical._
 import org.apache.spark.sql.catalyst.rules.Rule
 
-class SQLPushdownRule extends Rule[LogicalPlan] with DataSourceTelemetryHelpers {
+class SQLPushdownRule(sparkContext: SparkContext)
+  extends Rule[LogicalPlan]
+    with DataSourceTelemetryHelpers {
+
   override def apply(root: LogicalPlan): LogicalPlan = {
     var context: SQLGenContext = null
     val needsPushdown = root
       .find({
         case SQLGen.Relation(r: SQLGen.Relation) if !r.reader.isFinal =>
-          context = SQLGenContext(root, r.reader.options)
+          context = SQLGenContext(root, r.reader.options, sparkContext)
           true
         case _ => false
       })
@@ -66,9 +69,7 @@ class SQLPushdownRule extends Rule[LogicalPlan] with DataSourceTelemetryHelpers 
       case SQLGen.Relation(relation) if !relation.isFinal => relation.castOutputAndFinalize
     })
 
-    if (needsPushdown) {
-      log.info(logEventNameTagger(s"Optimized Plan:\n${out.treeString(true)}"))
-    }
+    log.info(logEventNameTagger(s"Optimized Plan:\n${out.treeString(true)}"))
 
     out
   }
@@ -82,7 +83,7 @@ object SQLPushdownRule {
 
   def ensureInjected(session: SparkSession): Unit = {
     if (!injected(session)) {
-      session.experimental.extraOptimizations ++= Seq(new SQLPushdownRule)
+      session.experimental.extraOptimizations ++= Seq(new SQLPushdownRule(session.sparkContext))
     }
   }
 

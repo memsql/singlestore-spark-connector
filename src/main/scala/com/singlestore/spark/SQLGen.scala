@@ -8,7 +8,7 @@ import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.types._
 import org.slf4j.{Logger, LoggerFactory}
 import com.singlestore.spark.JdbcHelpers.getDMLConnProperties
-import org.apache.spark.DataSourceTelemetryHelpers
+import org.apache.spark.{DataSourceTelemetryHelpers, SparkContext}
 
 import scala.collection.immutable.HashMap
 import scala.collection.{breakOut, mutable}
@@ -532,7 +532,8 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
   // normalizedExprIdMap is a map from ExprId to its normalized index
   // It is needed to make generated SQL queries deterministic
   case class SQLGenContext(normalizedExprIdMap: HashMap[ExprId, Int],
-                           singlestoreVersion: SinglestoreVersion) {
+                           singlestoreVersion: SinglestoreVersion,
+                           sparkContext: SparkContext) {
     val aliasGen: Iterator[String] = Iterator.from(1).map(i => s"a$i")
     def nextAlias(): String        = aliasGen.next()
 
@@ -558,7 +559,7 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
           SinglestoreVersion(singlestoreVersion.get)
       }
 
-    def apply(root: LogicalPlan, options: SinglestoreOptions): SQLGenContext = {
+    def apply(root: LogicalPlan, options: SinglestoreOptions, sparkContext: SparkContext): SQLGenContext = {
       var normalizedExprIdMap = scala.collection.immutable.HashMap[ExprId, Int]()
       val nextId              = Iterator.from(1)
       root.foreach(plan =>
@@ -568,11 +569,11 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
           }
         }))
 
-      new SQLGenContext(normalizedExprIdMap, getSinglestoreVersion(options))
+      new SQLGenContext(normalizedExprIdMap, getSinglestoreVersion(options), sparkContext)
     }
 
-    def apply(options: SinglestoreOptions): SQLGenContext =
-      new SQLGenContext(HashMap.empty, getSinglestoreVersion(options))
+    def apply(options: SinglestoreOptions, sparkContext: SparkContext): SQLGenContext =
+      new SQLGenContext(HashMap.empty, getSinglestoreVersion(options), sparkContext)
   }
 
   case class SinglestoreVersion(major: Int, minor: Int, patch: Int) {
@@ -592,6 +593,7 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
 
     override def toString: String = s"${this.major}.${this.minor}.${this.patch}"
   }
+
   object SinglestoreVersion {
 
     def apply(version: String): SinglestoreVersion = {
@@ -619,6 +621,7 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
           case _: NullPointerException =>
             s"${arg.prettyName} (failed to convert expression to string)"
         }
+        context.sparkContext.dataSourceTelemetry.numOfFailedPushDownQueries.getAndIncrement()
         log.info(
           logEventNameTagger(s"SingleStore SQL PushDown was unable to convert expression: $argStr")
         )

@@ -59,7 +59,7 @@ class DefaultSource
                         Nil,
                         options,
                         sqlContext,
-                        context = SQLGenContext(options))
+                        context = SQLGenContext(options, sqlContext.sparkContext))
     }
   }
 
