@@ -1,9 +1,8 @@
 package com.singlestore.spark
 
-import com.singlestore.spark.JdbcHelpers.{executeQuery, getDDLConnProperties}
+import com.singlestore.spark.JdbcHelpers.{appendTagsToQuery, executeQuery, getDDLConnProperties}
 import org.apache.spark.sql.{Row, SparkSession}
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
-import org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils
 
 object SQLHelper extends LazyLogging {
   implicit class QueryMethods(spark: SparkSession) {
@@ -30,8 +29,9 @@ object SQLHelper extends LazyLogging {
       val conf = SinglestoreOptions(CaseInsensitiveMap(opts), spark.sparkContext)
       val conn =
         SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
+      val finalQuery = appendTagsToQuery(conf, query)
       try {
-        executeQuery(conn, query, variables: _*)
+        executeQuery(conn, finalQuery, variables: _*)
       } finally {
         conn.close()
       }
