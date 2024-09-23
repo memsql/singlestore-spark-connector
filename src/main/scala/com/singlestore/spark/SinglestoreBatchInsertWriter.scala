@@ -2,8 +2,8 @@ package com.singlestore.spark
 
 import java.sql.Connection
 import java.util.Base64
-
-import com.singlestore.spark.JdbcHelpers.{getDDLConnProperties, getDMLConnProperties}
+import com.singlestore.spark.JdbcHelpers.{appendTagsToQuery, getDDLConnProperties, getDMLConnProperties}
+import org.apache.spark.DataSourceTelemetryHelpers
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.types.{BinaryType, StructType}
 import org.apache.spark.sql.{Row, SaveMode}
@@ -14,7 +14,8 @@ import scala.concurrent.ExecutionContext
 // TODO: extend it from DataWriterFactory
 class BatchInsertWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
     extends WriterFactory
-    with LazyLogging {
+    with LazyLogging
+    with DataSourceTelemetryHelpers {
 
   def createDataWriter(schema: StructType,
                        partitionId: Int,
@@ -54,7 +55,10 @@ class BatchInsertWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
           queryPrefix + valueTemplate(rowsCount) + querySuffix
         }
 
-        val stmt = conn.prepareStatement(query)
+        val finalQuery = appendTagsToQuery(conf, query)
+        log.info(logEventNameTagger(s"Executing SQL:\n$finalQuery"))
+
+        val stmt = conn.prepareStatement(finalQuery)
         try {
           for {
             (row, i) <- buff.iterator.zipWithIndex

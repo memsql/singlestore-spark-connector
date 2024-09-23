@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets
 import java.sql.Connection
 import java.util.Base64
 import java.util.zip.GZIPOutputStream
-import com.singlestore.spark.JdbcHelpers.{getDDLConnProperties, getDMLConnProperties, logEventNameTagger}
+import com.singlestore.spark.JdbcHelpers.{appendTagsToQuery, getDDLConnProperties, getDMLConnProperties, logEventNameTagger}
 import com.singlestore.spark.SinglestoreOptions.CompressionType
 import com.singlestore.spark.vendor.apache.SchemaConverters
 import net.jpountz.lz4.LZ4FrameOutputStream
@@ -21,7 +21,7 @@ import org.apache.spark.sql.{Row, SaveMode}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.util.{Failure, Try}
+import scala.util.Try
 
 abstract class WriterCommitMessage extends Serializable {}
 case class WriteSuccess()          extends WriterCommitMessage
@@ -154,8 +154,9 @@ class LoadDataWriterFactory(table: TableIdentifier, conf: SinglestoreOptions)
             .asInstanceOf[ImplementsSetInfileStream]
             .setNextLocalInfileInputStream(inputstream)
 
-          log.debug(logEventNameTagger(s"Executing SQL:\n$query"))
-          stmt.executeUpdate(query)
+          val finalQuery = appendTagsToQuery(conf, query)
+          log.info(logEventNameTagger(s"Executing SQL:\n$finalQuery"))
+          stmt.executeUpdate(finalQuery)
         } finally {
           stmt.close()
         }
