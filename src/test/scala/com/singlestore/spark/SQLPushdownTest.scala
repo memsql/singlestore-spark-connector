@@ -1929,7 +1929,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                             expectPartialPushdown = true)
       }
       ignore("filter") {
-        cancel("skipped")
         testSingleReadForReadFromLeaves(
           "select first(first_name) filter (where age % 2 = 0) from users group by id")
       }
