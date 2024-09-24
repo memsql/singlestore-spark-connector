@@ -3720,8 +3720,29 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("Base64") {
+      // Spark 3.3|3.4|3.5 use RFC 2045 encoding which has the following behavior:
+      //  The encoded output must be represented in lines of no more than 76 characters each and
+      //  uses a carriage return '\r' followed immediately by a linefeed '\n' as the line separator.
+      //
+      // For example, in the following, the comparison of the expected vs. the actual result
+      // will fail even though the value is the same:
+      // [72,IGxhY2luaWEgbmlzaSB2ZW5lbmF0aXMgdHJpc3RpcXVlLiBGdXNjZSBjb25ndWUsIGRpYW0gaWQgb3JuYXJlIGltcGVyZGlldCwgc2FwaWVuIHVybmEgcHJldGl1bSBuaXNsLCB1dCB2b2x1dHBhdCBzYXBpZW4gYXJjdSBzZWQgYXVndWUuIEFsaXF1YW0gZXJhdCB2b2x1dHBhdC4KCkluIGNvbmd1ZS4gRXRpYW0ganVzdG8uIEV0aWFtIHByZXRpdW0gaWFjdWxpcyBqdXN0by4=]
+      // [72,IGxhY2luaWEgbmlzaSB2ZW5lbmF0aXMgdHJpc3RpcXVlLiBGdXNjZSBjb25ndWUsIGRpYW0gaWQg
+      //     b3JuYXJlIGltcGVyZGlldCwgc2FwaWVuIHVybmEgcHJldGl1bSBuaXNsLCB1dCB2b2x1dHBhdCBz
+      //     YXBpZW4gYXJjdSBzZWQgYXVndWUuIEFsaXF1YW0gZXJhdCB2b2x1dHBhdC4KCkluIGNvbmd1ZS4g
+      //     RXRpYW0ganVzdG8uIEV0aWFtIHByZXRpdW0gaWFjdWxpcyBqdXN0by4=]
+      //
+      // We use substr(col, 0, 76) [first76 chars] and substr(col, -1, 76) [last 76 chars] to make
+      // sure we test the pushdown functionality, the validity of the results and allow the test
+      // to succeed for Spark 3.3 (and the following versions)
       it("works", ExcludeFromSpark34, ExcludeFromSpark35) {
-        testQuery("select id, base64(critic_review) as t_col from movies")
+        testQuery(
+          """|select
+             |  id,
+             |  substr(base64(critic_review), 1, 76) as t_col0,
+             |  substr(base64(critic_review), -1, 76) as t_col1
+             |from movies""".stripMargin.linesIterator.mkString(" ")
+        )
       }
       it("partial pushdown with udf") {
         testQuery("select id, base64(stringIdentity(critic_review)) from movies",
