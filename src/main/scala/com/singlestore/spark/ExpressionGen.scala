@@ -1054,7 +1054,6 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
       case LengthOfJsonArray(expressionExtractor(json)) => f("JSON_LENGTH", json)
       case JsonObjectKeys(expressionExtractor(json))    => f("JSON_KEYS", json)
 
-
       // mathExpressions.scala
       case Acos(expressionExtractor(child))      => f("ACOS", child)
       case Asin(expressionExtractor(child))      => f("ASIN", child)
