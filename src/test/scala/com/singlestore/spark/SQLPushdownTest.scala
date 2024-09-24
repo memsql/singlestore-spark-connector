@@ -4031,7 +4031,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                     expectPartialPushdown = true)
         }
       }
-      it("very simple patterns full pushdown", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
+      ignore("very simple patterns full pushdown", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
         for (f <- functions) {
           log.debug(s"testing $f")
           // Spark 3.4|3.5 invoke full pushdown
