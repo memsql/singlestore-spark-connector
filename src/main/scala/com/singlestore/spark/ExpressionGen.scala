@@ -851,22 +851,28 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
           ifNeg(times, IntVar(0), times) + "*" + f("CHAR_LENGTH", child),
           child)
 
-      case StringTrim(expressionExtractor(srcStr), expressionExtractor(trimStrOpt)) =>
-        trimStrOpt.map { trimStr =>
-          f("TRIM", Raw("BOTH") + trimStr + "FROM" + srcStr)
-        }.getOrElse { f("TRIM", Raw("BOTH") + "FROM" + srcStr) }
+      case StringTrim(expressionExtractor(srcStr), trimStrOptExp) =>
+        trimStrOptExp match {
+          case Some(utf8StringFoldableExtractor(trimStr)) =>
+            f("TRIM", Raw("BOTH") + s"'${trimStr.toString}'" + "FROM" + srcStr)
+          case None => f("TRIM", Raw("BOTH") + "FROM" + srcStr)
+        }
 
-      case StringTrimLeft(expressionExtractor(srcStr), expressionExtractor(trimStrOpt)) =>
-        trimStrOpt.map { trimStr =>
-          // https://docs.singlestore.com/cloud/reference/sql-reference/string-functions/trim/
-          f("TRIM", Raw("LEADING") + trimStr + "FROM" + srcStr)
-        }.getOrElse { f("LTRIM", srcStr) }
+      case StringTrimLeft(expressionExtractor(srcStr), trimStrOptExp) =>
+        trimStrOptExp match {
+          case Some(utf8StringFoldableExtractor(trimStr)) =>
+            // https://docs.singlestore.com/cloud/reference/sql-reference/string-functions/trim/
+            f("TRIM", Raw("LEADING") + s"'${trimStr.toString}'" + "FROM" + srcStr)
+          case None => f("LTRIM", srcStr)
+        }
 
-      case StringTrimRight(expressionExtractor(srcStr), expressionExtractor(trimStrOpt)) =>
-        trimStrOpt.map { trimStr =>
-          // https://docs.singlestore.com/cloud/reference/sql-reference/string-functions/trim/
-          f("TRIM", Raw("TRAILING") + trimStr + "FROM" + srcStr)
-        }.getOrElse { f("RTRIM", srcStr) }
+      case StringTrimRight(expressionExtractor(srcStr), trimStrOptExp) =>
+        trimStrOptExp match {
+          case Some(utf8StringFoldableExtractor(trimStr)) =>
+            // https://docs.singlestore.com/cloud/reference/sql-reference/string-functions/trim/
+            f("TRIM", Raw("TRAILING") + s"'${trimStr.toString}'" + "FROM" + srcStr)
+          case None => f("RTRIM", srcStr)
+        }
 
       case FindInSet(expressionExtractor(left), utf8StringFoldableExtractor(right)) =>
         val str_array    = right.toString.split(',')

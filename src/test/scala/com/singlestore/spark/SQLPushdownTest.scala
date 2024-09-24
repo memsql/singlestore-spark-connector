@@ -3148,55 +3148,67 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("StringTrim") {
       it("works") {
-        testQuery("select id, trim(first_name) from users")
+        testQuery("select id, trim(first_name) as t_col from users")
+      }
+      it("works (other syntax)") {
+        testQuery("select id, btrim(first_name) as t_col from users")
       }
       it("works when trimStr is ' '") {
-        testQuery("select id, trim(both ' ' from first_name) from users")
+        testQuery("select id, trim(both ' ' from first_name) as t_col from users")
       }
-      it("partial pushdown when trimStr is not None and not ' '") {
-        testQuery("select id, trim(both 'abc' from first_name) from users")
+      it("works when trimStr is ' ' (other syntax)") {
+        testQuery("select id, trim(' ', first_name) as t_col from users")
+      }
+      it("works when trimStr is not None and not ' '") {
+        testQuery("select id, trim(both '@' from first_name) as t_col from users")
+      }
+      it("works when trimStr is not None and not ' ' (other syntax)") {
+        testQuery("select id, trim('@', first_name) as t_col from users")
       }
       it("partial pushdown with udf") {
-        testQuery("select id, trim(stringIdentity(first_name)) from users",
-                  expectPartialPushdown = true)
+        testQuery("select id, trim(stringIdentity(first_name)) from users", expectPartialPushdown = true)
       }
     }
 
     describe("StringTrimLeft") {
       it("works") {
-        testQuery("select id, ltrim(first_name) from users")
+        testQuery("select id, ltrim(first_name) as t_col from users")
       }
       it("works when trimStr is ' '") {
-        testQuery("select id, trim(leading ' ' from first_name) from users")
+        testQuery("select id, trim(leading ' ' from first_name) as t_col from users")
       }
       it("works when trimStr is ' ' (other syntax)") {
-        testQuery("select id, ltrim(' ', first_name) from users")
+        testQuery("select id, ltrim(' ', first_name) as t_col from users")
       }
-      it("partial pushdown when trimStr is not None and not ' '") {
-        testQuery("select id, ltrim('abc', first_name) from users", expectPartialPushdown = true)
+      it("works when trimStr is not None and not ' '") {
+        testQuery("select id, trim(leading '@' from first_name) as t_col from users")
+      }
+      it("works when trimStr is not None and not ' ' (other syntax)") {
+        testQuery("select id, ltrim('@', first_name) as t_col from users")
       }
       it("partial pushdown with udf") {
-        testQuery("select id, ltrim(stringIdentity(first_name)) from users",
-                  expectPartialPushdown = true)
+        testQuery("select id, ltrim(stringIdentity(first_name)) from users", expectPartialPushdown = true)
       }
     }
 
     describe("StringTrimRight") {
       it("works") {
-        testQuery("select id, rtrim(first_name) from users")
+        testQuery("select id, rtrim(first_name) as t_col from users")
       }
       it("works when trimStr is ' '") {
-        testQuery("select id, trim(trailing ' ' from first_name) from users")
+        testQuery("select id, trim(trailing ' ' from first_name) as t_col from users")
       }
       it("works when trimStr is ' ' (other syntax)") {
-        testQuery("select id, rtrim(' ', first_name) from users")
+        testQuery("select id, rtrim(' ', first_name) as t_col from users")
       }
-      it("partial pushdown when trimStr is not None and not ' '") {
-        testQuery("select id, rtrim('abc', first_name) from users", expectPartialPushdown = true)
+      it("works when trimStr is not None and not ' '") {
+        testQuery("select id, trim(trailing '@' from first_name) as t_col from users")
+      }
+      it("works when trimStr is not None and not ' ' (other syntax)") {
+        testQuery("select id, rtrim('@', first_name) as t_col from users")
       }
       it("partial pushdown with udf") {
-        testQuery("select id, rtrim(stringIdentity(first_name)) from users",
-                  expectPartialPushdown = true)
+        testQuery("select id, rtrim(stringIdentity(first_name)) from users", expectPartialPushdown = true)
       }
     }
 
@@ -3708,8 +3720,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("Base64") {
-      it("works", ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35) {
-        testQuery("select id, base64(critic_review) as x from movies")
+      it("works", ExcludeFromSpark34, ExcludeFromSpark35) {
+        testQuery("select id, base64(critic_review) as t_col from movies")
       }
       it("partial pushdown with udf") {
         testQuery("select id, base64(stringIdentity(critic_review)) from movies",
@@ -3998,7 +4010,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                     expectPartialPushdown = true)
         }
       }
-      it("very simple patterns full pushdown", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
+      it("very simple patterns full pushdown", ExcludeFromSpark31, ExcludeFromSpark32) {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')")
