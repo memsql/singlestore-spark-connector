@@ -32,8 +32,8 @@ import org.apache.spark.sql.types.{
 }
 
 case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor) {
-  // Note: no apparent reason to match-pushdown ONLY when failOnError = false or hideSeed = false
-  // so altering the original Connector Implementation to be less strict
+  // Note: no apparent reason to match-pushdown ONLY when failOnError = false, hideSeed = false
+  // or ansiEnabled = false so altering the original Connector Implementation to be less strict
   def unapply(e: Expression): Option[Joinable] = e match {
     case MakeDate(expressionExtractor(year),
                   expressionExtractor(month),
@@ -120,7 +120,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case Rand(expressionExtractor(child), _) => Some(f("RAND", child))
 
     // Cast.scala
-    case Cast(e @ expressionExtractor(child), dataType, _, false) =>
+    case Cast(e @ expressionExtractor(child), dataType, _, _) =>
       dataType match {
         case TimestampType =>
           e.dataType match {
