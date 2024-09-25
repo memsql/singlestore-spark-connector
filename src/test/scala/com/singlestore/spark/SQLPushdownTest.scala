@@ -1730,15 +1730,15 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("ShiftRightUnsigned") {
-      ignore("works") {
+      ignore("09/2024 - works") {
         testQuery("select ShiftRightUnsigned(id, floor(critic_rating)) as x from movies")
       }
-      ignore("udf in the left argument") {
+      ignore("09/2024 - udf in the left argument") {
         testQuery(
           "select ShiftRightUnsigned(stringIdentity(id), floor(critic_rating)) as x from movies",
           expectPartialPushdown = true)
       }
-      ignore("udf in the right argument") {
+      ignore("09/2024 - udf in the right argument") {
         testQuery(
           "select ShiftRightUnsigned(id, stringIdentity(floor(critic_rating))) as x from movies",
           expectPartialPushdown = true)
@@ -1921,27 +1921,27 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
     describe("First") {
-      ignore("succeeds") {
+      ignore("09/2024 - succeeds") {
         testSingleReadForReadFromLeaves("select first(first_name) from users group by id")
       }
-      ignore("partial pushdown with udf") {
+      ignore("09/2024 - partial pushdown with udf") {
         testSingleReadQuery("select first(stringIdentity(first_name)) from users group by id",
                             expectPartialPushdown = true)
       }
-      ignore("filter") {
+      ignore("09/2024 - filter") {
         testSingleReadForReadFromLeaves(
           "select first(first_name) filter (where age % 2 = 0) from users group by id")
       }
     }
     describe("Last") {
-      ignore("succeeds") {
+      ignore("09/2024 - succeeds") {
         testSingleReadForReadFromLeaves("select last(first_name) from users group by id")
       }
-      ignore("partial pushdown with udf") {
+      ignore("09/2024 - partial pushdown with udf") {
         testSingleReadQuery("select last(stringIdentity(first_name)) from users group by id",
                             expectPartialPushdown = true)
       }
-      ignore("filter") {
+      ignore("09/2024 - filter") {
         testSingleReadForReadFromLeaves(
           "select last(first_name) filter (where age % 2 = 0) from users group by id")
       }
@@ -4031,7 +4031,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                     expectPartialPushdown = true)
         }
       }
-      ignore("very simple patterns full pushdown", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
+      ignore("09/2024 - very simple patterns full pushdown", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
         for (f <- functions) {
           log.debug(s"testing $f")
           // Spark 3.4|3.5 invoke full pushdown
