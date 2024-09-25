@@ -121,6 +121,7 @@ trait IntegrationSuiteBase
       .config("spark.datasource.singlestore.ddlEndpoint", s"${masterHost}:${masterPort}")
       .config("spark.datasource.singlestore.user", "root-ssl")
       .config("spark.datasource.singlestore.password", "")
+      .config("spark.datasource.singlestore.aiq_application", "actioniq_hybridcompute")
       .config("spark.datasource.singlestore.enableAsserts", "true")
       .config("spark.datasource.singlestore.enableParallelRead", "automaticLite")
       .config("spark.datasource.singlestore.parallelRead.Features",

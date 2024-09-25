@@ -8,7 +8,7 @@ import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression => Catal
 import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
 import org.apache.spark.sql.{Row, SQLContext}
 
-import scala.util.Random;
+import scala.util.Random
 
 case class SinglestoreReaderNoPushdown(query: String,
                                        options: SinglestoreOptions,
@@ -166,7 +166,7 @@ case class SinglestoreReader(query: String,
       |SingleStore Query
       |Variables: ($v)
       |SQL:
-      |$query$explain
+      |${JdbcHelpers.appendTagsToQuery(options, query)}$explain
       |---------------
       """.stripMargin
   }
