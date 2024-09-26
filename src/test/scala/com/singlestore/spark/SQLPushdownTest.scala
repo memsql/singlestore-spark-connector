@@ -26,10 +26,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         :: StructField("favorite_color", StringType, nullable = true)
         :: StructField("age", IntegerType)
         :: StructField("birthday", DateType)
-        :: Nil)
+        :: Nil
+    )
 
-    writeTable("testdb.users",
-               spark.read.schema(usersSchema).json("src/test/resources/data/users.json"))
+    writeTable(
+      "testdb.users",
+      spark.read.schema(usersSchema).json("src/test/resources/data/users.json")
+    )
 
     val moviesSchema = StructType(
       StructField("id", LongType)
@@ -37,10 +40,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         :: StructField("genre", StringType)
         :: StructField("critic_review", StringType, nullable = true)
         :: StructField("critic_rating", FloatType, nullable = true)
-        :: Nil)
+        :: Nil
+    )
 
-    writeTable("testdb.movies",
-               spark.read.schema(moviesSchema).json("src/test/resources/data/movies.json"))
+    writeTable(
+      "testdb.movies",
+      spark.read.schema(moviesSchema).json("src/test/resources/data/movies.json")
+    )
 
     val reviewsSchema = StructType(
       StructField("user_id", LongType)
@@ -48,28 +54,34 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         :: StructField("rating", FloatType)
         :: StructField("review", StringType)
         :: StructField("created", TimestampType)
-        :: Nil)
+        :: Nil
+    )
 
-    writeTable("testdb.reviews",
-               spark.read.schema(reviewsSchema).json("src/test/resources/data/reviews.json"))
+    writeTable(
+      "testdb.reviews",
+      spark.read.schema(reviewsSchema).json("src/test/resources/data/reviews.json")
+    )
 
-    writeTable("testdb.users_sample",
-               spark.read
-                 .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
-                 .load("testdb.users")
-                 .sample(0.5)
-                 .limit(10))
+    writeTable(
+      "testdb.users_sample",
+      spark.read
+        .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+        .load("testdb.users")
+        .sample(0.5)
+        .limit(10)
+    )
 
     val movieRatingSchema = StructType(
       StructField("id", LongType)
         :: StructField("movie_rating", StringType)
         :: StructField("same_rate_movies", StringType)
-        :: Nil)
+        :: Nil
+    )
 
     writeTable(
       "testdb.movies_rating",
-      spark.read.schema(movieRatingSchema).json("src/test/resources/data/movies_rating.json"))
-
+      spark.read.schema(movieRatingSchema).json("src/test/resources/data/movies_rating.json")
+    )
   }
 
   override def beforeEach(): Unit = {
@@ -82,21 +94,21 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     def makeTables(sourceTable: String): DataFrame = {
       spark.sql(
         s"""
-           |create table testdb.$sourceTable
-           |using singlestore options ('dbtable'='testdb.$sourceTable')
-           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          |create table testdb.$sourceTable
+          |using singlestore options ('dbtable'='testdb.$sourceTable')
+          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
       )
       spark.sql(
         s"""
-           |create table testdb_nopushdown.$sourceTable
-           |using memsql options ('dbtable'='testdb.$sourceTable','disablePushdown'='true')
-           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          |create table testdb_nopushdown.$sourceTable
+          |using memsql options ('dbtable'='testdb.$sourceTable','disablePushdown'='true')
+          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
       )
       spark.sql(
         s"""
-           |create table testdb_jdbc.$sourceTable
-           |using jdbc options (${jdbcOptionsSQL(s"testdb.$sourceTable")})
-           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          |create table testdb_jdbc.$sourceTable
+          |using jdbc options (${jdbcOptionsSQL(s"testdb.$sourceTable")})
+          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
       )
     }
 
@@ -140,17 +152,19 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  def testQuery(q: String,
-                alreadyOrdered: Boolean = false,
-                expectPartialPushdown: Boolean = false,
-                expectSingleRead: Boolean = false,
-                expectEmpty: Boolean = false,
-                expectSameResult: Boolean = true,
-                expectCodegenDeterminism: Boolean = true,
-                pushdown: Boolean = true,
-                enableParallelRead: String = "automaticLite",
-                dataFrameEqualityPrecision: Double = 0.1,
-                filterDF: DataFrame => DataFrame = x => x): Unit = {
+  def testQuery(
+    q: String,
+    alreadyOrdered: Boolean = false,
+    expectPartialPushdown: Boolean = false,
+    expectSingleRead: Boolean = false,
+    expectEmpty: Boolean = false,
+    expectSameResult: Boolean = true,
+    expectCodegenDeterminism: Boolean = true,
+    pushdown: Boolean = true,
+    enableParallelRead: String = "automaticLite",
+    dataFrameEqualityPrecision: Double = 0.1,
+    filterDF: DataFrame => DataFrame = x => x
+  ): Unit = {
     spark.sqlContext.setConf("spark.datasource.singlestore.enableParallelRead", enableParallelRead)
 
     spark.sql("use testdb_jdbc")
@@ -254,10 +268,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   }
 
-  def testSingleReadQuery(q: String,
-                          alreadyOrdered: Boolean = false,
-                          expectPartialPushdown: Boolean = false,
-                          pushdown: Boolean = true): Unit = {
+  def testSingleReadQuery(
+    q: String,
+    alreadyOrdered: Boolean = false,
+    expectPartialPushdown: Boolean = false,
+    pushdown: Boolean = true
+  ): Unit = {
     testQuery(
       q,
       alreadyOrdered = alreadyOrdered,
@@ -289,7 +305,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("Alias") { testQuery("select id as user_id from users") }
       it("Alias with new line") { testQuery("select id as `user_id\n` from users") }
       it("Alias with hyphen") { testQuery("select id as `user-id` from users") }
-      // DatasetComparer fails to sort a DataFrame with weird names, because of it following queries are ran as alreadyOrdered
+
+      // DatasetComparer fails to sort a DataFrame with weird names,
+      // because of it following queries are ran as alreadyOrdered
+
       it("Alias with dot") {
         testOrderedQuery("select id as `user.id` from users order by id")
       }
@@ -297,6 +316,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testOrderedQuery("select id as `user``id` from users order by id")
       }
     }
+
     describe("unsuccessful pushdown") {
       it("alias with udf") {
         testQuery(
@@ -309,31 +329,22 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("Literals") {
     describe("successful pushdown") {
-      it("string") {
-        testSingleReadForReadFromLeaves("select 'string' from users")
-      }
-      it("null") {
-        testSingleReadForReadFromLeaves("select null from users")
-      }
+      it("string") { testSingleReadForReadFromLeaves("select 'string' from users") }
+      it("null") { testSingleReadForReadFromLeaves("select null from users") }
+
       describe("boolean") {
         it("true") { testQuery("select true from users") }
         it("false") { testQuery("select false from users") }
       }
 
-      it("byte") { testQuery("select 100Y as t_col from users") }
-      it("short") { testQuery("select 100S as t_col from users") }
-      it("integer") { testQuery("select 100 as t_col from users") }
-      it("long") {
-        testSingleReadForReadFromLeaves("select 100L as t_col from users")
-      }
-
-      it("float") { testQuery("select 1.1 as t_col from users") }
-      it("double") { testQuery("select 1.1D as t_col from users") }
-      it("decimal") { testQuery("select 1.1BD as t_col from users") }
-
-      it("datetime") {
-        testQuery("select date '1997-11-11' as t_col from users")
-      }
+      it("byte") { testQuery("select 100Y as b_col from users") }
+      it("short") { testQuery("select 100S as s_col from users") }
+      it("integer") { testQuery("select 100 as i_col from users") }
+      it("long") { testSingleReadForReadFromLeaves("select 100L as l_col from users") }
+      it("float") { testQuery("select 1.1 as f_col from users") }
+      it("double") { testQuery("select 1.1D as d_col from users") }
+      it("decimal") { testQuery("select 1.1BD as d_col from users") }
+      it("datetime") { testQuery("select date '1997-11-11' as dt_col from users") }
     }
 
     describe("unsuccessful pushdown") {
@@ -354,49 +365,31 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("Cast") {
     describe("to boolean") {
-      it("boolean") {
-        testQuery("select cast(owns_house as boolean) from users")
-      }
-      it("int") {
-        testQuery("select cast(age as boolean) from users")
-      }
-      it("long") {
-        testQuery("select cast(id as boolean) from users")
-      }
-      it("float") {
-        testQuery("select cast(critic_rating as boolean) from movies")
-      }
-      it("date") {
-        testQuery("select cast(birthday as boolean) from users")
-      }
-      it("timestamp") {
-        testQuery("select cast(created as boolean) from reviews")
-      }
+      it("boolean") { testQuery("select cast(owns_house as boolean) from users") }
+      it("int") { testQuery("select cast(age as boolean) from users") }
+      it("long") { testQuery("select cast(id as boolean) from users") }
+      it("float") { testQuery("select cast(critic_rating as boolean) from movies") }
+      it("date") { testQuery("select cast(birthday as boolean) from users") }
+      it("timestamp") { testQuery("select cast(created as boolean) from reviews") }
     }
 
     describe("to byte") {
-      it("boolean") {
-        testQuery("select cast(owns_house as byte) from users")
-      }
+      it("boolean") { testQuery("select cast(owns_house as byte) from users") }
       it("int") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min TINYINT value
-        // spark returns module (452->-60)
+        // singlestore returns max/min TINYINT value spark returns module (452->-60)
         testQuery("select cast(age as byte) from users where age > -129 and age < 128")
       }
       it("long") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min TINYINT value
-        // spark returns module (452->-60)
+        // singlestore returns max/min TINYINT value spark returns module (452->-60)
         testQuery("select cast(id as byte) from users where id > -129 and id < 128")
       }
       it("float") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min TINYINT value
-        // spark returns module (452->-60)
+        // singlestore returns max/min TINYINT value spark returns module (452->-60)
         // singlestore and spark use different rounding
-        // singlestore round to the closest value
-        // spark round to the smaller one
+        // singlestore round to the closest value spark round to the smaller one
         testQuery(
           """
             |select cast(critic_rating as byte)
@@ -405,13 +398,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("date") {
-        testQuery("select cast(birthday as byte) from users")
-      }
+      it("date") { testQuery("select cast(birthday as byte) from users") }
       it("timestamp") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min TINYINT value
-        // spark returns module (452->-60)
+        // singlestore returns max/min TINYINT value spark returns module (452->-60)
         testQuery(
           """
             |select cast(created as byte)
@@ -423,28 +413,22 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("to short") {
-      it("boolean") {
-        testQuery("select cast(owns_house as short) from users")
-      }
+      it("boolean") { testQuery("select cast(owns_house as short) from users") }
       it("int") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min SMALLINT value
-        // spark returns module (40004->-25532)
+        // singlestore returns max/min SMALLINT value spark returns module (40004->-25532)
         testQuery("select cast(age as short) from users where age > -32769 and age < 32768")
       }
       it("long") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min SMALLINT value
-        // spark returns module (40004->-25532)
+        // singlestore returns max/min SMALLINT value spark returns module (40004->-25532)
         testQuery("select cast(id as short) as d from users where id > -32769 and id < 32768")
       }
       it("float") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min SMALLINT value
-        // spark returns module (40004->-25532)
+        // singlestore returns max/min SMALLINT value spark returns module (40004->-25532)
         // singlestore and spark use different rounding
-        // singlestore round to the closest value
-        // spark round to the smaller one
+        // singlestore round to the closest value spark round to the smaller one
         testQuery(
           """
             |select cast(critic_rating as short)
@@ -453,13 +437,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("date") {
-        testQuery("select cast(birthday as short) from users")
-      }
+      it("date") { testQuery("select cast(birthday as short) from users") }
       it("timestamp") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min SMALLINT value
-        // spark returns module (40004->-25532)
+        // singlestore returns max/min SMALLINT value spark returns module (40004->-25532)
         testQuery(
           """
             |select cast(created as short)
@@ -471,26 +452,20 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("to int") {
-      it("boolean") {
-        testQuery("select cast(owns_house as int) from users")
-      }
-      it("int") {
-        testQuery("select cast(age as int) from users")
-      }
+      it("boolean") { testQuery("select cast(owns_house as int) from users") }
+      it("int") { testQuery("select cast(age as int) from users") }
       it("long") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min INT value
-        // spark returns module (10000000000->1410065408)
+        // singlestore returns max/min INT value spark returns module (10000000000->1410065408)
         testQuery(
-          "select cast(id as int) as d from users where id > -2147483649 and id < 2147483648")
+          "select cast(id as int) as d from users where id > -2147483649 and id < 2147483648"
+        )
       }
       it("float") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min INT value
-        // spark returns module (10000000000->1410065408)
+        // singlestore returns max/min INT value spark returns module (10000000000->1410065408)
         // singlestore and spark use different rounding
-        // singlestore round to the closest value
-        // spark round to the smaller one
+        // singlestore round to the closest value spark round to the smaller one
         testQuery(
           """
             |select cast(critic_rating as int)
@@ -499,13 +474,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("date") {
-        testQuery("select cast(birthday as int) from users")
-      }
+      it("date") { testQuery("select cast(birthday as int) from users") }
       it("timestamp") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min INT value
-        // spark returns module (10000000000->1410065408)
+        // singlestore returns max/min INT value spark returns module (10000000000->1410065408)
         testQuery(
           """
             |select cast(created as int)
@@ -517,19 +489,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("to long") {
-      it("boolean") {
-        testQuery("select cast(owns_house as long) from users")
-      }
-      it("int") {
-        testQuery("select cast(age as long) from users")
-      }
-      it("long") {
-        testQuery("select cast(id as long) from users")
-      }
+      it("boolean") { testQuery("select cast(owns_house as long) from users") }
+      it("int") { testQuery("select cast(age as long) from users") }
+      it("long") { testQuery("select cast(id as long) from users") }
       it("float") {
         // singlestore and spark use different rounding
-        // singlestore round to the closest value
-        // spark round to the smaller one
+        // singlestore round to the closest value spark round to the smaller one
         testQuery(
           """
             |select cast(critic_rating as long)
@@ -538,142 +503,80 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("date") {
-        testQuery("select cast(birthday as long) from users")
-      }
-      it("timestamp") {
-        testQuery("select cast(created as long) from reviews")
-      }
+      it("date") { testQuery("select cast(birthday as long) from users") }
+      it("timestamp") { testQuery("select cast(created as long) from reviews") }
     }
 
     describe("to float") {
-      it("boolean") {
-        testQuery("select cast(owns_house as float) from users")
-      }
-      it("int") {
-        testQuery("select cast(age as float) from users")
-      }
-      it("long") {
-        testQuery("select cast(id as float) from users")
-      }
-      it("float") {
-        testQuery("select cast(critic_rating as float) from movies")
-      }
-      it("date") {
-        testQuery("select cast(birthday as float) from users")
-      }
-      it("timestamp") {
-        testQuery("select cast(created as float) from reviews")
-      }
+      it("boolean") { testQuery("select cast(owns_house as float) from users") }
+      it("int") { testQuery("select cast(age as float) from users") }
+      it("long") { testQuery("select cast(id as float) from users") }
+      it("float") { testQuery("select cast(critic_rating as float) from movies") }
+      it("date") { testQuery("select cast(birthday as float) from users") }
+      it("timestamp") { testQuery("select cast(created as float) from reviews") }
     }
 
     describe("to double") {
-      it("boolean") {
-        testQuery("select cast(owns_house as double) from users")
-      }
-      it("int") {
-        testQuery("select cast(age as double) from users")
-      }
-      it("long") {
-        testQuery("select cast(id as double) from users")
-      }
-      it("float") {
-        testQuery("select cast(critic_rating as double) from movies")
-      }
-      it("date") {
-        testQuery("select cast(birthday as double) from users")
-      }
-      it("timestamp") {
-        testQuery("select cast(created as double) from reviews")
-      }
+      it("boolean") { testQuery("select cast(owns_house as double) from users") }
+      it("int") { testQuery("select cast(age as double) from users") }
+      it("long") { testQuery("select cast(id as double) from users") }
+      it("float") { testQuery("select cast(critic_rating as double) from movies") }
+      it("date") { testQuery("select cast(birthday as double) from users") }
+      it("timestamp") { testQuery("select cast(created as double) from reviews") }
     }
 
     describe("to decimal") {
-      it("boolean") {
-        testQuery("select cast(owns_house as decimal(20, 5)) from users")
-      }
-      it("int") {
-        testQuery("select cast(age as decimal(20, 5)) from users")
-      }
+      it("boolean") { testQuery("select cast(owns_house as decimal(20, 5)) from users") }
+      it("int") { testQuery("select cast(age as decimal(20, 5)) from users") }
       it("long") {
         // singlestore and spark behaviour differs on the overflow
-        // singlestore returns max/min DECIMAL(x, y) value
-        // spark returns null
+        // singlestore returns max/min DECIMAL(x, y) value spark returns null
         testQuery("select cast(id as decimal(20, 5)) from users where id < 999999999999999.99999")
       }
-      it("float") {
-        testQuery("select cast(critic_rating as decimal(20, 5)) from movies")
-      }
-      it("date") {
-        testQuery("select cast(birthday as decimal(20, 5)) from users")
-      }
-      it("timestamp") {
-        testQuery("select cast(created as decimal(20, 5)) from reviews")
-      }
+      it("float") { testQuery("select cast(critic_rating as decimal(20, 5)) from movies") }
+      it("date") { testQuery("select cast(birthday as decimal(20, 5)) from users") }
+      it("timestamp") { testQuery("select cast(created as decimal(20, 5)) from reviews") }
     }
 
     describe("to string") {
-      it("boolean") {
-        testQuery("select cast(owns_house as string) from users")
-      }
-      it("int") {
-        testQuery("select cast(age as string) from users")
-      }
-      it("long") {
-        testQuery("select cast(id as string) from users")
-      }
+      it("boolean") { testQuery("select cast(owns_house as string) from users") }
+      it("int") { testQuery("select cast(age as string) from users") }
+      it("long") { testQuery("select cast(id as string) from users") }
       it("float") {
-        // singlestore converts integers to string with 0 digits after the point
-        // spark adds 1 digit after the point
+        // singlestore converts integers to string with 0 digits
+        // after the point spark adds 1 digit after the point
         testQuery("select cast(cast(critic_rating as string) as float) from movies")
       }
-      it("date") {
-        testQuery("select cast(birthday as string) from users")
-      }
+      it("date") { testQuery("select cast(birthday as string) from users") }
       it("timestamp") {
-        // singlestore converts timestamps to string with 6 digits after the point
-        // spark adds 0 digit after the point
+        // singlestore converts timestamps to string with 6 digits
+        // after the point spark adds 0 digit after the point
         testQuery("select cast(cast(created as string) as timestamp) from reviews")
       }
-      it("string") {
-        testQuery("select cast(first_name as string) from users")
-      }
+      it("string") { testQuery("select cast(first_name as string) from users") }
     }
 
     describe("to binary") {
       // spark doesn't support casting other types to binary
-      it("string") {
-        testQuery("select cast(first_name as binary) from users")
-      }
+      it("string") { testQuery("select cast(first_name as binary) from users") }
     }
 
     describe("to date") {
-      it("date") {
-        testQuery("select cast(birthday as date) from users")
-      }
-      it("timestamp") {
-        testQuery("select cast(created as date) from reviews")
-      }
-      it("string") {
-        testQuery("select cast(first_name as date) from users")
-      }
+      it("date") { testQuery("select cast(birthday as date) from users") }
+      it("timestamp") { testQuery("select cast(created as date) from reviews") }
+      it("string") { testQuery("select cast(cast(birthday as string) as date) from users") }
     }
 
     describe("to timestamp") {
-      it("boolean") {
-        testQuery("select cast(owns_house as timestamp) from users")
-      }
-      it("int") {
-        testQuery("select cast(age as timestamp) from users")
-      }
+      it("boolean") { testQuery("select cast(owns_house as timestamp) from users") }
+      it("int") { testQuery("select cast(age as timestamp) from users") }
       it("long") {
         // TIMESTAMP in SingleStore doesn't support values greater then 2147483647999
         testQuery("select cast(id as timestamp) from users where id < 2147483647999")
       }
       it("float") {
         // singlestore and spark use different rounding
-        // singlestore round to the closest value
-        // spark round to the smaller one
+        // singlestore round to the closest value spark round to the smaller one
         testQuery(
           """
             |select to_unix_timestamp(cast(critic_rating as timestamp)) as t_col
@@ -682,25 +585,17 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("date") {
-        testQuery("select cast(birthday as timestamp) from users")
-      }
-      it("timestamp") {
-        testQuery("select cast(created as timestamp) from reviews")
-      }
-      it("string") {
-        testQuery("select cast(first_name as timestamp) from users")
-      }
+      it("date") { testQuery("select cast(birthday as timestamp) from users") }
+      it("timestamp") { testQuery("select cast(created as timestamp) from reviews") }
+      it("string") { testQuery("select cast(cast(birthday as string) as timestamp) from users") }
     }
   }
 
   describe("Variable Expressions") {
     describe("Coalesce") {
       it("one non-null value") { testQuery("select coalesce(id) from users") }
-      it("one null value") {
-        testSingleReadForReadFromLeaves("select coalesce(null) from users")
-      }
-      it("a lot of values") { testQuery("select coalesce(null, id, null, id+1) from users") }
+      it("one null value") { testSingleReadForReadFromLeaves("select coalesce(null) from users") }
+      it("a lot of values") { testQuery("select coalesce(null, id, null, id + 1) from users") }
       it("a lot of nulls") {
         testSingleReadForReadFromLeaves("select coalesce(null, null, null) from users")
       }
@@ -747,7 +642,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("partial pushdown with udf") {
         testQuery(
           "select greatest('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
-          expectPartialPushdown = true)
+          expectPartialPushdown = true
+        )
       }
     }
 
