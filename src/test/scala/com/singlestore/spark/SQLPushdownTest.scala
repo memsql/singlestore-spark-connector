@@ -243,6 +243,15 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
+  def testNoPushdownQuery(q: String, expectSingleRead: Boolean = false): Unit = {
+    testQuery(
+      q,
+      expectPartialPushdown = true,
+      pushdown = false,
+      expectSingleRead = expectSingleRead
+    )
+  }
+
   def testOrderedQuery(q: String, pushdown: Boolean = true): Unit = {
     // order by in SingleStore requires single read
     testQuery(q, alreadyOrdered = true, expectSingleRead = true, pushdown = pushdown)
@@ -297,6 +306,35 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     } else {
       testSingleReadQuery(q)
     }
+  }
+
+  describe("sanity test the `disablePushdown` flag") {
+    it("select all users") { testNoPushdownQuery("select * from users") }
+    it("select all movies") { testNoPushdownQuery("select * from movies") }
+    it("select all reviews") { testNoPushdownQuery("select * from reviews") }
+    it("basic filter") { testNoPushdownQuery("select * from users where id = 1") }
+    it("basic agg") {
+      testNoPushdownQuery("select floor(avg(age)) from users", expectSingleRead = true)
+    }
+    it("numeric order") {
+      testNoPushdownQuery("select * from users order by id asc", expectSingleRead = true)
+    }
+    it("limit with sort") {
+      testNoPushdownQuery("select * from users order by id limit 10", expectSingleRead = true)
+    }
+    it("implicit inner join") {
+      testNoPushdownQuery(
+        "select * from users as a, reviews as b where a.id = b.user_id",
+        expectSingleRead = true
+      )
+    }
+  }
+
+  describe("sanity test the tables") {
+    it("select all users") { testQuery("select * from users") }
+    it("select all users (sampled)") { testQuery("select * from users_sample") }
+    it("select all movies") { testQuery("select * from movies") }
+    it("select all reviews") { testQuery("select * from reviews") }
   }
 
   describe("Attributes") {
@@ -1136,42 +1174,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("sanity test disablePushdown") {
-    def testNoPushdownQuery(q: String, expectSingleRead: Boolean = false): Unit =
-      testQuery(q,
-                expectPartialPushdown = true,
-                pushdown = false,
-                expectSingleRead = expectSingleRead)
-
-    it("select all users") { testNoPushdownQuery("select * from users") }
-    it("select all movies") { testNoPushdownQuery("select * from movies") }
-    it("select all reviews") { testNoPushdownQuery("select * from reviews") }
-    it("basic filter") { testNoPushdownQuery("select * from users where id = 1") }
-    it("basic agg") {
-      testNoPushdownQuery("select floor(avg(age)) from users", expectSingleRead = true)
-    }
-    it("numeric order") {
-      testNoPushdownQuery("select * from users order by id asc", expectSingleRead = true)
-    }
-    it("limit with sort") {
-      testNoPushdownQuery("select * from users order by id limit 10", expectSingleRead = true)
-    }
-    it("implicit inner join") {
-      testNoPushdownQuery(
-        "select * from users as a, reviews as b where a.id = b.user_id",
-        expectSingleRead = true
-      )
-    }
-  }
-
-  describe("sanity test the tables") {
-    it("select all users") { testQuery("select * from users") }
-    it("select all users (sampled)") { testQuery("select * from users_sample") }
-    it("select all movies") { testQuery("select * from movies") }
-    it("select all reviews") { testQuery("select * from reviews") }
-  }
-
-  describe("math expressions") {
+  describe("Math expressions") {
     describe("sinh") {
       it("works with float") { testQuery("select sinh(rating) as sinh from reviews") }
       it("works with tinyint") { testQuery("select sinh(owns_house) as sinh from users") }
