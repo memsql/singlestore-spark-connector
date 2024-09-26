@@ -593,73 +593,83 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("Variable Expressions") {
     describe("Coalesce") {
-      it("one non-null value") { testQuery("select coalesce(id) from users") }
-      it("one null value") { testSingleReadForReadFromLeaves("select coalesce(null) from users") }
-      it("a lot of values") { testQuery("select coalesce(null, id, null, id + 1) from users") }
+      it("one non-null value") { testQuery("select coalesce(id) as t_col from users") }
+      it("one null value") {
+        testSingleReadForReadFromLeaves("select coalesce(null) as t_col from users")
+      }
+      it("a lot of values") {
+        testQuery("select coalesce(null, id, null, id + 1) as t_col from users")
+      }
       it("a lot of nulls") {
-        testSingleReadForReadFromLeaves("select coalesce(null, null, null) from users")
+        testSingleReadForReadFromLeaves("select coalesce(null, null, null) as t_col from users")
       }
       it("partial pushdown with udf") {
         testQuery(
-          "select coalesce(stringIdentity(first_name), 'qwerty', 'bob', 'alice') from users",
+          """
+            |select coalesce(stringIdentity(first_name), 'qwerty', 'bob', 'alice') as t_col
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
     }
 
     describe("Least") {
-      it("a lot of ints") { testQuery("select least(id+5, id, 5, id+1) from users") }
+      it("a lot of ints") { testQuery("select least(id+5, id, 5, id+1) as t_col from users") }
       it("a lot of strings") {
-        testQuery("select least('qwerty', 'bob', first_name, 'alice') from users")
+        testQuery("select least('qwerty', 'bob', first_name, 'alice') as t_col from users")
       }
       // singlestore returns NULL if at least one argument is NULL, when spark skips nulls
       ignore("09/2024 - ints with null") {
-        testQuery("select least(null, id, null, id+1) from users")
+        testQuery("select least(null, id, null, id+1) as t_col from users")
       }
       it("a lot of nulls") {
-        testSingleReadForReadFromLeaves("select least(null, null, null) from users")
+        testSingleReadForReadFromLeaves("select least(null, null, null) as t_col from users")
       }
       it("partial pushdown with udf") {
         testQuery(
-          "select least('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
+          "select least('qwerty', 'bob', stringIdentity(first_name), 'alice') as t_col from users",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("Greatest") {
-      it("a lot of ints") { testQuery("select greatest(id+5, id, 5, id+1) from users") }
+      it("a lot of ints") { testQuery("select greatest(id+5, id, 5, id+1) as t_col from users") }
       it("a lot of strings") {
-        testQuery("select greatest('qwerty', 'bob', first_name, 'alice') from users")
+        testQuery("select greatest('qwerty', 'bob', first_name, 'alice') as t_col from users")
       }
       // singlestore returns NULL if at least one argument is NULL, when spark skips nulls
       ignore("09/2024 - ints with null") {
-        testQuery("select greatest(null, id, null, id+1) from users")
+        testQuery("select greatest(null, id, null, id+1) as t_col from users")
       }
       it("a lot of nulls") {
-        testSingleReadForReadFromLeaves("select greatest(null, null, null) from users")
+        testSingleReadForReadFromLeaves("select greatest(null, null, null) as t_col from users")
       }
       it("partial pushdown with udf") {
         testQuery(
-          "select greatest('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
+          """
+            |select greatest('qwerty', 'bob', stringIdentity(first_name), 'alice') as t_col
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
     }
 
     describe("Concat") {
-      it("a lot of ints") { testQuery("select concat(id+5, id, 5, id+1) from users") }
+      it("a lot of ints") { testQuery("select concat(id+5, id, 5, id+1) as t_col from users") }
       it("a lot of strings") {
-        testQuery("select concat('qwerty', 'bob', first_name, 'alice') from users")
+        testQuery("select concat('qwerty', 'bob', first_name, 'alice') as t_col from users")
       }
-      it("ints with null") { testQuery("select concat(null, id, null, id+1) from users") }
+      it("ints with null") { testQuery("select concat(null, id, null, id+1) as t_col from users") }
       it("a lot of nulls") {
-        testSingleReadForReadFromLeaves("select concat(null, null, null) from users")
+        testSingleReadForReadFromLeaves("select concat(null, null, null) as t_col from users")
       }
-      it("int and string") { testQuery("select concat(id, first_name) from users") }
-      it("same expressions") { testQuery("select concat(id, id, id) from users") }
+      it("int and string") { testQuery("select concat(id, first_name) as t_col from users") }
+      it("same expressions") { testQuery("select concat(id, id, id) as t_col from users") }
       it("nested same expressions") {
-        testQuery("select * from (select concat(id, id, id) from users)")
+        testQuery("select * from (select concat(id, id, id) as t_col from users)")
       }
       it("partial pushdown with udf") {
         testQuery(
@@ -670,13 +680,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("Elt") {
-      it("a lot of ints") { testQuery("select elt(id+5, id, 5, id+1) from users") }
+      it("a lot of ints") { testQuery("select elt(id+5, id, 5, id+1) as t_col from users") }
       it("a lot of strings") {
-        testQuery("select elt('qwerty', 'bob', first_name, 'alice') from users")
+        testQuery("select elt('qwerty', 'bob', first_name, 'alice') as t_col from users")
       }
-      it("ints with null") { testQuery("select elt(null, id, null, id+1) from users") }
-      it("a lot of nulls") { testQuery("select elt(null, null, null) from users") }
-      it("int and string") { testQuery("select elt(id, first_name) from users") }
+      it("ints with null") { testQuery("select elt(null, id, null, id+1) as t_col from users") }
+      it("a lot of nulls") { testQuery("select elt(null, null, null) as t_col from users") }
+      it("int and string") { testQuery("select elt(id, first_name) as t_col from users") }
       it("partial pushdown with udf") {
         testQuery(
           "select elt('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
@@ -790,9 +800,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("If") {
       it("boolean") {
-        testQuery("select if(cast(owns_house as boolean), first_name, last_name) from users")
+        testQuery(
+          "select if(cast(owns_house as boolean), first_name, last_name) as t_col from users"
+        )
       }
-      it("always true") { testQuery("select if(true, first_name, last_name) from users") }
+      it("always true") { testQuery("select if(true, first_name, last_name) as t_col from users") }
       it("partial pushdown with udf") {
         testQuery(
           "select if(cast(stringIdentity(id) as boolean), first_name, last_name) from users",
@@ -805,7 +817,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("simple") {
         testQuery("select case when id < 10 then 1 else 3 end from users_sample")
       }
-
       it("match multiple conditions") {
         testQuery(
           """
@@ -820,7 +831,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-
       it("match else condition") {
         testQuery(
           """
@@ -835,11 +845,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-
       it("without else condition, select NULL") {
         testQuery("select id, case when 1 < 0 then id end from users_sample")
       }
-
       it("complicated case: comparing string with a numeric type") {
         testQuery(
           """
@@ -863,7 +871,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           expectPartialPushdown = true
         )
       }
-
       it("partial pushdown: invalid condition, more complicated query") {
         testQuery(
           """
@@ -878,7 +885,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           expectPartialPushdown = true
         )
       }
-
       it("partial pushdown: invalid `else` condition") {
         testQuery(
           "select case when id < 5 then 1 else stringIdentity(id) end from users",
