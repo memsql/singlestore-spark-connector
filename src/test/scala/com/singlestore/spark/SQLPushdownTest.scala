@@ -897,7 +897,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("arithmetic") {
+  describe("Arithmetic Expressions") {
     describe("Add") {
       it("numbers") { testQuery("select user_id + movie_id as t_col from reviews") }
       it("floats") { testQuery("select rating + 1.0 as t_col from reviews") }
@@ -1001,28 +1001,31 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("UnaryMinus") {
-      it("numbers") { testQuery("select -id from users") }
-      it("floats") { testQuery("select -critic_rating from movies") }
+      it("numbers") { testQuery("select -id as t_col from users") }
+      it("floats") { testQuery("select -critic_rating as t_col from movies") }
       it("partial pushdown with udf") {
-        testQuery("select -stringIdentity(id) from users", expectPartialPushdown = true)
+        testQuery("select -stringIdentity(id) as t_col from users", expectPartialPushdown = true)
       }
     }
 
     describe("UnaryPositive") {
-      it("numbers") { testQuery("select +id from users") }
-      it("floats") { testQuery("select +critic_rating from movies") }
+      it("numbers") { testQuery("select +id as t_col from users") }
+      it("floats") { testQuery("select +critic_rating as t_col from movies") }
       it("partial pushdown with udf") {
-        testQuery("select +stringIdentity(id) from users", expectPartialPushdown = true)
+        testQuery("select +stringIdentity(id) as t_col from users", expectPartialPushdown = true)
       }
     }
 
     describe("Abs") {
-      it("positive numbers") { testQuery("select abs(id) from users") }
-      it("negative numbers") { testQuery("select abs(-id) from users") }
-      it("positive floats") { testQuery("select abs(critic_rating) from movies") }
-      it("negative floats") { testQuery("select abs(-critic_rating) from movies") }
+      it("positive numbers") { testQuery("select abs(id) as t_col from users") }
+      it("negative numbers") { testQuery("select abs(-id) as t_col from users") }
+      it("positive floats") { testQuery("select abs(critic_rating) as t_col from movies") }
+      it("negative floats") { testQuery("select abs(-critic_rating) as t_col from movies") }
       it("partial pushdown with udf") {
-        testQuery("select abs(stringIdentity(id)) from users", expectPartialPushdown = true)
+        testQuery(
+          "select abs(stringIdentity(id)) as t_col from users",
+          expectPartialPushdown = true
+        )
       }
     }
   }
