@@ -673,7 +673,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown with udf") {
         testQuery(
-          "select concat('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
+          "select concat('qwerty', 'bob', stringIdentity(first_name), 'alice') as t_col from users",
           expectPartialPushdown = true
         )
       }
@@ -689,7 +689,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("int and string") { testQuery("select elt(id, first_name) as t_col from users") }
       it("partial pushdown with udf") {
         testQuery(
-          "select elt('qwerty', 'bob', stringIdentity(first_name), 'alice') from users",
+          "select elt('qwerty', 'bob', stringIdentity(first_name), 'alice') as t_col from users",
           expectPartialPushdown = true
         )
       }
@@ -721,7 +721,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown with udf") {
         testQuery(
-          "select IfNull(null, stringIdentity(id)) from users",
+          "select NullIf(null, stringIdentity(id)) as nif from users",
           expectPartialPushdown = true
         )
       }
@@ -729,14 +729,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("Nvl") {
       it("returns the second argument") {
-        testQuery("select Nvl(null, id) as id1 from users")
+        testQuery("select Nvl(null, id) as nvl from users")
       }
       it("returns the first argument") {
-        testQuery("select Nvl(id, id+1) as id1 from users")
+        testQuery("select Nvl(id, id+1) as nvl from users")
       }
       it("partial pushdown with udf") {
         testQuery(
-          "select Nvl(stringIdentity(id), null) from users",
+          "select Nvl(stringIdentity(id), null) as nvl from users",
           expectPartialPushdown = true
         )
       }
@@ -744,14 +744,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("Nvl2") {
       it("returns the second argument") {
-        testSingleReadForReadFromLeaves("select Nvl2(null, id, 0) as id1 from users")
+        testSingleReadForReadFromLeaves("select Nvl2(null, id, 0) as nvl2 from users")
       }
       it("returns the first argument") {
-        testQuery("select Nvl2(id, 10, id+1) as id1 from users")
+        testQuery("select Nvl2(id, 10, id+1) as nvl2 from users")
       }
       it("partial pushdown with udf") { // error
         testQuery(
-          "select Nvl2(stringIdentity(id), null, id) as id1 from users",
+          "select Nvl2(stringIdentity(id), null, id) as nvl2 from users",
           expectPartialPushdown = true
         )
       }
@@ -759,12 +759,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("IsNull") {
       it("not null") {
-        testQuery("select IsNull(favorite_color) from users")
+        testQuery("select IsNull(favorite_color) as isn from users")
       }
-      it("null") { testQuery("select IsNull(null) from users") }
+      it("null") { testQuery("select IsNull(null) as isn from users") }
       it("partial pushdown with udf") {
         testQuery(
-          "select IsNull(stringIdentity(id)) from users",
+          "select IsNull(stringIdentity(id)) as isn from users",
           expectPartialPushdown = true
         )
       }
@@ -772,12 +772,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("IsNotNull") {
       it("not null") {
-        testQuery("select IsNotNull(favorite_color) from users")
+        testQuery("select IsNotNull(favorite_color) as isnn from users")
       }
-      it("null") { testQuery("select IsNotNull(null) from users") }
+      it("null") { testQuery("select IsNotNull(null) as isnn from users") }
       it("partial pushdown with udf") {
         testQuery(
-          "select IsNotNull(stringIdentity(id)) from users",
+          "select IsNotNull(stringIdentity(id)) as isnn from users",
           expectPartialPushdown = true
         )
       }
@@ -807,7 +807,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("always true") { testQuery("select if(true, first_name, last_name) as t_col from users") }
       it("partial pushdown with udf") {
         testQuery(
-          "select if(cast(stringIdentity(id) as boolean), first_name, last_name) from users",
+          """
+            |select if(cast(stringIdentity(id) as boolean), first_name, last_name) as t_col
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
@@ -826,7 +829,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             | when id < 6 and id >= 3 then age
             | when id < 9 and id >=6 then last_name
             | else first_name
-            |end
+            |end as t_col
             |from users_sample
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
@@ -840,7 +843,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |   when 1 < 0 then id
             |   when 2 < 0 or 3 < 0 then last_name
             |   else first_name
-            | end
+            | end as t_col
             |from users_sample
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
@@ -857,7 +860,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |   when id < '5' then 'No_name'
             |   when 'Paute' then 'Random_surname'
             |   else last_name
-            | end
+            | end as t_col
             |from users_sample
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           // when string is casted to numeric type, singlestore takes the prefix of it
@@ -867,7 +870,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown: invalid condition") {
         testQuery(
-          "select case when IsNull(stringIdentity(id)) then 1 else id end from users",
+          "select case when IsNull(stringIdentity(id)) then 1 else id end as t_col from users",
           expectPartialPushdown = true
         )
       }
@@ -879,7 +882,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |   when id < 2 then last_name
             |   when IsNull(stringIdentity(id)) then 1
             |   else id
-            | end
+            | end as t_col
             |from users
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
@@ -887,7 +890,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown: invalid `else` condition") {
         testQuery(
-          "select case when id < 5 then 1 else stringIdentity(id) end from users",
+          "select case when id < 5 then 1 else stringIdentity(id) end as t_col from users",
           expectPartialPushdown = true
         )
       }
