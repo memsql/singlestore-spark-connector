@@ -144,7 +144,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     assert(
       extractQueriesFromPlan(filterDF(spark.sql(q)).queryExecution.optimizedPlan) ==
         extractQueriesFromPlan(filterDF(spark.sql(q)).queryExecution.optimizedPlan),
-      "All generated SingleStore queries should be the same"
+      "all generated SingleStore queries should be the same"
     )
 
     if (setLogToTrace) {
@@ -183,20 +183,20 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     if (!continuousIntegration) { singlestoreDF.show(4) }
 
     if (expectEmpty) {
-      assert(singlestoreDF.count == 0, "Result is expected to be empty")
+      assert(singlestoreDF.count == 0, "result is expected to be empty")
     } else {
-      assert(singlestoreDF.count > 0, "Result is expected to not be empty")
+      assert(singlestoreDF.count > 0, "result is expected to not be empty")
     }
 
     if (expectSingleRead) {
       assert(
         singlestoreDF.rdd.getNumPartitions == 1,
-        "Query is expected to read from a single partition"
+        "query is expected to read from a single partition"
       )
     } else {
       assert(
         singlestoreDF.rdd.getNumPartitions > 1,
-        "Query is expected to read from multiple partitions"
+        "query is expected to read from multiple partitions"
       )
     }
 
@@ -205,7 +205,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         case SQLGen.Relation(_) => false
         case _                  => true
       }) == expectPartialPushdown,
-      s"The Optimized Plan does not match expectPartialPushdown=$expectPartialPushdown"
+      s"the Optimized Plan does not match expectPartialPushdown=$expectPartialPushdown"
     )
 
     if (expectSameResult) {
@@ -716,12 +716,24 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("equal arguments") {
         testQuery("select id, NullIf(1, 1) as nif from users")
       }
-      it("non-equal arguments") {
+      it("non-equal arguments with exp2 null") {
         testQuery("select NullIf(id, null) as nif from users")
       }
-      it("partial pushdown with udf") {
+      it("non-equal arguments") {
+        testQuery("select NullIf(id, favorite_color) as nif from users")
+      }
+      it("partial pushdown with udf in exp1") {
         testQuery(
-          "select NullIf(null, stringIdentity(id)) as nif from users",
+          "select NullIf(stringIdentity(id), null) as nif from users",
+          expectPartialPushdown = true
+        )
+      }
+      // when exp1 is a literal null spark optimizes to null since it's the only possible result,
+      // we are using a nullable column in exp1 to further validate the partial pushdown behavior
+      // and results
+      it("partial pushdown with udf in exp2") {
+        testQuery(
+          "select NullIf(favorite_color, stringIdentity(id)) as nif from users",
           expectPartialPushdown = true
         )
       }
@@ -1030,7 +1042,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("bitwiseExpressions") {
+  describe("bitwise Expressions") {
     describe("And") {
       it("succeeds") { testQuery("select user_id & movie_id as t_col from reviews") }
       it("partial pushdown because of udf in the left argument") {
@@ -1081,11 +1093,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     describe("bitwiseGet") {
       it("numbers", ExcludeFromSpark31) {
-        testQuery("select bit_get(id, 2) from users_sample")
+        testQuery("select bit_get(id, 2) as t_col from users_sample")
       }
       it("negative left argument", ExcludeFromSpark31) {
         try {
-          testQuery("select bit_get(id, -2) from users_sample")
+          testQuery("select bit_get(id, -2) as t_col from users_sample")
         } catch {
           case e: Throwable =>
             if (e.toString.contains("Invalid bit position: -2 is less than zero")) {
@@ -1094,11 +1106,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         }
       }
       it("negative right argument", ExcludeFromSpark31) {
-        testQuery("select bit_get(-200, 2), id from users_sample")
+        testQuery("select bit_get(-200, 2) as t_col, id from users_sample")
       }
       it("exceeds upper limit left argument", ExcludeFromSpark31) {
         try {
-          testQuery("select bit_get(id, 100000) from users_sample")
+          testQuery("select bit_get(id, 100000) as t_col from users_sample")
         } catch {
           case e: Throwable =>
             if (e.toString.contains("Invalid bit position: 100000 exceeds the bit upper limit")) {
@@ -1107,17 +1119,17 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         }
       }
       it("big int right argument", ExcludeFromSpark31) {
-        testQuery("select bit_get(1000000000000000, 2), id from users_sample")
+        testQuery("select bit_get(1000000000000000, 2) as t_col, id from users_sample")
       }
       it("partial pushdown because of udf in the left argument", ExcludeFromSpark31) {
         testQuery(
-          "select bit_get(cast(stringIdentity(movie_id) as integer), 2) from reviews",
+          "select bit_get(cast(stringIdentity(movie_id) as integer), 2) as t_col from reviews",
           expectPartialPushdown = true
         )
       }
       it("partial pushdown because of udf in the right argument", ExcludeFromSpark31) {
         testQuery(
-          "select bit_get(movie_id, cast(stringIdentity(2) as integer)) from reviews",
+          "select bit_get(movie_id, cast(stringIdentity(2) as integer)) as t_col from reviews",
           expectPartialPushdown = true
         )
       }
