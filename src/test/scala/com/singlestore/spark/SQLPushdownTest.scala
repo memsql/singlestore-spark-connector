@@ -657,7 +657,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadForReadFromLeaves("select concat(null, null, null) from users")
       }
       it("int and string") { testQuery("select concat(id, first_name) from users") }
-      it("same expressions") { testQuery("select  concat(id, id, id) from users") }
+      it("same expressions") { testQuery("select concat(id, id, id) from users") }
       it("nested same expressions") {
         testQuery("select * from (select concat(id, id, id) from users)")
       }
