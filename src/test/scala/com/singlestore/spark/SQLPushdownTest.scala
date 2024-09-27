@@ -120,7 +120,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     spark.udf.register("stringIdentity", (s: String) => s)
     spark.udf.register("stringUpper", (s: String) => s.toUpperCase)
+    spark.udf.register("longIdentity", (x: Long) => x)
+    spark.udf.register("integerIdentity", (x: Int) => x)
     spark.udf.register("integerFilter", (x: Int) => x % 3 == 1)
+    spark.udf.register("floatIdentity", (x: Float) => x)
   }
 
   def extractQueriesFromPlan(root: LogicalPlan): Seq[String] = {
@@ -300,11 +303,20 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  def testSingleReadForOldS2(q: String, minVersion: SinglestoreVersion): Unit = {
+  def testSingleReadForOldS2(
+    q: String,
+    minVersion: SinglestoreVersion,
+    expectPartialPushdown: Boolean = false,
+    expectSingleRead: Boolean = false
+  ): Unit = {
     if (version.atLeast(minVersion) && canDoParallelReadFromAggregators) {
-      testQuery(q)
+      testQuery(
+        q,
+        expectPartialPushdown = expectPartialPushdown,
+        expectSingleRead = expectSingleRead
+      )
     } else {
-      testSingleReadQuery(q)
+      testSingleReadQuery(q, expectPartialPushdown = expectPartialPushdown)
     }
   }
 
@@ -337,6 +349,38 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("select all reviews") { testQuery("select * from reviews") }
   }
 
+  describe("DataTypes") {
+    // due to a bug in our dataframe comparison library we need to alias the column 4.9 to x...
+    // this is because when the library asks spark for a column called "4.9", spark thinks the
+    // library wants the table 4 and column 9.
+    it("float literal") { testQuery("select 4.9 as t_col from movies") }
+
+    it("negative float literal") { testQuery("select -24.345 as t_col from movies") }
+    it("negative int literal") { testQuery("select -1 from users") }
+
+    it("int") { testQuery("select id from users") }
+    it("smallint") { testQuery("select age from users") }
+    it("date") { testQuery("select birthday from users") }
+    it("datetime") { testQuery("select created from reviews") }
+    it("bool") { testQuery("select owns_house from users") }
+    it("float") { testQuery("select critic_rating from movies") }
+    it("text") { testQuery("select first_name from users") }
+
+    it("typeof") {
+      testSingleReadForReadFromLeaves(
+        "select typeof(user_id), typeof(created), typeof(review) from reviews"
+      )
+    }
+  }
+
+  describe("Filter") {
+    it("numeric equality") { testQuery("select * from users where id = 1") }
+    it("numeric inequality") { testQuery("select * from users where id != 1") }
+    it("numeric comparison >") { testQuery("select * from users where id > 500") }
+    it("numeric comparison > <") { testQuery("select * from users where id > 500 and id < 550") }
+    it("string equality") { testQuery("select * from users where first_name = 'Evan'") }
+  }
+
   describe("Attributes") {
     describe("successful pushdown") {
       it("attribute") { testQuery("select id from users") }
@@ -358,7 +402,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     describe("unsuccessful pushdown") {
       it("alias with udf") {
         testQuery(
-          "select stringIdentity(id) as user_id from users",
+          "select longIdentity(id) as user_id from users",
           expectPartialPushdown = true
         )
       }
@@ -744,7 +788,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown with udf") {
         testQuery(
-          "select IfNull(stringIdentity(id), id) as ifn from users",
+          "select IfNull(longIdentity(id), id) as ifn from users",
           expectPartialPushdown = true
         )
       }
@@ -762,7 +806,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown with udf in exp1") {
         testQuery(
-          "select NullIf(stringIdentity(id), null) as nif from users",
+          "select NullIf(longIdentity(id), null) as nif from users",
           expectPartialPushdown = true
         )
       }
@@ -786,7 +830,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown with udf") {
         testQuery(
-          "select Nvl(stringIdentity(id), null) as nvl from users",
+          "select Nvl(longIdentity(id), null) as nvl from users",
           expectPartialPushdown = true
         )
       }
@@ -801,7 +845,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown with udf") { // error
         testQuery(
-          "select Nvl2(stringIdentity(id), null, id) as nvl2 from users",
+          "select Nvl2(longIdentity(id), null, id) as nvl2 from users",
           expectPartialPushdown = true
         )
       }
@@ -842,7 +886,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("null") { testQuery("select not(null) from users") }
       it("partial pushdown with udf") {
         testQuery(
-          "select not(cast(stringIdentity(id) as boolean)) from users",
+          "select not(cast(longIdentity(id) as boolean)) from users",
           expectPartialPushdown = true
         )
       }
@@ -858,7 +902,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("partial pushdown with udf") {
         testQuery(
           """
-            |select if(cast(stringIdentity(id) as boolean), first_name, last_name) as t_col
+            |select if(cast(longIdentity(id) as boolean), first_name, last_name) as t_col
             |from users
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
@@ -940,7 +984,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown: invalid `else` condition") {
         testQuery(
-          "select case when id < 5 then 1 else stringIdentity(id) end as t_col from users",
+          "select case when id < 5 then 1 else longIdentity(id) end as t_col from users",
           expectPartialPushdown = true
         )
       }
@@ -1054,7 +1098,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("numbers") { testQuery("select -id as t_col from users") }
       it("floats") { testQuery("select -critic_rating as t_col from movies") }
       it("partial pushdown with udf") {
-        testQuery("select -stringIdentity(id) as t_col from users", expectPartialPushdown = true)
+        testQuery("select -longIdentity(id) as t_col from users", expectPartialPushdown = true)
       }
     }
 
@@ -1062,7 +1106,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("numbers") { testQuery("select +id as t_col from users") }
       it("floats") { testQuery("select +critic_rating as t_col from movies") }
       it("partial pushdown with udf") {
-        testQuery("select +stringIdentity(id) as t_col from users", expectPartialPushdown = true)
+        testQuery("select +longIdentity(id) as t_col from users", expectPartialPushdown = true)
       }
     }
 
@@ -1081,7 +1125,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("bitwise Expressions") {
-    describe("And") {
+    describe("BitwiseAnd") {
       it("succeeds") { testQuery("select user_id & movie_id as t_col from reviews") }
       it("partial pushdown because of udf in the left argument") {
         testQuery(
@@ -1097,7 +1141,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("Or") {
+    describe("BitwiseOr") {
       it("numbers") { testQuery("select user_id | movie_id as t_col from reviews") }
       it("partial pushdown because of udf in the left argument") {
         testQuery(
@@ -1113,7 +1157,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("Xor") {
+    describe("BitwiseXor") {
       it("numbers") { testQuery("select user_id ^ movie_id as t_col from reviews") }
       it("partial pushdown because of udf in the left argument") {
         testQuery(
@@ -1129,7 +1173,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("bitwiseGet") {
+    describe("BitwiseGet") {
       it("numbers", ExcludeFromSpark31) {
         testQuery("select bit_get(id, 2) as t_col from users_sample")
       }
@@ -1172,99 +1216,296 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         )
       }
     }
+
+    describe("BitwiseCount") {
+      it("bit_count non-nullable column") {
+        testQuery("select bit_count(user_id) as bit_count from reviews")
+      }
+      it("partial pushdown because of udf") {
+        testQuery(
+          "select bit_count(longIdentity(user_id)) as bit_count from reviews",
+          expectPartialPushdown = true
+        )
+      }
+      it("bit_count with nullable column") {
+        testQuery(
+          """
+            |select
+            | id,
+            | critic_rating % 2 == 0 as critic_rating_bool,
+            | bit_count(critic_rating % 2 == 0) as bit_count
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+    }
+
+    def bitOperationTest(
+      sql: String,
+      expectPartialPushdown: Boolean = false,
+      expectSingleRead: Boolean = false
+    ): Unit = {
+      val bitOperationsMinVersion = SinglestoreVersion(7, 0, 1)
+      val resultSet               = spark.executeSinglestoreQuery("select @@memsql_version")
+      val version                 = SinglestoreVersion(resultSet.next().getString(0))
+      if (version.atLeast(bitOperationsMinVersion)) {
+        testSingleReadForOldS2(
+          sql,
+          SinglestoreVersion(7, 6, 0),
+          expectPartialPushdown,
+          expectSingleRead
+        )
+      }
+    }
+
+    describe("BitAndAgg") {
+      it("bit_and non-nullable column") {
+        bitOperationTest("select bit_and(user_id) as bit_and from reviews")
+      }
+      it("bit_and partial pushdown because of udf") {
+        bitOperationTest(
+          "select bit_and(integerIdentity(user_id)) as bit_and from reviews",
+          expectPartialPushdown = true,
+          expectSingleRead = true
+        )
+      }
+      it("bit_and filter") {
+        bitOperationTest(
+          "select bit_and(user_id) filter (where user_id % 2 = 0) as bit_and from reviews"
+        )
+      }
+      // singlestore returns bit_and(null) = [0] whereas spark returns bit_and(null) = [null]
+      ignore("09/2024 - bit_and non-nullable column") {
+        bitOperationTest("select bit_and(user_id) as bit_and from reviews")
+      }
+      it("bit_and with nullable column") {
+        bitOperationTest(
+          """
+            |select bit_and(cast(critic_rating % 2 as int)) as bit_and
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+    }
+
+    describe("BitOrAgg") {
+      it("bit_or non-nullable column") {
+        bitOperationTest("select bit_or(age) as bit_or from users")
+      }
+      it("bit_or partial pushdown because of udf") {
+        bitOperationTest(
+          "select bit_or(integerIdentity(age)) as bit_or from users",
+          expectPartialPushdown = true,
+          expectSingleRead = true
+        )
+      }
+      it("bit_or filter") {
+        bitOperationTest("select bit_or(age) filter (where age % 2 = 0) as bit_or from users")
+      }
+      // singlestore returns bit_or(null) = [0] whereas spark returns bit_or(null) = [null]
+      ignore("09/2024 - bit_or non-nullable column") {
+        bitOperationTest("select bit_or(age) as bit_or from users")
+      }
+      it("bit_or with nullable column") {
+        bitOperationTest(
+          """
+            |select bit_or(cast(rint(critic_rating) % 2 as int)) as bit_or
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+    }
+
+    describe("BitXorAgg") {
+      it("bit_xor non-nullable column") {
+        bitOperationTest("select bit_xor(user_id) as bit_xor from reviews")
+      }
+      it("bit_xor partial pushdown because of udf") {
+        bitOperationTest(
+          "select bit_xor(longIdentity(user_id)) as bit_xor from reviews",
+          expectPartialPushdown = true,
+          expectSingleRead = true
+        )
+      }
+      it("bit_xor filter") {
+        bitOperationTest(
+          "select bit_xor(user_id) filter (where user_id % 2 = 0) as bit_xor from reviews"
+        )
+      }
+      // singlestore returns bit_xor(null) = [0] whereas spark returns bit_xor(null) = [null]
+      ignore("09/2024 - bit_xor non-nullable column") {
+        bitOperationTest("select bit_xor(user_id) as bit_xor from reviews")
+      }
+      it("bit_xor with nullable column") {
+        bitOperationTest(
+          """
+            |select bit_xor(cast(rint(critic_rating) % 2 as int)) as bit_xor
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+    }
   }
 
-  describe("Math expressions") {
+  describe("Math Expressions") {
     describe("sinh") {
-      it("works with float") { testQuery("select sinh(rating) as sinh from reviews") }
+      it("works with float column") { testQuery("select sinh(rating) as sinh from reviews") }
       it("works with tinyint") { testQuery("select sinh(owns_house) as sinh from users") }
       it("partial pushdown") {
         testQuery(
-          "select sinh(stringIdentity(rating)) as sinh, stringIdentity(review) as review from reviews",
+          """
+            |select
+            | sinh(floatIdentity(rating)) as sinh,
+            | stringIdentity(review) as review
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select sinh(null) as sinh from reviews") }
+      it("works with literal null") { testQuery("select sinh(null) as sinh from reviews") }
+      it("works with nullable column") {
+        testQuery("select sinh(critic_rating) as sinh from movies")
+      }
     }
 
     describe("cosh") {
-      it("works with float") { testQuery("select cosh(rating) as cosh from reviews") }
+      it("works with float column") { testQuery("select cosh(rating) as cosh from reviews") }
       it("works with tinyint") { testQuery("select cosh(owns_house) as cosh from users") }
       it("partial pushdown") {
         testQuery(
-          "select cosh(stringIdentity(rating)) as cosh, stringIdentity(review) as review from reviews",
+          """
+            |select
+            | cosh(floatIdentity(rating)) as cosh,
+            | stringIdentity(review) as review
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select cosh(null) as cosh from reviews") }
+      it("works with literal null") { testQuery("select cosh(null) as cosh from reviews") }
+      it("works with nullable column") {
+        testQuery("select cosh(critic_rating) as cosh from movies")
+      }
     }
 
     describe("tanh") {
-      it("works with float") { testQuery("select tanh(rating) as tanh from reviews") }
+      it("works with float column") { testQuery("select tanh(rating) as tanh from reviews") }
       it("works with tinyint") { testQuery("select tanh(owns_house) as tanh from users") }
       it("partial pushdown") {
         testQuery(
-          "select tanh(stringIdentity(rating)) as tanh, stringIdentity(review) as review from reviews",
+          """
+            |select
+            | tanh(floatIdentity(rating)) as tanh,
+            | stringIdentity(review) as review
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select tanh(null) as tanh from reviews") }
+      it("works with literal null") { testQuery("select tanh(null) as tanh from reviews") }
+      it("works with nullable column") {
+        testQuery("select tanh(critic_rating) as tanh from movies")
+      }
     }
 
     describe("hypot") {
-      it("works with float") { testQuery("select hypot(rating, user_id) as hypot from reviews") }
+      it("works with float column") {
+        testQuery("select hypot(rating, user_id) as hypot from reviews")
+      }
       it("works with tinyint") { testQuery("select hypot(owns_house, id) as hypot from users") }
       it("partial pushdown") {
         testQuery(
-          "select hypot(stringIdentity(rating), user_id) as hypot, stringIdentity(review) as review from reviews",
+          """
+            |select
+            | hypot(floatIdentity(rating), user_id) as hypot,
+            | stringIdentity(review) as review
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select hypot(null, null) as hypot from reviews") }
+      it("works with literal null") { testQuery("select hypot(null, null) as hypot from reviews") }
+      it("works with nullable column") {
+        testQuery("select hypot(critic_rating, id) as hypot from movies")
+      }
     }
 
     describe("rint") {
-      it("works with float") { testQuery("select rint(rating) as rint from reviews") }
+      it("works with float column") { testQuery("select rint(rating) as rint from reviews") }
       it("works with tinyint") { testQuery("select rint(owns_house) as rint from users") }
       it("partial pushdown") {
         testQuery(
-          "select rint(stringIdentity(rating)) as rint, stringIdentity(review) as review from reviews",
+          """
+            |select
+            | rint(floatIdentity(rating)) as rint,
+            | stringIdentity(review) as review
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select rint(null) as rint from reviews") }
+      it("works with literal null") { testQuery("select rint(null) as rint from reviews") }
+      it("works with nullable column") {
+        testQuery("select rint(critic_rating) as rint from movies")
+      }
     }
 
     describe("asinh") {
-      it("works with float") { testQuery("select rating, asinh(rating) as t_col from reviews") }
-      it("works with tinyint") { testQuery("select owns_house, asinh(owns_house) as t_col from users") }
+      it("works with float column") {
+        testQuery("select rating, asinh(rating) as asinh from reviews")
+      }
+      it("works with tinyint") {
+        testQuery("select owns_house, asinh(owns_house) as asinh from users")
+      }
       it("partial pushdown") {
         testQuery(
-          "select rating, asinh(stringIdentity(rating)) as t_col from reviews",
+          "select rating, asinh(stringIdentity(rating)) as asinh from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select asinh(null) as t_col from reviews") }
+      it("works with literal null") { testQuery("select asinh(null) as asinh from reviews") }
+      it("works with nullable column") {
+        testQuery("select asinh(critic_rating) as asinh from movies")
+      }
     }
 
     describe("acosh") {
-      it("works with float") { testQuery("select acosh(rating) as acosh from reviews") }
+      it("works with float column") { testQuery("select acosh(rating) as acosh from reviews") }
       it("partial pushdown") {
         testQuery(
-          "select acosh(stringIdentity(rating)) as acosh, stringIdentity(review) as review from reviews",
+          """
+            |select
+            | acosh(stringIdentity(rating)) as acosh,
+            | stringIdentity(review) as review
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select acosh(null) as acosh from reviews") }
+      it("works with literal null") { testQuery("select acosh(null) as acosh from reviews") }
+      // singlestore does not support NaN and it returns NULL
+      // instead of NaN that is returned from spark
+      //
+      // Example:
+      //  SingleStore Row [value, acosh(value)] | Spark Row [value, acosh(value)]
+      //  [0.800000011920929,null]              | [0.8,NaN]
+      //  [0.6000000238418579,null]             | [0.6,NaN]
+      //  [0.699999988079071,null]              | [0.7,NaN]
+      //  [0.0,null]                            | [0.0,NaN]
+      //  [0.5,null]                            | [0.5,NaN]
+      //  [0.5,null]                            | [0.5,NaN]
+      ignore("09/2024 - works with nullable column") {
+        testQuery("select acosh(critic_rating) as acosh from movies")
+      }
     }
 
     describe("atanh") {
-      it("works with float") {
+      it("works with float nullable column") {
         testQuery(
           """
             |select
             | critic_rating,
-            | atanh(critic_rating) as t_col
+            | atanh(critic_rating) as atanh
             |from movies
             |where critic_rating > -1 AND critic_rating < 1
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
@@ -1272,16 +1513,46 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown") {
         testQuery(
-          "select rating, atanh(stringIdentity(rating)) as t_col from reviews",
+          "select rating, atanh(stringIdentity(rating)) as atanh from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select atanh(null) as t_col from reviews") }
+      it("works with literal null") { testQuery("select atanh(null) as atanh from reviews") }
     }
 
     describe("integralDivide") {
-      it("works with bigint") {
-        testQuery("select user_id, movie_id, user_id div movie_id from reviews")
+      it("works with bigint column") {
+        testQuery("select user_id, movie_id, user_id div movie_id as integralDivide from reviews")
+      }
+      it("works with float nullable column") {
+        testQuery(
+          """
+            |select
+            | critic_rating,
+            | cast(critic_rating as decimal(20, 5)) div cast(critic_rating as decimal(20, 5)) as integralDivide
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      it("works with float nullable column in exp1") {
+        testQuery(
+          """
+            |select
+            | critic_rating,
+            | cast(critic_rating as decimal(20, 5)) div 1.0 as integralDivide
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      it("works with float nullable column in exp2") {
+        testQuery(
+          """
+            |select
+            | critic_rating,
+            | 1.0 div cast(critic_rating as decimal(20, 5)) as integralDivide
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
       }
       it("works with null") { testQuery("select null div null as integralDivide from reviews") }
       it("partial pushdown") {
@@ -1293,228 +1564,278 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("sqrt") {
-      it("works with float") { testQuery("select sqrt(rating) as sqrt from reviews") }
+      it("works with float column") { testQuery("select sqrt(rating) as sqrt from reviews") }
       it("works with tinyint") { testQuery("select sqrt(owns_house) as sqrt from users") }
       it("partial pushdown") {
         testQuery(
-          "select sqrt(stringIdentity(rating)) as sqrt, stringIdentity(review) as review from reviews",
+          "select sqrt(floatIdentity(rating)) as sqrt, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select sqrt(null) as sqrt from reviews") }
+      it("works with literal null") { testQuery("select sqrt(null) as sqrt from reviews") }
+      it("works with nullable column") {
+        testQuery("select sqrt(critic_rating) as sqrt from movies")
+      }
     }
 
     describe("ceil") {
-      it("works with float") { testQuery("select ceil(rating) as ceil from reviews") }
+      it("works with float column") { testQuery("select ceil(rating) as ceil from reviews") }
       it("works with tinyint") { testQuery("select ceil(owns_house) as ceil from users") }
       it("partial pushdown") {
         testQuery(
-          "select ceil(stringIdentity(rating)) as ceil, stringIdentity(review) as review from reviews",
+          "select ceil(floatIdentity(rating)) as ceil, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select ceil(null) as ceil from reviews") }
+      it("works with literal null") { testQuery("select ceil(null) as ceil from reviews") }
+      it("works with nullable column") {
+        testQuery("select ceil(critic_rating) as ceil from movies")
+      }
     }
 
     describe("cos") {
-      it("works with float") { testQuery("select cos(rating) as cos from reviews") }
+      it("works with float column") { testQuery("select cos(rating) as cos from reviews") }
       it("works with tinyint") { testQuery("select cos(owns_house) as cos from users") }
       it("partial pushdown") {
         testQuery(
-          "select cos(stringIdentity(rating)) as cos, stringIdentity(review) as review from reviews",
+          "select cos(floatIdentity(rating)) as cos, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select cos(null) as cos from reviews") }
+      it("works with literal null") { testQuery("select cos(null) as cos from reviews") }
+      it("works with nullable column") {
+        testQuery("select cos(critic_rating) as cos from movies")
+      }
     }
 
     describe("exp") {
-      it("works with float") { testQuery("select exp(rating) as exp from reviews") }
+      it("works with float column") { testQuery("select exp(rating) as exp from reviews") }
       it("works with tinyint") { testQuery("select exp(owns_house) as exp from users") }
       it("partial pushdown") {
         testQuery(
-          "select exp(stringIdentity(rating)) as exp, stringIdentity(review) as review from reviews",
+          "select exp(floatIdentity(rating)) as exp, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select exp(null) as exp from reviews") }
+      it("works with literal null") { testQuery("select exp(null) as exp from reviews") }
+      it("works with nullable column") {
+        testQuery("select exp(critic_rating) as exp from movies")
+      }
     }
 
     describe("expm1") {
-      it("works with float") { testQuery("select expm1(rating) as expm1 from reviews") }
+      it("works with float column") { testQuery("select expm1(rating) as expm1 from reviews") }
       it("works with tinyint") { testQuery("select expm1(owns_house) as expm1 from users") }
       it("partial pushdown") {
         testQuery(
-          "select expm1(stringIdentity(rating)) as expm1, stringIdentity(review) as review from reviews",
+          "select expm1(floatIdentity(rating)) as expm1, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select expm1(null) as expm1 from reviews") }
+      it("works with with literal null") { testQuery("select expm1(null) as expm1 from reviews") }
+      it("works with nullable column") {
+        testQuery("select expm1(critic_rating) as exp from movies")
+      }
     }
 
     describe("floor") {
-      it("works with float") { testQuery("select floor(rating) as floor from reviews") }
+      it("works with float column") { testQuery("select floor(rating) as floor from reviews") }
       it("works with tinyint") { testQuery("select floor(owns_house) as floor from users") }
       it("partial pushdown") {
         testQuery(
-          "select floor(stringIdentity(rating)) as floor, stringIdentity(review) as review from reviews",
+          "select floor(floatIdentity(rating)) as floor, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select floor(null) as floor from reviews") }
+      it("works with literal null") { testQuery("select floor(null) as floor from reviews") }
+      it("works with nullable column") {
+        testQuery("select floor(critic_rating) as floor from movies")
+      }
     }
 
-    describe("log") {
-      it("works with float") { testQuery("select log(rating) as log from reviews") }
-      it("works with tinyint") { testQuery("select log(owns_house) as log from users") }
+    describe("ln (Log)") {
+      it("works with float column") { testQuery("select ln(rating) as ln from reviews") }
+      it("works with tinyint") { testQuery("select ln(owns_house) as ln from users") }
       it("partial pushdown") {
         testQuery(
-          "select log(stringIdentity(rating)) as log, stringIdentity(review) as review from reviews",
+          "select ln(floatIdentity(rating)) as ln, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select log(null) as log from reviews") }
+      it("works with literal null") { testQuery("select ln(null) as ln from reviews") }
+      it("works with nullable column") {
+        testQuery("select ln(critic_rating) as ln from movies")
+      }
     }
 
     describe("log2") {
-      it("works with float") { testQuery("select log2(rating) as log2 from reviews") }
+      it("works with float column") { testQuery("select log2(rating) as log2 from reviews") }
       it("works with tinyint") { testQuery("select log2(owns_house) as log2 from users") }
       it("partial pushdown") {
         testQuery(
-          "select log2(stringIdentity(rating)) as log2, stringIdentity(review) as review from reviews",
+          "select log2(floatIdentity(rating)) as log2, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select log2(null) as log2 from reviews") }
+      it("works with literal null") { testQuery("select log2(null) as log2 from reviews") }
+      it("works with nullable column") {
+        testQuery("select log2(critic_rating) as log2 from movies")
+      }
     }
 
     describe("log10") {
-      it("works with float") { testQuery("select log10(rating) as log10 from reviews") }
+      it("works with float column") { testQuery("select log10(rating) as log10 from reviews") }
       it("works with tinyint") { testQuery("select log10(owns_house) as log10 from users") }
       it("partial pushdown") {
         testQuery(
-          "select log10(stringIdentity(rating)) as log10, stringIdentity(review) as review from reviews",
+          "select log10(floatIdentity(rating)) as log10, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select log10(null) as log10 from reviews") }
+      it("works with literal null") { testQuery("select log10(null) as log10 from reviews") }
+      it("works with nullable column") {
+        testQuery("select log10(critic_rating) as log10 from movies")
+      }
     }
 
     describe("log1p") {
-      it("works with float") { testQuery("select log1p(rating) as log1p from reviews") }
+      it("works with float column") { testQuery("select log1p(rating) as log1p from reviews") }
       it("works with tinyint") { testQuery("select log1p(owns_house) as log1p from users") }
       it("partial pushdown") {
         testQuery(
-          "select log1p(stringIdentity(rating)) as log1p, stringIdentity(review) as review from reviews",
+          "select log1p(floatIdentity(rating)) as log1p, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select log1p(null) as log1p from reviews") }
+      it("works with literal null") { testQuery("select log1p(null) as log1p from reviews") }
+      it("works with nullable column") {
+        testQuery("select log1p(critic_rating) as log1p from movies")
+      }
     }
 
     describe("signum") {
-      it("works with float") { testQuery("select signum(rating) as signum from reviews") }
+      it("works with float column") { testQuery("select signum(rating) as signum from reviews") }
       it("works with tinyint") { testQuery("select signum(owns_house) as signum from users") }
       it("partial pushdown") {
         testQuery(
-          "select signum(stringIdentity(rating)) as signum, stringIdentity(review) as review from reviews",
+          "select signum(floatIdentity(rating)) as signum, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select signum(null) as signum from reviews") }
+      it("works with literal null") { testQuery("select signum(null) as signum from reviews") }
+      it("works with nullable column") {
+        testQuery("select signum(critic_rating) as signum from movies")
+      }
     }
 
     describe("cot") {
-      it("works with float") { testQuery("select cot(rating) as cot from reviews") }
+      it("works with float column") { testQuery("select cot(rating) as cot from reviews") }
       it("partial pushdown") {
         testQuery(
-          "select cot(stringIdentity(rating)) as cot, stringIdentity(review) as review from reviews",
+          "select cot(floatIdentity(rating)) as cot, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select cot(null) as cot from reviews") }
+      it("works with literal null") { testQuery("select cot(null) as cot from reviews") }
+      it("works with nullable column") {
+        testQuery("select cot(critic_rating) as cot from movies")
+      }
     }
 
-    describe("toDegrees") {
-      it("works with float") { testQuery("select degrees(rating) as degrees from reviews") }
+    describe("degrees") {
+      it("works with float column") { testQuery("select degrees(rating) as degrees from reviews") }
       it("works with tinyint") { testQuery("select degrees(owns_house) as degrees from users") }
       it("partial pushdown") {
         testQuery(
-          "select degrees(stringIdentity(rating)) as degrees, stringIdentity(review) as review from reviews",
+          "select degrees(floatIdentity(rating)) as degrees, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select degrees(null) as degrees from reviews") }
+      it("works with literal null") { testQuery("select degrees(null) as degrees from reviews") }
+      it("works with nullable column") {
+        testQuery("select degrees(critic_rating) as degrees from movies")
+      }
     }
 
-    describe("toRadians") {
-      it("works with float") { testQuery("select radians(rating) as radians from reviews") }
+    describe("radians") {
+      it("works with float column") { testQuery("select radians(rating) as radians from reviews") }
       it("works with tinyint") { testQuery("select radians(owns_house) as radians from users") }
       it("partial pushdown") {
         testQuery(
-          "select radians(stringIdentity(rating)) as radians, stringIdentity(review) as review from reviews",
+          "select radians(floatIdentity(rating)) as radians, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select radians(null) as radians from reviews") }
+      it("works with literal null") { testQuery("select radians(null) as radians from reviews") }
+      it("works with nullable column") {
+        testQuery("select radians(critic_rating) as radians from movies")
+      }
     }
 
     describe("bin") {
-      it("works with float") { testQuery("select bin(user_id) as bin from reviews") }
+      it("works with long column") { testQuery("select bin(user_id) as bin from reviews") }
       it("works with tinyint") { testQuery("select bin(owns_house) as bin from users") }
       it("partial pushdown") {
         testQuery(
-          "select bin(stringIdentity(rating)) as bin, stringIdentity(review) as review from reviews",
+          "select bin(longIdentity(user_id)) as bin, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testSingleReadForReadFromLeaves("select bin(null) as bin from reviews") }
+      it("works with literal null") {
+        testSingleReadForReadFromLeaves("select bin(null) as bin from reviews")
+      }
+      it("works with nullable column") {
+        testQuery("select bin(cast(rint(critic_rating) as decimal(2,0))) as bin from movies")
+      }
     }
 
     describe("hex") {
-      it("works with float") { testQuery("select hex(user_id) as hex from reviews") }
+      it("works with long column") { testQuery("select hex(user_id) as hex from reviews") }
       it("works with tinyint") { testQuery("select hex(owns_house) as hex from users") }
       it("partial pushdown") {
         testQuery(
-          "select hex(stringIdentity(rating)) as hex, stringIdentity(review) as review from reviews",
+          "select hex(longIdentity(user_id)) as hex, stringIdentity(review) as review from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testSingleReadForReadFromLeaves("select hex(null) as hex from reviews") }
+      it("works with literal null") {
+        testSingleReadForReadFromLeaves("select hex(null) as hex from reviews")
+      }
+      it("works with nullable column") {
+        testQuery("select hex(critic_review) as hex from movies")
+      }
     }
 
     describe("unhex") {
+      it("works with string column") { testQuery("select unhex(review) as unhex from reviews") }
       it("works with tinyint") { testQuery("select unhex(owns_house) as unhex from users") }
       it("partial pushdown") {
         testQuery(
-          "select unhex(stringIdentity(rating)) as unhex, stringIdentity(review) as review from reviews",
+          "select floatIdentity(rating) as review , unhex(stringIdentity(review)) as unhex from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with null") { testQuery("select unhex(null) as unhex from reviews") }
+      it("works with literal null") { testQuery("select unhex(null) as unhex from reviews") }
+      it("works with nullable column") {
+        testQuery("select unhex(critic_review) as hex from movies")
+      }
     }
 
-    it("sinh") { testQuery("select sinh(rating) as sinh from reviews") }
-    it("cosh") { testQuery("select cosh(rating) as cosh from reviews") }
-    it("tanh") { testQuery("select tanh(rating) as tanh from reviews") }
-    it("hypot") { testQuery("select hypot(rating, user_id) as hypot from reviews") }
-    it("rint") { testQuery("select rint(rating) as rint from reviews") }
-
-    describe("Atan2") {
-      // atan(-e,-1) = -pi
-      // atan(e,-1) = pi
-      // where e is a very small value
-      // we are filtering this cases, because the result can differ
-      // for singlestore and spark, because of precision loss
-      it("works") {
+    describe("atan2") {
+      // atan(-e,-1) = -pi | atan(e,-1) = pi, where e is a very small value
+      // we are filtering this cases, because the result can differ for
+      // singlestore and spark because of precision loss
+      it("works with nullable columns") {
         testQuery(
         """
           |select
+          | id,
+          | critic_rating,
           | atan2(critic_rating, id) as a1,
           | atan2(critic_rating, -id) as a2,
           | atan2(-critic_rating, id) as a3,
           | atan2(-critic_rating, -id) as a4,
-          | critic_rating, id
+          | atan2(-id, -critic_rating) as a5
           |from movies
           |where abs(critic_rating) > 0.01 or critic_rating is null
           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
@@ -1522,40 +1843,47 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("udf in the left argument") {
         testQuery(
-          "select atan2(stringIdentity(critic_rating), id) as t_col from movies",
+          "select atan2(floatIdentity(critic_rating), id) as atan2 from movies",
           expectPartialPushdown = true
         )
       }
       it("udf in the right argument") {
         testQuery(
-          "select atan2(critic_rating, stringIdentity(id)) as t_col from movies",
+          "select atan2(critic_rating, longIdentity(id)) as atan2 from movies",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("Pow") {
-      it("works") { testQuery("select log(pow(id, critic_rating)) as t_col from movies") }
+    describe("pow|power") {
+      it("works with nullable column in left argument") {
+        testQuery("select log(pow(critic_rating, id)) as pow from movies")
+      }
+      it("works with nullable column in right argument") {
+        testQuery("select log(pow(id, critic_rating)) as pow from movies")
+      }
       it("udf in the left argument") {
         testQuery(
-          "select log(pow(stringIdentity(id), critic_rating)) as t_col from movies",
+          "select log(pow(longIdentity(id), critic_rating)) as pow from movies",
           expectPartialPushdown = true
         )
       }
       it("udf in the right argument") {
         testQuery(
-          "select log(pow(id, stringIdentity(critic_rating))) as t_col from movies",
+          "select log(pow(id, floatIdentity(critic_rating))) as pow from movies",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("Logarithm") {
-      it("works") {
+    describe("log (Logarithm)") {
+      it("works nullable columns") {
         // spark returns +/-Infinity for log(1, x) singlestore returns NULL for it
         testQuery(
         """
           |select
+          | id,
+          | critic_rating,
           | log(critic_rating, id) as l1,
           | log(critic_rating, -id) as l2,
           | log(-critic_rating, id) as l3,
@@ -1563,38 +1891,36 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           | log(id, critic_rating) as l5,
           | log(id, -critic_rating) as l6,
           | log(-id, critic_rating) as l7,
-          | log(-id, -critic_rating) as l8,
-          | critic_rating,
-          | id
+          | log(-id, -critic_rating) as l8
           |from movies
           |where id != 1 and critic_rating != 1
           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with 1 argument") { testQuery("select log(critic_rating) as t_col from movies") }
+      it("works with one argument") { testQuery("select log(critic_rating) as log from movies") }
       it("udf in the left argument") {
         testQuery(
-          "select log(stringIdentity(id), critic_rating) as t_col from movies",
+          "select log(longIdentity(id), critic_rating) as log from movies",
           expectPartialPushdown = true
         )
       }
       it("udf in the right argument") {
         testQuery(
-          "select log(id, stringIdentity(critic_rating)) as t_col from movies",
+          "select log(id, floatIdentity(critic_rating)) as log from movies",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("Round") {
+    describe("round") {
       // singlestore can round x.5 differently
       it("works with one argument") {
         testQuery(
         """
           |select
-          | round(critic_rating),
-          | round(-critic_rating),
-          | critic_rating
+          | critic_rating,
+          | round(critic_rating) as round1,
+          | round(-critic_rating) as round2
           |from movies
           |where critic_rating - floor(critic_rating) != 0.5
           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
@@ -1604,26 +1930,27 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery(
         """
           |select
-          | round(critic_rating/10.0, 1) as x1,
-          | round(-critic_rating/100.0, 2) as x2,
-          | critic_rating
+          | critic_rating,
+          | round(critic_rating/10.0, 1) as round1,
+          | round(-critic_rating/100.0, 2) as round2
           |from movies
           |where critic_rating - floor(critic_rating) != 0.5
           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with negative scale") { testQuery("select round(critic_rating, -2) as t_col from movies") }
+      it("works with negative scale") {
+        testQuery("select round(critic_rating, -2) as round from movies")
+      }
+      // Note: right argument must be foldable so we can't use udf there
       it("udf in the left argument") {
         testQuery(
-          "select round(stringIdentity(critic_rating), 2) as t_col from movies",
+          "select round(floatIdentity(critic_rating), 2) as round from movies",
           expectPartialPushdown = true
         )
       }
-      // right argument must be foldable
-      // because of it, we can't use udf there
     }
 
-    describe("WidthBucket") {
+    describe("width_bucket") {
       it("works with int, simple case") {
         testQuery("select id, width_bucket(id, 10, 90, 10) as t_col from movies")
       }
@@ -1641,18 +1968,29 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("num_buckets is non-constant  float") {
         testQuery(
-          "select id, width_bucket(id, 10, 90, id/10 + 1) as t_col from movies where id/10 - floor(id/10) < 0.5"
+          """
+            |select
+            | id,
+            | width_bucket(id, 10, 90, id/10 + 1) as t_col
+            |from movies
+            |where id/10 - floor(id/10) < 0.5
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       it("works with float, simple case") {
         testQuery(
-          "select id, width_bucket(critic_rating, 10 + critic_rating, 90, 10) as t_col from movies")
+          "select id, width_bucket(critic_rating, 10 + critic_rating, 90, 10) as t_col from movies"
+        )
       }
       it("works with string") {
-        testQuery("select id, width_bucket(-critic_rating, '10.2', '0.4', '10') as t_col from movies")
+        testQuery(
+          "select id, width_bucket(-critic_rating, '10.2', '0.4', '10') as t_col from movies"
+        )
       }
       it("all args are not const") {
-        testQuery("select id, width_bucket(critic_rating, id-10, id, id + 200) as t_col from movies")
+        testQuery(
+          "select id, width_bucket(critic_rating, id-10, id, id + 200) as t_col from movies"
+        )
       }
       it("works with int, max = min") {
         testQuery("select id, width_bucket(id, 90, 90, 10) as t_col from movies")
@@ -1665,58 +2003,58 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("udf in the first arg") {
         testQuery(
-          "select id, width_bucket(stringIdentity(critic_rating), 10, 100, 200) as t_col from movies",
+          "select id, width_bucket(floatIdentity(critic_rating), 10, 100, 200) as t_col from movies",
           expectPartialPushdown = true
         )
       }
       it("udf in the second arg") {
         testQuery(
-          "select id, width_bucket(id, stringIdentity(critic_rating), 100, 200) as t_col from movies",
+          "select id, width_bucket(id, floatIdentity(critic_rating), 100, 200) as t_col from movies",
           expectPartialPushdown = true
         )
       }
       it("udf in the third arg") {
         testQuery(
-          "select id, width_bucket(id, 10, stringIdentity(critic_rating), 200) as t_col from movies",
+          "select id, width_bucket(id, 10, floatIdentity(critic_rating), 200) as t_col from movies",
           expectPartialPushdown = true
         )
       }
       it("udf in the fourth arg") {
         testQuery(
-          "select id, width_bucket(id, 100, 200, stringIdentity(critic_rating)) as t_col from movies",
+          "select id, width_bucket(id, 100, 200, floatIdentity(critic_rating)) as t_col from movies",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("Hypot") {
-      it("works") {
+    describe("hypot") {
+      it("works with nullable columns") {
         testQuery(
         """
           |select
-          | Hypot(critic_rating, id) as h1,
-          | Hypot(critic_rating, -id) as h2,
-          | Hypot(-critic_rating, id) as h3,
-          | Hypot(-critic_rating, -id) as h4,
-          | Hypot(id, critic_rating) as h5,
-          | Hypot(id, -critic_rating) as h6,
-          | Hypot(-id, critic_rating) as h7,
-          | Hypot(-id, -critic_rating) as h8,
+          | id,
           | critic_rating,
-          | id
+          | hypot(critic_rating, id) as h1,
+          | hypot(critic_rating, -id) as h2,
+          | hypot(-critic_rating, id) as h3,
+          | hypot(-critic_rating, -id) as h4,
+          | hypot(id, critic_rating) as h5,
+          | hypot(id, -critic_rating) as h6,
+          | hypot(-id, critic_rating) as h7,
+          | hypot(-id, -critic_rating) as h8
           |from movies
           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       it("udf in the left argument") {
         testQuery(
-          "select Hypot(stringIdentity(critic_rating), id) as t_col from movies",
+          "select hypot(floatIdentity(critic_rating), id) as hypot from movies",
           expectPartialPushdown = true
         )
       }
       it("udf in the right argument") {
         testQuery(
-          "select Hypot(critic_rating, stringIdentity(id)) as t_col from movies",
+          "select hypot(critic_rating, longIdentity(id)) as hypot from movies",
           expectPartialPushdown = true
         )
       }
@@ -1725,9 +2063,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("EulerNumber") { testQuery("select E() from movies") }
     it("Pi") { testQuery("select PI() from movies") }
 
-    describe("Conv") {
+    describe("conv") {
       // singlestore and spark behaviour differs when num contains non alphanumeric characters
       val bases = Seq(2, 5, 23, 36)
+
       it("works") {
         for (fromBase <- bases; toBase <- bases) {
           log.debug(s"testing conv $fromBase -> $toBase")
@@ -1735,145 +2074,109 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             s"""
               |select
               |  first_name,
-              |  conv(first_name, $fromBase, $toBase)
+              |  conv(first_name, $fromBase, $toBase) as conv
               |from users
               |where first_name rlike '^[a-zA-Z0-9]*$$'
               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
           )
         }
       }
-      it("works with numeric") { testQuery("select conv(id, 10, 2) from users") }
+      it("works with numeric") { testQuery("select conv(id, 10, 2) as conv from users") }
       it("partial pushdown when fromBase out of range [2, 36]") {
-        testQuery("select conv(first_name, 1, 20) from users", expectPartialPushdown = true)
+        testQuery(
+          "select conv(first_name, 1, 20) as conv from users",
+          expectPartialPushdown = true
+        )
       }
       it("partial pushdown when toBase out of range [2, 36]") {
-        testQuery("select conv(first_name, 20, 1) from users", expectPartialPushdown = true)
+        testQuery(
+          "select conv(first_name, 20, 1) as conv from users",
+          expectPartialPushdown = true
+        )
       }
       it("udf in the first argument") {
         testQuery(
-          "select conv(stringIdentity(first_name), 20, 15) from users",
+          "select conv(stringIdentity(first_name), 20, 15) as conv from users",
           expectPartialPushdown = true
         )
       }
       it("udf in the second argument") {
         testQuery(
-          "select conv(first_name, stringIdentity(20), 15) from users",
+          "select conv(first_name, integerIdentity(20), 15) as conv from users",
           expectPartialPushdown = true
         )
       }
       it("udf in the third argument") {
         testQuery(
-          "select conv(first_name, 20, stringIdentity(15)) from users",
+          "select conv(first_name, 20, integerIdentity(15)) as conv from users",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("ShiftLeft") {
-      it("works") {
-        testQuery("select ShiftLeft(id, floor(critic_rating)) as t_col from movies")
+    describe("shiftleft") {
+      it("works with nullable column") {
+        testQuery("select shiftleft(id, floor(critic_rating)) as shiftleft from movies")
       }
       it("udf in the left argument") {
         testQuery(
-          "select ShiftLeft(stringIdentity(id), floor(critic_rating)) as t_col from movies",
+          "select shiftleft(longIdentity(id), floor(critic_rating)) as shiftleft from movies",
           expectPartialPushdown = true
         )
       }
       it("udf in the right argument") {
         testQuery(
-          "select ShiftLeft(id, stringIdentity(floor(critic_rating))) as t_col from movies",
+          "select shiftleft(id, floatIdentity(floor(critic_rating))) as shiftleft from movies",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("ShiftRight") {
-      it("works") { testQuery("select ShiftRight(id, floor(critic_rating)) as t_col from movies") }
+    describe("shiftright") {
+      it("works with nullable column") {
+        testQuery("select shiftright(id, floor(critic_rating)) as shiftright from movies")
+      }
       it("udf in the left argument") {
         testQuery(
-          "select ShiftRight(stringIdentity(id), floor(critic_rating)) as t_col from movies",
+          "select shiftright(longIdentity(id), floor(critic_rating)) as shiftright from movies",
           expectPartialPushdown = true
         )
       }
       it("udf in the right argument") {
         testQuery(
-          "select ShiftRight(id, stringIdentity(floor(critic_rating))) as t_col from movies",
+          "select shiftright(id, floatIdentity(floor(critic_rating))) as shiftright from movies",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("ShiftRightUnsigned") {
+    describe("shiftrightunsigned") {
       ignore("09/2024 - works") {
-        testQuery("select ShiftRightUnsigned(id, floor(critic_rating)) as t_col from movies")
+        testQuery(
+          "select shiftrightunsigned(id, floor(critic_rating)) as shiftrightunsigned from movies"
+        )
       }
       ignore("09/2024 - udf in the left argument") {
         testQuery(
-          "select ShiftRightUnsigned(stringIdentity(id), floor(critic_rating)) as t_col from movies",
+          """
+            |select
+            | shiftrightunsigned(longIdentity(id), floor(critic_rating)) as shiftrightunsigned
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
       ignore("09/2024 - udf in the right argument") {
         testQuery(
-          "select ShiftRightUnsigned(id, stringIdentity(floor(critic_rating))) as t_col from movies",
+          """
+            |select
+            | shiftrightunsigned(id, floatIdentity(floor(critic_rating))) as shiftrightunsigned
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
     }
-  }
-
-  describe("bit operations") {
-    it("bit_count") { testQuery("SELECT bit_count(user_id) AS bit_count FROM reviews") }
-    def bitOperationTest(sql: String): Unit = {
-      val bitOperationsMinVersion = SinglestoreVersion(7, 0, 1)
-      val resultSet               = spark.executeSinglestoreQuery("select @@memsql_version")
-      val version                 = SinglestoreVersion(resultSet.next().getString(0))
-      if (version.atLeast(bitOperationsMinVersion))
-        testSingleReadForOldS2(sql, SinglestoreVersion(7, 6, 0))
-    }
-    it("bit_and") { bitOperationTest("SELECT bit_and(user_id) AS bit_and FROM reviews") }
-    it("bit_and filter") {
-      bitOperationTest("SELECT bit_and(user_id) filter (where user_id % 2 = 0) FROM reviews")
-    }
-    it("bit_or") { bitOperationTest("SELECT bit_or(age) AS bit_or FROM users") }
-    it("bit_or filter") {
-      bitOperationTest("SELECT bit_or(age) filter (where age % 2 = 0) FROM users")
-    }
-    it("bit_xor") { bitOperationTest("SELECT bit_xor(user_id) AS bit_xor FROM reviews") }
-    it("bit_xor filter") {
-      bitOperationTest("SELECT bit_xor(user_id) filter (where user_id % 2 = 0) FROM reviews")
-    }
-  }
-
-  describe("datatypes") {
-    // due to a bug in our dataframe comparison library we need to alias the column 4.9 to x...
-    // this is because when the library asks spark for a column called "4.9", spark thinks the
-    // library wants the table 4 and column 9.
-    it("float literal") { testQuery("select 4.9 as x from movies") }
-
-    it("negative float literal") { testQuery("select -24.345 as x from movies") }
-    it("negative int literal") { testQuery("select -1 from users") }
-
-    it("int") { testQuery("select id from users") }
-    it("smallint") { testQuery("select age from users") }
-    it("date") { testQuery("select birthday from users") }
-    it("datetime") { testQuery("select created from reviews") }
-    it("bool") { testQuery("select owns_house from users") }
-    it("float") { testQuery("select critic_rating from movies") }
-    it("text") { testQuery("select first_name from users") }
-
-    it("typeof") {
-      testSingleReadForReadFromLeaves(
-        "SELECT typeof(user_id), typeof(created), typeof(review) FROM reviews")
-    }
-  }
-
-  describe("filter") {
-    it("numeric equality") { testQuery("select * from users where id = 1") }
-    it("numeric inequality") { testQuery("select * from users where id != 1") }
-    it("numeric comparison >") { testQuery("select * from users where id > 500") }
-    it("numeric comparison > <") { testQuery("select * from users where id > 500 and id < 550") }
-    it("string equality") { testQuery("select * from users where first_name = 'Evan'") }
   }
 
   describe("Aggregate Expressions") {

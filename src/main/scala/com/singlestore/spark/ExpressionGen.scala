@@ -574,6 +574,12 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
     }
   }
 
+  case class PromotePrecisionExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: PromotePrecision): Option[Joinable] = {
+      expressionExtractor.unapply(arg.child)
+    }
+  }
+
   def aggregateWithFilter(
     funcName: String,
     child: Joinable,
@@ -610,6 +616,8 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
 
     val aiqStringCompareCiExpressionExtractor    = AiqStringCompareCiExpressionExtractor(expressionExtractor)
     val aiqStringCompareNeqCiExpressionExtractor = AiqStringCompareNeqCiExpressionExtractor(expressionExtractor)
+
+    val promotePrecisionExpressionExtractor = PromotePrecisionExpressionExtractor(expressionExtractor)
 
     return {
       // ----------------------------------
@@ -1175,6 +1183,8 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
 
       case Reverse(e @ expressionExtractor(child)) if e.dataType.isInstanceOf[StringType] => f("REVERSE", child)
       // TODO: case SoundEx(expressionExtractor(child)) => ???
+
+      case promotePrecisionExpressionExtractor(promotePrecisionStatement) => promotePrecisionStatement
     }
   }
 }
