@@ -320,10 +320,16 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
+  describe("sanity test the tables") {
+    val tables = Seq("users", "users_sample", "movies", "reviews").sorted
+    for (t <- tables) { it(s"select all $t") { testQuery(s"select * from $t") } }
+  }
+
   describe("sanity test the `disablePushdown` flag") {
-    it("select all users") { testNoPushdownQuery("select * from users") }
-    it("select all movies") { testNoPushdownQuery("select * from movies") }
-    it("select all reviews") { testNoPushdownQuery("select * from reviews") }
+    val tables = Seq("users", "users_sample", "movies", "reviews").sorted
+
+    for (t <- tables) { it(s"select all $t") { testNoPushdownQuery(s"select * from $t") } }
+
     it("basic filter") { testNoPushdownQuery("select * from users where id = 1") }
     it("basic agg") {
       testNoPushdownQuery("select floor(avg(age)) from users", expectSingleRead = true)
@@ -340,13 +346,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         expectSingleRead = true
       )
     }
-  }
-
-  describe("sanity test the tables") {
-    it("select all users") { testQuery("select * from users") }
-    it("select all users (sampled)") { testQuery("select * from users_sample") }
-    it("select all movies") { testQuery("select * from movies") }
-    it("select all reviews") { testQuery("select * from reviews") }
   }
 
   describe("DataTypes") {
@@ -446,26 +445,28 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("Cast") {
-    describe("to boolean") {
-      it("boolean") { testQuery("select cast(owns_house as boolean) from users") }
-      it("int") { testQuery("select cast(age as boolean) from users") }
-      it("long") { testQuery("select cast(id as boolean) from users") }
-      it("float") { testQuery("select cast(critic_rating as boolean) from movies") }
-      it("date") { testQuery("select cast(birthday as boolean) from users") }
-      it("timestamp") { testQuery("select cast(created as boolean) from reviews") }
+    val f = "cast"
+
+    describe(s"$f to boolean") {
+      it("boolean") { testQuery(s"select $f(owns_house as boolean) as $f from users") }
+      it("int") { testQuery(s"select $f(age as boolean) as $f from users") }
+      it("long") { testQuery(s"select $f(id as boolean) as $f from users") }
+      it("float") { testQuery(s"select $f(critic_rating as boolean) as $f from movies") }
+      it("date") { testQuery(s"select $f(birthday as boolean) as $f from users") }
+      it("timestamp") { testQuery(s"select $f(created as boolean) as $f from reviews") }
     }
 
-    describe("to byte") {
-      it("boolean") { testQuery("select cast(owns_house as byte) from users") }
+    describe(s"$f to byte") {
+      it("boolean") { testQuery(s"select $f(owns_house as byte) as $f from users") }
       it("int") {
         // singlestore and spark behaviour differs on the overflow
         // singlestore returns max/min TINYINT value spark returns module (452->-60)
-        testQuery("select cast(age as byte) from users where age > -129 and age < 128")
+        testQuery(s"select $f(age as byte) as $f from users where age > -129 and age < 128")
       }
       it("long") {
         // singlestore and spark behaviour differs on the overflow
         // singlestore returns max/min TINYINT value spark returns module (452->-60)
-        testQuery("select cast(id as byte) from users where id > -129 and id < 128")
+        testQuery(s"select $f(id as byte) as $f from users where id > -129 and id < 128")
       }
       it("float") {
         // singlestore and spark behaviour differs on the overflow
@@ -473,20 +474,20 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         // singlestore and spark use different rounding
         // singlestore round to the closest value spark round to the smaller one
         testQuery(
-          """
-            |select cast(critic_rating as byte)
+          s"""
+            |select $f(critic_rating as byte) as $f
             |from movies
             |where critic_rating > -129 and critic_rating < 128 and critic_rating - floor(critic_rating) < 0.5
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("date") { testQuery("select cast(birthday as byte) from users") }
+      it("date") { testQuery(s"select $f(birthday as byte) as $f from users") }
       it("timestamp") {
         // singlestore and spark behaviour differs on the overflow
         // singlestore returns max/min TINYINT value spark returns module (452->-60)
         testQuery(
-          """
-            |select cast(created as byte)
+          s"""
+            |select $f(created as byte) as $f
             |from reviews
             |where cast(created as long) > -129 and cast(created as long) < 128
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
@@ -494,17 +495,17 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("to short") {
-      it("boolean") { testQuery("select cast(owns_house as short) from users") }
+    describe(s"$f to short") {
+      it("boolean") { testQuery(s"select $f(owns_house as short) as $f from users") }
       it("int") {
         // singlestore and spark behaviour differs on the overflow
         // singlestore returns max/min SMALLINT value spark returns module (40004->-25532)
-        testQuery("select cast(age as short) from users where age > -32769 and age < 32768")
+        testQuery(s"select $f(age as short) as $f from users where age > -32769 and age < 32768")
       }
       it("long") {
         // singlestore and spark behaviour differs on the overflow
         // singlestore returns max/min SMALLINT value spark returns module (40004->-25532)
-        testQuery("select cast(id as short) as d from users where id > -32769 and id < 32768")
+        testQuery(s"select $f(id as short) as $f from users where id > -32769 and id < 32768")
       }
       it("float") {
         // singlestore and spark behaviour differs on the overflow
@@ -512,20 +513,20 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         // singlestore and spark use different rounding
         // singlestore round to the closest value spark round to the smaller one
         testQuery(
-          """
-            |select cast(critic_rating as short)
+          s"""
+            |select $f(critic_rating as short) as $f
             |from movies
             |where critic_rating > -32769 and critic_rating < 32768 and critic_rating - floor(critic_rating) < 0.5
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("date") { testQuery("select cast(birthday as short) from users") }
+      it("date") { testQuery(s"select $f(birthday as short) as $f from users") }
       it("timestamp") {
         // singlestore and spark behaviour differs on the overflow
         // singlestore returns max/min SMALLINT value spark returns module (40004->-25532)
         testQuery(
-          """
-            |select cast(created as short)
+          s"""
+            |select $f(created as short) as $f
             |from reviews
             |where cast(created as long) > -32769 and cast(created as long) < 32768
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
@@ -533,14 +534,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("to int") {
-      it("boolean") { testQuery("select cast(owns_house as int) from users") }
-      it("int") { testQuery("select cast(age as int) from users") }
+    describe(s"$f to int") {
+      it("boolean") { testQuery(s"select $f(owns_house as int) as $f from users") }
+      it("int") { testQuery(s"select $f(age as int) as $f from users") }
       it("long") {
         // singlestore and spark behaviour differs on the overflow
         // singlestore returns max/min INT value spark returns module (10000000000->1410065408)
         testQuery(
-          "select cast(id as int) as d from users where id > -2147483649 and id < 2147483648"
+          s"select $f(id as int) as $f from users where id > -2147483649 and id < 2147483648"
         )
       }
       it("float") {
@@ -549,20 +550,20 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         // singlestore and spark use different rounding
         // singlestore round to the closest value spark round to the smaller one
         testQuery(
-          """
-            |select cast(critic_rating as int)
+          s"""
+            |select $f(critic_rating as int) as $f
             |from movies
             |where critic_rating > -2147483649 and critic_rating < 2147483648 and critic_rating - floor(critic_rating) < 0.5
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("date") { testQuery("select cast(birthday as int) from users") }
+      it("date") { testQuery(s"select $f(birthday as int) as $f from users") }
       it("timestamp") {
         // singlestore and spark behaviour differs on the overflow
         // singlestore returns max/min INT value spark returns module (10000000000->1410065408)
         testQuery(
-          """
-            |select cast(created as int)
+          s"""
+            |select $f(created as int) as $f
             |from reviews
             |where cast(created as long) > -2147483649 and cast(created as long) < 2147483648
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
@@ -570,323 +571,290 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("to long") {
-      it("boolean") { testQuery("select cast(owns_house as long) from users") }
-      it("int") { testQuery("select cast(age as long) from users") }
-      it("long") { testQuery("select cast(id as long) from users") }
+    describe(s"$f to long") {
+      it("boolean") { testQuery(s"select $f(owns_house as long) as $f from users") }
+      it("int") { testQuery(s"select $f(age as long) as $f from users") }
+      it("long") { testQuery(s"select $f(id as long) as $f from users") }
       it("float") {
         // singlestore and spark use different rounding
         // singlestore round to the closest value spark round to the smaller one
         testQuery(
-          """
-            |select cast(critic_rating as long)
+          s"""
+            |select $f(critic_rating as long) as $f
             |from movies
             |where critic_rating - floor(critic_rating) < 0.5
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("date") { testQuery("select cast(birthday as long) from users") }
-      it("timestamp") { testQuery("select cast(created as long) from reviews") }
+      it("date") { testQuery(s"select $f(birthday as long) as $f from users") }
+      it("timestamp") { testQuery(s"select $f(created as long) as $f from reviews") }
     }
 
-    describe("to float") {
-      it("boolean") { testQuery("select cast(owns_house as float) from users") }
-      it("int") { testQuery("select cast(age as float) from users") }
-      it("long") { testQuery("select cast(id as float) from users") }
-      it("float") { testQuery("select cast(critic_rating as float) from movies") }
-      it("date") { testQuery("select cast(birthday as float) from users") }
-      it("timestamp") { testQuery("select cast(created as float) from reviews") }
+    describe(s"$f to float") {
+      it("boolean") { testQuery(s"select $f(owns_house as float) as $f from users") }
+      it("int") { testQuery(s"select $f(age as float) as $f from users") }
+      it("long") { testQuery(s"select $f(id as float) as $f from users") }
+      it("float") { testQuery(s"select $f(critic_rating as float) as $f from movies") }
+      it("date") { testQuery(s"select $f(birthday as float) as $f from users") }
+      it("timestamp") { testQuery(s"select $f(created as float) as $f from reviews") }
     }
 
-    describe("to double") {
-      it("boolean") { testQuery("select cast(owns_house as double) from users") }
-      it("int") { testQuery("select cast(age as double) from users") }
-      it("long") { testQuery("select cast(id as double) from users") }
-      it("float") { testQuery("select cast(critic_rating as double) from movies") }
-      it("date") { testQuery("select cast(birthday as double) from users") }
-      it("timestamp") { testQuery("select cast(created as double) from reviews") }
+    describe(s"$f to double") {
+      it("boolean") { testQuery(s"select $f(owns_house as double) as $f from users") }
+      it("int") { testQuery(s"select $f(age as double) as $f from users") }
+      it("long") { testQuery(s"select $f(id as double) as $f from users") }
+      it("float") { testQuery(s"select $f(critic_rating as double) as $f from movies") }
+      it("date") { testQuery(s"select $f(birthday as double) as $f from users") }
+      it("timestamp") { testQuery(s"select $f(created as double) as $f from reviews") }
     }
 
-    describe("to decimal") {
-      it("boolean") { testQuery("select cast(owns_house as decimal(20, 5)) from users") }
-      it("int") { testQuery("select cast(age as decimal(20, 5)) from users") }
+    describe(s"$f to decimal") {
+      it("boolean") { testQuery(s"select $f(owns_house as decimal(20, 5)) as $f from users") }
+      it("int") { testQuery(s"select $f(age as decimal(20, 5)) as $f from users") }
       it("long") {
         // singlestore and spark behaviour differs on the overflow
         // singlestore returns max/min DECIMAL(x, y) value spark returns null
-        testQuery("select cast(id as decimal(20, 5)) from users where id < 999999999999999.99999")
+        testQuery(
+          s"select $f(id as decimal(20, 5)) as $f from users where id < 999999999999999.99999"
+        )
       }
-      it("float") { testQuery("select cast(critic_rating as decimal(20, 5)) from movies") }
-      it("date") { testQuery("select cast(birthday as decimal(20, 5)) from users") }
-      it("timestamp") { testQuery("select cast(created as decimal(20, 5)) from reviews") }
+      it("float") { testQuery(s"select $f(critic_rating as decimal(20, 5)) as $f from movies") }
+      it("date") { testQuery(s"select $f(birthday as decimal(20, 5)) as $f from users") }
+      it("timestamp") { testQuery(s"select $f(created as decimal(20, 5)) as $f from reviews") }
     }
 
-    describe("to string") {
-      it("boolean") { testQuery("select cast(owns_house as string) from users") }
-      it("int") { testQuery("select cast(age as string) from users") }
-      it("long") { testQuery("select cast(id as string) from users") }
+    describe(s"$f to string") {
+      it("boolean") { testQuery(s"select $f(owns_house as string) as $f from users") }
+      it("int") { testQuery(s"select $f(age as string) as $f from users") }
+      it("long") { testQuery(s"select $f(id as string) as $f from users") }
       it("float") {
         // singlestore converts integers to string with 0 digits
         // after the point spark adds 1 digit after the point
-        testQuery("select cast(cast(critic_rating as string) as float) from movies")
+        testQuery(s"select $f($f(critic_rating as string) as float) as $f from movies")
       }
-      it("date") { testQuery("select cast(birthday as string) from users") }
+      it("date") { testQuery(s"select $f(birthday as string) as $f from users") }
       it("timestamp") {
         // singlestore converts timestamps to string with 6 digits
         // after the point spark adds 0 digit after the point
-        testQuery("select cast(cast(created as string) as timestamp) from reviews")
+        testQuery(s"select $f(cast(created as string) as timestamp) as $f from reviews")
       }
-      it("string") { testQuery("select cast(first_name as string) from users") }
+      it("string") { testQuery(s"select $f(first_name as string) as $f from users") }
     }
 
-    describe("to binary") {
+    describe(s"$f to binary") {
       // spark doesn't support casting other types to binary
-      it("string") { testQuery("select cast(first_name as binary) from users") }
+      it("string") { testQuery(s"select $f(first_name as binary) as $f from users") }
     }
 
-    describe("to date") {
-      it("date") { testQuery("select cast(birthday as date) from users") }
-      it("timestamp") { testQuery("select cast(created as date) from reviews") }
-      it("string") { testQuery("select cast(cast(birthday as string) as date) from users") }
+    describe(s"$f to date") {
+      it("date") { testQuery(s"select $f(birthday as date) as $f from users") }
+      it("timestamp") { testQuery(s"select $f(created as date) as $f from reviews") }
+      it("string") { testQuery(s"select $f(cast(birthday as string) as date) as $f from users") }
     }
 
-    describe("to timestamp") {
-      it("boolean") { testQuery("select cast(owns_house as timestamp) from users") }
-      it("int") { testQuery("select cast(age as timestamp) from users") }
+    describe(s"$f to timestamp") {
+      it("boolean") { testQuery(s"select $f(owns_house as timestamp) as $f from users") }
+      it("int") { testQuery(s"select $f(age as timestamp) as $f from users") }
       it("long") {
         // TIMESTAMP in SingleStore doesn't support values greater then 2147483647999
-        testQuery("select cast(id as timestamp) from users where id < 2147483647999")
+        testQuery(s"select $f(id as timestamp) as $f from users where id < 2147483647999")
       }
       it("float") {
         // singlestore and spark use different rounding
         // singlestore round to the closest value spark round to the smaller one
         testQuery(
-          """
-            |select to_unix_timestamp(cast(critic_rating as timestamp)) as t_col
+          s"""
+            |select to_unix_timestamp($f(critic_rating as timestamp)) as $f
             |from movies
             |where critic_rating - floor(critic_rating) < 0.5
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("date") { testQuery("select cast(birthday as timestamp) from users") }
-      it("timestamp") { testQuery("select cast(created as timestamp) from reviews") }
-      it("string") { testQuery("select cast(cast(birthday as string) as timestamp) from users") }
+      it("date") { testQuery(s"select $f(birthday as timestamp) as $f from users") }
+      it("timestamp") { testQuery(s"select $f(created as timestamp) as $f from reviews") }
+      it("string") {
+        testQuery(s"select $f($f(birthday as string) as timestamp) as $f from users")
+      }
     }
   }
 
   describe("Variable Expressions") {
     describe("Coalesce") {
-      it("one non-null value") { testQuery("select coalesce(id) as t_col from users") }
-      it("one null value") {
-        testSingleReadForReadFromLeaves("select coalesce(null) as t_col from users")
+      val f = "coalesce"
+
+      it(s"$f one non-null value") { testQuery(s"select $f(id) as $f from users") }
+      it(s"$f one null value") {
+        testSingleReadForReadFromLeaves(s"select $f(null) as $f from users")
       }
-      it("a lot of values") {
-        testQuery("select coalesce(null, id, null, id + 1) as t_col from users")
+      it(s"$f a lot of values") {
+        testQuery(s"select $f(null, id, null, id + 1) as $f from users")
       }
-      it("a lot of nulls") {
-        testSingleReadForReadFromLeaves("select coalesce(null, null, null) as t_col from users")
+      it(s"$f a lot of nulls") {
+        testSingleReadForReadFromLeaves(s"select $f(null, null, null) as $f from users")
       }
-      it("partial pushdown with udf") {
+      it(s"$f with partial pushdown with udf") {
         testQuery(
-          """
-            |select coalesce(stringIdentity(first_name), 'qwerty', 'bob', 'alice') as t_col
-            |from users
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+          s"select $f(stringIdentity(first_name), 'qwerty', 'bob', 'alice') as $f from users",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("Least") {
-      it("a lot of ints") { testQuery("select least(id+5, id, 5, id+1) as t_col from users") }
-      it("a lot of strings") {
-        testQuery("select least('qwerty', 'bob', first_name, 'alice') as t_col from users")
-      }
-      // singlestore returns NULL if at least one argument is NULL, when spark skips nulls
-      ignore("09/2024 - ints with null") {
-        testQuery("select least(null, id, null, id+1) as t_col from users")
-      }
-      it("a lot of nulls") {
-        testSingleReadForReadFromLeaves("select least(null, null, null) as t_col from users")
-      }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select least('qwerty', 'bob', stringIdentity(first_name), 'alice') as t_col from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
+    val functions = Seq("least", "greatest", "concat", "elt").sorted
 
-    describe("Greatest") {
-      it("a lot of ints") { testQuery("select greatest(id+5, id, 5, id+1) as t_col from users") }
-      it("a lot of strings") {
-        testQuery("select greatest('qwerty', 'bob', first_name, 'alice') as t_col from users")
-      }
-      // singlestore returns NULL if at least one argument is NULL, when spark skips nulls
-      ignore("09/2024 - ints with null") {
-        testQuery("select greatest(null, id, null, id+1) as t_col from users")
-      }
-      it("a lot of nulls") {
-        testSingleReadForReadFromLeaves("select greatest(null, null, null) as t_col from users")
-      }
-      it("partial pushdown with udf") {
-        testQuery(
-          """
-            |select greatest('qwerty', 'bob', stringIdentity(first_name), 'alice') as t_col
-            |from users
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
-          expectPartialPushdown = true
-        )
-      }
-    }
+    for (f <- functions) {
+      describe(f.capitalize) {
+        it(s"$f a lot of ints") { testQuery(s"select $f(id+5, id, 5, id+1) as $f from users") }
+        it(s"$f a lot of strings") {
+          testQuery(s"select $f('qwerty', 'bob', first_name, 'alice') as $f from users")
+        }
 
-    describe("Concat") {
-      it("a lot of ints") { testQuery("select concat(id+5, id, 5, id+1) as t_col from users") }
-      it("a lot of strings") {
-        testQuery("select concat('qwerty', 'bob', first_name, 'alice') as t_col from users")
-      }
-      it("ints with null") { testQuery("select concat(null, id, null, id+1) as t_col from users") }
-      it("a lot of nulls") {
-        testSingleReadForReadFromLeaves("select concat(null, null, null) as t_col from users")
-      }
-      it("int and string") { testQuery("select concat(id, first_name) as t_col from users") }
-      it("same expressions") { testQuery("select concat(id, id, id) as t_col from users") }
-      it("nested same expressions") {
-        testQuery("select * from (select concat(id, id, id) as t_col from users)")
-      }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select concat('qwerty', 'bob', stringIdentity(first_name), 'alice') as t_col from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
+        if (Seq("concat", "elt").contains(f)) {
+          it(s"$f ints with null") {
+            testQuery(s"select $f(null, id, null, id+1) as $f from users")
+          }
+        } else {
+          // singlestore returns NULL if at least one argument is NULL, when spark skips nulls
+          ignore(s"09/2024 - $f ints with null") {
+            testQuery(s"select $f(null, id, null, id+1) as $f from users")
+          }
+        }
 
-    describe("Elt") {
-      it("a lot of ints") { testQuery("select elt(id+5, id, 5, id+1) as t_col from users") }
-      it("a lot of strings") {
-        testQuery("select elt('qwerty', 'bob', first_name, 'alice') as t_col from users")
-      }
-      it("ints with null") { testQuery("select elt(null, id, null, id+1) as t_col from users") }
-      it("a lot of nulls") { testQuery("select elt(null, null, null) as t_col from users") }
-      it("int and string") { testQuery("select elt(id, first_name) as t_col from users") }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select elt('qwerty', 'bob', stringIdentity(first_name), 'alice') as t_col from users",
-          expectPartialPushdown = true
-        )
+        it(s"$f a lot of nulls") {
+          if (Seq("elt").contains(f)) {
+            testQuery(s"select $f(null, null, null) as $f from users")
+          } else {
+            testSingleReadForReadFromLeaves(s"select $f(null, null, null) as $f from users")
+          }
+        }
+
+        if (Seq("concat", "elt").contains(f)) {
+          it(s"$f int and string") { testQuery(s"select $f(id, first_name) as $f from users") }
+        }
+
+        if (Seq("concat").contains(f)) {
+          it(s"$f same expressions") { testQuery(s"select $f(id, id, id) as $f from users") }
+          it(s"$f nested same expressions") {
+            testQuery(s"select * from (select $f(id, id, id) as $f from users)")
+          }
+        }
+
+        it(s"$f with partial pushdown with udf") {
+          testQuery(
+            s"select $f('qwerty', 'bob', stringIdentity(first_name), 'alice') as $f from users",
+            expectPartialPushdown = true
+          )
+        }
       }
     }
   }
 
   describe("Null Expressions") {
     describe("IfNull") {
-      it("returns the second argument") {
-        testQuery("select IfNull(null, id) as ifn from users")
+      val f = "IfNull"
+
+      it(s"$f returns the second argument") {
+        testQuery(s"select $f(null, id) as ${f.toLowerCase} from users")
       }
-      it("returns the first argument") {
-        testQuery("select IfNull(id, null) as ifn from users")
+      it(s"$f returns the first argument") {
+        testQuery(s"select $f(id, null) as ${f.toLowerCase} from users")
       }
-      it("partial pushdown with udf") {
+      it(s"$f with partial pushdown with udf") {
         testQuery(
-          "select IfNull(longIdentity(id), id) as ifn from users",
+          s"select $f(longIdentity(id), id) as ${f.toLowerCase} from users",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("NullIf") {
-      it("equal arguments") {
-        testQuery("select id, NullIf(1, 1) as nif from users")
+      val f = "nullif"
+
+      it(s"$f equal arguments") { testQuery(s"select id, $f(1, 1) as $f from users") }
+      it(s"$f non-equal arguments with exp2 null") {
+        testQuery(s"select $f(id, null) as $f from users")
       }
-      it("non-equal arguments with exp2 null") {
-        testQuery("select NullIf(id, null) as nif from users")
+      it(s"$f non-equal arguments") {
+        testQuery(s"select $f(id, favorite_color) as $f from users")
       }
-      it("non-equal arguments") {
-        testQuery("select NullIf(id, favorite_color) as nif from users")
-      }
-      it("partial pushdown with udf in exp1") {
+      it(s"$f with partial pushdown with udf in exp1") {
         testQuery(
-          "select NullIf(longIdentity(id), null) as nif from users",
+          s"select $f(longIdentity(id), null) as $f from users",
           expectPartialPushdown = true
         )
       }
       // when exp1 is a literal null spark optimizes to null since it's the only possible result,
       // we are using a nullable column in exp1 to further validate the partial pushdown behavior
       // and results
-      it("partial pushdown with udf in exp2") {
+      it(s"$f with partial pushdown with udf in exp2") {
         testQuery(
-          "select NullIf(favorite_color, stringIdentity(id)) as nif from users",
+          s"select $f(favorite_color, stringIdentity(id)) as $f from users",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("Nvl") {
-      it("returns the second argument") {
-        testQuery("select Nvl(null, id) as nvl from users")
-      }
-      it("returns the first argument") {
-        testQuery("select Nvl(id, id+1) as nvl from users")
-      }
-      it("partial pushdown with udf") {
+      val f = "nvl"
+
+      it(s"$f returns the second argument") { testQuery(s"select $f(null, id) as $f from users") }
+      it(s"$f returns the first argument") { testQuery(s"select $f(id, id+1) as $f from users") }
+      it(s"$f with partial pushdown with udf") {
         testQuery(
-          "select Nvl(longIdentity(id), null) as nvl from users",
+          s"select $f(longIdentity(id), null) as $f from users",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("Nvl2") {
-      it("returns the second argument") {
-        testSingleReadForReadFromLeaves("select Nvl2(null, id, 0) as nvl2 from users")
+      val f = "Nvl2"
+
+      it(s"$f returns the second argument") {
+        testSingleReadForReadFromLeaves(s"select $f(null, id, 0) as ${f.toLowerCase} from users")
       }
-      it("returns the first argument") {
-        testQuery("select Nvl2(id, 10, id+1) as nvl2 from users")
+      it(s"$f returns the first argument") {
+        testQuery(s"select $f(id, 10, id+1) as ${f.toLowerCase} from users")
       }
-      it("partial pushdown with udf") { // error
+      it(s"$f with partial pushdown with udf") {
         testQuery(
-          "select Nvl2(longIdentity(id), null, id) as nvl2 from users",
+          s"select $f(stringIdentity(id), null, id) as ${f.toLowerCase} from users",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("IsNull") {
-      it("not null") {
-        testQuery("select IsNull(favorite_color) as isn from users")
-      }
-      it("null") { testQuery("select IsNull(null) as isn from users") }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select IsNull(stringIdentity(id)) as isn from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
+    val functions = Seq("IsNull", "IsNotNull").sorted
 
-    describe("IsNotNull") {
-      it("not null") {
-        testQuery("select IsNotNull(favorite_color) as isnn from users")
-      }
-      it("null") { testQuery("select IsNotNull(null) as isnn from users") }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select IsNotNull(stringIdentity(id)) as isnn from users",
-          expectPartialPushdown = true
-        )
+    for (f <- functions) {
+      describe(f) {
+        it(s"${f.toLowerCase} returns correct results for nullable column") {
+          testQuery(s"select ${f.toLowerCase}(favorite_color) as ${f.toLowerCase} from users")
+        }
+        it(s"${f.toLowerCase} returns correct result for null") {
+          testQuery(s"select ${f.toLowerCase}(null) as ${f.toLowerCase} from users")
+        }
+        it(s"${f.toLowerCase} with partial pushdown with udf") {
+          testQuery(
+            s"select ${f.toLowerCase}(stringIdentity(id)) as ${f.toLowerCase} from users",
+            expectPartialPushdown = true
+          )
+        }
       }
     }
   }
 
   describe("Predicates") {
     describe("Not") {
-      it("not null") {
-        testQuery("select not(cast(owns_house as boolean)) from users")
+      val f = "not"
+
+      it(s"$f correctly inverses non-nullable column") {
+        testQuery(s"select $f(cast(owns_house as boolean)) as $f from users")
       }
-      it("null") { testQuery("select not(null) from users") }
-      it("partial pushdown with udf") {
+      it(s"$f correctly inverses null") { testQuery(s"select $f(null) as $f from users") }
+      it(s"$f with partial pushdown with udf") {
         testQuery(
-          "select not(cast(longIdentity(id) as boolean)) from users",
+          s"select $f(cast(longIdentity(id) as boolean)) as $f from users",
           expectPartialPushdown = true
         )
       }
@@ -2180,153 +2148,120 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("Aggregate Expressions") {
-    describe("some aggregation functions") {
+    describe("avg|kurtosis|skewness|stddev_pop|stddev_samp|var_pop|var_samp") {
       val functions =
-        Seq("skewness", "kurtosis", "var_pop", "var_samp", "stddev_samp", "stddev_pop", "avg")
-      it("ints") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        Seq("skewness", "kurtosis", "var_pop", "var_samp", "stddev_samp", "stddev_pop", "avg").sorted
+
+      for (f <- functions) {
+        it(s"$f works with int column") {
           testSingleReadForOldS2(
-            s"select $f (user_id) as t_col from reviews",
+            s"select $f (user_id) as $f from reviews",
             SinglestoreVersion(7, 6, 0)
           )
         }
-      }
-      it("floats") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f works with float column") {
           testSingleReadForOldS2(
-            s"select $f (rating) as t_col from reviews",
+            s"select $f (rating) as $f from reviews",
             SinglestoreVersion(7, 6, 0)
           )
         }
-      }
-      it("floats with nulls") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f works with nullable float column") {
           testSingleReadForOldS2(
-            s"select $f (critic_rating) as t_col from movies",
+            s"select $f (critic_rating) as $f from movies",
             SinglestoreVersion(7, 6, 0)
           )
         }
-      }
-      it("partial pushdown with udf") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f partial pushdown with udf") {
           testSingleReadQuery(
-            s"select $f (stringIdentity(user_id)) as t_col from reviews",
+            s"select $f (longIdentity(user_id)) as $f from reviews",
             expectPartialPushdown = true
           )
         }
-      }
-      it("filter") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f works with filter") {
           testSingleReadForOldS2(
-            s"select $f(age) filter (where age % 2 = 0) from users",
+            s"select $f(age) filter (where age % 2 = 0) as $f from users",
             SinglestoreVersion(7, 6, 0)
           )
         }
-      }
-      it("filter for equal range population(std = 0)") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f works with filter for equal range population(std = 0)") {
           testSingleReadForOldS2(
-            s"select $f(age) filter (where age = 60) from users",
+            s"select $f(age) filter (where age = 60) as $f from users",
             SinglestoreVersion(7, 6, 0)
           )
         }
       }
     }
 
-    describe("min/max functions") {
-      val functions = Seq("min", "max")
-      it("ints") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+    describe("min|max functions") {
+      val functions = Seq("min", "max").sorted
+
+      for (f <- functions) {
+        it(s"$f works with int column") {
           testSingleReadForOldS2(
-            s"select $f (user_id) as x from reviews",
+            s"select $f (user_id) as $f from reviews",
             SinglestoreVersion(7, 6, 0)
           )
         }
-      }
-      it("floats") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f works with float column") {
           testSingleReadForOldS2(
-            s"select $f (rating) as x from reviews",
+            s"select $f (rating) as $f from reviews",
             SinglestoreVersion(7, 6, 0)
           )
         }
-      }
-      it("strings") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f works with string column") {
           testSingleReadForOldS2(
-            s"select $f (first_name) as x from users",
+            s"select $f (first_name) as $f from users",
             SinglestoreVersion(7, 6, 0)
           )
         }
-      }
-      it("floats with nulls") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f works with nullable float column") {
           testSingleReadForOldS2(
-            s"select $f (critic_rating) as x from movies",
+            s"select $f (critic_rating) as $f from movies",
             SinglestoreVersion(7, 6, 0)
           )
         }
-      }
-      it("partial pushdown with udf") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f partial pushdown with udf") {
           testSingleReadQuery(
-            s"select $f (stringIdentity(user_id)) as x from reviews",
+            s"select $f (longIdentity(user_id)) as $f from reviews",
             expectPartialPushdown = true
           )
         }
-      }
-      it("filter") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f works with filter") {
           testSingleReadForOldS2(
-            s"select $f(age) filter (where age % 2 = 0) from users",
+            s"select $f(age) filter (where age % 2 = 0) as $f from users",
             SinglestoreVersion(7, 6, 0)
           )
         }
       }
     }
 
-    describe("Sum") {
-      // we cast the output, because SingleStore SUM returns DECIMAL(41, 0)
+    describe("sum") {
+      // we cast the output, because singlestore SUM returns DECIMAL(41, 0)
       // which is not supported by spark (spark maximum decimal precision is 38)
-      it("ints") {
+      it("works with int column") {
+        testSingleReadForOldS2("select sum(age) as sum from users", SinglestoreVersion(7, 6, 0))
+      }
+      it("works with float column") {
         testSingleReadForOldS2(
-          "select cast(sum(age) as decimal(20, 0)) as x from users",
+          "select sum(cast(rating as decimal(2, 1))) as sum from reviews",
           SinglestoreVersion(7, 6, 0)
         )
       }
-      it("floats") {
+      it("works with nullable float column") {
         testSingleReadForOldS2(
-          "select sum(rating) as x from reviews",
-          SinglestoreVersion(7, 6, 0)
-        )
-      }
-      it("floats with nulls") {
-        testSingleReadForOldS2(
-          "select sum(critic_rating) as x from movies",
+          "select sum(cast(critic_rating as decimal(2, 1))) as sum from movies",
           SinglestoreVersion(7, 6, 0)
         )
       }
       it("partial pushdown with udf") {
         testSingleReadQuery(
-          "select sum(stringIdentity(user_id)) as x from reviews",
+          "select sum(longIdentity(user_id)) as sum from reviews",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("First") {
+    describe("first") {
       ignore("09/2024 - succeeds") {
         testSingleReadForReadFromLeaves("select first(first_name) from users group by id")
       }
@@ -2343,7 +2278,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("Last") {
+    describe("last") {
       ignore("09/2024 - succeeds") {
         testSingleReadForReadFromLeaves("select last(first_name) from users group by id")
       }
@@ -2360,7 +2295,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("Count") {
+    describe("count") {
       it("all") {
         testSingleReadForOldS2("select count(*) from users", SinglestoreVersion(7, 6, 0))
       }
@@ -2406,27 +2341,24 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           SinglestoreVersion(7, 6, 0)
         )
       }
-    }
-    it("top 3 email domains") {
-      testOrderedQuery(
-        """
-          |select
-          | domain,
-          | count(*)
-          |from (
-          | select
-          |   substring(email, locate('@', email) + 1) as domain
-          | from users
-          |)
-          |group by 1
-          |order by 2 desc, 1 asc
-          |limit 3
-          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
-      )
+      it("top 3 email domains") {
+        testOrderedQuery(
+          """
+            |select domain, count(*)
+            |from (
+            | select substring(email, locate('@', email) + 1) as domain
+            | from users
+            |)
+            |group by 1
+            |order by 2 desc, 1 asc
+            |limit 3
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
     }
   }
 
-  describe("window functions") {
+  describe("Window Functions") {
     it("rank order by") {
       testSingleReadForReadFromLeaves(
         "select out as a from (select rank() over (order by first_name) as out from users)"
