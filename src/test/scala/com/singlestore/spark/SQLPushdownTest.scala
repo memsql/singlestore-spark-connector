@@ -1323,249 +1323,248 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("integralDivide") {
-      it("works with bigint column") {
-        testQuery("select user_id, movie_id, user_id div movie_id as integralDivide from reviews")
+      val (f, s) = ("integralDivide", "div")
+
+      it(s"$f works with bigint column") {
+        testQuery(s"select user_id, movie_id, user_id $s movie_id as $f from reviews")
       }
-      it("works with float nullable column") {
+      it(s"$f works with float nullable column") {
         testQuery(
-          """
+          s"""
             |select
             | critic_rating,
-            | cast(critic_rating as decimal(20, 5)) div cast(critic_rating as decimal(20, 5)) as integralDivide
+            | cast(critic_rating as decimal(20, 5)) $s cast(critic_rating as decimal(20, 5)) as $f
             |from movies
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with float nullable column in exp1") {
+      it(s"$f works with float nullable column in exp1") {
         testQuery(
-          """
-            |select
-            | critic_rating,
-            | cast(critic_rating as decimal(20, 5)) div 1.0 as integralDivide
-            |from movies
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          s" select critic_rating, cast(critic_rating as decimal(20, 5)) $s 1.0 as $f from movies"
         )
       }
-      it("works with float nullable column in exp2") {
+      it(s"$f works with float nullable column in exp2") {
         testQuery(
-          """
-            |select
-            | critic_rating,
-            | 1.0 div cast(critic_rating as decimal(20, 5)) as integralDivide
-            |from movies
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          s"select critic_rating, 1.0 $s cast(critic_rating as decimal(20, 5)) as $f from movies"
         )
       }
-      it("works with null") { testQuery("select null div null as integralDivide from reviews") }
-      it("partial pushdown") {
+      it(s"$f works with null") { testQuery(s"select null $s null as $f from reviews") }
+      it(s"$f with partial pushdown because of udf") {
         testQuery(
-          "select stringIdentity(null div null) as integralDivide from reviews",
+          s"select stringIdentity(null $s null) as $f from reviews",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("atan2") {
+      val f = "atan2"
+
       // atan(-e,-1) = -pi | atan(e,-1) = pi, where e is a very small value
       // we are filtering this cases, because the result can differ for
       // singlestore and spark because of precision loss
-      it("works with nullable columns") {
+      it(s"$f works with nullable columns") {
         testQuery(
-        """
+        s"""
           |select
           | id,
           | critic_rating,
-          | atan2(critic_rating, id) as a1,
-          | atan2(critic_rating, -id) as a2,
-          | atan2(-critic_rating, id) as a3,
-          | atan2(-critic_rating, -id) as a4,
-          | atan2(-id, -critic_rating) as a5
+          | $f(critic_rating, id) as a1,
+          | $f(critic_rating, -id) as a2,
+          | $f(-critic_rating, id) as a3,
+          | $f(-critic_rating, -id) as a4,
+          | $f(-id, -critic_rating) as a5
           |from movies
           |where abs(critic_rating) > 0.01 or critic_rating is null
           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("udf in the left argument") {
+      it(s"$f works with udf in the left argument") {
         testQuery(
-          "select atan2(floatIdentity(critic_rating), id) as atan2 from movies",
+          s"select $f(floatIdentity(critic_rating), id) as $f from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the right argument") {
+      it(s"$f works with udf in the right argument") {
         testQuery(
-          "select atan2(critic_rating, longIdentity(id)) as atan2 from movies",
+          s"select $f(critic_rating, longIdentity(id)) as $f from movies",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("pow|power") {
-      it("works with nullable column in left argument") {
-        testQuery("select log(pow(critic_rating, id)) as pow from movies")
+      val f = "pow"
+
+      it(s"$f works with nullable column in left argument") {
+        testQuery(s"select log($f(critic_rating, id)) as $f from movies")
       }
-      it("works with nullable column in right argument") {
-        testQuery("select log(pow(id, critic_rating)) as pow from movies")
+      it(s"$f works with nullable column in right argument") {
+        testQuery(s"select log($f(id, critic_rating)) as $f from movies")
       }
-      it("udf in the left argument") {
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          "select log(pow(longIdentity(id), critic_rating)) as pow from movies",
+          s"select log($f(longIdentity(id), critic_rating)) as $f from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          "select log(pow(id, floatIdentity(critic_rating))) as pow from movies",
+          s"select log($f(id, floatIdentity(critic_rating))) as $f from movies",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("log (Logarithm)") {
-      it("works nullable columns") {
+      val f = "log"
+
+      it(s"$f works with nullable columns") {
         // spark returns +/-Infinity for log(1, x) singlestore returns NULL for it
         testQuery(
-        """
+        s"""
           |select
           | id,
           | critic_rating,
-          | log(critic_rating, id) as l1,
-          | log(critic_rating, -id) as l2,
-          | log(-critic_rating, id) as l3,
-          | log(-critic_rating, -id) as l4,
-          | log(id, critic_rating) as l5,
-          | log(id, -critic_rating) as l6,
-          | log(-id, critic_rating) as l7,
-          | log(-id, -critic_rating) as l8
+          | $f(critic_rating, id) as l1,
+          | $f(critic_rating, -id) as l2,
+          | $f(-critic_rating, id) as l3,
+          | $f(-critic_rating, -id) as l4,
+          | $f(id, critic_rating) as l5,
+          | $f(id, -critic_rating) as l6,
+          | $f(-id, critic_rating) as l7,
+          | $f(-id, -critic_rating) as l8
           |from movies
           |where id != 1 and critic_rating != 1
           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with one argument") { testQuery("select log(critic_rating) as log from movies") }
-      it("udf in the left argument") {
+      it(s"$f works with one argument") {
+        testQuery(s"select $f(critic_rating) as $f from movies")
+      }
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          "select log(longIdentity(id), critic_rating) as log from movies",
+          s"select $f(longIdentity(id), critic_rating) as $f from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          "select log(id, floatIdentity(critic_rating)) as log from movies",
+          s"select $f(id, floatIdentity(critic_rating)) as $f from movies",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("round") {
+      val f = "round"
+
       // singlestore can round x.5 differently
-      it("works with one argument") {
+      it(s"$f works with one argument") {
         testQuery(
-        """
-          |select
-          | critic_rating,
-          | round(critic_rating) as round1,
-          | round(-critic_rating) as round2
+        s"""
+          |select critic_rating, $f(critic_rating) as ${f}1, $f(-critic_rating) as ${f}2
           |from movies
           |where critic_rating - floor(critic_rating) != 0.5
           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with two arguments") {
+      it(s"$f works with two arguments") {
         testQuery(
-        """
+        s"""
           |select
           | critic_rating,
-          | round(critic_rating/10.0, 1) as round1,
-          | round(-critic_rating/100.0, 2) as round2
+          | $f(critic_rating/10.0, 1) as ${f}1,
+          | $f(-critic_rating/100.0, 2) as ${f}2
           |from movies
           |where critic_rating - floor(critic_rating) != 0.5
           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with negative scale") {
-        testQuery("select round(critic_rating, -2) as round from movies")
+      it(s"$f works with negative scale") {
+        testQuery(s"select $f(critic_rating, -2) as $f from movies")
       }
       // Note: right argument must be foldable so we can't use udf there
-      it("udf in the left argument") {
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          "select round(floatIdentity(critic_rating), 2) as round from movies",
+          s"select $f(floatIdentity(critic_rating), 2) as $f from movies",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("width_bucket") {
-      it("works with int, simple case") {
-        testQuery("select id, width_bucket(id, 10, 90, 10) as t_col from movies")
+      val f = "width_bucket"
+
+      it(s"$f works with int, simple case") {
+        testQuery(s"select id, $f(id, 10, 90, 10) as $f from movies")
       }
-      it("works with int, negative value") {
-        testQuery("select width_bucket(-id, -90, -10, 10) as t_col from movies")
+      it(s"$f works with int, negative value") {
+        testQuery(s"select $f(-id, -90, -10, 10) as $f from movies")
       }
-      it("many small buckets") {
-        testQuery("select id, width_bucket(id, 10, 90, 1000000000) as t_col from movies")
+      it(s"$f works with many small buckets") {
+        testQuery(s"select id, $f(id, 10, 90, 1000000000) as $f from movies")
       }
-      it("works with int, max < min") {
-        testQuery("select id, width_bucket(id, 90, 10, 10) as t_col from movies")
+      it(s"$f works with int, max < min") {
+        testQuery(s"select id, $f(id, 90, 10, 10) as $f from movies")
       }
-      it("num_buckets is float") {
-        testQuery("select id, width_bucket(id, 90, 10, 6.6) as t_col from movies")
+      it(s"$f works with num_buckets is float") {
+        testQuery(s"select id, $f(id, 90, 10, 6.6) as $f from movies")
       }
-      it("num_buckets is non-constant  float") {
+      it(s"$f works with num_buckets is non-constant float") {
         testQuery(
-          """
-            |select
-            | id,
-            | width_bucket(id, 10, 90, id/10 + 1) as t_col
+          s"""
+            |select id, $f(id, 10, 90, id/10 + 1) as $f
             |from movies
             |where id/10 - floor(id/10) < 0.5
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with float, simple case") {
+      it(s"$f works with float, simple case") {
         testQuery(
-          "select id, width_bucket(critic_rating, 10 + critic_rating, 90, 10) as t_col from movies"
+          s"select id, $f(critic_rating, 10 + critic_rating, 90, 10) as $f from movies"
         )
       }
-      it("works with string") {
+      it(s"$f works with string") {
         testQuery(
-          "select id, width_bucket(-critic_rating, '10.2', '0.4', '10') as t_col from movies"
+          s"select id, $f(-critic_rating, '10.2', '0.4', '10') as $f from movies"
         )
       }
-      it("all args are not const") {
+      it(s"$f works with all args are not const") {
         testQuery(
-          "select id, width_bucket(critic_rating, id-10, id, id + 200) as t_col from movies"
+          s"select id, $f(critic_rating, id-10, id, id + 200) as $f from movies"
         )
       }
-      it("works with int, max = min") {
-        testQuery("select id, width_bucket(id, 90, 90, 10) as t_col from movies")
+      it(s"$f works with int, max = min") {
+        testQuery(s"select id, $f(id, 90, 90, 10) as $f from movies")
       }
-      it("num_buckets is negative") {
-        testQuery("select id, width_bucket(id, 90, 10, -1) as t_col from movies")
+      it(s"$f works if num_buckets is negative") {
+        testQuery(s"select id, $f(id, 90, 10, -1) as $f from movies")
       }
-      it("num_buckets = 0") {
-        testQuery("select id, width_bucket(id, 90, 10, 0) as t_col from movies")
+      it(s"$f works with num_buckets = 0") {
+        testQuery(s"select id, $f(id, 90, 10, 0) as $f from movies")
       }
-      it("udf in the first arg") {
+      it(s"$f with partial pushdown because of udf in the first arg") {
         testQuery(
-          "select id, width_bucket(floatIdentity(critic_rating), 10, 100, 200) as t_col from movies",
+          s"select id, $f(floatIdentity(critic_rating), 10, 100, 200) as $f from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the second arg") {
+      it(s"$f with partial pushdown because of udf in the second arg") {
         testQuery(
-          "select id, width_bucket(id, floatIdentity(critic_rating), 100, 200) as t_col from movies",
+          s"select id, $f(id, floatIdentity(critic_rating), 100, 200) as $f from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the third arg") {
+      it(s"$f with partial pushdown because of udf in the third arg") {
         testQuery(
-          "select id, width_bucket(id, 10, floatIdentity(critic_rating), 200) as t_col from movies",
+          s"select id, $f(id, 10, floatIdentity(critic_rating), 200) as $f from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the fourth arg") {
+      it(s"$f with partial pushdown because of udf in the fourth arg") {
         testQuery(
-          "select id, width_bucket(id, 100, 200, floatIdentity(critic_rating)) as t_col from movies",
+          s"select id, $f(id, 100, 200, floatIdentity(critic_rating)) as $f from movies",
           expectPartialPushdown = true
         )
       }
