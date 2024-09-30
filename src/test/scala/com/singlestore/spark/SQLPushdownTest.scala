@@ -1206,176 +1206,120 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("Math Expressions") {
-    describe("sinh") {
-      it("works with float column") { testQuery("select sinh(rating) as sinh from reviews") }
-      it("works with tinyint") { testQuery("select sinh(owns_house) as sinh from users") }
-      it("partial pushdown") {
-        testQuery(
-          """
-            |select
-            | sinh(floatIdentity(rating)) as sinh,
-            | stringIdentity(review) as review
-            |from reviews
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select sinh(null) as sinh from reviews") }
-      it("works with nullable column") {
-        testQuery("select sinh(critic_rating) as sinh from movies")
-      }
-    }
+    val functions =
+      Seq(
+        "sinh", "cosh", "tanh", "rint", "asinh", "acosh", "sqrt", "ceil", "cos",
+        "exp", "expm1", "floor", "signum", "cot", "degrees", "radians", "bin",
+        "hex", "log2", "log10", "log1p", "ln" // (Log)
+      ).sorted
 
-    describe("cosh") {
-      it("works with float column") { testQuery("select cosh(rating) as cosh from reviews") }
-      it("works with tinyint") { testQuery("select cosh(owns_house) as cosh from users") }
-      it("partial pushdown") {
-        testQuery(
-          """
-            |select
-            | cosh(floatIdentity(rating)) as cosh,
-            | stringIdentity(review) as review
-            |from reviews
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select cosh(null) as cosh from reviews") }
-      it("works with nullable column") {
-        testQuery("select cosh(critic_rating) as cosh from movies")
-      }
-    }
+    for (f <- functions) {
+      describe(f) {
+        val (col, col_type, table) = if (Seq("bin", "hex").contains(f)) {
+          ("user_id", "long", "reviews")
+        } else if (Seq("unhex").contains(f)) {
+          ("review", "string", "reviews")
+        } else {
+          ("rating", "float", "reviews")
+        }
 
-    describe("tanh") {
-      it("works with float column") { testQuery("select tanh(rating) as tanh from reviews") }
-      it("works with tinyint") { testQuery("select tanh(owns_house) as tanh from users") }
-      it("partial pushdown") {
-        testQuery(
-          """
-            |select
-            | tanh(floatIdentity(rating)) as tanh,
-            | stringIdentity(review) as review
-            |from reviews
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select tanh(null) as tanh from reviews") }
-      it("works with nullable column") {
-        testQuery("select tanh(critic_rating) as tanh from movies")
+        it(s"$f works with $col_type column") {
+          testQuery(s"select $col, $f($col) as $f from $table")
+        }
+
+        if (!Seq("acosh", "cot").contains(f)) {
+          it(s"$f works with tinyint") {
+            testQuery(s"select owns_house, $f(owns_house) as $f from users")
+          }
+        }
+
+        it(s"$f with partial pushdown because of udf") {
+          testQuery(
+            s"""
+              |select
+              |${if (f == "hex") s"user_id, $f(longIdentity(user_id)) as $f" else s"rating, $f(floatIdentity(rating)) as $f"},
+              |${if (f == "unhex") s"$f(stringIdentity(review)) as $f" else "stringIdentity(review) as review"}
+              |from reviews
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+        it(s"$f works with literal null") { testQuery(s"select $f(null) as $f from reviews") }
+
+        if (f != "acosh") {
+          it(s"$f works with nullable column") {
+            if(f != "unhex") {
+              testQuery(
+                s"select critic_rating, $f(cast(rint(critic_rating) as decimal(2,0))) as $f from movies"
+              )
+            } else { testQuery(s"select critic_review, $f(critic_review) as $f from movies") }
+          }
+        } else {
+          // singlestore does not support NaN and it returns NULL
+          // instead of NaN that is returned from spark
+          //
+          // Example:
+          //  SingleStore Row [value, acosh(value)] | Spark Row [value, acosh(value)]
+          //  [0.800000011920929,null]              | [0.8,NaN]
+          //  [0.6000000238418579,null]             | [0.6,NaN]
+          //  [0.699999988079071,null]              | [0.7,NaN]
+          //  [0.0,null]                            | [0.0,NaN]
+          //  [0.5,null]                            | [0.5,NaN]
+          //  [0.5,null]                            | [0.5,NaN]
+          ignore(s"09/2024 - $f works with nullable column") {
+            testQuery(
+              s"select critic_rating, $f(cast(rint(critic_rating) as decimal(2,0))) as $f from movies"
+            )
+          }
+        }
       }
     }
 
     describe("hypot") {
-      it("works with float column") {
-        testQuery("select hypot(rating, user_id) as hypot from reviews")
+      val f = "hypot"
+
+      it(s"$f works with float column") {
+        testQuery(s"select $f(rating, user_id) as $f from reviews")
       }
-      it("works with tinyint") { testQuery("select hypot(owns_house, id) as hypot from users") }
-      it("partial pushdown") {
+      it(s"$f works with tinyint") { testQuery(s"select $f(owns_house, id) as $f from users") }
+      it(s"$f with partial pushdown because of udf") {
         testQuery(
-          """
+          s"""
             |select
-            | hypot(floatIdentity(rating), user_id) as hypot,
+            | $f(floatIdentity(rating), user_id) as $f,
             | stringIdentity(review) as review
             |from reviews
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("works with literal null") { testQuery("select hypot(null, null) as hypot from reviews") }
-      it("works with nullable column") {
-        testQuery("select hypot(critic_rating, id) as hypot from movies")
-      }
-    }
-
-    describe("rint") {
-      it("works with float column") { testQuery("select rint(rating) as rint from reviews") }
-      it("works with tinyint") { testQuery("select rint(owns_house) as rint from users") }
-      it("partial pushdown") {
-        testQuery(
-          """
-            |select
-            | rint(floatIdentity(rating)) as rint,
-            | stringIdentity(review) as review
-            |from reviews
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select rint(null) as rint from reviews") }
-      it("works with nullable column") {
-        testQuery("select rint(critic_rating) as rint from movies")
-      }
-    }
-
-    describe("asinh") {
-      it("works with float column") {
-        testQuery("select rating, asinh(rating) as asinh from reviews")
-      }
-      it("works with tinyint") {
-        testQuery("select owns_house, asinh(owns_house) as asinh from users")
-      }
-      it("partial pushdown") {
-        testQuery(
-          "select rating, asinh(stringIdentity(rating)) as asinh from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select asinh(null) as asinh from reviews") }
-      it("works with nullable column") {
-        testQuery("select asinh(critic_rating) as asinh from movies")
-      }
-    }
-
-    describe("acosh") {
-      it("works with float column") { testQuery("select acosh(rating) as acosh from reviews") }
-      it("partial pushdown") {
-        testQuery(
-          """
-            |select
-            | acosh(stringIdentity(rating)) as acosh,
-            | stringIdentity(review) as review
-            |from reviews
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select acosh(null) as acosh from reviews") }
-      // singlestore does not support NaN and it returns NULL
-      // instead of NaN that is returned from spark
-      //
-      // Example:
-      //  SingleStore Row [value, acosh(value)] | Spark Row [value, acosh(value)]
-      //  [0.800000011920929,null]              | [0.8,NaN]
-      //  [0.6000000238418579,null]             | [0.6,NaN]
-      //  [0.699999988079071,null]              | [0.7,NaN]
-      //  [0.0,null]                            | [0.0,NaN]
-      //  [0.5,null]                            | [0.5,NaN]
-      //  [0.5,null]                            | [0.5,NaN]
-      ignore("09/2024 - works with nullable column") {
-        testQuery("select acosh(critic_rating) as acosh from movies")
+      it(s"$f works with literal null") { testQuery(s"select $f(null, null) as $f from reviews") }
+      it(s"$f works with nullable column") {
+        testQuery(s"select $f(critic_rating, id) as $f from movies")
       }
     }
 
     describe("atanh") {
-      it("works with float nullable column") {
+      val f = "atanh"
+
+      it(s"$f works with float nullable column") {
         testQuery(
-          """
+          s"""
             |select
             | critic_rating,
-            | atanh(critic_rating) as atanh
+            | $f(critic_rating) as $f
             |from movies
             |where critic_rating > -1 AND critic_rating < 1
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("partial pushdown") {
+      it(s"$f with partial pushdown because of udf") {
         testQuery(
-          "select rating, atanh(stringIdentity(rating)) as atanh from reviews",
+          s"select rating, $f(stringIdentity(rating)) as $f from reviews",
           expectPartialPushdown = true
         )
       }
-      it("works with literal null") { testQuery("select atanh(null) as atanh from reviews") }
+      it(s"$f works with literal null") { testQuery(s"select $f(null) as $f from reviews") }
     }
 
     describe("integralDivide") {
@@ -1418,264 +1362,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           "select stringIdentity(null div null) as integralDivide from reviews",
           expectPartialPushdown = true
         )
-      }
-    }
-
-    describe("sqrt") {
-      it("works with float column") { testQuery("select sqrt(rating) as sqrt from reviews") }
-      it("works with tinyint") { testQuery("select sqrt(owns_house) as sqrt from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select sqrt(floatIdentity(rating)) as sqrt, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select sqrt(null) as sqrt from reviews") }
-      it("works with nullable column") {
-        testQuery("select sqrt(critic_rating) as sqrt from movies")
-      }
-    }
-
-    describe("ceil") {
-      it("works with float column") { testQuery("select ceil(rating) as ceil from reviews") }
-      it("works with tinyint") { testQuery("select ceil(owns_house) as ceil from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select ceil(floatIdentity(rating)) as ceil, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select ceil(null) as ceil from reviews") }
-      it("works with nullable column") {
-        testQuery("select ceil(critic_rating) as ceil from movies")
-      }
-    }
-
-    describe("cos") {
-      it("works with float column") { testQuery("select cos(rating) as cos from reviews") }
-      it("works with tinyint") { testQuery("select cos(owns_house) as cos from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select cos(floatIdentity(rating)) as cos, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select cos(null) as cos from reviews") }
-      it("works with nullable column") {
-        testQuery("select cos(critic_rating) as cos from movies")
-      }
-    }
-
-    describe("exp") {
-      it("works with float column") { testQuery("select exp(rating) as exp from reviews") }
-      it("works with tinyint") { testQuery("select exp(owns_house) as exp from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select exp(floatIdentity(rating)) as exp, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select exp(null) as exp from reviews") }
-      it("works with nullable column") {
-        testQuery("select exp(critic_rating) as exp from movies")
-      }
-    }
-
-    describe("expm1") {
-      it("works with float column") { testQuery("select expm1(rating) as expm1 from reviews") }
-      it("works with tinyint") { testQuery("select expm1(owns_house) as expm1 from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select expm1(floatIdentity(rating)) as expm1, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with with literal null") { testQuery("select expm1(null) as expm1 from reviews") }
-      it("works with nullable column") {
-        testQuery("select expm1(critic_rating) as exp from movies")
-      }
-    }
-
-    describe("floor") {
-      it("works with float column") { testQuery("select floor(rating) as floor from reviews") }
-      it("works with tinyint") { testQuery("select floor(owns_house) as floor from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select floor(floatIdentity(rating)) as floor, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select floor(null) as floor from reviews") }
-      it("works with nullable column") {
-        testQuery("select floor(critic_rating) as floor from movies")
-      }
-    }
-
-    describe("ln (Log)") {
-      it("works with float column") { testQuery("select ln(rating) as ln from reviews") }
-      it("works with tinyint") { testQuery("select ln(owns_house) as ln from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select ln(floatIdentity(rating)) as ln, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select ln(null) as ln from reviews") }
-      it("works with nullable column") {
-        testQuery("select ln(critic_rating) as ln from movies")
-      }
-    }
-
-    describe("log2") {
-      it("works with float column") { testQuery("select log2(rating) as log2 from reviews") }
-      it("works with tinyint") { testQuery("select log2(owns_house) as log2 from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select log2(floatIdentity(rating)) as log2, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select log2(null) as log2 from reviews") }
-      it("works with nullable column") {
-        testQuery("select log2(critic_rating) as log2 from movies")
-      }
-    }
-
-    describe("log10") {
-      it("works with float column") { testQuery("select log10(rating) as log10 from reviews") }
-      it("works with tinyint") { testQuery("select log10(owns_house) as log10 from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select log10(floatIdentity(rating)) as log10, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select log10(null) as log10 from reviews") }
-      it("works with nullable column") {
-        testQuery("select log10(critic_rating) as log10 from movies")
-      }
-    }
-
-    describe("log1p") {
-      it("works with float column") { testQuery("select log1p(rating) as log1p from reviews") }
-      it("works with tinyint") { testQuery("select log1p(owns_house) as log1p from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select log1p(floatIdentity(rating)) as log1p, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select log1p(null) as log1p from reviews") }
-      it("works with nullable column") {
-        testQuery("select log1p(critic_rating) as log1p from movies")
-      }
-    }
-
-    describe("signum") {
-      it("works with float column") { testQuery("select signum(rating) as signum from reviews") }
-      it("works with tinyint") { testQuery("select signum(owns_house) as signum from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select signum(floatIdentity(rating)) as signum, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select signum(null) as signum from reviews") }
-      it("works with nullable column") {
-        testQuery("select signum(critic_rating) as signum from movies")
-      }
-    }
-
-    describe("cot") {
-      it("works with float column") { testQuery("select cot(rating) as cot from reviews") }
-      it("partial pushdown") {
-        testQuery(
-          "select cot(floatIdentity(rating)) as cot, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select cot(null) as cot from reviews") }
-      it("works with nullable column") {
-        testQuery("select cot(critic_rating) as cot from movies")
-      }
-    }
-
-    describe("degrees") {
-      it("works with float column") { testQuery("select degrees(rating) as degrees from reviews") }
-      it("works with tinyint") { testQuery("select degrees(owns_house) as degrees from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select degrees(floatIdentity(rating)) as degrees, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select degrees(null) as degrees from reviews") }
-      it("works with nullable column") {
-        testQuery("select degrees(critic_rating) as degrees from movies")
-      }
-    }
-
-    describe("radians") {
-      it("works with float column") { testQuery("select radians(rating) as radians from reviews") }
-      it("works with tinyint") { testQuery("select radians(owns_house) as radians from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select radians(floatIdentity(rating)) as radians, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select radians(null) as radians from reviews") }
-      it("works with nullable column") {
-        testQuery("select radians(critic_rating) as radians from movies")
-      }
-    }
-
-    describe("bin") {
-      it("works with long column") { testQuery("select bin(user_id) as bin from reviews") }
-      it("works with tinyint") { testQuery("select bin(owns_house) as bin from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select bin(longIdentity(user_id)) as bin, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") {
-        testSingleReadForReadFromLeaves("select bin(null) as bin from reviews")
-      }
-      it("works with nullable column") {
-        testQuery("select bin(cast(rint(critic_rating) as decimal(2,0))) as bin from movies")
-      }
-    }
-
-    describe("hex") {
-      it("works with long column") { testQuery("select hex(user_id) as hex from reviews") }
-      it("works with tinyint") { testQuery("select hex(owns_house) as hex from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select hex(longIdentity(user_id)) as hex, stringIdentity(review) as review from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") {
-        testSingleReadForReadFromLeaves("select hex(null) as hex from reviews")
-      }
-      it("works with nullable column") {
-        testQuery("select hex(critic_review) as hex from movies")
-      }
-    }
-
-    describe("unhex") {
-      it("works with string column") { testQuery("select unhex(review) as unhex from reviews") }
-      it("works with tinyint") { testQuery("select unhex(owns_house) as unhex from users") }
-      it("partial pushdown") {
-        testQuery(
-          "select floatIdentity(rating) as review , unhex(stringIdentity(review)) as unhex from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("works with literal null") { testQuery("select unhex(null) as unhex from reviews") }
-      it("works with nullable column") {
-        testQuery("select unhex(critic_review) as hex from movies")
       }
     }
 
