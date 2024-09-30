@@ -2039,7 +2039,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("joins") {
+  describe("Joins") {
     describe("successful pushdown") {
       it("implicit inner join") {
         testSingleReadForReadFromLeaves(
@@ -2340,7 +2340,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       describe("outer joins with empty condition") {
         it("left outer join") {
           testQuery(
-            "select * from users left outer join (select rating from reviews order by rating limit 10)",
+            """
+              |select *
+              |from
+              | users
+              | left outer join
+              | (select rating from reviews order by rating limit 10)
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
             expectPartialPushdown = true
           )
         }
@@ -2385,7 +2391,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
               case SQLGen.Relation(_) => false
               case _                  => true
             },
-            "Join of the relations with different jdbc connection options should not be pushed down"
+            "Join of relations with different JDBC connection options should not be pushed down"
           )
         }
 
