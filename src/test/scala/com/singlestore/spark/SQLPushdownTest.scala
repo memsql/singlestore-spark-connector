@@ -861,16 +861,18 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("If") {
-      it("boolean") {
+      val f = "if"
+
+      it(s"$f with boolean non-nullable column") {
         testQuery(
-          "select if(cast(owns_house as boolean), first_name, last_name) as t_col from users"
+          s"select $f(cast(owns_house as boolean), first_name, last_name) as $f from users"
         )
       }
-      it("always true") { testQuery("select if(true, first_name, last_name) as t_col from users") }
-      it("partial pushdown with udf") {
+      it(s"$f always true") { testQuery(s"select $f(true, first_name, last_name) as $f from users") }
+      it(s"$f with partial pushdown with udf") {
         testQuery(
-          """
-            |select if(cast(longIdentity(id) as boolean), first_name, last_name) as t_col
+          s"""
+            |select $f(cast(longIdentity(id) as boolean), first_name, last_name) as $f
             |from users
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
@@ -960,134 +962,96 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("Arithmetic Expressions") {
-    describe("Add") {
-      it("numbers") { testQuery("select user_id + movie_id as t_col from reviews") }
-      it("floats") { testQuery("select rating + 1.0 as t_col from reviews") }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery(
-          "select stringIdentity(user_id) + movie_id as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown because of udf in the right argument") {
-        testQuery(
-          "select user_id + stringIdentity(movie_id) as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-    }
+    val functions = Seq(
+      ("add", "+"),
+      ("subtract", "-"),
+      ("multiply", "*"),
+      ("divide", "/"),
+      ("remainder", "%"),
+    )
 
-    describe("Subtract") {
-      it("numbers") { testQuery("select user_id - movie_id as t_col from reviews") }
-      it("floats") { testQuery("select rating - 1.0 as t_col from reviews") }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery(
-          "select stringIdentity(user_id) - movie_id as t_col from reviews",
-          expectPartialPushdown = true
-        )
+    for ((f, s) <- functions) {
+      describe(f.capitalize) {
+        it(s"$f numbers") { testQuery(s"select user_id $s movie_id as $f from reviews") }
+        it(s"$f floats") {
+          testQuery(
+            s"""
+              |select
+              | rating $s ${if (Seq("+", "-").contains(s)) 1.0 else if ( "%" == s) 4 else 1.3 } as $f
+              |from reviews
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the left argument") {
+          testQuery(
+            s"select stringIdentity(user_id) $s movie_id as $f from reviews",
+            expectPartialPushdown = true
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the right argument") {
+          testQuery(
+            s"select user_id $s stringIdentity(movie_id) as $f from reviews",
+            expectPartialPushdown = true
+          )
+        }
       }
-      it("partial pushdown because of udf in the right argument") {
-        testQuery(
-          "select user_id - stringIdentity(movie_id) as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-    }
 
-    describe("Multiply") {
-      it("numbers") { testQuery("select user_id * movie_id as t_col from reviews") }
-      it("floats") { testQuery("select rating * 1.3 as t_col from reviews") }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery(
-          "select stringIdentity(user_id) * movie_id as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown because of udf in the right argument") {
-        testQuery(
-          "select user_id * stringIdentity(movie_id) as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("Divide") {
-      it("numbers") { testQuery("select user_id / movie_id as t_col from reviews") }
-      it("floats") { testQuery("select rating / 1.3 as t_col from reviews") }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery(
-          "select stringIdentity(user_id) / movie_id as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown because of udf in the right argument") {
-        testQuery(
-          "select user_id / stringIdentity(movie_id) as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("Remainder") {
-      it("numbers") { testQuery("select user_id % movie_id as t_col from reviews") }
-      it("floats") { testQuery("select rating % 4 as t_col from reviews") }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery(
-          "select stringIdentity(user_id) % movie_id as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown because of udf in the right argument") {
-        testQuery(
-          "select user_id % stringIdentity(movie_id) as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
     }
 
     describe("Pmod") {
-      it("numbers") { testQuery("select pmod(user_id, movie_id) as t_col from reviews") }
-      it("floats") { testQuery("select pmod(rating, 4) as t_col from reviews") }
-      it("partial pushdown because of udf in the left argument") {
+      val f = "pmod"
+
+      it(s"$f numbers") { testQuery(s"select $f(user_id, movie_id) as $f from reviews") }
+      it(s"$f floats") { testQuery(s"select $f(rating, 4) as $f from reviews") }
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          "select pmod(stringIdentity(user_id), movie_id) as t_col from reviews",
+          s"select $f(stringIdentity(user_id), movie_id) as $f from reviews",
           expectPartialPushdown = true
         )
       }
-      it("partial pushdown because of udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          "select pmod(user_id, stringIdentity(movie_id)) as t_col from reviews",
+          s"select $f(user_id, stringIdentity(movie_id)) as $f from reviews",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("UnaryMinus") {
-      it("numbers") { testQuery("select -id as t_col from users") }
-      it("floats") { testQuery("select -critic_rating as t_col from movies") }
-      it("partial pushdown with udf") {
-        testQuery("select -longIdentity(id) as t_col from users", expectPartialPushdown = true)
+      val f = "UnaryMinus"
+
+      it(s"$f numbers") { testQuery(s"select -id as ${f.toLowerCase} from users") }
+      it(s"$f floats") { testQuery(s"select -critic_rating as ${f.toLowerCase} from movies") }
+      it(s"$f with partial pushdown with udf") {
+        testQuery(
+          s"select -longIdentity(id) as ${f.toLowerCase} from users",
+          expectPartialPushdown = true
+        )
       }
     }
 
     describe("UnaryPositive") {
-      it("numbers") { testQuery("select +id as t_col from users") }
-      it("floats") { testQuery("select +critic_rating as t_col from movies") }
-      it("partial pushdown with udf") {
-        testQuery("select +longIdentity(id) as t_col from users", expectPartialPushdown = true)
+      val f = "UnaryPositive"
+
+      it(s"$f numbers") { testQuery(s"select +id as ${f.toLowerCase} from users") }
+      it(s"$f floats") { testQuery(s"select +critic_rating as ${f.toLowerCase} from movies") }
+      it(s"$f with partial pushdown with udf") {
+        testQuery(
+          s"select +longIdentity(id) as ${f.toLowerCase} from users",
+          expectPartialPushdown = true
+        )
       }
     }
 
     describe("Abs") {
-      it("positive numbers") { testQuery("select abs(id) as t_col from users") }
-      it("negative numbers") { testQuery("select abs(-id) as t_col from users") }
-      it("positive floats") { testQuery("select abs(critic_rating) as t_col from movies") }
-      it("negative floats") { testQuery("select abs(-critic_rating) as t_col from movies") }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select abs(stringIdentity(id)) as t_col from users",
-          expectPartialPushdown = true
-        )
+      val f = "abs"
+
+      it(s"$f positive numbers") { testQuery(s"select $f(id) as $f from users") }
+      it(s"$f negative numbers") { testQuery(s"select $f(-id) as $f from users") }
+      it(s"$f positive floats") { testQuery(s"select $f(critic_rating) as $f from movies") }
+      it(s"$f negative floats") { testQuery(s"select $f(-critic_rating) as $f from movies") }
+      it(s"$f with partial pushdown with udf") {
+        testQuery(s"select $f(stringIdentity(id)) as $f from users", expectPartialPushdown = true)
       }
     }
   }
