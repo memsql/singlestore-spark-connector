@@ -1214,16 +1214,21 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     for (f <- functions) {
       describe(f) {
-        val (col, col_type, table) = if (Seq("bin", "hex").contains(f)) {
-          ("user_id", "long", "reviews")
-        } else if (Seq("unhex").contains(f)) {
-          ("review", "string", "reviews")
-        } else {
-          ("rating", "float", "reviews")
-        }
-
-        it(s"$f works with $col_type column") {
-          testQuery(s"select $col, $f($col) as $f from $table")
+        f match {
+          case "bin" | "hex" =>
+            it(s"$f works with long column") {
+              testQuery(s"select user_id, $f(user_id) as $f from reviews")
+            }
+          case "unhex" =>
+            it(s"$f works with string column") {
+              testQuery(s"select review, $f(review) as $f from reviews")
+            }
+          case _ =>
+            it(s"$f works with float column") {
+              testQuery(
+                s"select cast(rating as decimal(2,1)) as rating, $f(rating) as $f from reviews"
+              )
+            }
         }
 
         if (!Seq("acosh", "cot").contains(f)) {
@@ -1245,31 +1250,51 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         }
         it(s"$f works with literal null") { testQuery(s"select $f(null) as $f from reviews") }
 
-        if (f != "acosh") {
-          it(s"$f works with nullable column") {
-            if(f != "unhex") {
+        f match {
+          case "acosh" | "cot" =>
+            // acosh:
+            //  singlestore does not support NaN and it returns NULL
+            //  instead of NaN that is returned from spark
+            //
+            //  Example:
+            //    SingleStore Row [value, acosh(value)] | Spark Row [value, acosh(value)]
+            //    [0.800000011920929,null]              | [0.8,NaN]
+            //    [0.6000000238418579,null]             | [0.6,NaN]
+            //    [0.699999988079071,null]              | [0.7,NaN]
+            //    [0.0,null]                            | [0.0,NaN]
+            //    [0.5,null]                            | [0.5,NaN]
+            //    [0.5,null]                            | [0.5,NaN]
+            //
+            // cot:
+            //  singlestore also does not support Infinity and it returns
+            //  NULL instead of Infinity that is returned from spark
+            //
+            //  Example:
+            //    SingleStore Row [value, acosh(value)] | Spark Row [value, acosh(value)]
+            //    [0.0,null]                            | [0.0,Infinity]
+            it(s"$f works with nullable column") {
               testQuery(
-                s"select critic_rating, $f(cast(rint(critic_rating) as decimal(2,0))) as $f from movies"
+                s"""
+                   |select
+                   |  critic_rating,
+                   |  $f(cast(rint(critic_rating) as decimal(2,0))) as $f
+                   |from movies
+                   |where critic_rating > 1.0
+                   |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
               )
-            } else { testQuery(s"select critic_review, $f(critic_review) as $f from movies") }
-          }
-        } else {
-          // singlestore does not support NaN and it returns NULL
-          // instead of NaN that is returned from spark
-          //
-          // Example:
-          //  SingleStore Row [value, acosh(value)] | Spark Row [value, acosh(value)]
-          //  [0.800000011920929,null]              | [0.8,NaN]
-          //  [0.6000000238418579,null]             | [0.6,NaN]
-          //  [0.699999988079071,null]              | [0.7,NaN]
-          //  [0.0,null]                            | [0.0,NaN]
-          //  [0.5,null]                            | [0.5,NaN]
-          //  [0.5,null]                            | [0.5,NaN]
-          ignore(s"09/2024 - $f works with nullable column") {
-            testQuery(
-              s"select critic_rating, $f(cast(rint(critic_rating) as decimal(2,0))) as $f from movies"
-            )
-          }
+            }
+          case "bin" =>
+            it(s"$f works with nullable column") {
+              testQuery(s"select $f(cast(rint(critic_rating) as decimal(2,0))) as $f from movies")
+            }
+          case "hex" | "unhex" =>
+            it(s"$f works with nullable column") {
+              testQuery(s"select $f(critic_review) as $f from movies")
+            }
+          case _ =>
+            it(s"$f works with nullable column") {
+              testQuery(s"select $f(critic_rating) as $f from movies")
+            }
         }
       }
     }
@@ -1715,32 +1740,32 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("Aggregate Expressions") {
-    describe("avg|kurtosis|skewness|stddev_pop|stddev_samp|var_pop|var_samp") {
-      val functions =
-        Seq("skewness", "kurtosis", "var_pop", "var_samp", "stddev_samp", "stddev_pop", "avg").sorted
+    val functions =
+      Seq("skewness", "kurtosis", "var_pop", "var_samp", "stddev_samp", "stddev_pop", "avg").sorted
 
-      for (f <- functions) {
+    for (f <- functions) {
+      describe(f) {
         it(s"$f works with int column") {
           testSingleReadForOldS2(
-            s"select $f (user_id) as $f from reviews",
+            s"select $f(user_id) as $f from reviews",
             SinglestoreVersion(7, 6, 0)
           )
         }
         it(s"$f works with float column") {
           testSingleReadForOldS2(
-            s"select $f (rating) as $f from reviews",
+            s"select $f(rating) as $f from reviews",
             SinglestoreVersion(7, 6, 0)
           )
         }
         it(s"$f works with nullable float column") {
           testSingleReadForOldS2(
-            s"select $f (critic_rating) as $f from movies",
+            s"select $f(critic_rating) as $f from movies",
             SinglestoreVersion(7, 6, 0)
           )
         }
-        it(s"$f partial pushdown with udf") {
+        it(s"$f with partial pushdown because of udf") {
           testSingleReadQuery(
-            s"select $f (longIdentity(user_id)) as $f from reviews",
+            s"select $f(longIdentity(user_id)) as $f from reviews",
             expectPartialPushdown = true
           )
         }
