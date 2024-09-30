@@ -851,12 +851,81 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it(s"$f correctly inverses non-nullable column") {
         testQuery(s"select $f(cast(owns_house as boolean)) as $f from users")
       }
-      it(s"$f correctly inverses null") { testQuery(s"select $f(null) as $f from users") }
+      it(s"$f correctly inverses literal null") { testQuery(s"select $f(null) as $f from users") }
+
+      it(s"$f works with tinyint") { testQuery(s"select $f(owns_house = 1) as $f from users") }
+      it(s"$f works with single brackets") { testQuery(s"select $f(id = '10') as $f from users") }
+      it(s"$f works with text") { testQuery(s"select $f(first_name = 'Wylie') as $f from users") }
+      it(s"$f works with boolean") {
+        testQuery(s"select $f(cast(owns_house as boolean) = true) as $f from users")
+      }
+      it(s"$f works with tinyint not null") {
+        testQuery(s"select $f(owns_house = null) as $f from users")
+      }
+      it(s"$f works with not null") { testQuery(s"select $f(null = null) as $f from users") }
+
       it(s"$f with partial pushdown with udf") {
         testQuery(
           s"select $f(cast(longIdentity(id) as boolean)) as $f from users",
           expectPartialPushdown = true
         )
+        testQuery(s"select $f(stringIdentity(id) = '10') from users", expectPartialPushdown = true)
+      }
+    }
+
+    describe("In") {
+      val f = "in"
+
+      it(s"$f works with tinyint") { testQuery(s"select owns_house $f(1) as $f from users") }
+      it(s"$f works with single brackets") {
+        testQuery(s"select id $f('10','11','12') as $f from users")
+      }
+      it(s"$f works with text") {
+        testQuery(s"select first_name $f('Wylie', 'Sukey', 'Sondra') as $f from users")
+      }
+      it(s"$f works with boolean") {
+        testQuery(s"select cast(owns_house as boolean) $f(true) as $f from users")
+      }
+      it(s"$f works with tinyint in literal null") {
+        testQuery(s"select owns_house $f(null) as $f from users")
+      }
+      it(s"$f works with null in literal null") {
+        testQuery(s"select null $f(null) as $f from users")
+      }
+      it(s"$f with partial pushdown because of udf") {
+        testQuery(s"select stringIdentity(id) $f('10') from users", expectPartialPushdown = true)
+      }
+    }
+
+    val functions = Seq("and", "or").sorted
+
+    for (f <- functions) {
+      describe(f.capitalize) {
+        it(s"${f.capitalize} works with cast and literal true") {
+          testQuery(s"select cast(owns_house as boolean) $f true from users")
+        }
+        it(s"${f.capitalize}  works with cast and literal false") {
+          testQuery(s"select cast(owns_house as boolean) $f false from users")
+        }
+        it(s"${f.capitalize}  works with cast and non-nullable boolean column") {
+          testQuery(s"select cast(id as boolean) $f cast(owns_house as boolean) from users")
+        }
+        it(s"${f.capitalize}  works with literal true and literal false") {
+          testQuery(s"select true $f false from users")
+        }
+        it(s"${f.capitalize}  works with literal null") {
+          testQuery(s"select cast(id as boolean) $f null from users")
+        }
+        it(s"${f.capitalize}  with partial pushdown because of udf") {
+          testQuery(
+            s"""
+               |select
+               | cast(stringIdentity(id) as boolean) $f cast(stringIdentity(owns_house) as boolean)
+               |from users
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
       }
     }
 
@@ -880,7 +949,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("case when") {
+    describe("Case When") {
       it("simple") {
         testQuery("select case when id < 10 then 1 else 3 end from users_sample")
       }
@@ -2404,270 +2473,44 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("predicates") {
-    describe("and") {
-      it("works with cast and true") {
-        testQuery("select cast(owns_house as boolean) and true from users")
-      }
-      it("works with cast and false") {
-        testQuery("select cast(owns_house as boolean) and false from users")
-      }
-      it("works with cast to bool") {
-        testQuery("select cast(id as boolean) and cast(owns_house as boolean) from users")
-      }
-      it("works with true and false") {
-        testQuery("select true and false from users")
-      }
-      it("works with null") {
-        testQuery("select cast(id as boolean) and null from users")
-      }
-      it("partial pushdown") {
-        testQuery(
-          """
-            |select
-            | cast(stringIdentity(id) as boolean) and cast(stringIdentity(owns_house) as boolean)
-            |from users
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
-          expectPartialPushdown = true
-        )
-      }
-    }
+  describe("Comparison Operators") {
+    val functions = Seq(
+      ("equal", "=", "1"),
+      ("equalNullSafe", "<=>", "1"),
+      ("lessThan", "<", "10"),
+      ("lessThanOrEqual", "<=" , "10"),
+      ("greaterThan", ">", "10"),
+      ("greaterThanOrEqual", ">=", "10")
+    ).sorted
 
-    describe("or") {
-      it("works with cast or true") {
-        testQuery("select cast(owns_house as boolean) or true from users")
-      }
-      it("works with cast or false") {
-        testQuery("select cast(owns_house as boolean) or false from users")
-      }
-      it("works with cast to bool") {
-        testQuery("select cast(id as boolean) or cast(owns_house as boolean) from users")
-      }
-      it("works with true or false") {
-        testQuery("select true or false from users")
-      }
-      it("works with null") {
-        testQuery("select cast(id as boolean) or null from users")
-      }
-      it("partial pushdown") {
-        testQuery(
-          """
-            |select
-            | cast(stringIdentity(id) as boolean) or cast(stringIdentity(owns_house) as boolean)
-            |from users
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
-          expectPartialPushdown = true
-        )
-      }
-    }
+    for ((f, s, v1) <- functions) {
+      describe(f) {
+        it(s"$f works with tinyint") { testQuery(s"select owns_house $s 1 as $f from users") }
+        it(s"$f works with single brackets") { testQuery(s"select id $s '$v1' as $f from users") }
+        it(s"$f works with boolean") {
+          testQuery(
+            s"""
+              |select
+              |  cast(owns_house as boolean) $s ${if (f == "greaterThan") false else true} as $f
+              |from users
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f works with tinyint $f null") {
+          testQuery(s"select owns_house $s null as $f from users")
+        }
 
-    describe("equal") {
-      it("works with tinyint") {
-        testQuery("select owns_house = 1 as owns_house from users")
-      }
-      it("works with single brackets") {
-        testQuery("select id = '1' as owns_house from users")
-      }
-      it("works with boolean") {
-        testQuery("select cast(owns_house as boolean) = true as owns_house from users")
-      }
-      it("works with tinyint equals null") {
-        testQuery("select owns_house = null as owns_house from users")
-      }
-      it("works with null equals null") {
-        testQuery("select null = null as null from users")
-      }
-      it("partial pushdown") {
-        testQuery(
-          "select stringIdentity(id) = '1' from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
+        if (Seq("lessThan", "lessThanOrEqual", "greaterThan", "greaterThanOrEqual").contains(f)) {
+          it(s"$f works with text") { testQuery(s"select first_name $s 'ZZZ' as $f from users") }
+        }
 
-    describe("equalNullSafe") {
-      it("works with tinyint") {
-        testQuery("select owns_house <=> 1 as owns_house from users")
-      }
-      it("works with single brackets") {
-        testQuery("select id <=> '1' as owns_house from users")
-      }
-      it("works with boolean") {
-        testQuery("select cast(owns_house as boolean) <=> true as owns_house from users")
-      }
-      it("works with tinyint equals null") {
-        testQuery("select owns_house <=> null as owns_house from users")
-      }
-      it("works with null equals null") {
-        testQuery("select null <=> null as null from users")
-      }
-      it("partial pushdown") {
-        testQuery(
-          "select stringIdentity(id) <=> '1' from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("lessThan") {
-      it("works with tinyint") {
-        testQuery("select owns_house < 1 as owns_house from users")
-      }
-      it("works with single brackets") {
-        testQuery("select id < '10' as owns_house from users")
-      }
-      it("works with text") {
-        testQuery("select first_name < 'ZZZ' as first_name from users")
-      }
-      it("works with boolean") {
-        testQuery("select cast(owns_house as boolean) < true as owns_house from users")
-      }
-      it("works with tinyint less than null") {
-        testQuery("select owns_house < null as owns_house from users")
-      }
-      it("works with null less than null") {
-        testQuery("select null < null as null from users")
-      }
-      it("partial pushdown") {
-        testQuery(
-          "select stringIdentity(id) < '10' from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("lessThanOrEqual") {
-      it("works with tinyint") {
-        testQuery("select owns_house <= 1 as owns_house from users")
-      }
-      it("works with single brackets") {
-        testQuery("select id <= '10' as owns_house from users")
-      }
-      it("works with text") {
-        testQuery("select first_name <= 'ZZZ' as first_name from users")
-      }
-      it("works with boolean") {
-        testQuery("select cast(owns_house as boolean) <= true as owns_house from users")
-      }
-      it("works with tinyint less than or equal null") {
-        testQuery("select owns_house <= null as owns_house from users")
-      }
-      it("works with null less than or equal null") {
-        testQuery("select null <= null as null from users")
-      }
-      it("partial pushdown") {
-        testQuery(
-          "select stringIdentity(id) <= '10' from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("greaterThan") {
-      it("works with tinyint") {
-        testQuery("select owns_house > 1 as owns_house from users")
-      }
-      it("works with single brackets") {
-        testQuery("select id > '10' as owns_house from users")
-      }
-      it("works with text") {
-        testQuery("select first_name > 'ZZZ' as first_name from users")
-      }
-      it("works with boolean") {
-        testQuery("select cast(owns_house as boolean) > false as owns_house from users")
-      }
-      it("works with tinyint greater than null") {
-        testQuery("select owns_house > null as owns_house from users")
-      }
-      it("works with null greater than null") {
-        testQuery("select null > null as null from users")
-      }
-      it("partial pushdown") {
-        testQuery(
-          "select stringIdentity(id) > '10' from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("greaterThanOrEqual") {
-      it("works with tinyint") {
-        testQuery("select owns_house >= 1 as owns_house from users")
-      }
-      it("works with single brackets") {
-        testQuery("select id >= '10' as owns_house from users")
-      }
-      it("works with text") {
-        testQuery("select first_name >= 'ZZZ' as first_name from users")
-      }
-      it("works with boolean") {
-        testQuery("select cast(owns_house as boolean) >= true as owns_house from users")
-      }
-      it("works with tinyint greater than or equal null") {
-        testQuery("select owns_house >= null as owns_house from users")
-      }
-      it("works with null greater than or equal null") {
-        testQuery("select null >= null as null from users")
-      }
-      it("partial pushdown") {
-        testQuery(
-          "select stringIdentity(id) >= '10' from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("in") {
-      it("works with tinyint") {
-        testQuery("select owns_house in(1) as owns_house from users")
-      }
-      it("works with single brackets") {
-        testQuery("select id in('10','11','12') as owns_house from users")
-      }
-      it("works with text") {
-        testQuery("select first_name in('Wylie', 'Sukey', 'Sondra') as first_name from users")
-      }
-      it("works with boolean") {
-        testQuery("select cast(owns_house as boolean) in(true) as owns_house from users")
-      }
-      it("works with tinyint in null") {
-        testQuery("select owns_house in(null) as owns_house from users")
-      }
-      it("works with null in null") {
-        testQuery("select null in(null) as null from users")
-      }
-      it("partial pushdown") {
-        testQuery(
-          "select stringIdentity(id) in('10') from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("not") {
-      it("works with tinyint") {
-        testQuery("select not (owns_house = 1) as not_owns_house from users")
-      }
-      it("works with single brackets") {
-        testQuery("select not (id = '10') as owns_house from users")
-      }
-      it("works with text") {
-        testQuery("select not (first_name = 'Wylie') as first_name from users")
-      }
-      it("works with boolean") {
-        testQuery("select not (cast(owns_house as boolean) = true) as owns_house from users")
-      }
-      it("works with tinyint not null") {
-        testQuery("select not (owns_house = null) as owns_house from users")
-      }
-      it("works with not null") {
-        testQuery("select not (null = null) as null from users")
-      }
-      it("partial pushdown") {
-        testQuery(
-          "select not (stringIdentity(id) = '10') from users",
-          expectPartialPushdown = true
-        )
+        it(s"$f works with null $f null") { testQuery(s"select null $s null as $f from users") }
+        it(s"$f with partial pushdown because of udf") {
+          testQuery(
+            s"select stringIdentity(id) $s '$v1' as $f from users",
+            expectPartialPushdown = true
+          )
+        }
       }
     }
   }
