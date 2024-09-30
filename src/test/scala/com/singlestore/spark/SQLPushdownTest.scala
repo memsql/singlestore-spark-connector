@@ -1740,29 +1740,46 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("Aggregate Expressions") {
-    val functions =
-      Seq("skewness", "kurtosis", "var_pop", "var_samp", "stddev_samp", "stddev_pop", "avg").sorted
+    val functionsGroup1 = Seq(
+      "skewness",
+      "kurtosis",
+      "var_pop", "var_samp",
+      "stddev_samp", "stddev_pop",
+      "avg", "min", "max", "sum"
+    ).sorted
+    val singleStoreVersion = SinglestoreVersion(7, 6, 0)
 
-    for (f <- functions) {
+    for (f <- functionsGroup1) {
       describe(f) {
-        it(s"$f works with int column") {
-          testSingleReadForOldS2(
-            s"select $f(user_id) as $f from reviews",
-            SinglestoreVersion(7, 6, 0)
-          )
+        it (s"$f works with non-nullable int column") {
+          f match {
+            case "sum" =>
+              // singlestore SUM returns DECIMAL(41, 0) which is not supported
+              // by spark (spark maximum decimal precision is 38)
+              testSingleReadForOldS2(s"select $f(age) as $f from users", singleStoreVersion)
+            case _ =>
+              testSingleReadForOldS2(s"select $f(user_id) as $f from reviews", singleStoreVersion)
+          }
         }
-        it(s"$f works with float column") {
+        it(s"$f works with non-nullable float column") {
           testSingleReadForOldS2(
-            s"select $f(rating) as $f from reviews",
-            SinglestoreVersion(7, 6, 0)
+            s"select $f(cast(rating as decimal(2, 1))) as $f from reviews",
+            singleStoreVersion
           )
         }
         it(s"$f works with nullable float column") {
           testSingleReadForOldS2(
-            s"select $f(critic_rating) as $f from movies",
-            SinglestoreVersion(7, 6, 0)
+            s"select $f(cast(critic_rating as decimal(2, 1))) as $f from movies",
+            singleStoreVersion
           )
         }
+
+        if (Seq("min", "max").contains(f)) {
+          it(s"$f works with non-nullable string column") {
+            testSingleReadForOldS2(s"select $f(first_name) as $f from users", singleStoreVersion)
+          }
+        }
+
         it(s"$f with partial pushdown because of udf") {
           testSingleReadQuery(
             s"select $f(longIdentity(user_id)) as $f from reviews",
@@ -1772,171 +1789,91 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         it(s"$f works with filter") {
           testSingleReadForOldS2(
             s"select $f(age) filter (where age % 2 = 0) as $f from users",
-            SinglestoreVersion(7, 6, 0)
+            singleStoreVersion
           )
         }
-        it(s"$f works with filter for equal range population(std = 0)") {
-          testSingleReadForOldS2(
-            s"select $f(age) filter (where age = 60) as $f from users",
-            SinglestoreVersion(7, 6, 0)
-          )
+
+        if (!Seq("min", "max").contains(f)) {
+          it(s"$f works with filter for equal range population(std = 0)") {
+            testSingleReadForOldS2(
+              s"select $f(age) filter (where age = 60) as $f from users",
+              SinglestoreVersion(7, 6, 0)
+            )
+          }
         }
       }
     }
 
-    describe("min|max functions") {
-      val functions = Seq("min", "max").sorted
+    val functionsGroup2 = Seq("first", "last").sorted
 
-      for (f <- functions) {
-        it(s"$f works with int column") {
-          testSingleReadForOldS2(
-            s"select $f (user_id) as $f from reviews",
-            SinglestoreVersion(7, 6, 0)
-          )
+    for (f <- functionsGroup2) {
+      describe(f) {
+        ignore(s"09/2024 - $f works with non-nullable string column") {
+          testSingleReadForReadFromLeaves(s"select $f(first_name) as $f from users group by id")
         }
-        it(s"$f works with float column") {
-          testSingleReadForOldS2(
-            s"select $f (rating) as $f from reviews",
-            SinglestoreVersion(7, 6, 0)
-          )
-        }
-        it(s"$f works with string column") {
-          testSingleReadForOldS2(
-            s"select $f (first_name) as $f from users",
-            SinglestoreVersion(7, 6, 0)
-          )
-        }
-        it(s"$f works with nullable float column") {
-          testSingleReadForOldS2(
-            s"select $f (critic_rating) as $f from movies",
-            SinglestoreVersion(7, 6, 0)
-          )
-        }
-        it(s"$f partial pushdown with udf") {
+        ignore(s"09/2024 - $f with partial pushdown because of udf") {
           testSingleReadQuery(
-            s"select $f (longIdentity(user_id)) as $f from reviews",
+            s"select $f(stringIdentity(first_name)) as $f from users group by id",
             expectPartialPushdown = true
           )
         }
-        it(s"$f works with filter") {
-          testSingleReadForOldS2(
-            s"select $f(age) filter (where age % 2 = 0) as $f from users",
-            SinglestoreVersion(7, 6, 0)
+        ignore(s"09/2024 - $f works with filter") {
+          testSingleReadForReadFromLeaves(
+            s"select $f(first_name) filter (where age % 2 = 0) as $f from users group by id"
           )
         }
-      }
-    }
-
-    describe("sum") {
-      // we cast the output, because singlestore SUM returns DECIMAL(41, 0)
-      // which is not supported by spark (spark maximum decimal precision is 38)
-      it("works with int column") {
-        testSingleReadForOldS2("select sum(age) as sum from users", SinglestoreVersion(7, 6, 0))
-      }
-      it("works with float column") {
-        testSingleReadForOldS2(
-          "select sum(cast(rating as decimal(2, 1))) as sum from reviews",
-          SinglestoreVersion(7, 6, 0)
-        )
-      }
-      it("works with nullable float column") {
-        testSingleReadForOldS2(
-          "select sum(cast(critic_rating as decimal(2, 1))) as sum from movies",
-          SinglestoreVersion(7, 6, 0)
-        )
-      }
-      it("partial pushdown with udf") {
-        testSingleReadQuery(
-          "select sum(longIdentity(user_id)) as sum from reviews",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("first") {
-      ignore("09/2024 - succeeds") {
-        testSingleReadForReadFromLeaves("select first(first_name) from users group by id")
-      }
-      ignore("09/2024 - partial pushdown with udf") {
-        testSingleReadQuery(
-          "select first(stringIdentity(first_name)) from users group by id",
-          expectPartialPushdown = true
-        )
-      }
-      ignore("09/2024 - filter") {
-        testSingleReadForReadFromLeaves(
-          "select first(first_name) filter (where age % 2 = 0) from users group by id"
-        )
-      }
-    }
-
-    describe("last") {
-      ignore("09/2024 - succeeds") {
-        testSingleReadForReadFromLeaves("select last(first_name) from users group by id")
-      }
-      ignore("09/2024 - partial pushdown with udf") {
-        testSingleReadQuery(
-          "select last(stringIdentity(first_name)) from users group by id",
-          expectPartialPushdown = true
-        )
-      }
-      ignore("09/2024 - filter") {
-        testSingleReadForReadFromLeaves(
-          "select last(first_name) filter (where age % 2 = 0) from users group by id"
-        )
       }
     }
 
     describe("count") {
-      it("all") {
-        testSingleReadForOldS2("select count(*) from users", SinglestoreVersion(7, 6, 0))
+      val f = "count"
+
+      it(s"$f all") {
+        testSingleReadForOldS2(s"select $f(*) as $f from users", singleStoreVersion)
       }
-      it("distinct") {
+      it(s"$f distinct") {
         testSingleReadForOldS2(
-          "select count(distinct first_name) from users",
-          SinglestoreVersion(7, 6, 0)
+          s"select $f(distinct first_name) as $f from users",
+          singleStoreVersion
         )
       }
-      it("partial pushdown with udf (all)") {
+      it(s"$f (all) with partial pushdown because of udf") {
         testSingleReadQuery(
-          "select count(stringIdentity(first_name)) from users group by id",
+          s"select $f(stringIdentity(first_name)) as $f from users group by id",
           expectPartialPushdown = true
         )
       }
-      it("partial pushdown with udf (distinct)") {
+      it(s"$f (distinct) with partial pushdown because of udf") {
         testSingleReadQuery(
-          "select count(distinct stringIdentity(first_name)) from users group by id",
+          s"select $f(distinct stringIdentity(first_name)) as $f from users group by id",
           expectPartialPushdown = true
         )
       }
-      it("filter") {
+      it(s"$f works with filter") {
         testSingleReadForOldS2(
-          "select count(*) filter (where age % 2 = 0) from users",
-          SinglestoreVersion(7, 6, 0)
+          s"select $f(*) filter (where age % 2 = 0) as $f from users",
+          singleStoreVersion
         )
       }
-      it("partial pushdown with udf in filter") {
+      it(s"$f with partial pushdown because of udf in filter") {
         testSingleReadQuery(
-          "SELECT count_if(age % 2 = 0) filter (where integerFilter(age)) FROM users",
+          s"select ${f}_if(age % 2 = 0) filter (where integerFilter(age)) as $f from users",
           expectPartialPushdown = true
         )
       }
-      it("count_if") {
+      it(s"${f}_if") {
+        testSingleReadForOldS2(s"select ${f}_if(age % 2 = 0) as $f from users", singleStoreVersion)
+      }
+      it(s"${f}_if works with filter") {
         testSingleReadForOldS2(
-          "SELECT count_if(age % 2 = 0) as count FROM users",
-          SinglestoreVersion(7, 6, 0)
+          s"select ${f}_if(age % 2 = 0) filter (where age % 2 = 0) as $f from users",
+          singleStoreVersion
         )
       }
-      it("count_if filter") {
-        testSingleReadForOldS2(
-          "SELECT count_if(age % 2 = 0) filter (where age % 2 = 0) FROM users",
-          SinglestoreVersion(7, 6, 0)
-        )
-      }
-      it("top 3 email domains") {
+      it(s"$f top 3 email domains") {
         testOrderedQuery(
-          """
-            |select domain, count(*)
+          s"""
+            |select domain, $f(*)
             |from (
             | select substring(email, locate('@', email) + 1) as domain
             | from users
@@ -1951,36 +1888,31 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("Window Functions") {
-    it("rank order by") {
-      testSingleReadForReadFromLeaves(
-        "select out as a from (select rank() over (order by first_name) as out from users)"
-      )
+    val functionsGroup1 = Seq("rank", "row_number", "dense_rank").sorted
+
+    for (f <- functionsGroup1) {
+      it(s"$f order by works with non-nullable column") {
+        testSingleReadForReadFromLeaves(
+          s"select $f as ${f.head} from (select $f() over (order by first_name) as $f from users)"
+        )
+      }
+      it(s"$f partition order by works with non-nullable column") {
+        testSingleReadForReadFromLeaves(
+          s"select $f() over (partition by first_name order by first_name) as $f from users"
+        )
+      }
     }
-    it("rank partition order by") {
-      testSingleReadForReadFromLeaves(
-        "select rank() over (partition by first_name order by first_name) as out from users"
-      )
+
+    val functionsGroup2 = Seq("lag", "lead").sorted
+
+    for (f <- functionsGroup2) {
+      it(s"$f order by works with non-nullable column") {
+        testSingleReadForReadFromLeaves(
+          s"select first_name, $f(first_name) over (order by first_name) as $f from users"
+        )
+      }
     }
-    it("row_number order by") {
-      testSingleReadForReadFromLeaves(
-        "select row_number() over (order by first_name) as out from users"
-      )
-    }
-    it("dense_rank order by") {
-      testSingleReadForReadFromLeaves(
-        "select dense_rank() over (order by first_name) as out from users"
-      )
-    }
-    it("lag order by") {
-      testSingleReadForReadFromLeaves(
-        "select first_name, lag(first_name) over (order by first_name) as out from users"
-      )
-    }
-    it("lead order by") {
-      testSingleReadForReadFromLeaves(
-        "select first_name, lead(first_name) over (order by first_name) as out from users"
-      )
-    }
+
     it("ntile(3) order by") {
       testSingleReadForReadFromLeaves(
         "select first_name, ntile(3) over (order by first_name) as out from users"
