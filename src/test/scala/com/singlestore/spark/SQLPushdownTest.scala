@@ -1206,12 +1206,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("Math Expressions") {
-    val functions =
-      Seq(
-        "sinh", "cosh", "tanh", "rint", "asinh", "acosh", "sqrt", "ceil", "cos",
-        "exp", "expm1", "floor", "signum", "cot", "degrees", "radians", "bin",
-        "hex", "log2", "log10", "log1p", "ln" // (Log)
-      ).sorted
+    val functions = Seq(
+      "sinh", "cosh", "tanh", "rint", "asinh", "acosh", "sqrt", "ceil", "cos", "exp", "expm1",
+      "floor", "signum", "cot", "degrees", "radians", "bin", "hex", "log2", "log10", "log1p",
+      "ln" // (Log)
+    ).sorted
 
     for (f <- functions) {
       describe(f) {
@@ -1294,8 +1293,38 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         )
       }
       it(s"$f works with literal null") { testQuery(s"select $f(null, null) as $f from reviews") }
-      it(s"$f works with nullable column") {
+      it(s"$f works with simple nullable column") {
         testQuery(s"select $f(critic_rating, id) as $f from movies")
+      }
+      it(s"$f works with complex nullable columns") {
+        testQuery(
+          s"""
+            |select
+            | id,
+            | critic_rating,
+            | $f(critic_rating, id) as ${f}1,
+            | $f(critic_rating, -id) as ${f}2,
+            | $f(-critic_rating, id) as ${f}3,
+            | $f(-critic_rating, -id) as ${f}4,
+            | $f(id, critic_rating) as ${f}5,
+            | $f(id, -critic_rating) as ${f}6,
+            | $f(-id, critic_rating) as ${f}7,
+            | $f(-id, -critic_rating) as ${f}8
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      it(s"$f with partial pushdown because of udf in the left argument") {
+        testQuery(
+          s"select $f(floatIdentity(critic_rating), id) as $f from movies",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f with partial pushdown because of udf in the right argument") {
+        testQuery(
+          s"select $f(critic_rating, longIdentity(id)) as $f from movies",
+          expectPartialPushdown = true
+        )
       }
     }
 
@@ -1570,34 +1599,52 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("hypot") {
-      it("works with nullable columns") {
-        testQuery(
-        """
-          |select
-          | id,
-          | critic_rating,
-          | hypot(critic_rating, id) as h1,
-          | hypot(critic_rating, -id) as h2,
-          | hypot(-critic_rating, id) as h3,
-          | hypot(-critic_rating, -id) as h4,
-          | hypot(id, critic_rating) as h5,
-          | hypot(id, -critic_rating) as h6,
-          | hypot(-id, critic_rating) as h7,
-          | hypot(-id, -critic_rating) as h8
-          |from movies
-          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
-        )
+    describe("conv") {
+      val f = "conv"
+      // singlestore and spark behaviour differs when num contains non alphanumeric characters
+      val bases = Seq(2, 5, 23, 36)
+
+      for (fromBase <- bases; toBase <- bases) {
+        it(s"$f works with non-nullable columns converting $fromBase -> $toBase base") {
+          testQuery(
+            s"""
+               |select
+               |  first_name,
+               |  $f(first_name, $fromBase, $toBase) as $f
+               |from users
+               |where first_name rlike '^[a-zA-Z0-9]*$$'
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
       }
-      it("udf in the left argument") {
+      it(s"$f works with numeric") { testQuery(s"select $f(id, 10, 2) as $f from users") }
+      it(s"$f with partial pushdown when fromBase out of range [2, 36]") {
         testQuery(
-          "select hypot(floatIdentity(critic_rating), id) as hypot from movies",
+          s"select $f(first_name, 1, 20) as $f from users",
           expectPartialPushdown = true
         )
       }
-      it("udf in the right argument") {
+      it(s"$f with partial pushdown when toBase out of range [2, 36]") {
         testQuery(
-          "select hypot(critic_rating, longIdentity(id)) as hypot from movies",
+          s"select $f(first_name, 20, 1) as $f from users",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f with partial pushdown because of udf in the first argument") {
+        testQuery(
+          s"select $f(stringIdentity(first_name), 20, 15) as $f from users",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f with partial pushdown because of udf in the second argument") {
+        testQuery(
+          s"select $f(first_name, integerIdentity(20), 15) as $f from users",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f with partial pushdown because of udf in the third argument") {
+        testQuery(
+          s"select $f(first_name, 20, integerIdentity(15)) as $f from users",
           expectPartialPushdown = true
         )
       }
@@ -1606,116 +1653,61 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     it("EulerNumber") { testQuery("select E() from movies") }
     it("Pi") { testQuery("select PI() from movies") }
 
-    describe("conv") {
-      // singlestore and spark behaviour differs when num contains non alphanumeric characters
-      val bases = Seq(2, 5, 23, 36)
-
-      it("works") {
-        for (fromBase <- bases; toBase <- bases) {
-          log.debug(s"testing conv $fromBase -> $toBase")
-          testQuery(
-            s"""
-              |select
-              |  first_name,
-              |  conv(first_name, $fromBase, $toBase) as conv
-              |from users
-              |where first_name rlike '^[a-zA-Z0-9]*$$'
-              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
-          )
-        }
-      }
-      it("works with numeric") { testQuery("select conv(id, 10, 2) as conv from users") }
-      it("partial pushdown when fromBase out of range [2, 36]") {
-        testQuery(
-          "select conv(first_name, 1, 20) as conv from users",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown when toBase out of range [2, 36]") {
-        testQuery(
-          "select conv(first_name, 20, 1) as conv from users",
-          expectPartialPushdown = true
-        )
-      }
-      it("udf in the first argument") {
-        testQuery(
-          "select conv(stringIdentity(first_name), 20, 15) as conv from users",
-          expectPartialPushdown = true
-        )
-      }
-      it("udf in the second argument") {
-        testQuery(
-          "select conv(first_name, integerIdentity(20), 15) as conv from users",
-          expectPartialPushdown = true
-        )
-      }
-      it("udf in the third argument") {
-        testQuery(
-          "select conv(first_name, 20, integerIdentity(15)) as conv from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
     describe("shiftleft") {
-      it("works with nullable column") {
-        testQuery("select shiftleft(id, floor(critic_rating)) as shiftleft from movies")
+      val f = "shiftleft"
+
+      it(s"$f works with nullable column") {
+        testQuery(s"select $f(id, floor(critic_rating)) as $f from movies")
       }
-      it("udf in the left argument") {
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          "select shiftleft(longIdentity(id), floor(critic_rating)) as shiftleft from movies",
+          s"select $f(longIdentity(id), floor(critic_rating)) as $f from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          "select shiftleft(id, floatIdentity(floor(critic_rating))) as shiftleft from movies",
+          s"select $f(id, floatIdentity(floor(critic_rating))) as $f from movies",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("shiftright") {
-      it("works with nullable column") {
-        testQuery("select shiftright(id, floor(critic_rating)) as shiftright from movies")
+      val f = "shiftright"
+
+      it(s"$f works with nullable column") {
+        testQuery(s"select $f(id, floor(critic_rating)) as $f from movies")
       }
-      it("udf in the left argument") {
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          "select shiftright(longIdentity(id), floor(critic_rating)) as shiftright from movies",
+          s"select $f(longIdentity(id), floor(critic_rating)) as $f from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          "select shiftright(id, floatIdentity(floor(critic_rating))) as shiftright from movies",
+          s"select $f(id, floatIdentity(floor(critic_rating))) as $f from movies",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("shiftrightunsigned") {
-      ignore("09/2024 - works") {
-        testQuery(
-          "select shiftrightunsigned(id, floor(critic_rating)) as shiftrightunsigned from movies"
-        )
+      val f = "shiftrightunsigned"
+
+      ignore(s"09/2024 - $f works with nullable column") {
+        testQuery(s"select $f(id, floor(critic_rating)) as $f from movies")
       }
-      ignore("09/2024 - udf in the left argument") {
+      ignore(s"09/2024 - $f with partial pushdown because of udf in the left argument") {
         testQuery(
-          """
-            |select
-            | shiftrightunsigned(longIdentity(id), floor(critic_rating)) as shiftrightunsigned
-            |from movies
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+          s"select $f(longIdentity(id), floor(critic_rating)) as $f from movies",
           expectPartialPushdown = true
         )
       }
-      ignore("09/2024 - udf in the right argument") {
+      ignore(s"09/2024 - $f with partial pushdown because of udf in the right argument") {
         testQuery(
-          """
-            |select
-            | shiftrightunsigned(id, floatIdentity(floor(critic_rating))) as shiftrightunsigned
-            |from movies
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+          s"select $f(id, floatIdentity(floor(critic_rating))) as $f from movies",
           expectPartialPushdown = true
         )
       }
