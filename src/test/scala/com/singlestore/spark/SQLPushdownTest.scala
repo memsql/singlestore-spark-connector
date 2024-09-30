@@ -1925,10 +1925,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("sort/limit") {
-    it("numeric order") {
-      testOrderedQuery("select * from users order by id asc")
-    }
+  describe("Sort/Limit") {
+    it("numeric order") { testOrderedQuery("select * from users order by id asc") }
     it("text order") {
       testOrderedQuery("select * from users order by first_name desc, last_name asc, id asc")
     }
@@ -1965,16 +1963,18 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("hashes") {
+  describe("Hashes") {
     describe("sha1") {
-      it("works with text") { testQuery("select sha1(first_name) from users") }
-      it("works with null") { testSingleReadForReadFromLeaves("select sha1(null) from users") }
-      it("partial pushdown") {
+      val f = "sha1"
+
+      it(s"$f works with text") { testQuery(s"select $f(first_name) as $f from users") }
+      it(s"$f works with literal null") {
+        testSingleReadForReadFromLeaves(s"select $f(null) as $f from users")
+      }
+      it(s"$f with partial pushdown because of udf") {
         testQuery(
-          """
-            |select
-            | sha1(stringIdentity(first_name)) as sha1,
-            | stringIdentity(first_name) as first_name
+          s"""
+            |select $f(stringIdentity(first_name)) as $f, stringIdentity(first_name) as first_name
             |from users
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
@@ -1983,38 +1983,54 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("sha2") {
-      it("0 bit length") { testQuery("select sha2(first_name, 0) from users") }
-      it("256 bit length") { testQuery("select sha2(first_name, 256) from users") }
-      it("384 bit length") { testQuery("select sha2(first_name, 384) from users") }
-      it("512 bit length") { testQuery("select sha2(first_name, 512) from users") }
-      it("works with null") { testSingleReadForReadFromLeaves("select sha2(null, 256) from users") }
-      it("224 bit length partial pushdown") {
-        testQuery("select sha2(first_name, 224) from users", expectPartialPushdown = true)
+      val f = "sha2"
+
+      it(s"$f works with 0 bit length") { testQuery(s"select $f(first_name, 0) as $f from users") }
+      it(s"$f works with 256 bit length") {
+        testQuery(s"select $f(first_name, 256) as $f from users")
       }
-      it("partial pushdown") {
+      it(s"$f works with 384 bit length") {
+        testQuery(s"select $f(first_name, 384) as $f from users")
+      }
+      it(s"$f works with 512 bit length") {
+        testQuery(s"select $f(first_name, 512) as $f from users")
+      }
+      it(s"$f works with literal null") {
+        testSingleReadForReadFromLeaves(s"select $f(null, 256) as $f from users")
+      }
+      it(s"$f works with partial pushdown for 224 bit length") {
+        testQuery(s"select sha2(first_name, 224) from users", expectPartialPushdown = true)
+      }
+      it(s"$f works with partial pushdown because of udf") {
         testQuery(
-          """
+          s"""
             |select
-            | sha2(stringIdentity(first_name), 256) as sha2,
+            | $f(stringIdentity(first_name), 256) as $f,
             | stringIdentity(first_name) as first_name
             |from users
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("short literal") { testQuery(s"select sha2(first_name, 256S) from users") }
-      it("long literal") { testQuery(s"select sha2(first_name, 256L) from users") }
+      it(s"$f works with short literal") {
+        testQuery(s"select $f(first_name, 256S) as $f from users")
+      }
+      it(s"$f works with long literal") {
+        testQuery(s"select $f(first_name, 256L) as $f from users")
+      }
     }
 
     describe("md5") {
-      it("works with text") { testQuery("select md5(first_name) from users") }
-      it("works with null") { testSingleReadForReadFromLeaves("select md5(null) from users") }
-      it("partial pushdown") {
+      val f = "md5"
+
+      it(s"$f works with text") { testQuery(s"select $f(first_name) as $f from users") }
+      it(s"$f works with literal null") {
+        testSingleReadForReadFromLeaves(s"select $f(null) as $f from users")
+      }
+      it(s"$f works with partial pushdown because of udf") {
         testQuery(
-          """
-            |select
-            | md5(stringIdentity(first_name)) as md5,
-            | stringIdentity(first_name) as first_name
+          s"""
+            |select $f(stringIdentity(first_name)) as $f, stringIdentity(first_name) as first_name
             |from users
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
