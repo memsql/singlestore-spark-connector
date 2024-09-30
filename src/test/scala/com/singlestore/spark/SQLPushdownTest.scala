@@ -325,6 +325,23 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     for (t <- tables) { it(s"select all $t") { testQuery(s"select * from $t") } }
   }
 
+  describe("sanity test the `automaticLite` parallel read") {
+    it("no sort in the query") { testQuery("select id from users") }
+    it("non top-level sort") {
+      testQuery(
+        "select id from (select id from users order by id) group by id",
+        expectSingleRead = !canDoParallelReadFromAggregators
+      )
+    }
+    it("top-level sort") {
+      testQuery(
+        "select id from users order by id",
+        expectSingleRead = true,
+        alreadyOrdered = true
+      )
+    }
+  }
+
   describe("sanity test the `disablePushdown` flag") {
     val tables = Seq("users", "users_sample", "movies", "reviews").sorted
 
@@ -344,6 +361,30 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       testNoPushdownQuery(
         "select * from users as a, reviews as b where a.id = b.user_id",
         expectSingleRead = true
+      )
+    }
+  }
+
+  describe("sanity test partial pushdown") {
+    it("ignores spark UDFs") {
+      testQuery(
+        "select stringUpper(first_name), id from users where id in (10,11,12)",
+        expectPartialPushdown = true
+      )
+    }
+    it("join with pure jdbc relation when spark pushdown is not supported") {
+      testSingleReadQuery(
+        """
+          |select
+          | users.id,
+          | concat(first(users.first_name), " ", first(users.last_name)) as full_name
+          |from
+          | users
+          | inner join testdb_jdbc.reviews
+          | on users.id = reviews.user_id
+          |group by users.id
+          |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+        expectPartialPushdown = true
       )
     }
   }
@@ -1808,6 +1849,73 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
+  describe("Decimal Expressions") {
+    val precisions = List(2, 5, Decimal.MAX_LONG_DIGITS - 10)
+    val scales     = List(1, 4, Decimal.MAX_LONG_DIGITS - 11)
+
+    it("sum of decimals") {
+      // If precision + 10 <= Decimal.MAX_LONG_DIGITS then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
+      for (precision <- precisions;
+           // If rating >= 10^(precision - scale) then rating will overflow during the casting
+           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
+           // SingleStore truncates the value on overflow
+           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
+           scale <- scales if scale < precision) {
+        testSingleReadForOldS2(
+          s"select sum(cast(rating as decimal($precision, $scale))) as rs from reviews",
+          SinglestoreVersion(7, 6, 0)
+        )
+      }
+
+    }
+    it("window expression with sum of decimals") {
+      // If precision + 10 <= Decimal.MAX_LONG_DIGITS then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
+      for (precision <- precisions;
+           // If rating >= 10^(precision - scale) then rating will overflow during the casting
+           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
+           // SingleStore truncates the value on overflow
+           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
+           scale <- scales if scale < precision) {
+        testSingleReadForReadFromLeaves(
+          s"""
+             |select sum(cast(rating as decimal($precision, $scale))) over (order by rating) as out
+             |from reviews
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+    }
+    it("avg of decimals") {
+      // If precision + 4 <= MAX_DOUBLE_DIGITS (15) then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
+      for (precision <- precisions;
+           // If rating >= 10^(precision - scale) then rating will overflow during the casting
+           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
+           // SingleStore truncates the value on overflow
+           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
+           scale <- scales if scale < precision) {
+        testSingleReadForOldS2(
+          s"select avg(cast(rating as decimal($precision, $scale))) as rs from reviews",
+          SinglestoreVersion(7, 6, 0)
+        )
+      }
+    }
+    it("window expression with avg of decimals") {
+      // If precision + 4 <= MAX_DOUBLE_DIGITS (15) then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
+      for (precision <- precisions;
+           // If rating >= 10^(precision - scale) then rating will overflow during the casting
+           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
+           // SingleStore truncates the value on overflow
+           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
+           scale <- scales if scale < precision) {
+        testSingleReadForReadFromLeaves(
+          s"""
+             |select avg(cast(rating as decimal($precision, $scale))) over (order by rating) as out
+             |from reviews
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+    }
+  }
+
   describe("Aggregate Expressions") {
     val functionsGroup1 = Seq(
       "skewness",
@@ -1994,6 +2102,35 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
+  describe("SortOrder") {
+    val f = "SortOrder"
+
+    it(s"$f works asc, nulls first") {
+      testOrderedQuery("select * from movies order by critic_rating asc nulls first, id")
+    }
+    it(s"$f works desc, nulls last") {
+      testOrderedQuery("select * from movies order by critic_rating desc nulls last, id")
+    }
+    it(s"$f partial pushdown asc, nulls last") {
+      testSingleReadQuery(
+        "select * from movies order by critic_rating asc nulls last",
+        expectPartialPushdown = true
+      )
+    }
+    it(s"$f partial pushdown desc, nulls first") {
+      testSingleReadQuery(
+        "select * from movies order by critic_rating desc nulls first",
+        expectPartialPushdown = true
+      )
+    }
+    it(s"$f with partial pushdown because of udf") {
+      testSingleReadQuery(
+        "select * from movies order by floatIdentity(critic_rating)",
+        expectPartialPushdown = true
+      )
+    }
+  }
+
   describe("Sort/Limit") {
     it("numeric order") { testOrderedQuery("select * from users order by id asc") }
     it("text order") {
@@ -2032,7 +2169,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("Hashes") {
+  describe("Hash Expressions") {
     describe("sha1") {
       val f = "sha1"
 
@@ -2515,7 +2652,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("same-name column selection") {
+  describe("Same-Name Column Selection") {
     it("join two tables which project the same column name") {
       testOrderedQuery(
         """
@@ -2560,7 +2697,240 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("datetimeExpressions") {
+  describe("Regular Expressions") {
+    describe("like") {
+      val f = "like"
+
+      it(s"$f works with simple literal") {
+        testQuery(s"select * from users where first_name $f 'Di'")
+      }
+      it(s"$f works with simple non-nullable columns in both fields") {
+        testQuery(s"select * from users where first_name $f last_name")
+      }
+      it(s"$f works with character wildcard") {
+        testQuery(s"select * from users where first_name $f 'D_'")
+      }
+      it(s"$f works with string wildcard") {
+        testQuery(s"select * from users where first_name $f 'D%'")
+      }
+      it(s"$f works with simple true") { testQuery(s"select * from users where 1 $f 1") }
+      it(s"$f works with simple false") { testQuery(s"select 2 $f 1 from users") }
+      it(s"$f works with simple true using non-nullable columns") {
+        testQuery(s"select first_name from users where first_name $f first_name")
+      }
+      it(s"$f with partial pushdown because of udf on the left side") {
+        testQuery(
+          s"select * from users where stringIdentity(first_name) $f 'Di'",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f with partial pushdown because of udf on the right side") {
+        testQuery(
+          s"select * from users where first_name $f stringIdentity('Di')",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f works with null") { testQuery(s"select critic_review $f null from movies") }
+      it(s"$f works with escape char") {
+        testQuery(
+          s"""
+            |select
+            | first_name $f last_name escape '^',
+            | last_name $f first_name escape '^'
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      it(s"$f works with escape char equal to '/'") {
+        testQuery(
+          s"""
+            |select
+            | first_name $f last_name escape '/',
+            | last_name $f first_name escape '/'
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+    }
+
+    describe("rlike") {
+      val f = "rlike"
+
+      it(s"$f works with simple literal") {
+        testQuery(s"select * from users where first_name $f 'D.'")
+      }
+      it(s"$f works with simple non-nullable columns in both fields") {
+        testQuery(s"select * from users where first_name $f last_name")
+      }
+      it(s"$f works with pattern match starting from beginning") {
+        testQuery(s"select * from users where first_name $f '^D.'")
+      }
+      it(s"$f works with simple true") { testQuery(s"select * from users where 1 $f 1") }
+      it(s"$f works with simple false") { testQuery(s"select 2 $f 1 from users") }
+      it(s"$f with partial pushdown because of udf on the left side") {
+        testQuery(
+          s"select * from users where stringIdentity(first_name) $f 'D.'",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f with partial pushdown because of udf on the right side") {
+        testQuery(
+          s"select * from users where first_name $f stringIdentity('D.')",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f works with null") { testQuery(s"select critic_review $f null from movies") }
+    }
+
+    describe("(not) like all/any patterns functions") {
+      val functions = Seq("like all", "like any", "not like all", "not like any").sorted
+
+      for (f <- functions) {
+        describe(f) {
+          it(s"$f works with simple literal") {
+            testQuery(s"select id, first_name from users where first_name $f ('An%te%')")
+          }
+          it(s"$f works with simple non-nullable column and literal") {
+            testQuery(s"select id, first_name from users where first_name $f (last_name, 'Al%')")
+          }
+          it(s"$f works with repeated pattern match") {
+            testQuery(
+              s"select id, first_name from users where first_name $f ('Al%', last_name, 'Al%')"
+            )
+          }
+          it(s"$f works with simple character wildcard") {
+            testQuery(s"select * from users where first_name $f ('A___e', '_n__e')")
+          }
+          it(s"$f works with simple string wildcard") {
+            testQuery(
+              s"select * from users where first_name $f ('Kon%ce', '%tan%', '%Kon%tan%ce%')"
+            )
+          }
+
+          f match {
+            case "like all" | "like any" =>
+              it(s"$f works with simple true") {
+                testQuery(s"select * from users where '1' $f ('1')")
+              }
+              it(s"$f works with simple false") {
+                testQuery(s"select * from users where id $f ('D%', 'A%bbbb%')", expectEmpty = true)
+              }
+              it(s"$f works with simple non-nullable column") {
+                testQuery(s"select * from users where first_name $f (first_name)")
+              }
+            case "not like all" | "not like any" =>
+              it(s"$f works with simple false") {
+                testQuery(s"select * from users where id $f ('D%', 'A%bbbb%')")
+              }
+              it(s"$f works with simple non-nullable column") {
+                testQuery(
+                  s"select * from users where first_name $f (first_name)",
+                  expectEmpty = true
+                )
+              }
+          }
+
+          it(s"$f works with null") {
+            testQuery(s"select critic_review $f (null) from movies")
+          }
+          it(s"$f with partial pushdown because of udf on the left side") {
+            testQuery(
+              s"select * from users where stringIdentity(first_name) $f ('Ali%')",
+              expectPartialPushdown = true
+            )
+          }
+          it(s"$f with partial pushdown because of udf on the right side") {
+            testQuery(
+              s"select * from users where first_name $f (stringIdentity('Ali%'))",
+              expectPartialPushdown = true
+            )
+          }
+          it(s"$f works with very simple patterns") {
+            spark.version.substring(0, 3) match {
+              case "3.4" | "3.5" =>
+                // Spark 3.4|3.5 invoke full pushdown
+                testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')")
+              case _ =>
+                // Spark 3.1|3.2|3.3 compute these in more optimal way and do not invoke pushdown
+                testQuery(
+                  s"select * from users where first_name $f ('A%', '%b%', '%e')",
+                  expectPartialPushdown = true
+                )
+            }
+          }
+          it(s"$f works with empty patterns arg") {
+            try {
+              testQuery(s"select * from users where first_name $f ()", expectPartialPushdown = true)
+            } catch {
+              case e: Throwable =>
+                if (e.toString.contains("Expected something between '(' and ')'")) {
+                  None
+                } else {
+                  throw e
+                }
+            }
+          }
+        }
+      }
+    }
+
+    describe("regexp") {
+      val f = "regexp"
+
+      it(s"$f works with simple literal") {
+        testQuery(s"select * from users where first_name $f 'D.'")
+      }
+      it(s"$f works with simple non-nullable columns in both fields") {
+        testQuery(s"select * from users where first_name $f last_name")
+      }
+      it(s"$f works with simple true") { testQuery(s"select * from users where 1 $f 1") }
+      it(s"$f works with simple false") { testQuery(s"select 2 $f 1 from users") }
+      it(s"$f with partial pushdown because of udf on the left side") {
+        testQuery(
+          s"select * from users where stringIdentity(first_name) $f 'D.'",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f with partial pushdown because of udf on the right side") {
+        testQuery(
+          s"select * from users where first_name $f stringIdentity('D.')",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f works with null") { testQuery(s"select critic_review $f null from movies") }
+    }
+
+    describe("regexpReplace") {
+      val f = "regexp_replace"
+
+      it(s"$f works with simple literals") {
+        testQuery(s"select $f(first_name, 'D', 'd') from users")
+      }
+      it(s"$f works correctly with simple literals in equality") {
+        testQuery(s"select * from users where $f(first_name, 'D', 'd') = 'di'")
+      }
+      it(s"$f with partial pushdown because of udf") {
+        testQuery(
+          s"select $f(stringIdentity(first_name), 'D', 'd') from users",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f works with null") { testQuery(s"select $f(title, 'D', critic_review) from movies") }
+      it(s"$f works with simple non-nullable columns in fields") {
+        testQuery(s"select $f(first_name, first_name, first_name) from users")
+      }
+      it(s"$f works with small position argument") {
+        testQuery(s"select $f(first_name, 'a', 'd', 3) from users")
+      }
+      it(s"$f works with big position argument") {
+        testQuery(s"select $f(first_name, 'a', 'd', 100) from users")
+      }
+    }
+  }
+
+
+
+  describe("Datetime Expressions") {
     describe("DateAdd") {
       it("positive num_days") { testQuery("select date_add(birthday, age) from users") }
       it("negative num_days") { testQuery("select date_add(birthday, -age) from users") }
@@ -2659,12 +3029,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           println(s"testing timeAdd with interval $interval")
           val query =
             s"""
-              |select
-              | created,
-              | created + interval $interval
-              |from reviews
-              |where date(created) != last_day(created)
-              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+               |select
+               | created,
+               | created + interval $interval
+               |from reviews
+               |where date(created) != last_day(created)
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
           if (!interval.contains("day") || spark.version != "3.0.0") {
             testQuery(query)
           }
@@ -2673,12 +3043,12 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("partial pushdown because of udf in the left argument") {
         testQuery(
           s"""
-            |select
-            | created,
-            | to_timestamp(stringIdentity(created)) + interval 1 month
-            |from reviews
-            |where date(created) != last_day(created)
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+             |select
+             | created,
+             | to_timestamp(stringIdentity(created)) + interval 1 month
+             |from reviews
+             |where date(created) != last_day(created)
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
@@ -2690,24 +3060,24 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           println(s"testing timeSub with interval $interval")
           testQuery(
             s"""
-              |select
-              |  created,
-              |  created - interval $interval
-              |from reviews
-              |where date(created) != last_day(created)
-              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+               |select
+               |  created,
+               |  created - interval $interval
+               |from reviews
+               |where date(created) != last_day(created)
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
           )
         }
       }
       it("partial pushdown because of udf in the left argument") {
         testQuery(
           s"""
-            |select
-            | created,
-            | to_timestamp(stringIdentity(created)) - interval 1 day
-            |from reviews
-            |where date(created) != last_day(created)
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+             |select
+             | created,
+             | to_timestamp(stringIdentity(created)) - interval 1 day
+             |from reviews
+             |where date(created) != last_day(created)
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
@@ -2720,36 +3090,36 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           println(s"testing addMonths with $numMonths months")
           testQuery(
             s"""
-              |select
-              | created,
-              | add_months(created, $numMonths)
-              |from reviews
-              |where date(created) != last_day(created)
-              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+               |select
+               | created,
+               | add_months(created, $numMonths)
+               |from reviews
+               |where date(created) != last_day(created)
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
           )
         }
       }
       it("partial pushdown with udf in the left argument") {
         testQuery(
           s"""
-            |select
-            | created,
-            | add_months(stringIdentity(created), 1)
-            |from reviews
-            |where date(created) != last_day(created)
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+             |select
+             | created,
+             | add_months(stringIdentity(created), 1)
+             |from reviews
+             |where date(created) != last_day(created)
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
       it("partial pushdown with udf in the right argument") {
         testQuery(
           s"""
-            |select
-            | created,
-            | add_months(created, stringIdentity(1))
-            |from reviews
-            |where date(created) != last_day(created)
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+             |select
+             | created,
+             | add_months(created, stringIdentity(1))
+             |from reviews
+             |where date(created) != last_day(created)
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
@@ -2761,22 +3131,22 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           println(s"testing nextDay with $dayOfWeek")
           testQuery(
             s"""
-              |select
-              | created,
-              | next_day(created, '$dayOfWeek')
-              |from reviews
-              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+               |select
+               | created,
+               | next_day(created, '$dayOfWeek')
+               |from reviews
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
           )
         }
       }
       it("works with invalid day name") {
         testQuery(
           s"""
-            |select
-            | created,
-            | next_day(created, 'invalid_day')
-            |from reviews
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+             |select
+             | created,
+             | next_day(created, 'invalid_day')
+             |from reviews
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       it("partial pushdown because of udf in the left argument") {
@@ -2844,7 +3214,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("partial pushdown because of udf in the left argument") {
         testQuery("select from_utc_timestamp(stringIdentity(created), 'EST') from reviews",
-                  expectPartialPushdown = true)
+          expectPartialPushdown = true)
       }
       it("partial pushdown because of udf in the right argument") {
         testQuery(
@@ -2861,11 +3231,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           // singlestore doesn't support timestamps less then 1970-01-01T00:00:00Z
           testQuery(
             s"""
-              |select
-              | to_utc_timestamp(created, '$timeZone')
-              |from reviews
-              |where to_unix_timestamp(created) > 24*60*60
-              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+               |select
+               | to_utc_timestamp(created, '$timeZone')
+               |from reviews
+               |where to_unix_timestamp(created) > 24*60*60
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
           )
         }
       }
@@ -3052,7 +3422,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select $f(timestamp(stringIdentity(created))) from reviews",
-                    expectPartialPushdown = true)
+            expectPartialPushdown = true)
         }
       }
     }
@@ -3128,31 +3498,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("partial pushdown") {
-    it("ignores spark UDFs") {
-      testQuery(
-        "select stringUpper(first_name), id from users where id in (10,11,12)",
-        expectPartialPushdown = true
-      )
-    }
-    it("join with pure-jdbc relation") {
-      testSingleReadQuery(
-        """
-          |select
-          | users.id,
-          | concat(first(users.first_name), " ", first(users.last_name)) as full_name
-          |from
-          | users
-          | inner join testdb_jdbc.reviews
-          | on users.id = reviews.user_id
-          |group by users.id
-          |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
-        expectPartialPushdown = true
-      )
-    }
-  }
-
-  describe("stringExpressions") {
+  describe("String Expressions") {
     describe("StartsWith") {
       it("works") {
         testQuery(
@@ -4004,418 +4350,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("decimalExpressions") {
-    val precisions = List(2, 5, Decimal.MAX_LONG_DIGITS - 10)
-    val scales     = List(1, 4, Decimal.MAX_LONG_DIGITS - 11)
-
-    it("sum of decimals") {
-      // If precision + 10 <= Decimal.MAX_LONG_DIGITS then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
-      for (precision <- precisions;
-           // If rating >= 10^(precision - scale) then rating will overflow during the casting
-           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
-           // SingleStore truncates the value on overflow
-           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
-           scale <- scales if scale < precision) {
-        testSingleReadForOldS2(
-          s"select sum(cast(rating as decimal($precision, $scale))) as rs from reviews",
-          SinglestoreVersion(7, 6, 0)
-        )
-      }
-
-    }
-    it("window expression with sum of decimals") {
-      // If precision + 10 <= Decimal.MAX_LONG_DIGITS then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
-      for (precision <- precisions;
-           // If rating >= 10^(precision - scale) then rating will overflow during the casting
-           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
-           // SingleStore truncates the value on overflow
-           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
-           scale <- scales if scale < precision) {
-        testSingleReadForReadFromLeaves(
-          s"""
-            |select
-            | sum(cast(rating as decimal($precision, $scale))) over (order by rating) as out
-            |from reviews
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
-        )
-      }
-    }
-    it("avg of decimals") {
-      // If precision + 4 <= MAX_DOUBLE_DIGITS (15) then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
-      for (precision <- precisions;
-           // If rating >= 10^(precision - scale) then rating will overflow during the casting
-           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
-           // SingleStore truncates the value on overflow
-           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
-           scale <- scales if scale < precision) {
-        testSingleReadForOldS2(
-          s"select avg(cast(rating as decimal($precision, $scale))) as rs from reviews",
-          SinglestoreVersion(7, 6, 0)
-        )
-      }
-    }
-    it("window expression with avg of decimals") {
-      // If precision + 4 <= MAX_DOUBLE_DIGITS (15) then DecimalAggregates optimizer will add MakeDecimal and UnscaledValue to this query
-      for (precision <- precisions;
-           // If rating >= 10^(precision - scale) then rating will overflow during the casting
-           // JDBC returns null on overflow if !ansiEnabled and errors otherwise
-           // SingleStore truncates the value on overflow
-           // Because of this, we skip the case when scale is equals to precision (all rating values are less then 10)
-           scale <- scales if scale < precision) {
-        testSingleReadForReadFromLeaves(
-          s"""
-            |select
-            | avg(cast(rating as decimal($precision, $scale))) over (order by rating) as out
-            |from reviews
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
-        )
-      }
-    }
-  }
-
-  describe("SortOrder") {
-    it("works asc, nulls first") {
-      testOrderedQuery("select * from movies order by critic_rating asc nulls first, id")
-    }
-    it("works desc, nulls last") {
-      testOrderedQuery("select * from movies order by critic_rating desc nulls last, id")
-    }
-    it("partial pushdown asc, nulls last") {
-      testSingleReadQuery(
-        "select * from movies order by critic_rating asc nulls last",
-        expectPartialPushdown = true
-      )
-    }
-    it("partial pushdown desc, nulls first") {
-      testSingleReadQuery(
-        "select * from movies order by critic_rating desc nulls first",
-        expectPartialPushdown = true
-      )
-    }
-    it("partial pushdown with udf") {
-      testSingleReadQuery(
-        "select * from movies order by stringIdentity(critic_rating)",
-        expectPartialPushdown = true
-      )
-    }
-  }
-
-  describe("Rand") {
-    it("integer literal") {
-      testQuery("select rand(100)*id from users", expectSameResult = false)
-    }
-    it("long literal") {
-      testQuery("select rand(100L)*id from users", expectSameResult = false)
-    }
-    it("null literal") {
-      testQuery("select rand(null)*id from users", expectSameResult = false)
-    }
-    it(
-      "empty arguments",
-      ExcludeFromSpark31,
-      ExcludeFromSpark32,
-      ExcludeFromSpark33,
-      ExcludeFromSpark34,
-      ExcludeFromSpark35
-    ) {
-      // TODO PLAT-5759
-      testQuery(
-        "select rand()*id from users",
-        expectSameResult = false,
-        expectCodegenDeterminism = false
-      )
-    }
-    it("should return the same value for the same input") {
-      val df1 = spark.sql("select rand(100)*id from (select id from testdb.users order by id)")
-      val df2 = spark.sql("select rand(100)*id from (select id from testdb.users order by id)")
-      assertApproximateDataFrameEquality(df1, df2, 0.001, orderedComparison = false)
-    }
-  }
-
-  describe("regular expressions") {
-    describe("like") {
-      it("simple") {
-        testQuery("select * from users where first_name like 'Di'")
-      }
-      it("simple, both fields") {
-        testQuery("select * from users where first_name like last_name")
-      }
-      it("character wildcard") {
-        testQuery("select * from users where first_name like 'D_'")
-      }
-      it("string wildcard") {
-        testQuery("select * from users where first_name like 'D%'")
-      }
-      it("dumb true") {
-        testQuery("select * from users where 1 like 1")
-      }
-      it("dumb false") {
-        testQuery("select 2 like 1 from users")
-      }
-      it("dumb true once more") {
-        testQuery("select first_name from users where first_name like first_name")
-      }
-      it("partial pushdown left") {
-        testQuery(
-          "select * from users where stringIdentity(first_name) like 'Di'",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown right") {
-        testQuery(
-          "select * from users where first_name like stringIdentity('Di')",
-          expectPartialPushdown = true
-        )
-      }
-      it("null") {
-        testQuery("select critic_review like null from movies")
-      }
-      it("with escape char") {
-        testQuery(
-          """
-            |select
-            | first_name like last_name escape '^',
-            | last_name like first_name escape '^'
-            |from users
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
-        )
-      }
-      it("with escape char equal to '/'") {
-        testQuery(
-          """
-            |select
-            | first_name like last_name escape '/',
-            | last_name like first_name escape '/'
-            |from users
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
-        )
-      }
-    }
-
-    describe("rlike") {
-      it("simple") {
-        testQuery("select * from users where first_name rlike 'D.'")
-      }
-      it("simple, both fields") {
-        testQuery("select * from users where first_name rlike last_name")
-      }
-      it("from beginning") {
-        testQuery("select * from users where first_name rlike '^D.'")
-      }
-      it("dumb true") { testQuery("select * from users where 1 rlike 1") }
-      it("dumb false") { testQuery("select 2 rlike 1 from users") }
-      it("partial pushdown left") {
-        testQuery(
-          "select * from users where stringIdentity(first_name) rlike 'D.'",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown right") {
-        testQuery(
-          "select * from users where first_name rlike stringIdentity('D.')",
-          expectPartialPushdown = true
-        )
-      }
-      it("null") { testQuery("select critic_review rlike null from movies") }
-    }
-
-    describe("(not) like all/any patterns functions") {
-      val functions = Seq("like all", "like any", "not like all", "not like any")
-
-      it("simple") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select id, first_name from users where first_name $f ('An%te%')")
-        }
-      }
-      it("simple, both fields") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select id, first_name from users where first_name $f (last_name, 'Al%')")
-        }
-      }
-      it("repeated pattern") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(
-            s"select id, first_name from users where first_name $f ('Al%', last_name, 'Al%')")
-        }
-      }
-      it("character wildcard") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select * from users where first_name $f ('A___e', '_n__e')")
-        }
-      }
-      it("string wildcard") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select * from users where first_name $f ('Kon%ce', '%tan%', '%Kon%tan%ce%')")
-        }
-      }
-      it("dumb true") {
-        for (i <- 0 to 1) {
-          log.debug(s"testing ${functions(i)}")
-          testQuery(s"select * from users where '1' ${functions(i)} ('1')")
-        }
-      }
-      it("dumb false") {
-        for (i <- 0 to 1) {
-          log.debug(s"testing ${functions(i)}")
-          testQuery(
-            s"select * from users where id ${functions(i)} ('D%', 'A%bbbb%')",
-            expectEmpty = true
-          )
-        }
-        for (i <- 2 to 3) {
-          log.debug(s"testing ${functions(i)}")
-          testQuery(s"select * from users where id ${functions(i)} ('D%', 'A%bbbb%')")
-        }
-      }
-      it("dumb true once more") {
-        for (i <- 0 to 1) {
-          log.debug(s"testing ${functions(i)}")
-          testQuery(s"select * from users where first_name ${functions(i)} (first_name)")
-        }
-        for (i <- 2 to 3) {
-          log.debug(s"testing ${functions(i)}")
-          testQuery(
-            s"select * from users where first_name ${functions(i)} (first_name)",
-            expectEmpty = true
-          )
-        }
-      }
-      it("null") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select critic_review $f (null) from movies")
-        }
-      }
-      it("partial pushdown left") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(
-            s"select * from users where stringIdentity(first_name) $f ('Ali%')",
-            expectPartialPushdown = true
-          )
-        }
-      }
-      it("partial pushdown right") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(
-            s"select * from users where first_name $f (stringIdentity('Ali%'))",
-            expectPartialPushdown = true
-          )
-        }
-      }
-      it("very simple patterns", ExcludeFromSpark34, ExcludeFromSpark35) {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          // Spark 3.1|3.2|3.3 compute these in more optimal way and do not invoke pushdown
-          testQuery(
-            s"select * from users where first_name $f ('A%', '%b%', '%e')",
-            expectPartialPushdown = true
-          )
-        }
-      }
-      ignore(
-        "09/2024 - very simple patterns full pushdown",
-        ExcludeFromSpark31,
-        ExcludeFromSpark32,
-        ExcludeFromSpark33
-      ) {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          // Spark 3.4|3.5 invoke full pushdown
-          testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')")
-        }
-      }
-      it("empty patterns arg") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          try {
-            testQuery(s"select * from users where first_name $f ()", expectPartialPushdown = true)
-          } catch {
-            case e: Throwable =>
-              if (e.toString.contains("Expected something between '(' and ')'")) {
-                None
-              } else { throw e }
-          }
-        }
-      }
-    }
-
-    describe("regexp") {
-      it("simple") {
-        testQuery("select * from users where first_name regexp 'D.'")
-      }
-      it("simple, both fields") {
-        testQuery("select * from users where first_name regexp last_name")
-      }
-      it("dumb true") { testQuery("select * from users where 1 regexp 1") }
-      it("dumb false") { testQuery("select 2 regexp 1 from users") }
-      it("partial pushdown left") {
-        testQuery(
-          "select * from users where stringIdentity(first_name) regexp 'D.'",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown right") {
-        testQuery(
-          "select * from users where first_name regexp stringIdentity('D.')",
-          expectPartialPushdown = true
-        )
-      }
-      it("null") { testQuery("select critic_review regexp null from movies") }
-    }
-
-    describe("regexpReplace") {
-      it("simple") {
-        testQuery("select regexp_replace(first_name, 'D', 'd') from users")
-      }
-      it("works correctly") {
-        testQuery("select * from users where regexp_replace(first_name, 'D', 'd') = 'di'")
-      }
-      it("partial pushdown") {
-        testQuery(
-          "select regexp_replace(stringIdentity(first_name), 'D', 'd') from users",
-          expectPartialPushdown = true
-        )
-      }
-      it("null") {
-        testQuery("select regexp_replace(title, 'D', critic_review) from movies")
-      }
-      it("non-literals") {
-        testQuery("select regexp_replace(first_name, first_name, first_name) from users")
-      }
-      it("with position") {
-        testQuery("select regexp_replace(first_name, 'a', 'd', 3) from users")
-      }
-      it("big position") {
-        testQuery("select regexp_replace(first_name, 'a', 'd', 100) from users")
-      }
-    }
-  }
-
-  describe("automaticLite parallel read") {
-    it("no sort in the query") { testQuery("select id from users") }
-    it("non top-level sort") {
-      testQuery(
-        "select id from (select id from users order by id) group by id",
-        expectSingleRead = !canDoParallelReadFromAggregators
-      )
-    }
-    it("top-level sort") {
-      testQuery(
-        "select id from users order by id",
-        expectSingleRead = true,
-        alreadyOrdered = true
-      )
-    }
-  }
-
-  describe("json functions") {
+  describe("JSON Functions") {
     describe("GetJsonObject") {
       it("works with strings") {
         testQuery(
@@ -4494,7 +4429,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("misc functions") {
+  describe("Misc Functions") {
     def testUUIDPushdown(q: String): Unit = {
       spark.sql("use testdb_jdbc")
       val jdbcDF = spark.sql(q)
@@ -4545,6 +4480,42 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           expectSameResult = false
         )
         testUUIDPushdown("select uuid(), stringIdentity(first_name) from users")
+      }
+    }
+
+    describe("Rand") {
+      val f = "rand"
+
+      it(s"$f works with literal integer and non-nullable column") {
+        testQuery(s"select $f(100)*id as $f from users", expectSameResult = false)
+      }
+      it(s"$f works with literal long and non-nullable column") {
+        testQuery(s"select $f(100L)*id as $f from users", expectSameResult = false)
+      }
+      it(s"$f works with literal null and non-nullable column") {
+        testQuery(s"select $f(null)*id as $f from users", expectSameResult = false)
+      }
+      it(
+        s"$f works with empty arguments and non-nullable column",
+        ExcludeFromSpark31,
+        ExcludeFromSpark32,
+        ExcludeFromSpark33,
+        ExcludeFromSpark34,
+        ExcludeFromSpark35
+      ) {
+        // TODO PLAT-5759
+        testQuery(
+          s"select $f()*id as $f from users",
+          expectSameResult = false,
+          expectCodegenDeterminism = false
+        )
+      }
+      it(s"$f should return the same value for the same input") {
+        val df1 =
+          spark.sql(s"select $f(100)*id as $f from (select id from testdb.users order by id)")
+        val df2 =
+          spark.sql(s"select $f(100)*id as $f from (select id from testdb.users order by id)")
+        assertApproximateDataFrameEquality(df1, df2, 0.001, orderedComparison = false)
       }
     }
   }
