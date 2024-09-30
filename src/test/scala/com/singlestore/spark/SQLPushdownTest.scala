@@ -967,7 +967,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       ("subtract", "-"),
       ("multiply", "*"),
       ("divide", "/"),
-      ("remainder", "%"),
+      ("remainder", "%")
     )
 
     for ((f, s) <- functions) {
@@ -1057,51 +1057,35 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("bitwise Expressions") {
-    describe("BitwiseAnd") {
-      it("succeeds") { testQuery("select user_id & movie_id as t_col from reviews") }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery(
-          "select cast(stringIdentity(user_id) as integer) & movie_id as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown because of udf in the right argument") {
-        testQuery(
-          "select user_id & cast(stringIdentity(movie_id) as integer) as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-    }
+    val functionsGroup1 = Seq(
+      ("BitwiseAnd", "&"),
+      ("BitwiseOr", "|"),
+      ("BitwiseXor", "^")
+    )
 
-    describe("BitwiseOr") {
-      it("numbers") { testQuery("select user_id | movie_id as t_col from reviews") }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery(
-          "select cast(stringIdentity(user_id) as integer) | movie_id as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown because of udf in the right argument") {
-        testQuery(
-          "select user_id | cast(stringIdentity(movie_id) as integer) as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("BitwiseXor") {
-      it("numbers") { testQuery("select user_id ^ movie_id as t_col from reviews") }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery(
-          "select cast(stringIdentity(user_id) as integer) ^ movie_id as t_col from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown because of udf in the right argument") {
-        testQuery(
-          "select user_id ^ cast(stringIdentity(movie_id) as integer) as t_col from reviews",
-          expectPartialPushdown = true
-        )
+    for ((f, s) <- functionsGroup1) {
+      describe(f) {
+        it(s"${f.toLowerCase} succeeds") {
+          testQuery(s"select user_id $s movie_id as ${f.toLowerCase} from reviews")
+        }
+        it(s"${f.toLowerCase} with partial pushdown because of udf in the left argument") {
+          testQuery(
+            s"""
+               |select cast(stringIdentity(user_id) as integer) $s movie_id as ${f.toLowerCase}
+               |from reviews
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+        it(s"${f.toLowerCase} with partial pushdown because of udf in the right argument") {
+          testQuery(
+            s"""
+               |select user_id $s cast(stringIdentity(movie_id) as integer) as ${f.toLowerCase}
+               |from reviews
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
       }
     }
 
@@ -1190,91 +1174,33 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("BitAndAgg") {
-      it("bit_and non-nullable column") {
-        bitOperationTest("select bit_and(user_id) as bit_and from reviews")
-      }
-      it("bit_and partial pushdown because of udf") {
-        bitOperationTest(
-          "select bit_and(integerIdentity(user_id)) as bit_and from reviews",
-          expectPartialPushdown = true,
-          expectSingleRead = true
-        )
-      }
-      it("bit_and filter") {
-        bitOperationTest(
-          "select bit_and(user_id) filter (where user_id % 2 = 0) as bit_and from reviews"
-        )
-      }
-      // singlestore returns bit_and(null) = [0] whereas spark returns bit_and(null) = [null]
-      ignore("09/2024 - bit_and non-nullable column") {
-        bitOperationTest("select bit_and(user_id) as bit_and from reviews")
-      }
-      it("bit_and with nullable column") {
-        bitOperationTest(
-          """
-            |select bit_and(cast(critic_rating % 2 as int)) as bit_and
-            |from movies
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
-        )
-      }
-    }
+    val functionsGroup2 = Seq(
+      ("BitAndAgg", "bit_and", "user_id", "reviews"),
+      ("BitOrAgg", "bit_or", "age", "users"),
+      ("BitXorAgg", "bit_xor", "user_id", "reviews")
+    )
 
-    describe("BitOrAgg") {
-      it("bit_or non-nullable column") {
-        bitOperationTest("select bit_or(age) as bit_or from users")
-      }
-      it("bit_or partial pushdown because of udf") {
-        bitOperationTest(
-          "select bit_or(integerIdentity(age)) as bit_or from users",
-          expectPartialPushdown = true,
-          expectSingleRead = true
-        )
-      }
-      it("bit_or filter") {
-        bitOperationTest("select bit_or(age) filter (where age % 2 = 0) as bit_or from users")
-      }
-      // singlestore returns bit_or(null) = [0] whereas spark returns bit_or(null) = [null]
-      ignore("09/2024 - bit_or non-nullable column") {
-        bitOperationTest("select bit_or(age) as bit_or from users")
-      }
-      it("bit_or with nullable column") {
-        bitOperationTest(
-          """
-            |select bit_or(cast(rint(critic_rating) % 2 as int)) as bit_or
-            |from movies
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
-        )
-      }
-    }
-
-    describe("BitXorAgg") {
-      it("bit_xor non-nullable column") {
-        bitOperationTest("select bit_xor(user_id) as bit_xor from reviews")
-      }
-      it("bit_xor partial pushdown because of udf") {
-        bitOperationTest(
-          "select bit_xor(longIdentity(user_id)) as bit_xor from reviews",
-          expectPartialPushdown = true,
-          expectSingleRead = true
-        )
-      }
-      it("bit_xor filter") {
-        bitOperationTest(
-          "select bit_xor(user_id) filter (where user_id % 2 = 0) as bit_xor from reviews"
-        )
-      }
-      // singlestore returns bit_xor(null) = [0] whereas spark returns bit_xor(null) = [null]
-      ignore("09/2024 - bit_xor non-nullable column") {
-        bitOperationTest("select bit_xor(user_id) as bit_xor from reviews")
-      }
-      it("bit_xor with nullable column") {
-        bitOperationTest(
-          """
-            |select bit_xor(cast(rint(critic_rating) % 2 as int)) as bit_xor
-            |from movies
-            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
-        )
+    for ((f, n, c, t) <- functionsGroup2) {
+      describe(f) {
+        it(s"$n non-nullable column") { bitOperationTest(s"select $n($c) as $n from $t") }
+        it(s"$n with partial pushdown because of udf") {
+          bitOperationTest(
+            s"select $n(integerIdentity($c)) as $n from $t",
+            expectPartialPushdown = true,
+            expectSingleRead = true
+          )
+        }
+        it(s"$n filter") {
+          bitOperationTest(s"select $n($c) filter (where $c % 2 = 0) as $n from $t")
+        }
+        // singlestore returns [bit_and|bit_or|bit_xor](null) = [0] whereas
+        // spark returns [bit_and|bit_or|bit_xor](null) = [null]
+        ignore(s"09/2024 - $n non-nullable column") {
+          bitOperationTest(s"select $n($c) as $n from $t")
+        }
+        it(s"$n with nullable column") {
+          bitOperationTest(s"select $n(cast(rint(critic_rating) % 2 as int)) as $n from movies")
+        }
       }
     }
   }
