@@ -3307,7 +3307,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery(
           s"""
             |select
-            |  $s(stringIdentity(created), created + interval 1 month) as ${f.toLowerCase}
+            | $s(stringIdentity(created), created + interval 1 month) as ${f.toLowerCase}
             |from reviews
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
@@ -3341,43 +3341,43 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       Seq("MINUTE", "MIN", "M", "MINS", "MINUTES")
     ).map(_.sorted)
 
-    it("extract") {
+    describe("extract") {
+      val f = "extract"
+
       for (periods <- periodsList) {
         for (period <- periods) {
-          testQuery(s"SELECT extract($period FROM birthday) as extract_period from users")
-          testQuery(s"SELECT extract($period FROM created) as extract_period from reviews")
+          it(s"$f works with period $period") {
+            testQuery(s"select $f($period from birthday) as $f from users")
+            testQuery(s"select $f($period from created) as $f from reviews")
+          }
         }
       }
     }
 
-    it("datePart") {
+    describe("datePart") {
+      val (f, s) = ("datePart", "date_part")
+
       for (periods <- periodsList) {
         for (period <- periods) {
-          testQuery(s"SELECT date_part('$period', birthday) as date_part from users")
-          testQuery(s"SELECT date_part('$period', created) as date_part from reviews")
+          it(s"$f works with period $period") {
+            testQuery(s"select $s('$period', birthday) as ${f.toLowerCase} from users")
+            testQuery(s"select $s('$period', created) as ${f.toLowerCase} from reviews")
+          }
         }
       }
     }
 
     it("makeDate") {
-      testQuery("SELECT make_date(1000, user_id, user_id) FROM reviews")
+      testQuery("select make_date(1000, user_id, user_id) from reviews")
     }
-
     it("makeTimestamp") {
       testQuery(
-        "SELECT make_timestamp(1000, user_id, user_id, user_id, user_id, user_id) FROM reviews"
+        "select make_timestamp(1000, user_id, user_id, user_id, user_id, user_id) from reviews"
       )
     }
-
-    it("CurrentDate") {
-      testQuery("select current_date() from users", expectSameResult = false)
-    }
-    it("Now") {
-      testQuery("select now() from users", expectSameResult = false)
-    }
-    it("DateFromUnixDate") {
-      testQuery("select date_from_unix_date(1234567) from users")
-    }
+    it("CurrentDate") { testQuery("select current_date() from users", expectSameResult = false) }
+    it("Now") { testQuery("select now() from users", expectSameResult = false) }
+    it("DateFromUnixDate") { testQuery("select date_from_unix_date(1234567) from users") }
     it("CurrentTimestamp") {
       testQuery("select current_timestamp() from users", expectSameResult = false)
     }
