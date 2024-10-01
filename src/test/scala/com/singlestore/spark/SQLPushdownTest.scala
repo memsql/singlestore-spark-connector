@@ -3476,230 +3476,183 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
   }
 
   describe("String Expressions") {
-    describe("StartsWith") {
-      it("works") {
-        testQuery(
-          "select * from movies",
-          filterDF = df => df.filter(df.col("critic_review").startsWith("M"))
-        )
-      }
-      it("udf in the left argument") {
-        testQuery(
-          "select stringIdentity(critic_review) as x from movies",
-          filterDF = df => df.filter(df.col("x").startsWith("M")),
-          expectPartialPushdown = true
-        )
-      }
-    }
+    val functionsGroup1 = Seq("StartsWith", "EndsWith", "Contains").sorted
 
-    describe("EndsWith") {
-      it("works") {
-        testQuery(
-          "select * from movies",
-          filterDF = df => df.filter(df.col("critic_review").endsWith("s."))
-        )
-      }
-      it("udf in the left argument") {
-        testQuery(
-          "select stringIdentity(critic_review) as x from movies",
-          filterDF = df => df.filter(df.col("x").endsWith("s.")),
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("Contains") {
-      it("works") {
-        testQuery(
-          "select * from movies",
-          filterDF = df => df.filter(df.col("critic_review").contains("a"))
-        )
-      }
-      it("udf in the left argument") {
-        testQuery(
-          "select stringIdentity(critic_review) as x from movies",
-          filterDF = df => df.filter(df.col("x").contains("a")),
-          expectPartialPushdown = true
-        )
+    for (f <- functionsGroup1) {
+      describe(f) {
+        it(s"$f works") {
+          testQuery(
+            "select * from movies",
+            filterDF = df => df.filter(
+              f match {
+                case "StartsWith" => df.col("critic_review").startsWith("M")
+                case "EndsWith"   => df.col("critic_review").endsWith("s.")
+                case "Contains"   => df.col("critic_review").contains("a")
+              }
+            )
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the left argument") {
+          testQuery(
+            s"select stringIdentity(critic_review) as ${f.toLowerCase} from movies",
+            filterDF = df => df.filter(
+              f match {
+                case "StartsWith" => df.col(f.toLowerCase).startsWith("M")
+                case "EndsWith"   => df.col(f.toLowerCase).endsWith("s.")
+                case "Contains"   => df.col(f.toLowerCase).contains("a")
+              }
+            ),
+            expectPartialPushdown = true
+          )
+        }
       }
     }
 
     describe("StringInstr") {
-      it("works") {
-        testQuery("select instr(critic_review, 'id') from movies")
+      val (f, s) = ("StringInstr", "instr")
+
+      it(s"$f works with string nullable column") {
+        testQuery(s"select $s(critic_review, 'id') as ${f.toLowerCase} from movies")
       }
-      it("works when all arguments are not literals") {
-        testQuery("select instr(critic_review, critic_review) from movies")
+      it(s"$f works when all arguments are not literals") {
+        testQuery(s"select $s(critic_review, critic_review) as ${f.toLowerCase} from movies")
       }
-      it("udf in the left argument") {
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          "select instr(stringIdentity(critic_review), 'id') from movies",
+          s"select $s(stringIdentity(critic_review), 'id') as ${f.toLowerCase} from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          "select instr(critic_review, stringIdentity('id')) from movies",
+          s"select $s(critic_review, stringIdentity('id')) as ${f.toLowerCase} from movies",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("FindInSet") {
-      it("works") {
-        testQuery("select id, find_in_set(id, '82, 1,13,54,28,39,42, owns_house,120') from users")
-      }
-      it("constant example") {
-        testQuery("select id, find_in_set('39', '1,2,3990, 13,28,39,42,54,82,120') from users")
-      }
-      it("works with empty left argument") {
-        testQuery("select find_in_set('', '1,2,3') from users")
-      }
-      it("works with empty right argument") {
-        testQuery("select find_in_set(id, '') from users")
-      }
-      it("udf in the left argument") {
+      val (f, s) = ("FindInSet", "find_in_set")
+
+      it(s"$f works") {
         testQuery(
-          "select find_in_set(stringIdentity(critic_review), 'id') from movies",
+          s"select id, $s(id, '82, 1,13,54,28,39,42, owns_house,120') as ${f.toLowerCase} from users"
+        )
+      }
+      it(s"$f with constant example") {
+        testQuery(
+          s"select id, $s('39', '1,2,3990, 13,28,39,42,54,82,120') as ${f.toLowerCase} from users"
+        )
+      }
+      it(s"$f works with empty left argument") {
+        testQuery(s"select $s('', '1,2,3') as ${f.toLowerCase} from users")
+      }
+      it(s"$f works with empty right argument") {
+        testQuery(s"select $s(id, '') as ${f.toLowerCase} from users")
+      }
+      it(s"$f with partial pushdown because of udf in the left argument") {
+        testQuery(
+          s"select $s(stringIdentity(critic_review), 'id') as ${f.toLowerCase} from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          "select find_in_set(critic_review, stringIdentity('id')) from movies",
+          s"select $s(critic_review, stringIdentity('id')) as ${f.toLowerCase} from movies",
           expectPartialPushdown = true
         )
       }
-      it("joinable object in the right argument") {
+      it(s"$f with partial pushdown because of joinable object in the right argument") {
         testQuery(
-          "select find_in_set(critic_review, id) from movies",
+          s"select $s(critic_review, id) as ${f.toLowerCase} from movies",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("StringTrim") {
-      it("works") {
-        testQuery("select id, trim(first_name) as t_col from users")
-      }
-      it("works (other syntax)") {
-        testQuery("select id, btrim(first_name) as t_col from users")
-      }
-      it("works when trimStr is ' '") {
-        testQuery("select id, trim(both ' ' from first_name) as t_col from users")
-      }
-      it("works when trimStr is ' ' (other syntax)") {
-        testQuery("select id, trim(' ', first_name) as t_col from users")
-      }
-      it("works when trimStr is not None and not ' '") {
-        testQuery("select id, trim(both '@' from first_name) as t_col from users")
-      }
-      it("works when trimStr is not None and not ' ' (other syntax)") {
-        testQuery("select id, trim('@', first_name) as t_col from users")
-      }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select id, trim(stringIdentity(first_name)) from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
+    val functionsGroup2 = Seq(
+      ("StringTrim", "trim", "both"),
+      ("StringTrimLeft", "ltrim", "leading"),
+      ("StringTrimRight", "rtrim", "trailing")
+    ).sorted
 
-    describe("StringTrimLeft") {
-      it("works") {
-        testQuery("select id, ltrim(first_name) as t_col from users")
-      }
-      it("works when trimStr is ' '") {
-        testQuery("select id, trim(leading ' ' from first_name) as t_col from users")
-      }
-      it("works when trimStr is ' ' (other syntax)") {
-        testQuery("select id, ltrim(' ', first_name) as t_col from users")
-      }
-      it("works when trimStr is not None and not ' '") {
-        testQuery("select id, trim(leading '@' from first_name) as t_col from users")
-      }
-      it("works when trimStr is not None and not ' ' (other syntax)") {
-        testQuery("select id, ltrim('@', first_name) as t_col from users")
-      }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select id, ltrim(stringIdentity(first_name)) from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
+    for ((f, s, d) <- functionsGroup2) {
+      describe(f) {
+        it(s"$f works with non-nullable column") {
+          testQuery(s"select id, $s(first_name) as ${f.toLowerCase} from users")
+        }
 
-    describe("StringTrimRight") {
-      it("works") {
-        testQuery("select id, rtrim(first_name) as t_col from users")
-      }
-      it("works when trimStr is ' '") {
-        testQuery("select id, trim(trailing ' ' from first_name) as t_col from users")
-      }
-      it("works when trimStr is ' ' (other syntax)") {
-        testQuery("select id, rtrim(' ', first_name) as t_col from users")
-      }
-      it("works when trimStr is not None and not ' '") {
-        testQuery("select id, trim(trailing '@' from first_name) as t_col from users")
-      }
-      it("works when trimStr is not None and not ' ' (other syntax)") {
-        testQuery("select id, rtrim('@', first_name) as t_col from users")
-      }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select id, rtrim(stringIdentity(first_name)) from users",
-          expectPartialPushdown = true
-        )
+        if(Seq("StringTrim").contains(f)) {
+          it(s"$f works with non-nullable column (other syntax)") {
+            testQuery(s"select id, b$s(first_name) as ${f.toLowerCase} from users")
+          }
+        }
+
+        it(s"$f works when trimStr is ' '") {
+          testQuery(s"select id, trim($d ' ' from first_name) as ${f.toLowerCase} from users")
+        }
+        it(s"$f works when trimStr is ' ' (other syntax)") {
+          testQuery(s"select id, $s(' ', first_name) as ${f.toLowerCase} from users")
+        }
+        it(s"$f works when trimStr is not None and not ' '") {
+          testQuery(s"select id, trim($d '@' from first_name) as ${f.toLowerCase} from users")
+        }
+        it(s"$f works when trimStr is not None and not ' ' (other syntax)") {
+          testQuery(s"select id, $s('@', first_name) as ${f.toLowerCase} from users")
+        }
+        it(s"$f with partial pushdown because of udf") {
+          testQuery(
+            s"select id, $s(stringIdentity(first_name)) as ${f.toLowerCase} from users",
+            expectPartialPushdown = true
+          )
+        }
       }
     }
 
     describe("FormatNumber") {
+      val (f, s) = ("FormatNumber", "format_number")
+
       // singlestore and spark rounds fractional types differently
-      it("works with zero precision") {
+      it(s"$f works with zero precision") {
         testQuery(
-          """
-            |select
-            | format_number(critic_rating, 0)
+          s"""
+            |select $s(critic_rating, 0) as ${f.toLowerCase}
             |from movies
             |where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with negative precision") {
+      it(s"$f works with negative precision") {
         testQuery(
-          """
-            |select
-            | format_number(critic_rating, -10)
+          s"""
+            |select $s(critic_rating, -10) as ${f.toLowerCase}
             |from movies
             |where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with numbers and zero precision") {
+      it(s"$f works with numbers and zero precision") {
         testQuery(
-          """
-            |select
-            | format_number(id, 0)
+          s"""
+            |select $s(id, 0) as ${f.toLowerCase}
             |from movies
             |where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with numbers and negative precision") {
+      it(s"$f works with numbers and negative precision") {
         testQuery(
-          """
-            |select
-            | format_number(id, -10)
+          s"""
+            |select $s(id, -10) as ${f.toLowerCase}
             |from movies
             |where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with positive precision") {
+      it(s"$f works with positive precision") {
         testQuery(
-          """
-            |select
-            | format_number(critic_rating, cast(floor(critic_rating) as int)) as t_col
+          s"""
+            |select $s(critic_rating, cast(floor(critic_rating) as int)) as ${f.toLowerCase}
             |from movies
             |where
             |(
@@ -3709,11 +3662,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with negative numbers") {
+      it(s"$f works with negative numbers") {
         testQuery(
-          """
-            |select
-            | format_number(-critic_rating, 0), round(critic_rating, 5) as t_col
+          s"""
+            |select $s(-critic_rating, 0), round(critic_rating, 5) as ${f.toLowerCase}
             |from movies
             |where
             |(
@@ -3723,7 +3675,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         )
       }
       it(
-        "works with null",
+        s"$f works with null",
         ExcludeFromSpark31,
         ExcludeFromSpark32,
         ExcludeFromSpark33,
@@ -3733,553 +3685,572 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         // in 3.1 version, spark simplifies this query and doesn't send
         // it to the database, so it is read from single partition
         testQuery(
-          """
-            |select
-            | format_number(critic_rating, null)
+          s"""
+            |select $s(critic_rating, null) as ${f.toLowerCase}
             |from movies
             |where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("works with format") {
+      it(s"$f works with format") {
         if (spark.version != "2.3.4") {
           testQuery(
-            "select format_number(critic_rating, '#####,#,#,#.##') as x from movies",
+            s"select $s(critic_rating, '#####,#,#,#.##') as ${f.toLowerCase} from movies",
             expectPartialPushdown = true
           )
         }
       }
-      it("udf in the left argument") {
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          "select format_number(cast(stringIdentity(critic_rating) as double), 4) from movies",
+          s"""
+            |select
+            | $s(cast(stringIdentity(critic_rating) as double), 4) as ${f.toLowerCase}
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          "select format_number(critic_rating, cast(stringIdentity(4) as int)) from movies",
+          s"""
+            |select
+            | $s(critic_rating, cast(stringIdentity(4) as int)) as ${f.toLowerCase}
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
     }
 
     describe("StringRepeat") {
-      it("works") {
-        testQuery("select id, repeat(critic_review, floor(critic_rating)) as x from movies")
-      }
-      it("works with empty string") {
-        testQuery("select id, repeat('', floor(critic_rating)) as x from movies")
-      }
-      it("works with negative times") {
+      val (f, s) = ("StringRepeat", "repeat")
+
+      it(s"$f works") {
         testQuery(
-          """
+          s"select id, $s(critic_review, floor(critic_rating)) as ${f.toLowerCase} from movies"
+        )
+      }
+      it(s"$f works with empty string") {
+        testQuery(s"select id, $s('', floor(critic_rating)) as ${f.toLowerCase} from movies")
+      }
+      it(s"$f works with negative times") {
+        testQuery(
+          s"""
             |select
             | id,
-            | repeat(critic_review, -floor(critic_rating)) as x1,
-            | -floor(critic_rating) as x2
+            | -floor(critic_rating) as ${f.toLowerCase}1,
+            | $s(critic_review, -floor(critic_rating)) as ${f.toLowerCase}2
             |from movies
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("udf in the left argument") {
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          "select id, repeat(stringIdentity(critic_review), -floor(critic_rating)) as x from movies",
+          s"""
+            |select
+            | id,
+            | $s(stringIdentity(critic_review), -floor(critic_rating)) as ${f.toLowerCase}
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          "select id, repeat(critic_review, -stringIdentity(floor(critic_rating))) as x from movies",
+          s"""
+            |select
+            | id,
+            | $s(critic_review, -stringIdentity(floor(critic_rating))) as ${f.toLowerCase}
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
     }
 
     describe("StringReplace") {
-      it("works") {
-        testQuery("select id, replace(critic_review, 'an', 'AAA') from movies")
+      val (f, s) = ("StringReplace", "replace")
+
+      it(s"$f works") {
+        testQuery(s"select id, $s(critic_review, 'an', 'AAA') as ${f.toLowerCase} from movies")
       }
-      it("works when second argument is empty") {
-        testQuery("select id, replace(critic_review, '', 'A') from movies")
+      it(s"$f works when second argument is empty") {
+        testQuery(s"select id, $s(critic_review, '', 'A') as ${f.toLowerCase} from movies")
       }
-      it("works when third argument is empty") {
-        testQuery("select id, replace(critic_review, 'a', '') from movies")
+      it(s"$f works when third argument is empty") {
+        testQuery(s"select id, $s(critic_review, 'a', '') as ${f.toLowerCase} from movies")
       }
-      it("works with two arguments") {
-        testQuery("select id, replace(critic_review, 'a') from movies")
+      it(s"$f works with two arguments") {
+        testQuery(s"select id, $s(critic_review, 'a') as ${f.toLowerCase} from movies")
       }
-      it("works when all arguments are not literals") {
-        testQuery("select id, replace(critic_review, title, genre) from movies")
+      it(s"$f works when all arguments are not literals") {
+        testQuery(s"select id, $s(critic_review, title, genre) as ${f.toLowerCase} from movies")
       }
-      it("udf in the first argument") {
+      it(s"$f with partial pushdown because of udf in the first argument") {
         testQuery(
-          "select id, replace(stringIdentity(critic_review), 'an', 'AAA') from movies",
+          s"""
+            |select
+            | id,
+            | $s(stringIdentity(critic_review), 'an', 'AAA') as ${f.toLowerCase}
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("udf in the second argument") {
+      it(s"$f with partial pushdown because of udf in the second argument") {
         testQuery(
-          "select id, replace(critic_review, stringIdentity('an'), 'AAA') from movies",
+          s"""
+            |select
+            | id,
+            | $s(critic_review, stringIdentity('an'), 'AAA') as ${f.toLowerCase}
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("udf in the third argument") {
+      it(s"$f with partial pushdown because of udf in the third argument") {
         testQuery(
-          "select id, replace(critic_review, 'an', stringIdentity('AAA')) from movies",
+          s"""
+            |select
+            | id,
+            | $s(critic_review, 'an', stringIdentity('AAA')) as ${f.toLowerCase}
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
     }
 
     describe("StringOverlay") {
-      it("works") {
-        testQuery("select id, overlay(email placing '#Glory_To_Ukraine#' from 9) from users")
-      }
-      it("works with non-empty len") {
-        testQuery("select id, overlay(email placing '#Ukraine#' from 9 for 3) from users")
-      }
-      it("works with comma separated arguments") {
-        testQuery("select id, overlay(email, '#Glory_To_Ukraine#', 9, 6) from users")
-      }
-      it("works when second argument is not literal") {
-        testQuery("select id, overlay(email, last_name, 3, 4) from users")
-      }
-      it("works with negative len") {
-        testQuery("select id, overlay(email placing '#Glory_To_Ukraine#' from 9 for -3) from users")
-      }
-      it("works with negative position") {
-        testQuery("select id, overlay(email placing first_name from -2 for 0) from users_sample")
-      }
-      it("works with len is zero") {
-        testQuery("select id, overlay(email, '#Heroyam_Slava#', 3, 0) from users")
-      }
-      it("works with len is negative") {
-        testQuery("select id, overlay(email, '#SLAVA_ZSY#', 3, -4) from users")
-      }
-      it("works with len is a string") {
-        testQuery("select id, overlay(email, '#SLAVA_ZSY#', 3, '2') from users")
-      }
-      it("works with len is greater than len of replacing string") {
-        testQuery("select id, overlay(email placing last_name from 3 for 10) from users")
-      }
-      it("works with pos is greater than input string string") {
-        testQuery("select id, overlay(email, '#Slava_Ukraini#', 70, 3) from users")
-      }
-      it("works when pos is not literal") {
-        testQuery("select id, overlay(email, '#PTHPNH#', age) from users")
-      }
-      it("works when len is not literal") {
-        testQuery("select id, overlay(email, '#Heroyam_Slava#', 3, id) from users")
-      }
-      it("udf in the first argument") {
+      val (f, s) = ("StringOverlay", "overlay")
+
+      it(s"$f works") {
         testQuery(
-          "select id, overlay(stringIdentity(email), '#Heroyam_Slava#', 3, 4) from users",
+          s"select id, $s(email placing '#Glory_To_Ukraine#' from 9) as ${f.toLowerCase} from users"
+        )
+      }
+      it(s"$f works with non-empty len") {
+        testQuery(
+          s"select id, $s(email placing '#Ukraine#' from 9 for 3) as ${f.toLowerCase} from users"
+        )
+      }
+      it(s"$f works with comma separated arguments") {
+        testQuery(
+          s"select id, $s(email, '#Glory_To_Ukraine#', 9, 6) as ${f.toLowerCase} from users"
+        )
+      }
+      it(s"$f works when second argument is not literal") {
+        testQuery(s"select id, $s(email, last_name, 3, 4) as ${f.toLowerCase} from users")
+      }
+      it(s"$f works with negative len") {
+        testQuery(
+          s"""
+            |select
+            | id,
+            | $s(email placing '#Glory_To_Ukraine#' from 9 for -3) as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      it(s"$f works with negative position") {
+        testQuery(
+          s"""
+             |select
+             | id,
+             | $s(email placing first_name from -2 for 0) as ${f.toLowerCase}
+             |from users_sample
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      it(s"$f works with len is zero") {
+        testQuery(s"select id, $s(email, '#Heroyam_Slava#', 3, 0) as ${f.toLowerCase} from users")
+      }
+      it(s"$f works with len is negative") {
+        testQuery(s"select id, $s(email, '#SLAVA_ZSY#', 3, -4) as ${f.toLowerCase} from users")
+      }
+      it(s"$f works with len is a string") {
+        testQuery(s"select id, $s(email, '#SLAVA_ZSY#', 3, '2') as ${f.toLowerCase} from users")
+      }
+      it(s"$f works with len is greater than len of replacing string") {
+        testQuery(
+          s"select id, $s(email placing last_name from 3 for 10) as ${f.toLowerCase} from users"
+        )
+      }
+      it(s"$f works with pos is greater than input string string") {
+        testQuery(
+          s"select id, $s(email, '#Slava_Ukraini#', 70, 3) as ${f.toLowerCase} from users"
+        )
+      }
+      it(s"$f works when pos is not literal") {
+        testQuery(s"select id, $s(email, '#PTHPNH#', age) as ${f.toLowerCase} from users")
+      }
+      it(s"$f works when len is not literal") {
+        testQuery(
+          s"select id, $s(email, '#Heroyam_Slava#', 3, id) as ${f.toLowerCase} from users"
+        )
+      }
+      it(s"$f with partial pushdown because of udf in the first argument") {
+        testQuery(
+          s"""
+            |select
+            | id,
+            | $s(stringIdentity(email), '#Heroyam_Slava#', 3, 4) as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("udf in the 'pos' argument") {
+      it(s"$f with partial pushdown because of udf in the 'pos' argument") {
         testQuery(
-          "select id, overlay(email, '#StandWithUkraine#', stringIdentity(age), 4) from users",
+          s"""
+            |select
+            | id,
+            | $s(email, '#StandWithUkraine#', stringIdentity(age), 4) as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("udf in the 'len' argument") {
+      it(s"$f with partial pushdown because of udf in the 'len' argument") {
         testQuery(
-          "select id, overlay(email, '#ZePresident#', 3, stringIdentity(id)) from users",
+          s"""
+            |select
+            | id,
+            | $s(email, '#ZePresident#', 3, stringIdentity(id)) as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("SubstringIndex") {
-      it("works with negative count") {
-        testQuery("select id, substring_index(critic_review, ' ', -100) from movies")
-      }
-      it("works with zero count") {
-        testQuery("select id, substring_index(critic_review, ' ', 0) from movies")
-      }
-      it("works with small count") {
-        testQuery("select id, substring_index(critic_review, ' ', 2) from movies")
-      }
-      it("works with large count") {
-        testQuery("select id, substring_index(critic_review, ' ', 100) from movies")
-      }
-      it("works when delimiter and count are not literals") {
-        testQuery("select id, substring_index(critic_review, title, id) from movies")
-      }
-      it("udf in the first argument") {
-        testQuery(
-          "select id, substring_index(stringIdentity(critic_review), 'an', '2') from movies",
-          expectPartialPushdown = true
-        )
-      }
-      it("udf in the second argument") {
-        testQuery(
-          "select id, substring_index(critic_review, stringIdentity(' '), '2') from movies",
-          expectPartialPushdown = true
-        )
-      }
-      it("udf in the third argument") {
-        testQuery(
-          "select id, substring_index(critic_review, ' ', stringIdentity(2)) from movies",
-          expectPartialPushdown = true
-        )
+    val functionsGroup3 = Seq(
+      ("SubstringIndex", "substring_index", "count"),
+      ("StringLocate", "locate", "start")
+    ).sorted
+
+    for ((f, s, m) <- functionsGroup3) {
+      describe(f) {
+        it(s"$f works with negative $m") {
+          testQuery(s"select id, $s(critic_review, ' ', -100) as ${f.toLowerCase} from movies")
+        }
+        it(s"$f works with zero $m") {
+          testQuery(s"select id, $s(critic_review, ' ', 0) as ${f.toLowerCase} from movies")
+        }
+        it(s"$f works with small $m") {
+          testQuery(s"select id, $s(critic_review, ' ', 2) as ${f.toLowerCase} from movies")
+        }
+        it(s"$f works with large $m") {
+          testQuery(s"select id, $s(critic_review, ' ', 100) as ${f.toLowerCase} from movies")
+        }
+        it(s"$f works when second and third arguments are not literals") {
+          testQuery(s"select id, $s(critic_review, title, id) as ${f.toLowerCase} from movies")
+        }
+        it(s"$f with partial pushdown because of udf in the first argument") {
+          testQuery(
+            s"""
+               |select
+               |  id,
+               |  $s(stringIdentity(critic_review), 'an', '2') as ${f.toLowerCase}
+               |from movies
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the second argument") {
+          testQuery(
+            s"""
+               |select
+               |  id,
+               |  $s(critic_review, stringIdentity(' '), '2') as ${f.toLowerCase}
+               |from movies
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the third argument") {
+          testQuery(
+            s"select id, $s(critic_review, ' ', stringIdentity(2)) as ${f.toLowerCase} from movies",
+            expectPartialPushdown = true
+          )
+        }
       }
     }
 
-    describe("StringLocate") {
-      it("works with negative start") {
-        testQuery("select id, locate(critic_review, ' ', -100) from movies")
-      }
-      it("works with zero start") {
-        testQuery("select id, locate(critic_review, ' ', 0) from movies")
-      }
-      it("works with small start") {
-        testQuery("select id, locate(critic_review, ' ', 2) from movies")
-      }
-      it("works with large start") {
-        testQuery("select id, locate(critic_review, ' ', 100) from movies")
-      }
-      it("works when str and start are not literals") {
-        testQuery("select id, locate(critic_review, title, id) from movies")
-      }
-      it("udf in the first argument") {
-        testQuery(
-          "select id, locate(stringIdentity(critic_review), 'an', '2') from movies",
-          expectPartialPushdown = true
-        )
-      }
-      it("udf in the second argument") {
-        testQuery(
-          "select id, locate(critic_review, stringIdentity(' '), '2') from movies",
-          expectPartialPushdown = true
-        )
-      }
-      it("udf in the third argument") {
-        testQuery(
-          "select id, locate(critic_review, ' ', stringIdentity(2)) from movies",
-          expectPartialPushdown = true
-        )
-      }
-    }
+    val functionsGroup4 = Seq(("StringLPad", "lpad"), ("StringRPad", "rpad")).sorted
 
-    describe("StringLPad") {
-      it("works with negative len") {
-        testQuery("select id, lpad(critic_review, -100, 'ab') from movies")
-      }
-      it("works with zero len") {
-        testQuery("select id, lpad(critic_review, 0, 'ab') from movies")
-      }
-      it("works with small len") {
-        testQuery("select id, lpad(critic_review, 3, 'ab') from movies")
-      }
-      it("works with large len") {
-        testQuery("select id, lpad(critic_review, 1000, 'ab') from movies")
-      }
-      it("works when len and pad are not literals") {
-        testQuery("select id, lpad(critic_review, id, title) from movies")
-      }
-      it("udf in the first argument") {
-        testQuery(
-          "select id, lpad(stringIdentity(critic_review), 2, 'an') from movies",
-          expectPartialPushdown = true
-        )
-      }
-      it("udf in the second argument") {
-        testQuery(
-          "select id, lpad(critic_review, stringIdentity(2), ' ') from movies",
-          expectPartialPushdown = true
-        )
-      }
-      it("udf in the third argument") {
-        testQuery(
-          "select id, lpad(critic_review, 2, stringIdentity(' ')) from movies",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("StringRPad") {
-      it("works with negative len") {
-        testQuery("select id, rpad(critic_review, -100, 'ab') from movies")
-      }
-      it("works with zero len") {
-        testQuery("select id, rpad(critic_review, 0, 'ab') from movies")
-      }
-      it("works with small len") {
-        testQuery("select id, rpad(critic_review, 3, 'ab') from movies")
-      }
-      it("works with large len") {
-        testQuery("select id, rpad(critic_review, 1000, 'ab') from movies")
-      }
-      it("works when len and pad are not literals") {
-        testQuery("select id, rpad(critic_review, id, title) from movies")
-      }
-      it("udf in the first argument") {
-        testQuery(
-          "select id, rpad(stringIdentity(critic_review), 2, 'an') from movies",
-          expectPartialPushdown = true
-        )
-      }
-      it("udf in the second argument") {
-        testQuery(
-          "select id, rpad(critic_review, stringIdentity(2), ' ') from movies",
-          expectPartialPushdown = true
-        )
-      }
-      it("udf in the third argument") {
-        testQuery(
-          "select id, rpad(critic_review, 2, stringIdentity(' ')) from movies",
-          expectPartialPushdown = true
-        )
+    for ((f, s) <- functionsGroup4) {
+      describe(f) {
+        it(s"$f works with negative len") {
+          testQuery(s"select id, $s(critic_review, -100, 'ab') as ${f.toLowerCase} from movies")
+        }
+        it(s"$f works with zero len") {
+          testQuery(s"select id, $s(critic_review, 0, 'ab') as ${f.toLowerCase} from movies")
+        }
+        it(s"$f works with small len") {
+          testQuery(s"select id, $s(critic_review, 3, 'ab') as ${f.toLowerCase} from movies")
+        }
+        it(s"$f works with large len") {
+          testQuery(s"select id, $s(critic_review, 1000, 'ab') as ${f.toLowerCase} from movies")
+        }
+        it(s"$f works when len and pad are not literals") {
+          testQuery(s"select id, $s(critic_review, id, title) as ${f.toLowerCase} from movies")
+        }
+        it(s"$f with partial pushdown because of udf in the first argument") {
+          testQuery(
+            s"select id, $s(stringIdentity(critic_review), 2, 'an') as ${f.toLowerCase} from movies",
+            expectPartialPushdown = true
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the second argument") {
+          testQuery(
+            s"select id, $s(critic_review, stringIdentity(2), ' ') as ${f.toLowerCase} from movies",
+            expectPartialPushdown = true
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the third argument") {
+          testQuery(
+            s"select id, $s(critic_review, 2, stringIdentity(' ')) as ${f.toLowerCase} from movies",
+            expectPartialPushdown = true
+          )
+        }
       }
     }
 
     describe("Substring") {
-      it("works") {
-        testQuery("select id, substring(critic_review, 1, 20) from movies")
+      val f = "substring"
+
+      it(s"${f.capitalize} works with string nullable column") {
+        testQuery(s"select id, $f(critic_review, 1, 20) as $f from movies")
       }
-      it("works when pos is negative") {
-        testQuery("select id, substring(critic_review, -1, 20) from movies")
+      it(s"${f.capitalize} works when pos is negative") {
+        testQuery(s"select id, $f(critic_review, -1, 20) as $f from movies")
       }
-      it("works with empty len") {
-        testQuery("select id, substring(critic_review, 5) from movies")
+      it(s"${f.capitalize} works with empty len") {
+        testQuery(s"select id, $f(critic_review, 5) as $f from movies")
       }
-      it("works with negative len") {
-        testQuery("select id, substring(critic_review, 5, -4) from movies")
+      it(s"${f.capitalize} works with negative len") {
+        testQuery(s"select id, $f(critic_review, 5, -4) as $f from movies")
       }
-      it("works with non-literals") {
-        testQuery("select id, substring(critic_review, id, id) from movies")
+      it(s"${f.capitalize} works with non-literal arguments") {
+        testQuery(s"select id, $f(critic_review, id, id) as $f from movies")
       }
-      it("udf in the first argument") {
+      it(s"${f.capitalize} with partial pushdown because of udf in the first argument") {
         testQuery(
-          "select id, substring(stringIdentity(critic_review), 5, 4) from movies",
+          s"select id, $f(stringIdentity(critic_review), 5, 4) as $f from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the second argument") {
+      it(s"${f.capitalize} with partial pushdown because of udf in the second argument") {
         testQuery(
-          "select id, substring(critic_review, stringIdentity(5), 4) from movies",
+          s"select id, $f(critic_review, stringIdentity(5), 4) as $f from movies",
           expectPartialPushdown = true
         )
       }
-      it("udf in the third argument") {
+      it(s"${f.capitalize} with partial pushdown because of udf in the third argument") {
         testQuery(
-          "select id, substring(critic_review, 5, stringIdentity(4)) from movies",
+          s"select id, $f(critic_review, 5, stringIdentity(4)) as $f from movies",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("Initcap") {
-      it("works") {
+      val f = "initcap"
+
+      it(s"${f.capitalize} works with string nullable column") {
         // Here we don't expect same result as spark implementation of `initcap` method
         // does not define as the beginning of a word that is enclosed in quotation marks / brackets, etc.
-        testQuery("select id, initcap(critic_review) from movies", expectSameResult = false)
+        testQuery(s"select id, $f(critic_review) as $f from movies", expectSameResult = false)
       }
-      it("same result on simple text") {
-        testQuery("select id, initcap(favorite_color) from users")
+      it(s"${f.capitalize} returns same result on simple text") {
+        testQuery(s"select id, $f(favorite_color) as $f from users")
       }
-      it("works with ints") {
-        testQuery("select id, initcap(id) from movies")
+      it(s"${f.capitalize} works with int non-nullable columns") {
+        testQuery(s"select id, $f(id) as $f from movies")
       }
-      it("partial pushdown whith udf") {
+      it(s"${f.capitalize} with partial pushdown because of udf") {
         testQuery(
-          "select id, initcap(stringIdentity(critic_review)) from movies",
+          s"select id, $f(stringIdentity(critic_review)) as $f from movies",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("StringTranslate") {
-      it("works") {
-        testQuery("select id, translate(email, 'com', '123') from users")
+      val (f, s) = ("StringTranslate", "translate")
+
+      it(s"$f works with string non-nullable columns") {
+        testQuery(s"select id, $s(email, 'com', '123') as ${f.toLowerCase} from users")
       }
-      it("works when 'from' argument is longer than 'to'") {
-        testQuery("select id, translate(email, 'coma', '123') from users")
+      it(s"$f works when `from` argument is longer than `to`") {
+        testQuery(s"select id, $s(email, 'coma', '123') as ${f.toLowerCase} from users")
       }
-      it("works when 'to' argument is longer than 'from'") {
-        testQuery("select id, translate(email, 'com', '1234') from users")
+      it(s"$f works when `to` argument is longer than `from`") {
+        testQuery(s"select id, $s(email, 'com', '1234') as ${f.toLowerCase} from users")
       }
-      it("works when 'from' argument is empty") {
-        testQuery("select id, translate(email, '', '123') from users")
+      it(s"$f works when `from` argument is empty") {
+        testQuery(s"select id, $s(email, '', '123') as ${f.toLowerCase} from users")
       }
-      it("works when 'to' argument is empty") {
-        testQuery("select id, translate(email, 'abb', '') from users")
+      it(s"$f works when `to` argument is empty") {
+        testQuery(s"select id, $s(email, 'abb', '') as ${f.toLowerCase} from users")
       }
-      it("works when both 'from' and 'to' arguments are empty") {
-        testQuery("select id, translate(email, '', '') from users")
+      it(s"$f works when both `from` and `to` arguments are empty") {
+        testQuery(s"select id, $s(email, '', '') as ${f.toLowerCase} from users")
       }
-      it("partial pushdown when the second argument is not literal") {
+      it(s"$f with partial pushdown when the second argument is not literal") {
         testQuery(
-          "select id, translate(email, last_name, '1234') from users",
+          s"select id, $s(email, last_name, '1234') as ${f.toLowerCase} from users",
           expectPartialPushdown = true
         )
       }
-      it("partial pushdown when the third argument is not literal") {
+      it(s"$f with partial pushdown when the third argument is not literal") {
         testQuery(
-          "select id, translate(email, 'com', last_name) from users",
+          s"select id, $s(email, 'com', last_name) as ${f.toLowerCase} from users",
           expectPartialPushdown = true
         )
       }
-      it("udf in the first argument") {
+      it(s"$f with partial pushdown when udf is in the first argument") {
         testQuery(
-          "select id, translate(stringIdentity(email), '@', '#') from users",
+          s"select id, $s(stringIdentity(email), '@', '#') as ${f.toLowerCase} from users",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("Upper") {
-      it("works") {
-        testQuery("select id, upper(critic_review) from movies")
-      }
-      it("works with ints") {
-        testQuery("select id, upper(id) from movies")
-      }
-      it("partial pushdown whith udf") {
-        testQuery(
-          "select id, upper(stringIdentity(critic_review)) from movies",
-          expectPartialPushdown = true
-        )
+    val functionsGroup5 = Seq("upper", "lower").sorted
+
+    for (f <- functionsGroup5) {
+      describe(f.capitalize) {
+        it(s"${f.capitalize} works with string nullable columns") {
+          testQuery(s"select id, $f(critic_review) as $f from movies")
+        }
+        it(s"${f.capitalize} works with int non-nullable columns") {
+          testQuery(s"select id, $f(id) as $f from movies")
+        }
+        it(s"${f.capitalize} with partial pushdown because of udf") {
+          testQuery(
+            s"select id, $f(stringIdentity(critic_review)) as $f from movies",
+            expectPartialPushdown = true
+          )
+        }
       }
     }
 
-    describe("Lower") {
-      it("works") {
-        testQuery("select id, lower(critic_review) from movies")
-      }
-      it("works with ints") {
-        testQuery("select id, lower(id) from movies")
-      }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select id, lower(stringIdentity(critic_review)) from movies",
-          expectPartialPushdown = true
-        )
+    val functionsGroup6 = Seq("left", "right").sorted
+
+    for (f <- functionsGroup6) {
+      describe(f.capitalize) {
+        it(s"${f.capitalize} works with string nullable columns") {
+          testQuery(s"select id, $f(critic_review, 2) as $f from movies")
+        }
+        it(s"${f.capitalize} works with string nullable columns and len is string format") {
+          testQuery(s"select id, $f(critic_review, '4') as $f from movies")
+        }
+        it(s"${f.capitalize} with partial pushdown because of udf") {
+          testQuery(
+            s"select id, $f(stringIdentity(critic_review), 4) as $f from movies",
+            expectPartialPushdown = true
+          )
+        }
       }
     }
 
-    describe("Left") {
-      it("works") {
-        testQuery("select id, left(last_name, 2) as l from users_sample")
-      }
-      it("works with len is sting ") {
-        testQuery("select id, left(last_name, '4') as l from users_sample")
-      }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select id, left(stringIdentity(critic_review), 4) from movies",
-          expectPartialPushdown = true
-        )
-      }
-    }
+    describe("ConcatWs") {
+      val (f, s) = ("ConcatWs", "concat_ws")
 
-    describe("Right") {
-      it("works") {
-        testQuery("select id, right(critic_review, 2) as r from movies")
+      it(s"$f works with non-nullable columns") {
+        testQuery(s"select id, $s('@', id, 'user.com') as ${f.toLowerCase} from movies")
       }
-      it("works with len is sting") {
-        testQuery("select id, right(critic_review, '4') as r from movies")
-      }
-      it("partial pushdown whith udf") {
+      it(s"$f works with many expressions") {
         testQuery(
-          "select id, right(stringIdentity(critic_review), 4) from movies",
-          expectPartialPushdown = true
+          s"""
+            |select
+            |  id,
+            |  $s('@', last_name, 'singlestore', '.', 'com', id) as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-    }
-
-    describe("Concat_ws") {
-      it("works") {
-        testQuery("select id, CONCAT_WS('@', id, 'user.com') as conc from movies")
-      }
-      it("works with many expressions") {
+      it(s"$f with partial pushdown because of udf") {
         testQuery(
-          "select id, CONCAT_WS('@', last_name, 'singlestore', '.', 'com', id) as conc from users"
-        )
-      }
-      it("partial pushdown whith udf") {
-        testQuery(
-          "select id, CONCAT_WS('@', stringIdentity(critic_review), 'user.com') as conc from movies",
+          s"""
+             |select
+             |  id,
+             |  $s('@', stringIdentity(critic_review), 'user.com') as ${f.toLowerCase}
+             |from movies
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
     }
 
     describe("StringSpace") {
-      it("works") {
-        testQuery("select id, space(floor(critic_rating)) as x from movies")
-      }
-      it("partial pushdown with udf") {
-        testQuery("select id, space(stringIdentity(id)) from movies", expectPartialPushdown = true)
-      }
-    }
+      val (f, s) = ("StringSpace", "space")
 
-    describe("Length") {
-      it("works with strings") {
-        testQuery("select id, length(critic_review) from movies")
+      it(s"$f works with nullable float column") {
+        testQuery(s"select id, $s(floor(critic_rating)) as ${f.toLowerCase} from movies")
       }
-      it("works with binary") {
-        testQuery("select id, length(cast(critic_review as binary)) from movies")
-      }
-      it("partial pushdown with udf") {
-        testQuery("select id, length(stringIdentity(id)) from movies", expectPartialPushdown = true)
-      }
-    }
-
-    describe("BitLength") {
-      it("works with strings") {
-        testQuery("select id, bit_length(critic_review) from movies")
-      }
-      it("works with binary") {
-        testQuery("select id, bit_length(cast(critic_review as binary)) from movies")
-      }
-      it("partial pushdown with udf") {
+      it(s"$f with partial pushdown because of udf") {
         testQuery(
-          "select id, bit_length(stringIdentity(id)) from movies",
+          s"select id, $s(stringIdentity(id)) as ${f.toLowerCase} from movies",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("OctetLength") {
-      it("works with strings") {
-        testQuery("select id, octet_length(critic_review) from movies")
-      }
-      it("works with binary") {
-        testQuery("select id, octet_length(cast(critic_review as binary)) from movies")
-      }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select id, octet_length(stringIdentity(id)) from movies",
-          expectPartialPushdown = true
-        )
-      }
-    }
+    val functionsGroup7 = Seq(
+      ("Length", "length"),
+      ("BitLength", "bit_length"),
+      ("OctetLength", "octet_length"),
+      ("Ascii", "ascii"),
+    ).sorted
 
-    describe("Ascii") {
-      it("works") {
-        testQuery("select id, ascii(critic_review) from movies")
-      }
-      it("partial pushdown with udf") {
-        testQuery(
-          "select id, ascii(stringIdentity(critic_review)) from movies",
-          expectPartialPushdown = true
-        )
+    for ((f, s) <- functionsGroup7) {
+      describe(f) {
+        it(s"$f works with string nullable column") {
+          testQuery(s"select id, $s(critic_review) as ${f.toLowerCase} from movies")
+        }
+
+        if (Seq("Length", "BitLength", "OctetLength").contains(f)) {
+          it(s"$f works with binary nullable column") {
+            testQuery(
+              s"select id, $s(cast(critic_review as binary)) as ${f.toLowerCase} from movies"
+            )
+          }
+        }
+
+        it(s"$f with partial pushdown because of udf") {
+          testQuery(
+            f match {
+              case "Ascii" =>
+                s"select id, $f(stringIdentity(critic_review)) as $f from movies"
+              case _ =>
+                s"select id, $s(stringIdentity(id)) as ${f.toLowerCase} from movies"
+            },
+            expectPartialPushdown = true
+          )
+        }
       }
     }
 
     describe("Chr") {
-      it("works") {
-        testQuery("select id, chr(floor(critic_rating)) as ch from movies")
+      val f = "chr"
+
+      it(s"$f works with float nullable column") {
+        testQuery(s"select id, $f(floor(critic_rating)) as $f from movies")
       }
-      it("partial pushdown with udf") {
-        testQuery("select id, chr(stringIdentity(id)) from movies", expectPartialPushdown = true)
+      it(s"$f with partial pushdown because of udf") {
+        testQuery(
+          s"select id, $f(stringIdentity(id)) as $f from movies",
+          expectPartialPushdown = true
+        )
       }
     }
 
     describe("Base64") {
+      val (f, s) = ("Base64", "base64")
+
       // Spark 3.3|3.4|3.5 use RFC 2045 encoding which has the following behavior:
       //  The encoded output must be represented in lines of no more than 76 characters each and
       //  uses a carriage return '\r' followed immediately by a linefeed '\n' as the line separator.
@@ -4297,30 +4268,32 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       // to succeed for Spark 3.3 (and the following versions)
       it("works", ExcludeFromSpark34, ExcludeFromSpark35) {
         testQuery(
-          """
+          s"""
             |select
             | id,
-            | substr(base64(critic_review), 1, 76) as t_col0,
-            | substr(base64(critic_review), -1, 76) as t_col1
+            | substr($s(critic_review), 1, 76) as ${f.toLowerCase}0,
+            | substr($s(critic_review), -1, 76) as ${f.toLowerCase}1
             |from movies
             |""".stripMargin.linesIterator.mkString(" ")
         )
       }
-      it("partial pushdown with udf") {
+      it(s"$f with partial pushdown because of udf") {
         testQuery(
-          "select id, base64(stringIdentity(critic_review)) from movies",
+          s"select id, $s(stringIdentity(critic_review)) as ${f.toLowerCase} from movies",
           expectPartialPushdown = true
         )
       }
     }
 
     describe("UnBase64") {
-      it("works", ExcludeFromSpark34, ExcludeFromSpark35) {
-        testQuery("select id, unbase64(base64(critic_review)) as x from movies")
+      val (f, s) = ("UnBase64", "unbase64")
+
+      it(s"$f works with nullable column", ExcludeFromSpark34, ExcludeFromSpark35) {
+        testQuery(s"select id, $s(base64(critic_review)) as ${f.toLowerCase} from movies")
       }
-      it("partial pushdown with udf") {
+      it(s"$f with partial pushdown because of udf") {
         testQuery(
-          "select id, unbase64(base64(stringIdentity(critic_review))) from movies",
+          s"select id, $s(base64(stringIdentity(critic_review))) as ${f.toLowerCase} from movies",
           expectPartialPushdown = true
         )
       }

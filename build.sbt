@@ -6,7 +6,7 @@ import xerial.sbt.Sonatype._
  */
 
 // update this version when picking up a new Flame release
-val aiqSparkVersion    = "3-3-2-aiq110"
+val aiqSparkVersion    = "3-3-2-aiq111"
 
 val sparkVersion       = aiqSparkVersion.substring(0,5).replace("-", ".")
 val scalaVersionStr    = "2.12.15"
