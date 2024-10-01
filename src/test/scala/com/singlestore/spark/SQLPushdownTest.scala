@@ -2014,17 +2014,17 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     val functionsGroup2 = Seq("first", "last").sorted
 
     for (f <- functionsGroup2) {
-      describe(f) {
-        ignore(s"09/2024 - $f works with non-nullable string column") {
+      describe(f.capitalize) {
+        ignore(s"09/2024 - ${f.capitalize} works with non-nullable string column") {
           testSingleReadForReadFromLeaves(s"select $f(first_name) as $f from users group by id")
         }
-        ignore(s"09/2024 - $f with partial pushdown because of udf") {
+        ignore(s"09/2024 - ${f.capitalize} with partial pushdown because of udf") {
           testSingleReadQuery(
             s"select $f(stringIdentity(first_name)) as $f from users group by id",
             expectPartialPushdown = true
           )
         }
-        ignore(s"09/2024 - $f works with filter") {
+        ignore(s"09/2024 - ${f.capitalize} works with filter") {
           testSingleReadForReadFromLeaves(
             s"select $f(first_name) filter (where age % 2 = 0) as $f from users group by id"
           )
