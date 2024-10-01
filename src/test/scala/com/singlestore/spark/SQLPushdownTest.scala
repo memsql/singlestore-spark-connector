@@ -3294,25 +3294,33 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("monthsBetween") {
-      it("works") {
-        for (interval <- intervals) {
-          println(s"testing monthsBetween with interval $interval")
+      val (f, s) = ("monthsBetween", "months_between")
+
+      for (interval <- intervals) {
+        it(s"$f works with interval $interval") {
           testQuery(
-            s"select months_between(created, created + interval $interval) from reviews"
+            s"select $s(created, created + interval $interval) as ${f.toLowerCase} from reviews"
           )
         }
       }
-      it("partial pushdown because of udf in the left argument") {
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          s"select months_between(stringIdentity(created), created + interval 1 month) from reviews",
+          s"""
+            |select
+            |  $s(stringIdentity(created), created + interval 1 month) as ${f.toLowerCase}
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("partial pushdown because of udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
           s"""
              |select
-             | months_between(created, to_timestamp(stringIdentity(created)) + interval 1 month)
+             | $s(
+             |  created,
+             |  to_timestamp(stringIdentity(created)) + interval 1 month
+             | ) as ${f.toLowerCase}
              |from reviews
              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
@@ -3320,18 +3328,18 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    val periodsList: List[List[String]] = List(
-      List("YEAR", "Y", "YEARS", "YR", "YRS"),
-      List("QUARTER", "QTR"),
-      List("MONTH", "MON", "MONS", "MONTHS"),
-      List("WEEK", "W", "WEEKS"),
-      List("DAY", "D", "DAYS"),
-      List("DAYOFWEEK", "DOW"),
-      List("DAYOFWEEK_ISO", "DOW_ISO"),
-      List("DOY"),
-      List("HOUR", "H", "HOURS", "HR", "HRS"),
-      List("MINUTE", "MIN", "M", "MINS", "MINUTES")
-    )
+    val periodsList: Seq[Seq[String]] = Seq(
+      Seq("YEAR", "Y", "YEARS", "YR", "YRS"),
+      Seq("QUARTER", "QTR"),
+      Seq("MONTH", "MON", "MONS", "MONTHS"),
+      Seq("WEEK", "W", "WEEKS"),
+      Seq("DAY", "D", "DAYS"),
+      Seq("DAYOFWEEK", "DOW"),
+      Seq("DAYOFWEEK_ISO", "DOW_ISO"),
+      Seq("DOY"),
+      Seq("HOUR", "H", "HOURS", "HR", "HRS"),
+      Seq("MINUTE", "MIN", "M", "MINS", "MINUTES")
+    ).map(_.sorted)
 
     it("extract") {
       for (periods <- periodsList) {
