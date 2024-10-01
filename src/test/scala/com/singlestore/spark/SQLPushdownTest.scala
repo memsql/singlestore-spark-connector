@@ -2032,6 +2032,119 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
+    describe("ApproximatePercentile") {
+      val (f, s) = ("ApproximatePercentile", "percentile_approx")
+
+      it(s"$f works with long non-nullable column and single percentile value") {
+        testQuery(
+          s"""
+            |select
+            | $s(id, 0.25) as ${f.toLowerCase}1,
+            | $s(id, 0.5) as ${f.toLowerCase}2,
+            | $s(id, 0.75d) as ${f.toLowerCase}3,
+            | $s(id, 0.0) as ${f.toLowerCase}4,
+            | $s(id, 1.0) as ${f.toLowerCase}5,
+            | $s(id, 0) as ${f.toLowerCase}6,
+            | $s(id, 1) as ${f.toLowerCase}7
+            |from users
+           """.stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      it(s"$f works with long non-nullable column and the first element satisfies small percentages") {
+        testQuery(
+          s"""
+            |select
+            | $s(id, 0.01) as ${f.toLowerCase}1,
+            | $s(id, 0.1) as ${f.toLowerCase}2,
+            | $s(id, 0.11) as ${f.toLowerCase}3
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      it(s"$f works with numeric nullable columns") {
+        testQuery(
+          s"""
+            |select
+            | $s(critic_rating, 0.25) as ${f.toLowerCase}1,
+            | $s(cast(critic_rating as decimal(2,1)), 0.5) as ${f.toLowerCase}2
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+
+      val accuracies = Seq(100, 1000, 10000).sorted
+
+      for (accuracy <- accuracies) {
+        it(s"$f works with numeric nullable columns and accuracy $accuracy") {
+          testQuery(
+            s"""
+              |select
+              | $s(cast(critic_rating as decimal(2,1)), 0.25, $accuracy) as ${f.toLowerCase}1,
+              | $s(cast(critic_rating as decimal(2,1)), 0.5, $accuracy) as ${f.toLowerCase}2
+              |from movies
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+      }
+
+      it(s"$f works with group by") {
+        testQuery(
+          s"""
+            |select
+            | id,
+            | $s(cast(critic_rating as decimal(2,1)), 0.5) as ${f.toLowerCase}
+            |from movies
+            |group by id
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      it(s"$f works with window function") {
+        testQuery(
+          s"""
+             |select
+             | $s(id, 0.5)
+             |    over (
+             |      partition by id
+             |      order by birthday
+             |      rows between unbounded preceding and current row
+             |    ) as ${f.toLowerCase}
+             |from users
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      // approx_percentile in singlestore does NOT support
+      // arrays in the percentile argument as spark does
+      it(s"$f with partial pushdown because of array in the percentile argument") {
+        testSingleReadQuery(
+          s"""
+            |select
+            | $s(id, array(0.25, 0.5, 0.75D)) as ${f.toLowerCase}1,
+            | $s(id, array(0.01, 0.1, 0.11)) as ${f.toLowerCase}2
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+          expectPartialPushdown = true
+        )
+      }
+      // approx_percentile in singlestore does NOT support
+      // timestamp or date columns as spark does
+      it(s"$f with partial pushdown because of non-numeric columns") {
+        testSingleReadQuery(
+          s"select $s(birthday, 0.25) as ${f.toLowerCase} from users",
+          expectPartialPushdown = true
+        )
+        testSingleReadQuery(
+          s"select $s(created, 0.25) as ${f.toLowerCase} from reviews",
+          expectPartialPushdown = true
+        )
+      }
+      it(s"$f with partial pushdown because of udf") {
+        testSingleReadQuery(
+          s"select $s(longIdentity(id), 0.25) as ${f.toLowerCase} from users",
+          expectPartialPushdown = true
+        )
+      }
+    }
+
     describe("count") {
       val f = "count"
 

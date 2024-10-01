@@ -1,8 +1,9 @@
 package com.singlestore.spark
 
 import com.singlestore.spark.SQLGen.{DoubleVar, ExpressionExtractor, SQLGenContext, Statement}
-import com.singlestore.spark.ExpressionGen.{aggregateWithFilter, doubleFoldableExtractor, f, op}
+import com.singlestore.spark.ExpressionGen.{aggregateWithFilter, doubleFoldableExtractor, numberFoldableExtractor, f, op}
 import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateFunction, ApproximatePercentile, Average, Kurtosis, Skewness, StddevPop, StddevSamp, Sum, VariancePop, VarianceSamp}
+import org.apache.spark.sql.types.NumericType
 
 case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: ExpressionExtractor,
                                                        context: SQLGenContext,
@@ -94,14 +95,33 @@ case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: Expr
       //
       // Note: no apparent reason to match-pushdown ONLY when useAnsiAdd = false so
       // altering the original Connector Implementation to be less strict
-      case Average(expressionExtractor(child), false) =>
+      case Average(expressionExtractor(child), _) =>
         Some(aggregateWithFilter("AVG", child, filter))
 
       // ApproximatePercentile.scala
-      case ApproximatePercentile(expressionExtractor(child), doubleFoldableExtractor(percentage), _, _, _)
-        // SingleStore supports percentage only from [0, 1]
-        if percentage >= 0.0 && percentage <= 1.0 =>
-        Some(aggregateWithFilter("APPROX_PERCENTILE", child, filter, Seq(DoubleVar(percentage))))
+      case ApproximatePercentile(e @ expressionExtractor(child),
+                                 doubleFoldableExtractor(percentage),
+                                 numberFoldableExtractor(accuracy), _, _)
+        // SingleStore supports columns of numeric data type,
+        // percentage only from [0, 1] and error_tolerance (`1.0/accuracy`) from (0,0.5]
+        if e.dataType.isInstanceOf[NumericType] &&
+            percentage >= 0.0 && percentage <= 1.0 &&
+              1.0 / accuracy.longValue() > 0.0 && 1.0 / accuracy.longValue() <= 0.5 =>
+        Some(
+          aggregateWithFilter(
+            "APPROX_PERCENTILE",
+            child,
+            filter,
+            Seq(
+              DoubleVar(percentage),
+              // SingleStore supports `error_tolerance` which is `1.0/accuracy`
+              //
+              // Need to pass the calculated value here to avoid the following error:
+              // java.sql.SQLException: (conn=<id>) Leaf Error (<ip>): accuracy should be a constant value.
+              DoubleVar(1.0 / accuracy.longValue())
+            )
+          )
+        )
 
       case _ => None
     }

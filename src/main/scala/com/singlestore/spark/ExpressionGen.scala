@@ -595,6 +595,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
 
   val intFoldableExtractor: FoldableExtractor[Int]               = FoldableExtractor[Int]()
   val doubleFoldableExtractor: FoldableExtractor[Double]         = FoldableExtractor[Double]()
+  val numberFoldableExtractor: FoldableExtractor[Number]         = FoldableExtractor[Number]()
   val utf8StringFoldableExtractor: FoldableExtractor[UTF8String] = FoldableExtractor[UTF8String]()
 
   def apply(expressionExtractor: ExpressionExtractor): PartialFunction[Expression, Joinable] = {
