@@ -1,6 +1,7 @@
 package com.singlestore.spark
 
 import java.sql.{Date, Timestamp}
+
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.logical._
