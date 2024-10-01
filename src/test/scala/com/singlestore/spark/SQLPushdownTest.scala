@@ -3240,59 +3240,54 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     // TruncTimestamp is called as date_trunc() in Spark
     describe("truncTimestamp") {
-      it("works") {
-        val dateParts = List(
-          "YEAR",
-          "YYYY",
-          "YY",
-          "MON",
-          "MONTH",
-          "MM",
-          "DAY",
-          "DD",
-          "HOUR",
-          "MINUTE",
-          "SECOND",
-          "WEEK",
-          "QUARTER"
-        )
-        for (datePart <- dateParts) {
-          println(s"testing truncTimestamp with datepart $datePart")
-          testQuery(s"select date_trunc('$datePart', created) from reviews")
+      val dateParts = Seq(
+        "YEAR", "YYYY", "YY",
+        "MON", "MONTH", "MM",
+        "DAY", "DD",
+        "HOUR", "MINUTE", "SECOND",
+        "WEEK", "QUARTER"
+      ).sorted
+      val (f, s) = ("truncTimestamp", "date_trunc")
+
+      for (datePart <- dateParts) {
+        it(s"$f works with datepart $datePart") {
+          testQuery(s"select $s('$datePart', created) as ${f.toLowerCase} from reviews")
         }
       }
-      it("partial pushdown because of udf in the left argument") {
+
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          s"select date_trunc(stringIdentity('DAY'), created) from reviews",
+          s"select $s(stringIdentity('DAY'), created) as ${f.toLowerCase} from reviews",
           expectPartialPushdown = true
         )
       }
-      it("partial pushdown because of udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          s"select date_trunc('DAY', stringIdentity(created)) from reviews",
+          s"select $s('DAY', stringIdentity(created)) as ${f.toLowerCase} from reviews",
           expectPartialPushdown = true
         )
       }
     }
 
-    // TruncDate is called as trunc()
+    // TruncDate is called as trunc() in Spark
     describe("truncDate") {
-      it("works") {
-        val dateParts = List("YEAR", "YYYY", "YY", "MON", "MONTH", "MM")
-        for (datePart <- dateParts) {
-          println(s"testing truncDate with datepart $datePart")
-          testQuery(s"select trunc(created, '$datePart') from reviews")
+      val dateParts = Seq("YEAR", "YYYY", "YY", "MON", "MONTH", "MM").sorted
+      val (f, s) = ("truncDate", "trunc")
+
+      for (datePart <- dateParts) {
+        it(s"$f works with datepart $datePart") {
+          testQuery(s"select $s(created, '$datePart') as ${f.toLowerCase} from reviews")
         }
       }
-      it("partial pushdown because of udf in the left argument") {
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          s"select trunc(stringIdentity(created), 'MONTH') from reviews",
+          s"select $s(stringIdentity(created), 'MONTH') as ${f.toLowerCase} from reviews",
           expectPartialPushdown = true
         )
       }
-      it("partial pushdown because of udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          s"select trunc(created, stringIdentity('MONTH')) from reviews",
+          s"select $s(created, stringIdentity('MONTH')) as ${f.toLowerCase} from reviews",
           expectPartialPushdown = true
         )
       }
