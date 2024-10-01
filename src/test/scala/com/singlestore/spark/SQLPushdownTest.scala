@@ -2976,7 +2976,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         }
         it(s"$f with partial pushdown because of udf in the right argument") {
           testQuery(
-            s"select $s(birthday, -cast(longIdentity(age) as long)) as ${f.toLowerCase} from users",
+            s"select $s(birthday, -cast(longIdentity(age) as int)) as ${f.toLowerCase} from users",
             expectPartialPushdown = true
           )
         }
@@ -3098,14 +3098,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("addMonths") {
-      val f = "addMonths"
+      val (f, s) = ("addMonths", "add_months")
 
       val numMonthsList = Seq(0, 1, 2, 12, 13, 200, -1, -2, -12, -13, -200).sorted
       for (numMonths <- numMonthsList) {
         it(s"$f works with simple literal $numMonths months") {
           testQuery(
             s"""
-              |select created, $f(created, $numMonths) as ${f.toLowerCase}
+              |select created, $s(created, $numMonths) as ${f.toLowerCase}
               |from reviews
               |where date(created) != last_day(created)
               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
@@ -3116,21 +3116,17 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
           s"""
-             |select
-             | created,
-             | add_months(stringIdentity(created), 1) as ${f.toLowerCase}
-             |from reviews
-             |where date(created) != last_day(created)
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            |select created, $s(stringIdentity(created), 1) as ${f.toLowerCase}
+            |from reviews
+            |where date(created) != last_day(created)
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
       it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
           s"""
-             |select
-             | created,
-             | add_months(created, stringIdentity(1)) as ${f.toLowerCase}
+             |select created, $s(created, stringIdentity(1)) as ${f.toLowerCase}
              |from reviews
              |where date(created) != last_day(created)
              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
@@ -3219,7 +3215,11 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             testQuery(
               s"select $s(created, '$timeZone') as ${f.toLowerCase} from reviews" +
                 // singlestore doesn't support timestamps less then 1970-01-01T00:00:00Z
-                { if (s == "to_utc_timestamp") s" where $s(created) > 24*60*60" else "" }
+                {
+                  if (s == "to_utc_timestamp") {
+                    s" where to_unix_timestamp(created) > 24*60*60"
+                  } else { "" }
+                }
             )
           }
         }
