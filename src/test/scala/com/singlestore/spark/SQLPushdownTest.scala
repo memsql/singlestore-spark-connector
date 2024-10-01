@@ -2958,41 +2958,68 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-
   describe("Datetime Expressions") {
-    describe("DateAdd") {
-      it("positive num_days") { testQuery("select date_add(birthday, age) from users") }
-      it("negative num_days") { testQuery("select date_add(birthday, -age) from users") }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery(
-          "select date_add(stringIdentity(birthday), age) from users",
-          expectPartialPushdown = true
-        )
+    val functionsGroup1 = Seq(
+      ("DateAdd", "date_add"),
+      ("DateSub", "date_sub")
+    ).sorted
+
+    for ((f, s) <- functionsGroup1) {
+      describe(f) {
+        it(s"$f works with positive num_days") { testQuery(s"select $s(birthday, age) from users") }
+        it(s"$f works with negative num_days") { testQuery(s"select $s(birthday, -age) from users") }
+        it(s"$f with partial pushdown because of udf in the left argument") {
+          testQuery(
+            s"select $s(stringIdentity(birthday), age) as ${f.toLowerCase} from users",
+            expectPartialPushdown = true
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the right argument") {
+          testQuery(
+            s"select $s(birthday, -cast(longIdentity(age) as long)) as ${f.toLowerCase} from users",
+            expectPartialPushdown = true
+          )
+        }
       }
-      it("partial pushdown because of udf in the right argument") {
+    }
+
+    val functionsGroup2 = Seq(
+      ("toUnixTimestamp", "to_unix_timestamp"),
+      ("unixTimestamp", "unix_timestamp")
+    ).sorted
+
+    for ((f, s) <- functionsGroup2) {
+      describe(f) {
+        it(s"$f works with TimestampType") {
+          testQuery(s"select created, $s(created) from reviews")
+        }
+        it(s"$f works with DateType") { testQuery(s"select birthday, $s(birthday) from users") }
+        it(s"$f with partial pushdown because of udf") {
+          testQuery(
+            s"select $s(stringIdentity(birthday)) as ${f.toLowerCase} from users",
+            expectPartialPushdown = true
+          )
+        }
+      }
+    }
+
+    describe("fromUnixTime") {
+      val (f, s) = ("fromUnixTime", "from_unixtime")
+
+      it(s"$f works with non-nullable column") {
+        // cast is needed because in SingleStore 6.8 FROM_UNIXTIME query returns a result with microseconds
+        testQuery(s"select id, cast($s(id) as timestamp) as ${f.toLowerCase} from movies")
+      }
+      it(s"$f with partial pushdown because of udf") {
         testQuery(
-          "select date_add(birthday, -cast(stringIdentity(age) as int)) from users",
+          s"select $s(stringIdentity(id)) as ${f.toLowerCase} from movies",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("DateSub") {
-      it("positive num_days") { testQuery("select date_sub(birthday, age) from users") }
-      it("negative num_days") { testQuery("select date_sub(birthday, -age) from users") }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery(
-          "select date_sub(stringIdentity(birthday), age) from users",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown because of udf in the right argument") {
-        testQuery(
-          "select date_sub(birthday, -cast(stringIdentity(age) as int)) from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
+    // SingleStore and Spark differ on how they do last day
+    // calculations, so we ignore them in some of these tests
 
     val intervals = List(
       "1 year",
@@ -3004,77 +3031,33 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       "5 second",
       "1 year 1 month",
       "1 week 3 hour 5 minute 4 seconds"
-    )
-
-    describe("toUnixTimestamp") {
-      it("works with TimestampType") {
-        testQuery("select created, to_unix_timestamp(created) from reviews")
-      }
-      it("works with DateType") {
-        testQuery("select birthday, to_unix_timestamp(birthday) from users")
-      }
-      it("partial pushdown because of udf") {
-        testQuery(
-          "select to_unix_timestamp(stringIdentity(birthday)) from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("unixTimestamp") {
-      it("works with TimestampType") {
-        testQuery("select created, unix_timestamp(created) from reviews")
-      }
-      it("works with DateType") {
-        testQuery("select birthday, unix_timestamp(birthday) from users")
-      }
-      it("partial pushdown because of udf") {
-        testQuery(
-          "select unix_timestamp(stringIdentity(birthday)) from users",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("fromUnixTime") {
-      it("works") {
-        // cast is needed because in SingleStore 6.8 FROM_UNIXTIME query returns a result with microseconds
-        testQuery("select id, cast(from_unixtime(id) as timestamp) from movies")
-      }
-      it("tutu") {
-        testQuery(
-          "select from_unixtime(stringIdentity(id)) from movies",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    // SingleStore and Spark differ on how they do last day calculations, so we ignore
-    // them in some of these tests
+    ).sorted
 
     describe("timeAdd") {
-      it("works") {
-        for (interval <- intervals) {
-          println(s"testing timeAdd with interval $interval")
-          val query =
-            s"""
-               |select
-               | created,
-               | created + interval $interval
-               |from reviews
-               |where date(created) != last_day(created)
-               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+      val (f, s) = ("timeAdd", "+")
+
+      for (interval <- intervals) {
+        it(s"$f works with simple interval $interval") {
           if (!interval.contains("day") || spark.version != "3.0.0") {
-            testQuery(query)
+            testQuery(
+              s"""
+                |select
+                | created,
+                | created $s interval $interval as ${f.toLowerCase}
+                |from reviews
+                |where date(created) != last_day(created)
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            )
           }
         }
       }
-      it("partial pushdown because of udf in the left argument") {
+
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
           s"""
              |select
              | created,
-             | to_timestamp(stringIdentity(created)) + interval 1 month
+             | to_timestamp(stringIdentity(created)) $s interval 1 month as ${f.toLowerCase}
              |from reviews
              |where date(created) != last_day(created)
              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
@@ -3084,68 +3067,70 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("timeSub") {
-      it("works") {
-        for (interval <- intervals) {
-          println(s"testing timeSub with interval $interval")
+      val (f, s) = ("timeSub", "-")
+
+      for (interval <- intervals) {
+        it(s"$f works with simple interval $interval") {
           testQuery(
             s"""
-               |select
-               |  created,
-               |  created - interval $interval
-               |from reviews
-               |where date(created) != last_day(created)
-               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+              |select
+              | created,
+              | created $s interval $interval as ${f.toLowerCase}
+              |from reviews
+              |where date(created) != last_day(created)
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
           )
         }
       }
-      it("partial pushdown because of udf in the left argument") {
+
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
           s"""
-             |select
-             | created,
-             | to_timestamp(stringIdentity(created)) - interval 1 day
-             |from reviews
-             |where date(created) != last_day(created)
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            |select
+            | created,
+            | to_timestamp(stringIdentity(created)) $s interval 1 day as ${f.toLowerCase}
+            |from reviews
+            |where date(created) != last_day(created)
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
     }
 
     describe("addMonths") {
-      it("works") {
-        val numMonthsList = List(0, 1, 2, 12, 13, 200, -1, -2, -12, -13, -200)
-        for (numMonths <- numMonthsList) {
-          println(s"testing addMonths with $numMonths months")
+      val f = "addMonths"
+
+      val numMonthsList = Seq(0, 1, 2, 12, 13, 200, -1, -2, -12, -13, -200).sorted
+      for (numMonths <- numMonthsList) {
+        it(s"$f works with simple literal $numMonths months") {
           testQuery(
             s"""
-               |select
-               | created,
-               | add_months(created, $numMonths)
-               |from reviews
-               |where date(created) != last_day(created)
-               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+              |select created, $f(created, $numMonths) as ${f.toLowerCase}
+              |from reviews
+              |where date(created) != last_day(created)
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
           )
         }
       }
-      it("partial pushdown with udf in the left argument") {
+
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
           s"""
              |select
              | created,
-             | add_months(stringIdentity(created), 1)
+             | add_months(stringIdentity(created), 1) as ${f.toLowerCase}
              |from reviews
              |where date(created) != last_day(created)
              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("partial pushdown with udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
           s"""
              |select
              | created,
-             | add_months(created, stringIdentity(1))
+             | add_months(created, stringIdentity(1)) as ${f.toLowerCase}
              |from reviews
              |where date(created) != last_day(created)
              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
@@ -3154,54 +3139,48 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("NextDay") {
-      it("works") {
-        for ((dayOfWeek, _) <- ExpressionGen.DAYS_OF_WEEK_OFFSET_MAP) {
-          println(s"testing nextDay with $dayOfWeek")
+    describe("nextDay") {
+      val (f, s) = ("nextDay", "next_day")
+
+      for ((dayOfWeek, _) <- ExpressionGen.DAYS_OF_WEEK_OFFSET_MAP) {
+        it(s"$f works with dayOfWeek: $dayOfWeek") {
           testQuery(
-            s"""
-               |select
-               | created,
-               | next_day(created, '$dayOfWeek')
-               |from reviews
-               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            s"select created, $s(created, '$dayOfWeek') as ${f.toLowerCase} from reviews"
           )
         }
       }
-      it("works with invalid day name") {
+
+      it(s"$f works with invalid dayOfWeek name") {
         testQuery(
-          s"""
-             |select
-             | created,
-             | next_day(created, 'invalid_day')
-             |from reviews
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          s"select created, $s(created, 'invalid_day') as ${f.toLowerCase} from reviews"
         )
       }
-      it("partial pushdown because of udf in the left argument") {
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          "select next_day(stringIdentity(created), 'monday') from reviews",
+          s"select created, $s(stringIdentity(created), 'monday') as ${f.toLowerCase} from reviews",
           expectPartialPushdown = true
         )
       }
-      it("partial pushdown because of udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          "select next_day(created, stringIdentity('monday')) from reviews",
+          s"select created, $s(created, stringIdentity('monday')) as ${f.toLowerCase} from reviews",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("DateDiff") {
-      it("works") {
+    describe("datediff") {
+      val f = "datediff"
+
+      it(s"$f works simple non-nullable columns") {
         testSingleReadForReadFromLeaves(
-          """
+          s"""
             |select
             | birthday,
             | created,
-            | DateDiff(birthday, created),
-            | DateDiff(created, birthday),
-            | DateDiff(created, created)
+            | $f(birthday, created) as ${f}1,
+            | $f(created, birthday) as ${f}2,
+            | $f(created, created) as ${f}3
             |from
             | users
             | inner join
@@ -3210,15 +3189,15 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
-      it("partial pushdown because of udf in the left argument") {
+      it(s"$f with partial pushdown because of udf in the left argument") {
         testQuery(
-          "select DateDiff(stringIdentity(created), created) from reviews",
+          s"select $f(stringIdentity(created), created) as $f from reviews",
           expectPartialPushdown = true
         )
       }
-      it("partial pushdown because of udf in the right argument") {
+      it(s"$f with partial pushdown because of udf in the right argument") {
         testQuery(
-          "select DateDiff(created, stringIdentity(created)) from reviews",
+          s"select $f(created, stringIdentity(created)) as $f from reviews",
           expectPartialPushdown = true
         )
       }
@@ -3226,59 +3205,36 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
     // Spark doesn't support explicit time intervals like `+/-hh:mm`
 
-    val timeZones = List(
-      "US/Mountain",
-      "Asia/Seoul",
-      "UTC",
-      "EST",
-      "Etc/GMT-6"
-    )
+    val timeZones = Seq("US/Mountain", "Asia/Seoul", "UTC", "EST", "Etc/GMT-6").sorted
 
-    describe("fromUTCTimestamp") {
-      it("works") {
+    val functionsGroup3 = Seq(
+      ("fromUTCTimestamp", "from_utc_timestamp"),
+      ("toUTCTimestamp", "to_utc_timestamp")
+    ).sorted
+
+    for ((f, s) <- functionsGroup3) {
+      describe(f) {
         for (timeZone <- timeZones) {
-          println(s"testing fromUTCTimestamp with timezone $timeZone")
-          testQuery(s"select from_utc_timestamp(created, '$timeZone') from reviews")
+          it(s"$f works with timezone $timeZone") {
+            testQuery(
+              s"select $s(created, '$timeZone') as ${f.toLowerCase} from reviews" +
+                // singlestore doesn't support timestamps less then 1970-01-01T00:00:00Z
+                { if (s == "to_utc_timestamp") s" where $s(created) > 24*60*60" else "" }
+            )
+          }
         }
-      }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery("select from_utc_timestamp(stringIdentity(created), 'EST') from reviews",
-          expectPartialPushdown = true)
-      }
-      it("partial pushdown because of udf in the right argument") {
-        testQuery(
-          "select from_utc_timestamp(created, stringIdentity('EST')) from reviews",
-          expectPartialPushdown = true
-        )
-      }
-    }
-
-    describe("toUTCTimestamp") {
-      it("works") {
-        for (timeZone <- timeZones) {
-          println(s"testing toUTCTimestamp with timezone $timeZone")
-          // singlestore doesn't support timestamps less then 1970-01-01T00:00:00Z
+        it(s"$f with partial pushdown because of udf in the left argument") {
           testQuery(
-            s"""
-               |select
-               | to_utc_timestamp(created, '$timeZone')
-               |from reviews
-               |where to_unix_timestamp(created) > 24*60*60
-               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            s"select $s(stringIdentity(created), 'EST') as ${f.toLowerCase} from reviews",
+            expectPartialPushdown = true
           )
         }
-      }
-      it("partial pushdown because of udf in the left argument") {
-        testQuery(
-          "select to_utc_timestamp(stringIdentity(created), 'EST') from reviews",
-          expectPartialPushdown = true
-        )
-      }
-      it("partial pushdown because of udf in the right argument") {
-        testQuery(
-          "select to_utc_timestamp(created, stringIdentity('EST')) from reviews",
-          expectPartialPushdown = true
-        )
+        it(s"$f with partial pushdown because of udf in the right argument") {
+          testQuery(
+            s"select $s(created, stringIdentity('EST')) as ${f.toLowerCase} from reviews",
+            expectPartialPushdown = true
+          )
+        }
       }
     }
 
