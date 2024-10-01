@@ -3383,65 +3383,64 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("UnixDate") {
-      it("Simple query, one day after epoch") {
-        testQuery("select unix_date(date('1970-01-02')) from users")
+      val (f, s) = ("UnixDate", "unix_date")
+
+      it(s"$f works with the simple query of one day after epoch") {
+        testQuery(s"select $s(date('1970-01-02')) as ${f.toLowerCase} from users")
       }
-      it("works") {
-        testQuery("select unix_date(birthday) from users")
+      it(s"$f works with non-nullable column") {
+        testQuery(s"select $s(birthday) as ${f.toLowerCase} from users")
       }
-      it("partial pushdown") {
+      it(s"$f with partial pushdown because of udf") {
         testQuery(
-          "select unix_date(date(stringIdentity(birthday))) from users",
+          s"select $s(date(stringIdentity(birthday))) as ${f.toLowerCase} from users",
           expectPartialPushdown = true
         )
       }
     }
 
-    describe("unix seconds functions") {
-      val functions = Seq("unix_seconds", "unix_micros", "unix_millis")
+    describe("Unix Seconds Functions") {
+      val functions = Seq("unix_seconds", "unix_micros", "unix_millis").sorted
 
-      it("works with timestamp") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select $f(created) from reviews")
+      for (f <- functions) {
+        it(s"$f works with timestamp") {
+          testQuery(s"select $f(created) as ${f.toLowerCase.replace("_", "")} from reviews")
         }
-      }
-      it("partial pushdown") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select $f(timestamp(stringIdentity(created))) from reviews",
-            expectPartialPushdown = true)
-        }
-      }
-    }
-
-    describe("converting (milli/micro)seconds to timestamp functions") {
-      val functions = Seq("timestamp_seconds", "timestamp_millis", "timestamp_micros")
-
-      it("works") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select created, $f(user_id) from reviews")
-        }
-      }
-      it("works with negative data") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select $f(-movie_id) from reviews")
-        }
-      }
-      it("partial pushdown") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f with partial pushdown because of udf") {
           testQuery(
-            s"select $f(int(stringIdentity(id))) from users",
+            s"""
+               |select
+               |  $f(timestamp(stringIdentity(created))) as ${f.toLowerCase.replace("_", "")}
+               |from reviews
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
             expectPartialPushdown = true
           )
         }
       }
     }
 
-    describe("timestamp parts functions") {
+    describe("Converting (milli/micro)seconds to Timestamp Functions") {
+      val functions = Seq("timestamp_seconds", "timestamp_millis", "timestamp_micros").sorted
+
+      for (f <- functions) {
+        it(s"$f works with non-nullable column") {
+          testQuery(
+            s"select created, $f(user_id) as ${f.toLowerCase.replace("_", "")} from reviews"
+          )
+        }
+        it(s"$f works with negative non-nullable column") {
+          testQuery(s"select $f(-movie_id) as ${f.toLowerCase.replace("_", "")} from reviews")
+        }
+        it(s"$f with partial pushdown because of udf") {
+          testQuery(
+            s"select $f(int(stringIdentity(id))) as ${f.toLowerCase.replace("_", "")} from users",
+            expectPartialPushdown = true
+          )
+        }
+      }
+    }
+
+    describe("Timestamp Parts Functions") {
       val functions = Seq(
         "Hour",
         "Minute",
@@ -3454,31 +3453,21 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         "DayOfWeek",
         "WeekOfYear",
         "last_day"
-      )
+      ).sorted
 
-      it("works with date") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select $f(birthday) from users")
+      for (f <- functions) {
+        it(s"$f works with date non-nullable column") {
+          testQuery(s"select $f(birthday) as ${f.toLowerCase} from users")
         }
-      }
-      it("works with timestamp") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select $f(created) from reviews")
+        it(s"$f works with timestamp non-nullable column") {
+          testQuery(s"select $f(created) as ${f.toLowerCase} from reviews")
         }
-      }
-      it("works with string") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select $f(first_name) from users")
+        it(s"$f works with string non-nullable column") {
+          testQuery(s"select $f(first_name) as ${f.toLowerCase} from users")
         }
-      }
-      it("partial pushdown") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
+        it(s"$f with partial pushdown because of udf") {
           testQuery(
-            s"select $f(stringIdentity(first_name)) from users",
+            s"select $f(stringIdentity(first_name)) as ${f.toLowerCase} from users",
             expectPartialPushdown = true
           )
         }
@@ -4340,62 +4329,64 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("JSON Functions") {
     describe("GetJsonObject") {
-      it("works with strings") {
+      val (f, s) = ("GetJsonObject", "get_json_object")
+
+      it(s"$f works with string non-nullable columns") {
         testQuery(
-          "select id, get_json_object(movie_rating, '$.title') as get_j from movies_rating"
+          s"select id, $s(movie_rating, '$$.title') as ${f.toLowerCase} from movies_rating"
         )
       }
-      it("works with int") {
+      it(s"$f works with int non-nullable columns") {
         testQuery(
-          "select id, get_json_object(movie_rating, '$.movie_id') as get_j from movies_rating"
+          s"select id, $s(movie_rating, '$$.movie_id') as ${f.toLowerCase} from movies_rating"
         )
       }
-      it("works with booleans") {
-        testQuery("select id, get_json_object(movie_rating, '$.3D') as get_j from movies_rating")
+      it(s"$f works with boolean non-nullable columns") {
+        testQuery(s"select id, $s(movie_rating, '$$.3D') as ${f.toLowerCase} from movies_rating")
       }
-      it("works with arrays") {
+      it(s"$f works with array non-nullable columns") {
         testQuery(
-          "select id, get_json_object(movie_rating, '$.reviews') as get_j from movies_rating"
+          s"select id, $s(movie_rating, '$$.reviews') as ${f.toLowerCase} from movies_rating"
         )
       }
-      it("works with nested json") {
+      it(s"$f works with nested json non-nullable columns") {
         testQuery(
-          "select id, get_json_object(movie_rating, '$.timetable.hall') as get_j from movies_rating"
+          s"select id, $s(movie_rating, '$$.timetable.hall') as ${f.toLowerCase} from movies_rating"
         )
       }
-      it("works with nested json string") {
+      it(s"$f works with nested json string non-nullable columns") {
         testQuery(
-          "select id, get_json_object(movie_rating, '$.timetable.day') as get_j from movies_rating"
+          s"select id, $s(movie_rating, '$$.timetable.day') as ${f.toLowerCase} from movies_rating"
         )
       }
-      it("non-existing  path") {
+      it(s"$f works with non-existing path") {
         testQuery(
-          "select id, get_json_object(movie_rating, '$.nonexistingPath') as get_j from movies_rating"
+          s"select id, $s(movie_rating, '$$.nonexistingPath') as ${f.toLowerCase} from movies_rating"
         )
       }
-      it("invalid path") {
+      it(s"$f works invalid path") {
         testQuery(
-          "select id, get_json_object(movie_rating, 'rating') as get_j from movies_rating",
+          s"select id, $s(movie_rating, 'rating') as ${f.toLowerCase} from movies_rating",
           expectPartialPushdown = true
         )
       }
-      it("udf in the first argument") {
+      it(s"$f with partial pushdown because of udf in the first argument") {
         testQuery(
-          """
+          s"""
             |select
             | id,
-            | get_json_object(stringIdentity(movie_rating), '$.title') as get_j
+            | $s(stringIdentity(movie_rating), '$$.title') as ${f.toLowerCase}
             |from movies_rating
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
-      it("udf in the second argument") {
+      it(s"$f with partial pushdown because of udf in the second argument") {
         testQuery(
-          """
+          s"""
             |select
             | id,
-            | get_json_object(movie_rating, stringIdentity('$.title')) as get_j
+            | $s(movie_rating, stringIdentity('$$.title')) as ${f.toLowerCase}
             |from movies_rating
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
@@ -4404,16 +4395,17 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("LengthOfJsonArray") {
-      it("works") {
-        testQuery("select id, json_array_length(same_rate_movies) from movies_rating")
+      val (f, s) = ("LengthOfJsonArray", "json_array_length")
+
+      it(s"$f works with simple non-nullable column") {
+        testQuery(s"select id, $s(same_rate_movies) as ${f.toLowerCase} from movies_rating")
       }
-      it("udf") {
+      it(s"$f with partial pushdown because of udf") {
         testQuery(
-          "select id, json_array_length(stringIdentity(same_rate_movies)) from movies_rating",
+          s"select id, $s(stringIdentity(same_rate_movies)) as ${f.toLowerCase} from movies_rating",
           expectPartialPushdown = true
         )
       }
-
     }
   }
 
