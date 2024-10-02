@@ -1208,6 +1208,22 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
+      it(s"$f works with nullable column") {
+        testQuery(
+          s"select $s(cast(critic_rating as string), '9.9') as ${f.toLowerCase} from movies"
+        )
+      }
+      it(s"$f with partial pushdown because of udf") {
+        testQuery(
+          s"""
+             |select
+             | $s(stringIdentity(user_id), '999') as ${f.toLowerCase}1,
+             | $s(stringIdentity(rating), '9.9') as ${f.toLowerCase}2
+             |from reviews
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+          expectPartialPushdown = true
+        )
+      }
     }
   }
 
