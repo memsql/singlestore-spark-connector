@@ -1194,6 +1194,21 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery(s"select $f(stringIdentity(id)) as $f from users", expectPartialPushdown = true)
       }
     }
+
+    describe("ToNumber") {
+      val (f, s) = ("ToNumber", "to_number")
+
+      it(s"$f works with non-nullable columns") {
+        testQuery(
+          s"""
+            |select
+            | $s(cast(user_id as string), '999') as ${f.toLowerCase}1,
+            | $s(cast(rating as string), '9.9') as ${f.toLowerCase}2
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+    }
   }
 
   describe("bitwise Expressions") {
