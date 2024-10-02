@@ -2274,6 +2274,44 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         "select first_name, percent_rank() over (order by first_name) as out from users"
       )
     }
+
+    describe("NthValue") {
+      val (f, s) = ("NthValue", "nth_value")
+
+      val offsetList = Seq(2, 3, 4).sorted
+
+      for (offset <- offsetList) {
+        it(s"$f partition order by works with non-nullable columns and offset $offset") {
+          testQuery(
+            s"""
+              |select
+              | $s(id, $offset) over (partition by age order by id) as ${f.toLowerCase}
+              |from users
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f partition order by works with nullable columns and offset $offset") {
+          testQuery(
+            s"""
+              |select
+              | $s(id, $offset) over (partition by genre order by id) as ${f.toLowerCase}
+              |from movies
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f with partial pushdown because of udf and offset $offset") {
+          testSingleReadQuery(
+            s"""
+              |select
+              | $s(id, $offset)
+              |    over (partition by stringIdentity(genre) order by id) as ${f.toLowerCase}
+              |from movies
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+      }
+    }
   }
 
   describe("SortOrder") {
