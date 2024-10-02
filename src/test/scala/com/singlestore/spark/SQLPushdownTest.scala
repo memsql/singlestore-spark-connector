@@ -4507,13 +4507,13 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       // We use substr(col, 0, 76) [first76 chars] and substr(col, -1, 76) [last 76 chars] to make
       // sure we test the pushdown functionality, the validity of the results and allow the test
       // to succeed for Spark 3.3 (and the following versions)
-      it("works", ExcludeFromSpark34, ExcludeFromSpark35) {
+      it(s"$f works with nullable string column", ExcludeFromSpark34, ExcludeFromSpark35) {
         testQuery(
           s"""
             |select
             | id,
-            | substr($s(critic_review), 1, 76) as ${f.toLowerCase}0,
-            | substr($s(critic_review), -1, 76) as ${f.toLowerCase}1
+            | substr($s(critic_review), 1, 76) as ${f.toLowerCase}1,
+            | substr($s(critic_review), -1, 76) as ${f.toLowerCase}2
             |from movies
             |""".stripMargin.linesIterator.mkString(" ")
         )
