@@ -3521,9 +3521,19 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
     it("CurrentDate") { testQuery("select current_date() from users", expectSameResult = false) }
     it("Now") { testQuery("select now() from users", expectSameResult = false) }
-    it("DateFromUnixDate") { testQuery("select date_from_unix_date(1234567) from users") }
     it("CurrentTimestamp") {
       testQuery("select current_timestamp() from users", expectSameResult = false)
+    }
+
+    describe("DateFromUnixDate") {
+      val (f, s) = ("DateFromUnixDate", "date_from_unix_date")
+
+      it(s"$f works with simple literal") {
+        testQuery(s"select $s(1234567) as ${f.toLowerCase} from users")
+      }
+      it(s"$f works with simple null") {
+        testQuery(s"select $s(null) as ${f.toLowerCase} from users")
+      }
     }
 
     describe("UnixDate") {
