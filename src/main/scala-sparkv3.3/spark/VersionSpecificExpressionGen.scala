@@ -117,7 +117,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
       // to a lower precision since Spark only supports up to `DECIMAL(38,37)`
       //
       // Error: java.lang.IllegalArgumentException: DECIMAL precision 65 exceeds max precision 38
-      Some(makeDecimal(f("TO_NUMBER", left, right), 38, 15))
+      Some(makeDecimal(f("TO_NUMBER", left, right), DecimalType.MAX_PRECISION, 15))
 
     // randomExpression.scala
     // TODO PLAT-5759

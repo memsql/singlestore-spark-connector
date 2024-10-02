@@ -1378,9 +1378,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
 
   describe("Math Expressions") {
     val functions = Seq(
-      "sinh", "cosh", "tanh", "rint", "asinh", "acosh", "sqrt", "ceil", "cos", "exp", "expm1",
-      "floor", "signum", "cot", "degrees", "radians", "bin", "hex", "log2", "log10", "log1p",
-      "ln" // (Log)
+      "sinh", "cosh", "tanh", "rint", "asinh", "acosh", "sqrt", "ceil", "cos", "sec", "exp",
+      "expm1", "floor", "signum", "cot", "degrees", "radians", "bin", "hex", "log2", "log10",
+      "log1p", "ln" // (Log)
     ).sorted
 
     for (f <- functions) {
