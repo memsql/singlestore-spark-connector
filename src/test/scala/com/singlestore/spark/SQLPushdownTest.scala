@@ -3617,6 +3617,93 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         }
       }
     }
+
+    // ConvertTimezone SQL support starts Spark 3.4 and over
+    describe("ConvertTimezone") {
+      val (f, s) = ("ConvertTimezone", "convert_timezone")
+
+      ignore(s"09/2024 - $f works with timestamp non-nullable column") {
+        testQuery(
+          s"select $s(created, 'UTC', 'America/Los_Angeles') as ${f.toLowerCase} from reviews"
+        )
+      }
+      ignore(s"09/2024 - $f works with timestamp non-nullable column and null in second and/or third argument") {
+        testQuery(
+          s"""
+            |select
+            | $s(created, null, 'America/Los_Angeles') as ${f.toLowerCase}1,
+            | $s(created, 'UTC', null) as ${f.toLowerCase}2,
+            | $s(created, null, null) as ${f.toLowerCase}3
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      ignore(s"09/2024 - $f works with string non-nullable column") {
+        testQuery(
+          s"""
+            |select
+            | $s(cast(created as string), 'UTC', 'America/Los_Angeles') as ${f.toLowerCase}
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      ignore(
+        s"09/2024 - $f works with string non-nullable column and null in second and/or third argument"
+      ) {
+        testQuery(
+          s"""
+            |select
+            | $s(cast(created as string), null, 'America/Los_Angeles') as ${f.toLowerCase}1,
+            | $s(cast(created as string), 'UTC', null) as ${f.toLowerCase}2,
+            | $s(cast(created as string), null, null) as ${f.toLowerCase}3
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      ignore(s"09/2024 - $f works with date non-nullable column") {
+        testQuery(
+          s"select $s(birthday, 'UTC', 'America/Los_Angeles') as ${f.toLowerCase} from users"
+        )
+      }
+      ignore(s"09/2024 - $f works with date non-nullable column and null in second and/or third argument") {
+        testQuery(
+          s"""
+            |select
+            | $s(birthday, null, 'America/Los_Angeles') as ${f.toLowerCase}1,
+            | $s(birthday, 'UTC', null) as ${f.toLowerCase}2,
+            | $s(birthday, null, null) as ${f.toLowerCase}3
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      ignore(s"09/2024 - $f with partial pushdown because of udf in the first argument") {
+        testQuery(
+          s"""
+            |select $s(stringIdentity(birthday), null, 'America/Los_Angeles') as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+          expectPartialPushdown = true
+        )
+      }
+      ignore(s"09/2024 - $f with partial pushdown because of udf in the second argument") {
+        testQuery(
+          s"""
+            |select $s(birthday, stringIdentity('UTC'), 'America/Los_Angeles') as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+          expectPartialPushdown = true
+        )
+      }
+      ignore(s"09/2024 - $f with partial pushdown because of udf in the third argument") {
+        testQuery(
+          s"""
+            |select $s(birthday, 'UTC', stringIdentity('America/Los_Angeles')) as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+          expectPartialPushdown = true
+        )
+      }
+    }
   }
 
   describe("String Expressions") {
