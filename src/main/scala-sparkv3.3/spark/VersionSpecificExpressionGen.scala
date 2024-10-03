@@ -129,7 +129,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
         case TimestampType => {
           e.dataType match {
             case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
-                 DoubleType | _: DecimalType =>
+                DoubleType | _: DecimalType =>
               Some(cast(f("FROM_UNIXTIME", child), "DATETIME(6)"))
             case _ => Some(cast(child, "DATETIME(6)"))
           }
@@ -192,7 +192,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
 
     case LengthOfJsonArray(expressionExtractor(child)) => Some(f("JSON_LENGTH", child))
 
-    case NextDay(expressionExtractor(startDate), utf8StringFoldableExtractor(dayOfWeek), _) =>
+    case NextDay(expressionExtractor(startDate), utf8StringFoldableExtractor(dayOfWeek), false) =>
       Some(
         computeNextDay(
           startDate,
