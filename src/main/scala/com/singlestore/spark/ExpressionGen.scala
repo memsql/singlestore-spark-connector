@@ -891,7 +891,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
         }
 
       case FindInSet(expressionExtractor(left), utf8StringFoldableExtractor(right)) => {
-        val str_array = right.toString.split(',')
+        val str_array    = right.toString.split(',')
         var caseBranches = stringToJoinable("")
         for (i <- 1 to str_array.length) {
           caseBranches += Raw(s"WHEN '${str_array(i - 1)}'")
@@ -962,8 +962,8 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
       case StringTranslate(expressionExtractor(srcExpr),
                            utf8StringFoldableExtractor(matchingExpr),
                            utf8StringFoldableExtractor(replaceExpr)) => {
-        var replaceContent = srcExpr
-        val replaceExprLen = replaceExpr.toString.length
+        var replaceContent  = srcExpr
+        val replaceExprLen  = replaceExpr.toString.length
         val matchingExprLen = matchingExpr.toString.length
         for (i <- 0 to Math.max(replaceExprLen, matchingExprLen) - 1) {
           val matchingCurrCharacter = if (i < matchingExprLen) {
@@ -1055,7 +1055,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
       case GetJsonObject(expressionExtractor(json), utf8StringFoldableExtractor(path))
           if path.toString.length >= 2 & path.toString.startsWith("$.") => {
         val pathParts = path.toString.substring(2).split("\\.")
-        val goalPath = pathParts.last
+        val goalPath  = pathParts.last
         var jsonQuery = json
         for (i <- 0 to (pathParts.length - 2)) {
           jsonQuery = f("JSON_EXTRACT_JSON", jsonQuery, StringVar(pathParts(i)))
@@ -1063,8 +1063,8 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
         f(
           "IF",
           op("=",
-            f("JSON_GET_TYPE", f("JSON_EXTRACT_JSON", jsonQuery, StringVar(goalPath))),
-            StringVar("string")),
+             f("JSON_GET_TYPE", f("JSON_EXTRACT_JSON", jsonQuery, StringVar(goalPath))),
+             StringVar("string")),
           f("JSON_EXTRACT_STRING", jsonQuery, StringVar(goalPath)),
           f("JSON_EXTRACT_JSON", jsonQuery, StringVar(goalPath))
         )
