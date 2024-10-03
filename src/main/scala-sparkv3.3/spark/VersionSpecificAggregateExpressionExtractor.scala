@@ -2,7 +2,20 @@ package com.singlestore.spark
 
 import com.singlestore.spark.SQLGen.{DoubleVar, ExpressionExtractor, SQLGenContext, Statement}
 import com.singlestore.spark.ExpressionGen.{aggregateWithFilter, doubleFoldableExtractor, numberFoldableExtractor, f, op}
-import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateFunction, ApproximatePercentile, Average, Kurtosis, Skewness, StddevPop, StddevSamp, Sum, VariancePop, VarianceSamp}
+import org.apache.spark.sql.catalyst.expressions.aggregate.{
+  AggregateFunction,
+  ApproximatePercentile,
+  Average,
+  First,
+  Kurtosis,
+  Last,
+  Skewness,
+  StddevPop,
+  StddevSamp,
+  Sum,
+  VariancePop,
+  VarianceSamp
+}
 import org.apache.spark.sql.types.NumericType
 
 case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: ExpressionExtractor,
@@ -85,17 +98,11 @@ case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: Expr
       // TODO: case Last(expressionExtractor(child), false) => Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
       // Sum.scala
-      //
-      // Note: no apparent reason to match-pushdown ONLY when useAnsiAdd = false so
-      // altering the original Connector Implementation to be less strict
-      case Sum(expressionExtractor(child), _) =>
+      case Sum(expressionExtractor(child), false) =>
         Some(aggregateWithFilter("SUM", child, filter))
 
       // Average.scala
-      //
-      // Note: no apparent reason to match-pushdown ONLY when useAnsiAdd = false so
-      // altering the original Connector Implementation to be less strict
-      case Average(expressionExtractor(child), _) =>
+      case Average(expressionExtractor(child), false) =>
         Some(aggregateWithFilter("AVG", child, filter))
 
       // ApproximatePercentile.scala

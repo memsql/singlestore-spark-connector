@@ -32,13 +32,11 @@ import org.apache.spark.sql.types.{
 }
 
 case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor) {
-  // Note: no apparent reason to match-pushdown ONLY when failOnError = false, hideSeed = false
-  // or ansiEnabled = false so altering the original Connector Implementation to be less strict
   def unapply(e: Expression): Option[Joinable] = e match {
     case MakeDate(expressionExtractor(year),
                   expressionExtractor(month),
                   expressionExtractor(day),
-                  _) =>
+                  false) =>
       Some(f("DATE", f("CONCAT", year, "'-'", month, "'-'", day)))
     case MakeTimestamp(expressionExtractor(year),
                        expressionExtractor(month),
@@ -48,45 +46,46 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
                        expressionExtractor(sec),
                        _,
                        _,
-                       _,
+                       false,
                        TimestampType) =>
       Some(
         f("TIMESTAMP",
           f("CONCAT", year, "'-'", month, "'-'", day, "' '", hour, "':'", min, "':'", sec)))
 
-    case Elt(expressionExtractor(Some(child)), _) => Some(f("ELT", child))
+    case Elt(expressionExtractor(Some(child)), false) => Some(f("ELT", child))
 
-    case IntegralDivide(expressionExtractor(left), expressionExtractor(right), _) =>
+    case IntegralDivide(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(f("FLOOR", op("/", left, right)))
 
     // arithmetic.scala
-    case Add(expressionExtractor(left), expressionExtractor(right), _) =>
+    case Add(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("+", left, right))
-    case Subtract(expressionExtractor(left), expressionExtractor(right), _) =>
+    case Subtract(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("-", left, right))
-    case Multiply(expressionExtractor(left), expressionExtractor(right), _) =>
+    case Multiply(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("*", left, right))
-    case Divide(expressionExtractor(left), expressionExtractor(right), _) =>
+    case Divide(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("/", left, right))
-    case Remainder(expressionExtractor(left), expressionExtractor(right), _) =>
+    case Remainder(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(op("%", left, right))
-    case Abs(expressionExtractor(child), _) => Some(f("ABS", child))
+    case Abs(expressionExtractor(child), false) => Some(f("ABS", child))
 
-    case Pmod(expressionExtractor(left), expressionExtractor(right), _) =>
+    case Pmod(expressionExtractor(left), expressionExtractor(right), false) =>
       Some(block(block(block(left + "%" + right) + "+" + right) + "%" + right))
 
     // SingleStore and spark support other date formats
     // UnixTime doesn't use format if time is already a dataType or TimestampType
-    case ToUnixTimestamp(e @ expressionExtractor(timeExp), _, _, _) if e.dataType == DateType =>
+    case ToUnixTimestamp(e @ expressionExtractor(timeExp), _, _, false) if e.dataType == DateType =>
       Some(f("UNIX_TIMESTAMP", timeExp))
 
-    case ToUnixTimestamp(e @ expressionExtractor(timeExp), _, _, _) if e.dataType == TimestampType =>
+    case ToUnixTimestamp(e @ expressionExtractor(timeExp), _, _, false)
+      if e.dataType == TimestampType =>
       Some(f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0"))
 
-    case UnixTimestamp(e @ expressionExtractor(timeExp), _, _, _) if e.dataType == DateType =>
+    case UnixTimestamp(e @ expressionExtractor(timeExp), _, _, false) if e.dataType == DateType =>
       Some(f("UNIX_TIMESTAMP", timeExp))
 
-    case UnixTimestamp(e @ expressionExtractor(timeExp), _, _, _) if e.dataType == TimestampType =>
+    case UnixTimestamp(e @ expressionExtractor(timeExp), _, _, false) if e.dataType == TimestampType =>
       Some(f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0"))
 
     // regexpExpression.scala
@@ -109,7 +108,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
             rep,
             StringVar("g"))))
 
-    case UnaryMinus(expressionExtractor(child), _) => Some(f("-", child))
+    case UnaryMinus(expressionExtractor(child), false) => Some(f("-", child))
 
     // numberFormatExpressions.scala
     case ToNumber(expressionExtractor(left), expressionExtractor(right)) =>
@@ -121,10 +120,10 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
 
     // randomExpression.scala
     // TODO PLAT-5759
-    case Rand(expressionExtractor(child), _) => Some(f("RAND", child))
+    case Rand(expressionExtractor(child), false) => Some(f("RAND", child))
 
     // Cast.scala
-    case Cast(e @ expressionExtractor(child), dataType, _, _) =>
+    case Cast(e @ expressionExtractor(child), dataType, _, false) =>
       dataType match {
         case TimestampType =>
           e.dataType match {
@@ -211,11 +210,17 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
                          StringVar(null)
                        )))
 
-    case TimeAdd(expressionExtractor(start), Literal(v: Long, DayTimeIntervalType(_, _)), _) =>
+    case TimeAdd(expressionExtractor(start),
+                 Literal(v: Long, DayTimeIntervalType(_, _)),
+                 timeZoneId) => {
       Some(addMicroseconds(start, v))
+    }
 
-    case TimestampAddYMInterval(expressionExtractor(start), Literal(v: Int, YearMonthIntervalType(_, _)), _) =>
+    case TimestampAddYMInterval(expressionExtractor(start),
+                                Literal(v: Int, YearMonthIntervalType(_, _)),
+                                timeZoneId) => {
       Some(addMonths(start, v))
+    }
 
     case Lead(expressionExtractor(input),
               expressionExtractor(offset),
@@ -236,19 +241,23 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case BitwiseGet(expressionExtractor(left), expressionExtractor(right)) =>
       Some(op("&", op(">>", left, right), "1"))
 
-    case LikeAny(expressionExtractor(child), patterns) if patterns.size > 0 =>
+    case LikeAny(expressionExtractor(child), patterns) if patterns.size > 0 => {
       Some(likePatterns(child, patterns, "OR"))
-    case NotLikeAny(expressionExtractor(child), patterns) if patterns.size > 0 =>
+    }
+    case NotLikeAny(expressionExtractor(child), patterns) if patterns.size > 0 => {
       Some(f("NOT", likePatterns(child, patterns, "AND")))
-    case LikeAll(expressionExtractor(child), patterns) if patterns.size > 0 =>
+    }
+    case LikeAll(expressionExtractor(child), patterns) if patterns.size > 0 => {
       Some(likePatterns(child, patterns, "AND"))
-    case NotLikeAll(expressionExtractor(child), patterns) if patterns.size > 0 =>
+    }
+    case NotLikeAll(expressionExtractor(child), patterns) if patterns.size > 0 => {
       Some(f("NOT", likePatterns(child, patterns, "OR")))
+    }
 
     case WidthBucket(expressionExtractor(value),
                      expressionExtractor(minValue),
                      expressionExtractor(maxValue),
-                     expressionExtractor(numBucket)) =>
+                     expressionExtractor(numBucket)) => {
       var caseBranches = stringToJoinable("")
       // when (numBucket <= 0) or (minValue = maxValue) then null
       caseBranches += Raw("WHEN") + op(
@@ -279,6 +288,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
         IntVar(1)
       )
       Some(block(Raw("CASE") + caseBranches + elseBranch + Raw("END")))
+    }
 
     // stringExpressions.scala
     case Left(expressionExtractor(str), expressionExtractor(len)) =>
