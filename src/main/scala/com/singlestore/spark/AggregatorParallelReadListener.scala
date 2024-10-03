@@ -5,7 +5,11 @@ import java.util.Properties
 import com.singlestore.spark.JdbcHelpers.getDDLConnProperties
 import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.{DataSourceTelemetryHelpers, SparkContext}
-import org.apache.spark.scheduler.{SparkListener, SparkListenerStageCompleted, SparkListenerStageSubmitted}
+import org.apache.spark.scheduler.{
+  SparkListener,
+  SparkListenerStageCompleted,
+  SparkListenerStageSubmitted
+}
 import org.apache.spark.sql.types.StructType
 
 import scala.collection.mutable
