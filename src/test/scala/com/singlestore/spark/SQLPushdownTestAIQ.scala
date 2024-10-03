@@ -9,7 +9,7 @@ import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import scala.util.matching.Regex
 
-class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {
+class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {
 
   override def beforeAll(): Unit = {
     super.beforeAll()
