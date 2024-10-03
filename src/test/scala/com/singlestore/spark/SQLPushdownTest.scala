@@ -1983,7 +1983,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       "kurtosis",
       "var_pop", "var_samp",
       "stddev_samp", "stddev_pop",
-      "avg", "min", "max", "sum"
+      "avg", "min", "max", "sum",
+      "approx_count_distinct"
     ).sorted
     val singleStoreVersion = SinglestoreVersion(7, 6, 0)
 
