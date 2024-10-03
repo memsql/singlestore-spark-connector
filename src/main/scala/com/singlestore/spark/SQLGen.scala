@@ -204,9 +204,10 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
       val schema = try {
         reader.schema
       } catch {
-        case e: Exception =>
+        case e: Exception => {
           log.error(logFailureTagger(s"Failed to compute schema for reader:\n${reader.toString}"))
           throw e
+        }
       }
 
       val castedOutputExpr = output
