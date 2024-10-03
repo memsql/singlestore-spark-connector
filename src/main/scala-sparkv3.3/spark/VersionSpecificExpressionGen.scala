@@ -79,13 +79,14 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
       Some(f("UNIX_TIMESTAMP", timeExp))
 
     case ToUnixTimestamp(e @ expressionExtractor(timeExp), _, _, false)
-      if e.dataType == TimestampType =>
+        if e.dataType == TimestampType =>
       Some(f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0"))
 
     case UnixTimestamp(e @ expressionExtractor(timeExp), _, _, false) if e.dataType == DateType =>
       Some(f("UNIX_TIMESTAMP", timeExp))
 
-    case UnixTimestamp(e @ expressionExtractor(timeExp), _, _, false) if e.dataType == TimestampType =>
+    case UnixTimestamp(e @ expressionExtractor(timeExp), _, _, false)
+        if e.dataType == TimestampType =>
       Some(f("ROUND", f("UNIX_TIMESTAMP", timeExp), "0"))
 
     // regexpExpression.scala
@@ -125,13 +126,14 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     // Cast.scala
     case Cast(e @ expressionExtractor(child), dataType, _, false) =>
       dataType match {
-        case TimestampType =>
+        case TimestampType => {
           e.dataType match {
             case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
-                DoubleType | _: DecimalType =>
+                 DoubleType | _: DecimalType =>
               Some(cast(f("FROM_UNIXTIME", child), "DATETIME(6)"))
             case _ => Some(cast(child, "DATETIME(6)"))
           }
+        }
         case DateType => Some(cast(child, "DATE"))
 
         case StringType => Some(cast(child, "CHAR"))
