@@ -4,9 +4,13 @@ import com.singlestore.spark.SQLGen.SQLGenContext
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.metrics.source.MetricsHandler
-import org.apache.spark.sql.execution.datasources.jdbc.JDBCOptions
-import org.apache.spark.sql.jdbc.JdbcDialects
-import org.apache.spark.sql.sources.{BaseRelation, CreatableRelationProvider, DataSourceRegister, DataSourceTelemetryProvider, RelationProvider}
+import org.apache.spark.sql.sources.{
+  BaseRelation,
+  CreatableRelationProvider,
+  DataSourceRegister,
+  DataSourceTelemetryProvider,
+  RelationProvider
+}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, SaveMode}
 
 object DefaultSource {
