@@ -2,6 +2,7 @@ package com.singlestore.spark
 
 import java.sql.Connection
 import java.util.Base64
+
 import com.singlestore.spark.JdbcHelpers.{appendTagsToQuery, getDDLConnProperties, getDMLConnProperties}
 import org.apache.spark.DataSourceTelemetryHelpers
 import org.apache.spark.sql.catalyst.TableIdentifier
