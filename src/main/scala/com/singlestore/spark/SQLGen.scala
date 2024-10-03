@@ -240,10 +240,10 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
                           context: SQLGenContext): LogicalPlan = {
             new LogicalRelation(
               reader.copy(query = sql,
-                variables = variables,
-                isFinal = isFinal,
-                expectedOutput = output,
-                context = context),
+                          variables = variables,
+                          isFinal = isFinal,
+                          expectedOutput = output,
+                          context = context),
               output,
               catalogTable,
               isStreaming
@@ -457,7 +457,6 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
           .from(relation)
           .output(plan.output)
       }
-
       // the last parameter is a spark hint for join
       // SingleStore does its own optimizations under the hood, so we can safely ignore this parameter
       case plan @ Join(relationOrSort(left),
@@ -596,7 +595,6 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
 
     override def toString: String = s"${this.major}.${this.minor}.${this.patch}"
   }
-
   object SinglestoreVersion {
 
     def apply(version: String): SinglestoreVersion = {
