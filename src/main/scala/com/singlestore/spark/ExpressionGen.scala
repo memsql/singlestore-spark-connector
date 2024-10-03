@@ -693,7 +693,9 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
       case DateSub(expressionExtractor(startDate), expressionExtractor(days)) =>
         f("SUBDATE", startDate, days)
 
-      case TimeAdd(expressionExtractor(start), Literal(v: CalendarInterval, CalendarIntervalType), _) =>
+      case TimeAdd(expressionExtractor(start),
+                   Literal(v: CalendarInterval, CalendarIntervalType),
+                   timeZoneId) => {
         def addDays(start: Joinable) =
           if (v.days == 0) {
             start
@@ -702,6 +704,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
           }
 
         addMicroseconds(addDays(addMonths(start, v)), v)
+      }
 
       case FromUTCTimestamp(expressionExtractor(timestamp), expressionExtractor(timezone)) =>
         f("CONVERT_TZ", timestamp, StringVar("UTC"), timezone)
@@ -709,7 +712,9 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
       case ToUTCTimestamp(expressionExtractor(timestamp), expressionExtractor(timezone)) =>
         f("CONVERT_TZ", timestamp, timezone, StringVar("UTC"))
 
-      case TruncTimestamp(expressionExtractor(format), expressionExtractor(timestamp), _) =>
+      case TruncTimestamp(expressionExtractor(format),
+                          expressionExtractor(timestamp),
+                          timeZoneId) => {
         f(
           "DATE_TRUNC",
           sqlMapValueCaseInsensitive(
@@ -717,17 +722,18 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
             Map(
               // SingleStore doesn't support formats ("yyyy", "yy", "mon", "mm", "dd") so we map them here
               "yyyy" -> "year",
-              "yy"   -> "year",
-              "mon"  -> "month",
-              "mm"   -> "month",
-              "dd"   -> "day"
+              "yy" -> "year",
+              "mon" -> "month",
+              "mm" -> "month",
+              "dd" -> "day"
             ),
             format
           ),
           timestamp
         )
+      }
 
-      case TruncDate(expressionExtractor(date), expressionExtractor(format)) =>
+      case TruncDate(expressionExtractor(date), expressionExtractor(format)) => {
         f(
           "DATE_TRUNC",
           sqlMapValueCaseInsensitive(
@@ -735,14 +741,15 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
             Map(
               // SingleStore doesn't support formats ("yyyy", "yy", "mon", "mm") so we map them here
               "yyyy" -> "year",
-              "yy"   -> "year",
-              "mon"  -> "month",
-              "mm"   -> "month"
+              "yy" -> "year",
+              "mon" -> "month",
+              "mm" -> "month"
             ),
             format
           ),
           date
         )
+      }
 
       case monthsBetweenExpressionExtractor((date1, date2)) =>
         f("MONTHS_BETWEEN", date1, date2)
@@ -883,14 +890,15 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
           case None => f("RTRIM", srcStr)
         }
 
-      case FindInSet(expressionExtractor(left), utf8StringFoldableExtractor(right)) =>
-        val str_array    = right.toString.split(',')
+      case FindInSet(expressionExtractor(left), utf8StringFoldableExtractor(right)) => {
+        val str_array = right.toString.split(',')
         var caseBranches = stringToJoinable("")
         for (i <- 1 to str_array.length) {
           caseBranches += Raw(s"WHEN '${str_array(i - 1)}'")
           caseBranches += Raw(s"THEN '${i.toString}'")
         }
         block(Raw("CASE") + left + caseBranches + Raw("ELSE 0 END"))
+      }
 
       // TODO: case _: Levenshtein => None
 
@@ -953,9 +961,9 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
 
       case StringTranslate(expressionExtractor(srcExpr),
                            utf8StringFoldableExtractor(matchingExpr),
-                           utf8StringFoldableExtractor(replaceExpr)) =>
-        var replaceContent  = srcExpr
-        val replaceExprLen  = replaceExpr.toString.length
+                           utf8StringFoldableExtractor(replaceExpr)) => {
+        var replaceContent = srcExpr
+        val replaceExprLen = replaceExpr.toString.length
         val matchingExprLen = matchingExpr.toString.length
         for (i <- 0 to Math.max(replaceExprLen, matchingExprLen) - 1) {
           val matchingCurrCharacter = if (i < matchingExprLen) {
@@ -971,6 +979,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
           replaceContent = f("REPLACE", replaceContent, matchingCurrCharacter, replaceCurrCharacter)
         }
         replaceContent
+      }
 
       case Decode(expressionExtractor(Some(params)), expressionExtractor(replacement)) =>
         f("DECODE", params, replacement)
@@ -1044,9 +1053,9 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
 
       //jsonExpressions.scala
       case GetJsonObject(expressionExtractor(json), utf8StringFoldableExtractor(path))
-          if path.toString.length >= 2 & path.toString.startsWith("$.") =>
+          if path.toString.length >= 2 & path.toString.startsWith("$.") => {
         val pathParts = path.toString.substring(2).split("\\.")
-        val goalPath  = pathParts.last
+        val goalPath = pathParts.last
         var jsonQuery = json
         for (i <- 0 to (pathParts.length - 2)) {
           jsonQuery = f("JSON_EXTRACT_JSON", jsonQuery, StringVar(pathParts(i)))
@@ -1054,11 +1063,12 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
         f(
           "IF",
           op("=",
-             f("JSON_GET_TYPE", f("JSON_EXTRACT_JSON", jsonQuery, StringVar(goalPath))),
-             StringVar("string")),
+            f("JSON_GET_TYPE", f("JSON_EXTRACT_JSON", jsonQuery, StringVar(goalPath))),
+            StringVar("string")),
           f("JSON_EXTRACT_STRING", jsonQuery, StringVar(goalPath)),
           f("JSON_EXTRACT_JSON", jsonQuery, StringVar(goalPath))
         )
+      }
 
       case JsonObjectKeys(expressionExtractor(json))    => f("JSON_KEYS", json)
 
