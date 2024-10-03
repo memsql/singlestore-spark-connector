@@ -1,19 +1,21 @@
 package com.singlestore.spark
 
-import java.sql.{Connection, DriverManager}
+import java.sql.DriverManager
 import java.util.{Properties, TimeZone}
-
 import com.github.mrpowers.spark.fast.tests.DataFrameComparer
 import org.apache.log4j.{Level, LogManager}
-import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
+import org.apache.spark.sql.execution.datasources.jdbc.JDBCOptions
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.scalatest._
 import org.scalatest.funspec.AnyFunSpec
 import com.singlestore.spark.JdbcHelpers.executeQuery
-import com.singlestore.spark.SQLGen.SinglestoreVersion
+import com.singlestore.spark.SQLGen.{Relation, SinglestoreVersion}
 import com.singlestore.spark.SQLHelper._
+import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.types.{CalendarIntervalType, DecimalType, DoubleType, FloatType, IntegerType, ShortType, StringType}
 
 import scala.util.Random
+import scala.util.matching.Regex
 
 trait IntegrationSuiteBase
     extends AnyFunSpec
@@ -176,4 +178,216 @@ trait IntegrationSuiteBase
       .option("insertBatchSize", insertBatchSize)
       .mode(SaveMode.Append)
       .save(dbtable)
+
+  def extractQueriesFromPlan(root: LogicalPlan): Seq[String] = {
+    root
+      .map({
+        case Relation(relation) => relation.sql
+        case _                  => ""
+      })
+      .sorted
+  }
+
+  def testCodegenDeterminism(q: String, filterDF: DataFrame => DataFrame): Unit = {
+    val logManager    = LogManager.getLogger("com.singlestore.spark.SQLGen$Statement")
+    var setLogToTrace = false
+
+    if (logManager.isTraceEnabled) {
+      logManager.setLevel(Level.DEBUG)
+      setLogToTrace = true
+    }
+
+    assert(
+      extractQueriesFromPlan(filterDF(spark.sql(q)).queryExecution.optimizedPlan) ==
+        extractQueriesFromPlan(filterDF(spark.sql(q)).queryExecution.optimizedPlan),
+      "All generated SingleStore queries should be the same"
+    )
+
+    if (setLogToTrace) {
+      logManager.setLevel(Level.TRACE)
+    }
+  }
+
+  def testQuery(
+    q: String,
+    alreadyOrdered: Boolean = false,
+    expectPartialPushdown: Boolean = false,
+    expectSingleRead: Boolean = false,
+    expectEmpty: Boolean = false,
+    expectSameResult: Boolean = true,
+    expectCodegenDeterminism: Boolean = true,
+    pushdown: Boolean = true,
+    enableParallelRead: String = "automaticLite",
+    dataFrameEqualityPrecision: Double = 0.1,
+    filterDF: DataFrame => DataFrame = x => x
+  ): Unit = {
+    spark.sqlContext.setConf("spark.datasource.singlestore.enableParallelRead", enableParallelRead)
+
+    spark.sql("use testdb_jdbc")
+    val jdbcDF = filterDF(spark.sql(q))
+
+    // verify that the jdbc DF works first
+    jdbcDF.collect()
+    if (pushdown) { spark.sql("use testdb") } else { spark.sql("use testdb_nopushdown") }
+
+    if (expectCodegenDeterminism) {
+      testCodegenDeterminism(q, filterDF)
+    }
+
+    val singlestoreDF = filterDF(spark.sql(q))
+
+    if (!continuousIntegration) { singlestoreDF.show(4) }
+
+    if (expectEmpty) {
+      assert(singlestoreDF.count == 0, "result is expected to be empty")
+    } else {
+      assert(singlestoreDF.count > 0, "result is expected to not be empty")
+    }
+
+    if (expectSingleRead) {
+      assert(singlestoreDF.rdd.getNumPartitions == 1,
+        "query is expected to read from a single partition")
+    } else {
+      assert(singlestoreDF.rdd.getNumPartitions > 1,
+        "query is expected to read from multiple partitions")
+    }
+
+    assert(
+      (singlestoreDF.queryExecution.optimizedPlan match {
+        case SQLGen.Relation(_) => false
+        case _                  => true
+      }) == expectPartialPushdown,
+      s"the optimized plan does not match expectPartialPushdown=$expectPartialPushdown"
+    )
+
+    if (expectSameResult) {
+      try {
+        def changeTypes(df: DataFrame): DataFrame = {
+          var newDf = df
+          df.schema
+            .foreach(x =>
+              x.dataType match {
+                // Replace all Floats with Doubles, because JDBC connector converts FLOAT to DoubleType when SingleStore connector converts it to FloatType
+                // Replace all Decimals with Doubles, because assertApproximateDataFrameEquality compare Decimals for strong equality
+                case _: DecimalType | FloatType =>
+                  newDf = newDf.withColumn(x.name, newDf(x.name).cast(DoubleType))
+                // Replace all Shorts with Integers, because JDBC connector converts SMALLINT to IntegerType when SingleStore connector converts it to ShortType
+                case _: ShortType =>
+                  newDf = newDf.withColumn(x.name, newDf(x.name).cast(IntegerType))
+                // Replace all CalendarIntervals with Strings, because assertApproximateDataFrameEquality can't sort CalendarIntervals
+                case _: CalendarIntervalType =>
+                  newDf = newDf.withColumn(x.name, newDf(x.name).cast(StringType))
+                case _ =>
+              })
+          newDf
+        }
+        assertApproximateDataFrameEquality(changeTypes(singlestoreDF),
+          changeTypes(jdbcDF),
+          dataFrameEqualityPrecision,
+          orderedComparison = alreadyOrdered)
+      } catch {
+        case e: Throwable =>
+          if (continuousIntegration) { println(singlestoreDF.explain(true)) }
+          throw e
+      }
+    }
+  }
+
+  def testNoPushdownQuery(q: String, expectSingleRead: Boolean = false): Unit = {
+    testQuery(
+      q,
+      expectPartialPushdown = true,
+      pushdown = false,
+      expectSingleRead = expectSingleRead
+    )
+  }
+
+  def testOrderedQuery(q: String, pushdown: Boolean = true): Unit = {
+    // order by in SingleStore requires single read
+    testQuery(q, alreadyOrdered = true, expectSingleRead = true, pushdown = pushdown)
+    afterEach()
+    beforeEach()
+    testQuery(q,
+      alreadyOrdered = true,
+      expectPartialPushdown = true,
+      expectSingleRead = true,
+      pushdown = pushdown,
+      enableParallelRead = "automatic")
+    afterEach()
+    beforeEach()
+    testQuery(q,
+      alreadyOrdered = true,
+      expectSingleRead = true,
+      pushdown = pushdown,
+      enableParallelRead = "disabled")
+
+  }
+
+  def testSingleReadQuery(
+    q: String,
+    alreadyOrdered: Boolean = false,
+    expectPartialPushdown: Boolean = false,
+    pushdown: Boolean = true
+  ): Unit = {
+    testQuery(q,
+      alreadyOrdered = alreadyOrdered,
+      expectPartialPushdown = expectPartialPushdown,
+      expectSingleRead = true,
+      pushdown = pushdown)
+  }
+
+  def testSingleReadForReadFromLeaves(q: String): Unit = {
+    if (canDoParallelReadFromAggregators) {
+      testQuery(q)
+    } else {
+      testSingleReadQuery(q)
+    }
+  }
+
+  def testSingleReadForOldS2(
+    q: String,
+    minVersion: SinglestoreVersion,
+    expectPartialPushdown: Boolean = false,
+    expectSingleRead: Boolean = false
+  ): Unit = {
+    if (version.atLeast(minVersion) && canDoParallelReadFromAggregators) {
+      testQuery(
+        q,
+        expectPartialPushdown = expectPartialPushdown,
+        expectSingleRead = expectSingleRead
+      )
+    } else {
+      testSingleReadQuery(q, expectPartialPushdown = expectPartialPushdown)
+    }
+  }
+
+  def testUUIDPushdown(q: String): Unit = {
+    spark.sql("use testdb_jdbc")
+    val jdbcDF = spark.sql(q)
+
+    jdbcDF.collect()
+    spark.sql("use testdb")
+    val singlestoreDF = spark.sql(q)
+    assert(singlestoreDF.schema.equals(jdbcDF.schema))
+
+    val uuidPattern: Regex =
+      "[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}".r
+    val uuidFieldIndex = singlestoreDF.schema.fieldIndex("uuid()")
+
+    uuidPattern.findFirstMatchIn(singlestoreDF.rdd.first().getString(uuidFieldIndex)) match {
+      case Some(_) => None
+      case None =>
+        throw new IllegalArgumentException(
+          "Invalid format of an universally unique identifier (UUID) string generated by Singlestore client"
+        )
+    }
+
+    uuidPattern.findFirstMatchIn(jdbcDF.rdd.first().getString(uuidFieldIndex)) match {
+      case Some(_) => None
+      case None =>
+        throw new IllegalArgumentException(
+          "Invalid format of an universally unique identifier (UUID) string generated by Spark"
+        )
+    }
+  }
 }
