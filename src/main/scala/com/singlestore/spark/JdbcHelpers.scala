@@ -1,8 +1,15 @@
 package com.singlestore.spark
 
-import java.sql.{Connection, PreparedStatement, SQLException, SQLInvalidAuthorizationSpecException, Statement}
+import java.sql.{
+  Connection,
+  PreparedStatement,
+  SQLException,
+  SQLInvalidAuthorizationSpecException,
+  Statement
+}
 import java.util.Properties
 import java.util.UUID.randomUUID
+
 import com.singlestore.spark.SinglestoreOptions.{TableKey, TableKeyType}
 import com.singlestore.spark.SQLGen.{SinglestoreVersion, StringVar, VariableList}
 import org.apache.spark.sql.{Row, SaveMode}
