@@ -722,10 +722,10 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
             Map(
               // SingleStore doesn't support formats ("yyyy", "yy", "mon", "mm", "dd") so we map them here
               "yyyy" -> "year",
-              "yy" -> "year",
-              "mon" -> "month",
-              "mm" -> "month",
-              "dd" -> "day"
+              "yy"   -> "year",
+              "mon"  -> "month",
+              "mm"   -> "month",
+              "dd"   -> "day"
             ),
             format
           ),
@@ -741,9 +741,9 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
             Map(
               // SingleStore doesn't support formats ("yyyy", "yy", "mon", "mm") so we map them here
               "yyyy" -> "year",
-              "yy" -> "year",
-              "mon" -> "month",
-              "mm" -> "month"
+              "yy"   -> "year",
+              "mon"  -> "month",
+              "mm"   -> "month"
             ),
             format
           ),
