@@ -229,9 +229,9 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
   }
 
   object Relation {
-    def unapply(source: LogicalPlan): Option[Relation] = {
+    def unapply(source: LogicalPlan): Option[Relation] =
       source match {
-        case LogicalRelation(reader: SinglestoreReader, output, catalogTable, isStreaming) =>
+        case LogicalRelation(reader: SinglestoreReader, output, catalogTable, isStreaming) => {
           def convertBack(output: Seq[AttributeReference],
                           sql: String,
                           variables: VariableList,
@@ -239,10 +239,10 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
                           context: SQLGenContext): LogicalPlan = {
             new LogicalRelation(
               reader.copy(query = sql,
-                          variables = variables,
-                          isFinal = isFinal,
-                          expectedOutput = output,
-                          context = context),
+                variables = variables,
+                isFinal = isFinal,
+                expectedOutput = output,
+                context = context),
               output,
               catalogTable,
               isStreaming
@@ -250,9 +250,9 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
           }
 
           Some(Relation(output, reader, reader.context.nextAlias(), convertBack))
+        }
         case _ => None
       }
-    }
   }
 
   case class Attr(a: Attribute, context: SQLGenContext) extends Chunk {
@@ -433,12 +433,13 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
           .limit(expr)
           .output(plan.output)
 
-      case plan @ Filter(sortPredicates(filter), relationOrSort(relation)) =>
+      case plan @ Filter(sortPredicates(filter), relationOrSort(relation)) => {
         newStatement(plan)
           .selectAll()
           .from(relation)
           .where(filter)
           .output(plan.output)
+      }
 
       case plan @ Aggregate(expressionExtractor(groupingExpr),
                             expressionExtractor(aggregateExpr),
@@ -449,11 +450,12 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
           .groupby(groupingExpr)
           .output(plan.output)
 
-      case plan @ Window(expressionExtractor(windowExpressions), _, _, relationOrSort(relation)) =>
+      case plan @ Window(expressionExtractor(windowExpressions), _, _, relationOrSort(relation)) => {
         newStatement(plan)
           .select(windowExpressions.map(exp => Raw("*,") + exp))
           .from(relation)
           .output(plan.output)
+      }
 
       // the last parameter is a spark hint for join
       // SingleStore does its own optimizations under the hood, so we can safely ignore this parameter
@@ -514,9 +516,10 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
       // parallel read won't be done in this case
       case statementWithOrder(plan @ Relation(relation), _)
           if relation.reader.options.enableParallelRead == Disabled ||
-            relation.reader.options.enableParallelRead == AutomaticLite =>
+            relation.reader.options.enableParallelRead == AutomaticLite => {
         relation.reader.resultMustBeSorted = true
         plan
+      }
 
       // for Automatic and Forced option pushdown sort with limit but add top-level sort
       // which will be done on a spark side
