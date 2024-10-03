@@ -1,6 +1,7 @@
 package com.singlestore.spark
 
 import java.sql.SQLSyntaxErrorException
+
 import com.singlestore.spark.SQLGen.{ExpressionExtractor, SQLGenContext, VariableList}
 import org.apache.spark.DataSourceTelemetryHelpers
 import org.apache.spark.rdd.RDD
