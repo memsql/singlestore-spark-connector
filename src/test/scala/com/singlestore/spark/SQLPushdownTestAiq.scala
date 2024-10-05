@@ -90,21 +90,21 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
     def makeTables(sourceTable: String): DataFrame = {
       spark.sql(
         s"""
-           |create table testdb.$sourceTable
-           |using singlestore options ('dbtable'='testdb.$sourceTable')
-           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          |create table testdb.$sourceTable
+          |using singlestore options ('dbtable'='testdb.$sourceTable')
+          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
       )
       spark.sql(
         s"""
-           |create table testdb_nopushdown.$sourceTable
-           |using memsql options ('dbtable'='testdb.$sourceTable','disablePushdown'='true')
-           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          |create table testdb_nopushdown.$sourceTable
+          |using memsql options ('dbtable'='testdb.$sourceTable','disablePushdown'='true')
+          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
       )
       spark.sql(
         s"""
-           |create table testdb_jdbc.$sourceTable
-           |using jdbc options (${jdbcOptionsSQL(s"testdb.$sourceTable")})
-           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          |create table testdb_jdbc.$sourceTable
+          |using jdbc options (${jdbcOptionsSQL(s"testdb.$sourceTable")})
+          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
       )
     }
 
@@ -328,6 +328,59 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
   }
 
   describe("Aggregate Expressions") {
+    val functionsGroup = Seq(
+      "skewness",
+      "kurtosis",
+      "var_pop", "var_samp",
+      "stddev_samp", "stddev_pop",
+      "avg", "min", "max", "sum",
+      "approx_count_distinct"
+    ).sorted
+
+    for (f <- functionsGroup) {
+      describe(f) {
+        it(s"$f works with group by clause and long non-nullable column") {
+          testSingleReadForOldS2(
+            s"select $f(id) as ${f.toLowerCase.replace("_", "")} from movies group by genre",
+            SinglestoreVersion(7, 6, 0),
+            expectSameResult = if (f == "approx_count_distinct") false else true
+          )
+        }
+        it(s"$f works with group by clause and float nullable column") {
+          testSingleReadForOldS2(
+            s"""
+              |select $f(critic_rating) as ${f.toLowerCase.replace("_", "")}
+              |from movies
+              |group by genre
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            SinglestoreVersion(7, 6, 0),
+            expectSameResult = if (f == "approx_count_distinct") false else true
+          )
+        }
+      }
+    }
+
+    val functionsGroup1 = Seq("first", "last").sorted
+
+    for (f <- functionsGroup1) {
+      describe(f.capitalize) {
+        ignore(s"09/2024 - ${f.capitalize} works with non-nullable string column") {
+          testSingleReadForReadFromLeaves(s"select $f(first_name) as $f from users group by id")
+        }
+        ignore(s"09/2024 - ${f.capitalize} with partial pushdown because of udf") {
+          testSingleReadQuery(
+            s"select $f(stringIdentity(first_name)) as $f from users group by id",
+            expectPartialPushdown = true
+          )
+        }
+        ignore(s"09/2024 - ${f.capitalize} works with filter") {
+          testSingleReadForReadFromLeaves(
+            s"select $f(first_name) filter (where age % 2 = 0) as $f from users group by id"
+          )
+        }
+      }
+    }
+
     describe("HyperLogLogPlusPlus") {
       // `approx_count_distinct` is not accurate, so we don't expect
       // the same results between Spark and SingleStore
@@ -374,27 +427,6 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
           expectPartialPushdown = true,
           expectSameResult = false
         )
-      }
-    }
-
-    val functionsGroup1 = Seq("first", "last").sorted
-
-    for (f <- functionsGroup1) {
-      describe(f.capitalize) {
-        ignore(s"09/2024 - ${f.capitalize} works with non-nullable string column") {
-          testSingleReadForReadFromLeaves(s"select $f(first_name) as $f from users group by id")
-        }
-        ignore(s"09/2024 - ${f.capitalize} with partial pushdown because of udf") {
-          testSingleReadQuery(
-            s"select $f(stringIdentity(first_name)) as $f from users group by id",
-            expectPartialPushdown = true
-          )
-        }
-        ignore(s"09/2024 - ${f.capitalize} works with filter") {
-          testSingleReadForReadFromLeaves(
-            s"select $f(first_name) filter (where age % 2 = 0) as $f from users group by id"
-          )
-        }
       }
     }
 

@@ -1,7 +1,7 @@
 package com.singlestore.spark
 
-import com.singlestore.spark.SQLGen.{DoubleVar, ExpressionExtractor, SQLGenContext, Statement}
-import com.singlestore.spark.ExpressionGen.{aggregateWithFilter, doubleFoldableExtractor, numberFoldableExtractor, f, op}
+import com.singlestore.spark.SQLGen.{DoubleVar, ExpressionExtractor, Joinable, SQLGenContext}
+import com.singlestore.spark.ExpressionGen.{aggregateWithFilter, doubleFoldableExtractor, makeDecimal, numberFoldableExtractor, f, op}
 import org.apache.spark.sql.catalyst.expressions.aggregate.{
   AggregateFunction,
   ApproximatePercentile,
@@ -16,12 +16,12 @@ import org.apache.spark.sql.catalyst.expressions.aggregate.{
   VariancePop,
   VarianceSamp
 }
-import org.apache.spark.sql.types.NumericType
+import org.apache.spark.sql.types.{DecimalType, NumericType}
 
 case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: ExpressionExtractor,
                                                        context: SQLGenContext,
                                                        filter: Option[SQLGen.Joinable]) {
-  def unapply(aggFunc: AggregateFunction): Option[Statement] = {
+  def unapply(aggFunc: AggregateFunction): Option[Joinable] = {
     aggFunc match {
       // CentralMomentAgg.scala
       case StddevPop(expressionExtractor(child), true) =>
@@ -99,7 +99,11 @@ case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: Expr
 
       // Sum.scala
       case Sum(expressionExtractor(child), false) =>
-        Some(aggregateWithFilter("SUM", child, filter))
+        // Need to transform the return type of SingleStore functions that return `DECIMAL(65,15)`
+        // to a lower precision since Spark only supports up to `DECIMAL(38,37)`
+        //
+        // Error: java.lang.IllegalArgumentException: DECIMAL precision 65 exceeds max precision 38
+        Some(makeDecimal(aggregateWithFilter("SUM", child, filter), DecimalType.MAX_PRECISION, 15))
 
       // Average.scala
       case Average(expressionExtractor(child), false) =>
