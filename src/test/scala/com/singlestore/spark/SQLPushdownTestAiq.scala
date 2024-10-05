@@ -346,6 +346,18 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
             expectSameResult = if (f == "approx_count_distinct") false else true
           )
         }
+        it(s"$f works with group by clause and double nullable column") {
+          testSingleReadForOldS2(
+            s"""
+              |select
+              |  $f(cast(critic_rating as double)) as ${f.toLowerCase.replace("_", "")}
+              |from movies
+              |group by genre
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            SinglestoreVersion(7, 6, 0),
+            expectSameResult = if (f == "approx_count_distinct") false else true
+          )
+        }
         it(s"$f works with group by clause and float nullable column") {
           testSingleReadForOldS2(
             s"""
@@ -931,6 +943,61 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
         )
       }
     }
+
+    describe("Reverse") {
+      val f = "reverse"
+
+      it(s"${f.capitalize} works with non-nullable column") {
+        testQuery(
+          s"""
+            |select
+            | id,
+            | first_name,
+            | $f(first_name) as ${f.toLowerCase}0,
+            | last_name,
+            | $f(last_name) as ${f.toLowerCase}1
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      it(s"${f.capitalize} works with nullable column") {
+        testQuery(
+          s"""
+            |select
+            | id,
+            | favorite_color,
+            | $f(favorite_color) as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
+      }
+      it(s"${f.capitalize} with partial pushdown because of udf on non-nullable column") {
+        testQuery(
+          s"""
+            |select
+            | id,
+            | first_name,
+            | $f(stringIdentity(first_name)) as ${f.toLowerCase}0,
+            | last_name,
+            | $f(stringIdentity(last_name)) as ${f.toLowerCase}1
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+          expectPartialPushdown = true
+        )
+      }
+      it(s"${f.capitalize} with partial pushdown because of udf on nullable column") {
+        testQuery(
+          s"""
+            |select
+            | id,
+            | favorite_color,
+            | $f(stringIdentity(favorite_color)) as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+          expectPartialPushdown = true
+        )
+      }
+    }
   }
 
   describe("JSON Functions") {
@@ -939,6 +1006,16 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
 
       it(s"$f works with simple non-nullable column") {
         testQuery(s"select id, $s(same_rate_movies) as ${f.toLowerCase} from movies_rating")
+      }
+      it(s"$f works with nested non-nullable column") {
+        testQuery(
+          s"""
+            |select
+            | id,
+            | $s(get_json_object(movie_rating, '$$.reviews')) as ${f.toLowerCase}
+            |from movies_rating
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+        )
       }
       it(s"$f with partial pushdown because of udf") {
         testQuery(

@@ -1070,8 +1070,6 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
         )
       }
 
-      case JsonObjectKeys(expressionExtractor(json))    => f("JSON_KEYS", json)
-
       // mathExpressions.scala
       case Acos(expressionExtractor(child))      => f("ACOS", child)
       case Asin(expressionExtractor(child))      => f("ASIN", child)
@@ -1194,6 +1192,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
       case Reverse(e @ expressionExtractor(child)) if e.dataType.isInstanceOf[StringType] => f("REVERSE", child)
       // TODO: case SoundEx(expressionExtractor(child)) => ???
 
+      // Used by DecimalPrecision to promote the precision of DecimalType and avoid promote multiple times
       case promotePrecisionExpressionExtractor(promotePrecisionStatement) => promotePrecisionStatement
     }
   }
