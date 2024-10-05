@@ -327,13 +327,17 @@ trait IntegrationSuiteBase
     q: String,
     alreadyOrdered: Boolean = false,
     expectPartialPushdown: Boolean = false,
+    expectSameResult: Boolean = true,
     pushdown: Boolean = true
   ): Unit = {
-    testQuery(q,
+    testQuery(
+      q,
       alreadyOrdered = alreadyOrdered,
       expectPartialPushdown = expectPartialPushdown,
       expectSingleRead = true,
-      pushdown = pushdown)
+      expectSameResult = expectSameResult,
+      pushdown = pushdown
+    )
   }
 
   def testSingleReadForReadFromLeaves(q: String): Unit = {
@@ -348,16 +352,40 @@ trait IntegrationSuiteBase
     q: String,
     minVersion: SinglestoreVersion,
     expectPartialPushdown: Boolean = false,
-    expectSingleRead: Boolean = false
+    expectSingleRead: Boolean = false,
+    expectSameResult: Boolean = true
   ): Unit = {
     if (version.atLeast(minVersion) && canDoParallelReadFromAggregators) {
       testQuery(
         q,
         expectPartialPushdown = expectPartialPushdown,
-        expectSingleRead = expectSingleRead
+        expectSingleRead = expectSingleRead,
+        expectSameResult = expectSameResult
       )
     } else {
-      testSingleReadQuery(q, expectPartialPushdown = expectPartialPushdown)
+      testSingleReadQuery(
+        q,
+        expectPartialPushdown = expectPartialPushdown,
+        expectSameResult = expectSameResult
+      )
+    }
+  }
+
+  def bitOperationTest(
+    sql: String,
+    expectPartialPushdown: Boolean = false,
+    expectSingleRead: Boolean = false
+  ): Unit = {
+    val bitOperationsMinVersion = SinglestoreVersion(7, 0, 1)
+    val resultSet               = spark.executeSinglestoreQuery("select @@memsql_version")
+    val version                 = SinglestoreVersion(resultSet.next().getString(0))
+    if (version.atLeast(bitOperationsMinVersion)) {
+      testSingleReadForOldS2(
+        sql,
+        SinglestoreVersion(7, 6, 0),
+        expectPartialPushdown,
+        expectSingleRead
+      )
     }
   }
 

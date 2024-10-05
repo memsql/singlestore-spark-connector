@@ -1,7 +1,6 @@
 package com.singlestore.spark
 
 import com.singlestore.spark.SQLGen.SinglestoreVersion
-import com.singlestore.spark.SQLHelper._
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
@@ -1558,33 +1557,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                   expectPartialPushdown = true)
       }
     }
-
-    describe("ShiftRightUnsigned") {
-      it("works") {
-        testQuery("select ShiftRightUnsigned(id, floor(critic_rating)) as x from movies")
-      }
-      it("udf in the left argument") {
-        testQuery(
-          "select ShiftRightUnsigned(stringIdentity(id), floor(critic_rating)) as x from movies",
-          expectPartialPushdown = true)
-      }
-      it("udf in the right argument") {
-        testQuery(
-          "select ShiftRightUnsigned(id, stringIdentity(floor(critic_rating))) as x from movies",
-          expectPartialPushdown = true)
-      }
-    }
   }
 
   describe("bit operations") {
     it("bit_count") { testQuery("SELECT bit_count(user_id) AS bit_count FROM reviews") }
-    def bitOperationTest(sql: String): Unit = {
-      val bitOperationsMinVersion = SinglestoreVersion(7, 0, 1)
-      val resultSet               = spark.executeSinglestoreQuery("select @@memsql_version")
-      val version                 = SinglestoreVersion(resultSet.next().getString(0))
-      if (version.atLeast(bitOperationsMinVersion))
-        testSingleReadForOldS2(sql, SinglestoreVersion(7, 6, 0))
-    }
     it("bit_and") {
       bitOperationTest("SELECT bit_and(user_id) AS bit_and FROM reviews")
     }
@@ -1748,32 +1724,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       it("partial pushdown with udf") {
         testSingleReadQuery("select sum(stringIdentity(user_id)) as x from reviews",
                             expectPartialPushdown = true)
-      }
-    }
-    describe("First") {
-      it("succeeds") {
-        testSingleReadForReadFromLeaves("select first(first_name) from users group by id")
-      }
-      it("partial pushdown with udf") {
-        testSingleReadQuery("select first(stringIdentity(first_name)) from users group by id",
-                            expectPartialPushdown = true)
-      }
-      it("filter") {
-        testSingleReadForReadFromLeaves(
-          "select first(first_name) filter (where age % 2 = 0) from users group by id")
-      }
-    }
-    describe("Last") {
-      it("succeeds") {
-        testSingleReadForReadFromLeaves("select last(first_name) from users group by id")
-      }
-      it("partial pushdown with udf") {
-        testSingleReadQuery("select last(stringIdentity(first_name)) from users group by id",
-                            expectPartialPushdown = true)
-      }
-      it("filter") {
-        testSingleReadForReadFromLeaves(
-          "select last(first_name) filter (where age % 2 = 0) from users group by id")
       }
     }
     describe("Count") {
@@ -2976,61 +2926,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
     }
 
-    describe("StringTrim") {
-      it("works") {
-        testQuery("select id, trim(first_name) from users")
-      }
-      it("works when trimStr is ' '") {
-        testQuery("select id, trim(both ' ' from first_name) from users")
-      }
-      it("partial pushdown when trimStr is not None and not ' '") {
-        testQuery("select id, trim(both 'abc' from first_name) from users",
-                  expectPartialPushdown = true)
-      }
-      it("partial pushdown with udf") {
-        testQuery("select id, trim(stringIdentity(first_name)) from users",
-                  expectPartialPushdown = true)
-      }
-    }
-
-    describe("StringTrimLeft") {
-      it("works") {
-        testQuery("select id, ltrim(first_name) from users")
-      }
-      it("works when trimStr is ' '") {
-        testQuery("select id, trim(leading ' ' from first_name) from users")
-      }
-      it("works when trimStr is ' ' (other syntax)") {
-        testQuery("select id, ltrim(' ', first_name) from users")
-      }
-      it("partial pushdown when trimStr is not None and not ' '") {
-        testQuery("select id, ltrim('abc', first_name) from users", expectPartialPushdown = true)
-      }
-      it("partial pushdown with udf") {
-        testQuery("select id, ltrim(stringIdentity(first_name)) from users",
-                  expectPartialPushdown = true)
-      }
-    }
-
-    describe("StringTrimRight") {
-      it("works") {
-        testQuery("select id, rtrim(first_name) from users")
-      }
-      it("works when trimStr is ' '") {
-        testQuery("select id, trim(trailing ' ' from first_name) from users")
-      }
-      it("works when trimStr is ' ' (other syntax)") {
-        testQuery("select id, rtrim(' ', first_name) from users")
-      }
-      it("partial pushdown when trimStr is not None and not ' '") {
-        testQuery("select id, rtrim('abc', first_name) from users", expectPartialPushdown = true)
-      }
-      it("partial pushdown with udf") {
-        testQuery("select id, rtrim(stringIdentity(first_name)) from users",
-                  expectPartialPushdown = true)
-      }
-    }
-
     describe("FormatNumber") {
       // singlestore and spark rounds fractional types differently
       it("works with zero precision") {
@@ -3537,26 +3432,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery("select id, chr(stringIdentity(id)) from movies", expectPartialPushdown = true)
       }
     }
-
-    describe("Base64") {
-      it("works", ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35) {
-        testQuery("select id, base64(critic_review) as x from movies")
-      }
-      it("partial pushdown with udf") {
-        testQuery("select id, base64(stringIdentity(critic_review)) from movies",
-                  expectPartialPushdown = true)
-      }
-    }
-
-    describe("UnBase64") {
-      it("works", ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35) {
-        testQuery("select id, unbase64(base64(critic_review)) as x from movies")
-      }
-      it("partial pushdown with udf") {
-        testQuery("select id, unbase64(base64(stringIdentity(critic_review))) from movies",
-                  expectPartialPushdown = true)
-      }
-    }
   }
 
   describe("decimalExpressions") {
@@ -3639,35 +3514,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
   }
 
-  describe("Rand") {
-    it("integer literal") {
-      testQuery("select rand(100)*id from users", expectSameResult = false)
-    }
-    it("long literal") {
-      testQuery("select rand(100L)*id from users", expectSameResult = false)
-    }
-    it("null literal") {
-      testQuery("select rand(null)*id from users", expectSameResult = false)
-    }
-    it("empty arguments",
-       ExcludeFromSpark31,
-       ExcludeFromSpark32,
-       ExcludeFromSpark33,
-       ExcludeFromSpark34,
-       ExcludeFromSpark35) {
-      // TODO PLAT-5759
-      testQuery("select rand()*id from users",
-                expectSameResult = false,
-                expectCodegenDeterminism = false)
-    }
-
-    it("should return the same value for the same input") {
-      val df1 = spark.sql("select rand(100)*id from (select id from testdb.users order by id)")
-      val df2 = spark.sql("select rand(100)*id from (select id from testdb.users order by id)")
-      assertApproximateDataFrameEquality(df1, df2, 0.001, orderedComparison = false)
-    }
-  }
-
   describe("regular expressions") {
     describe("like") {
       it("simple") {
@@ -3737,118 +3583,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       }
       it("null") {
         testQuery("select critic_review rlike null from movies")
-      }
-    }
-
-    describe("(not) like all/any patterns functions") {
-      val functions = Seq("like all", "like any", "not like all", "not like any")
-      it("simple") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select id, first_name from users where first_name $f ('An%te%')")
-        }
-      }
-      it("simple, both fields") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select id, first_name from users where first_name $f (last_name, 'Al%')")
-        }
-      }
-      it("repeated pattern") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(
-            s"select id, first_name from users where first_name $f ('Al%', last_name, 'Al%')")
-        }
-      }
-      it("character wildcard") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select * from users where first_name $f ('A___e', '_n__e')")
-        }
-      }
-      it("string wildcard") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select * from users where first_name $f ('Kon%ce', '%tan%', '%Kon%tan%ce%')")
-        }
-      }
-      it("dumb true") {
-        for (i <- 0 to 1) {
-          log.debug(s"testing ${functions(i)}")
-          testQuery(s"select * from users where '1' ${functions(i)} ('1')")
-        }
-      }
-      it("dumb false") {
-        for (i <- 0 to 1) {
-          log.debug(s"testing ${functions(i)}")
-          testQuery(s"select * from users where id ${functions(i)} ('D%', 'A%bbbb%')",
-                    expectEmpty = true)
-        }
-        for (i <- 2 to 3) {
-          log.debug(s"testing ${functions(i)}")
-          testQuery(s"select * from users where id ${functions(i)} ('D%', 'A%bbbb%')")
-        }
-      }
-      it("dumb true once more") {
-        for (i <- 0 to 1) {
-          log.debug(s"testing ${functions(i)}")
-          testQuery(s"select * from users where first_name ${functions(i)} (first_name)")
-        }
-        for (i <- 2 to 3) {
-          log.debug(s"testing ${functions(i)}")
-          testQuery(s"select * from users where first_name ${functions(i)} (first_name)",
-                    expectEmpty = true)
-        }
-      }
-      it("null") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select critic_review $f (null) from movies")
-        }
-      }
-      it("partial pushdown left") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select * from users where stringIdentity(first_name) $f ('Ali%')",
-                    expectPartialPushdown = true)
-        }
-      }
-      it("partial pushdown right") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select * from users where first_name $f (stringIdentity('Ali%'))",
-                    expectPartialPushdown = true)
-        }
-      }
-      it("very simple patterns", ExcludeFromSpark34, ExcludeFromSpark35) {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          //Sparks computes such in more optimal way and does not invoke pushdown
-          testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')",
-                    expectPartialPushdown = true)
-        }
-      }
-      it("very simple patterns full pushdown", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')")
-        }
-      }
-      it("empty patterns arg") {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          try {
-            testQuery(s"select * from users where first_name $f ()", expectPartialPushdown = true)
-          } catch {
-            case e: Throwable =>
-              if (e.toString.contains("Expected something between '(' and ')'")) {
-                None
-              } else {
-                throw e
-              }
-          }
-        }
       }
     }
 
@@ -3965,18 +3699,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           "select id, get_json_object(movie_rating, stringIdentity('$.title')) as get_j from movies_rating",
           expectPartialPushdown = true)
       }
-    }
-
-    describe("LengthOfJsonArray") {
-      it("works") {
-        testQuery("select id, json_array_length(same_rate_movies) from movies_rating")
-      }
-      it("udf") {
-        testQuery(
-          "select id, json_array_length(stringIdentity(same_rate_movies)) from movies_rating",
-          expectPartialPushdown = true)
-      }
-
     }
   }
 

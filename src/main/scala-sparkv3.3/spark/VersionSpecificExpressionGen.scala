@@ -121,7 +121,9 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
 
     // randomExpression.scala
     // TODO PLAT-5759
-    case Rand(expressionExtractor(child), false) => Some(f("RAND", child))
+    //
+    // Need to match on both true & false that's why we use the wildcard here
+    case Rand(expressionExtractor(child), _) => Some(f("RAND", child))
 
     // Cast.scala
     case Cast(e @ expressionExtractor(child), dataType, _, false) =>

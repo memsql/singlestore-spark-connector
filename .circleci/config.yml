@@ -119,7 +119,8 @@ workflows:
               singlestore_image:
                 - singlestore/cluster-in-a-box:alma-8.0.19-f48780d261-4.0.11-1.16.0
                 - singlestore/cluster-in-a-box:alma-8.1.32-e3d3cde6da-4.0.16-1.17.6
-                - singlestore/cluster-in-a-box:alma-8.5.7-bf633c1a54-4.0.17-1.17.8
+                - singlestore/cluster-in-a-box:alma-8.5.22-fe61f40cd1-4.1.0-1.17.11
+                - singlestore/cluster-in-a-box:alma-8.7.12-483e5f8acb-4.1.0-1.17.15
   publish:
     jobs:
       - approve-publish:
