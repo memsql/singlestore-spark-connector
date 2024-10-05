@@ -158,11 +158,11 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       it(s"$f works with non-nullable columns") {
         testQuery(
           s"""
-             |select
-             | $s(cast(user_id as string), '999') as ${f.toLowerCase}1,
-             | $s(cast(rating as string), '9.9') as ${f.toLowerCase}2
-             |from reviews
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            |select
+            | $s(cast(user_id as string), '999') as ${f.toLowerCase}1,
+            | $s(cast(rating as string), '9.9') as ${f.toLowerCase}2
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       it(s"$f works with nullable column") {
@@ -173,11 +173,11 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       it(s"$f with partial pushdown because of udf") {
         testQuery(
           s"""
-             |select
-             | $s(stringIdentity(user_id), '999') as ${f.toLowerCase}1,
-             | $s(stringIdentity(rating), '9.9') as ${f.toLowerCase}2
-             |from reviews
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            |select
+            | $s(stringIdentity(user_id), '999') as ${f.toLowerCase}1,
+            | $s(stringIdentity(rating), '9.9') as ${f.toLowerCase}2
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
@@ -282,12 +282,12 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
             it(s"$f works with nullable column") {
               testQuery(
                 s"""
-                   |select
-                   |  critic_rating,
-                   |  $f(cast(rint(critic_rating) as decimal(2,0))) as $f
-                   |from movies
-                   |where critic_rating > 1.0
-                   |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+                  |select
+                  |  critic_rating,
+                  |  $f(cast(rint(critic_rating) as decimal(2,0))) as $f
+                  |from movies
+                  |where critic_rating > 1.0
+                  |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
               )
             }
           case "bin" =>
@@ -404,37 +404,37 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       it(s"$f works with long non-nullable column and single percentile value") {
         testQuery(
           s"""
-             |select
-             | $s(id, 0.25) as ${f.toLowerCase}1,
-             | $s(id, 0.5) as ${f.toLowerCase}2,
-             | $s(id, 0.75d) as ${f.toLowerCase}3,
-             | $s(id, 0.0) as ${f.toLowerCase}4,
-             | $s(id, 1.0) as ${f.toLowerCase}5,
-             | $s(id, 0) as ${f.toLowerCase}6,
-             | $s(id, 1) as ${f.toLowerCase}7
-             |from users
+            |select
+            | $s(id, 0.25) as ${f.toLowerCase}1,
+            | $s(id, 0.5) as ${f.toLowerCase}2,
+            | $s(id, 0.75d) as ${f.toLowerCase}3,
+            | $s(id, 0.0) as ${f.toLowerCase}4,
+            | $s(id, 1.0) as ${f.toLowerCase}5,
+            | $s(id, 0) as ${f.toLowerCase}6,
+            | $s(id, 1) as ${f.toLowerCase}7
+            |from users
            """.stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       it(s"$f works with long non-nullable column and the first element satisfies small percentages") {
         testQuery(
           s"""
-             |select
-             | $s(id, 0.01) as ${f.toLowerCase}1,
-             | $s(id, 0.1) as ${f.toLowerCase}2,
-             | $s(id, 0.11) as ${f.toLowerCase}3
-             |from users
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            |select
+            | $s(id, 0.01) as ${f.toLowerCase}1,
+            | $s(id, 0.1) as ${f.toLowerCase}2,
+            | $s(id, 0.11) as ${f.toLowerCase}3
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       it(s"$f works with numeric nullable columns") {
         testQuery(
           s"""
-             |select
-             | $s(critic_rating, 0.25) as ${f.toLowerCase}1,
-             | $s(cast(critic_rating as decimal(2,1)), 0.5) as ${f.toLowerCase}2
-             |from movies
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            |select
+            | $s(critic_rating, 0.25) as ${f.toLowerCase}1,
+            | $s(cast(critic_rating as decimal(2,1)), 0.5) as ${f.toLowerCase}2
+            |from movies
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
 
@@ -444,11 +444,11 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
         it(s"$f works with numeric nullable columns and accuracy $accuracy") {
           testQuery(
             s"""
-               |select
-               | $s(cast(critic_rating as decimal(2,1)), 0.25, $accuracy) as ${f.toLowerCase}1,
-               | $s(cast(critic_rating as decimal(2,1)), 0.5, $accuracy) as ${f.toLowerCase}2
-               |from movies
-               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+              |select
+              | $s(cast(critic_rating as decimal(2,1)), 0.25, $accuracy) as ${f.toLowerCase}1,
+              | $s(cast(critic_rating as decimal(2,1)), 0.5, $accuracy) as ${f.toLowerCase}2
+              |from movies
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
           )
         }
       }
@@ -456,26 +456,26 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       it(s"$f works with group by") {
         testQuery(
           s"""
-             |select
-             | id,
-             | $s(cast(critic_rating as decimal(2,1)), 0.5) as ${f.toLowerCase}
-             |from movies
-             |group by id
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            |select
+            | id,
+            | $s(cast(critic_rating as decimal(2,1)), 0.5) as ${f.toLowerCase}
+            |from movies
+            |group by id
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       it(s"$f works with window function") {
         testQuery(
           s"""
-             |select
-             | $s(id, 0.5)
-             |    over (
-             |      partition by id
-             |      order by birthday
-             |      rows between unbounded preceding and current row
-             |    ) as ${f.toLowerCase}
-             |from users
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            |select
+            | $s(id, 0.5)
+            |    over (
+            |      partition by id
+            |      order by birthday
+            |      rows between unbounded preceding and current row
+            |    ) as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       // approx_percentile in singlestore does NOT support
@@ -483,11 +483,11 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       it(s"$f with partial pushdown because of array in the percentile argument") {
         testSingleReadQuery(
           s"""
-             |select
-             | $s(id, array(0.25, 0.5, 0.75D)) as ${f.toLowerCase}1,
-             | $s(id, array(0.01, 0.1, 0.11)) as ${f.toLowerCase}2
-             |from users
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            |select
+            | $s(id, array(0.25, 0.5, 0.75D)) as ${f.toLowerCase}1,
+            | $s(id, array(0.01, 0.1, 0.11)) as ${f.toLowerCase}2
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
@@ -558,29 +558,29 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
         it(s"$f partition order by works with non-nullable columns and offset $offset") {
           testQuery(
             s"""
-               |select
-               | $s(id, $offset) over (partition by age order by id) as ${f.toLowerCase}
-               |from users
-               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+              |select
+              | $s(id, $offset) over (partition by age order by id) as ${f.toLowerCase}
+              |from users
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
           )
         }
         it(s"$f partition order by works with nullable columns and offset $offset") {
           testQuery(
             s"""
-               |select
-               | $s(id, $offset) over (partition by genre order by id) as ${f.toLowerCase}
-               |from movies
-               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+              |select
+              | $s(id, $offset) over (partition by genre order by id) as ${f.toLowerCase}
+              |from movies
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
           )
         }
         it(s"$f with partial pushdown because of udf and offset $offset") {
           testSingleReadQuery(
             s"""
-               |select
-               | $s(id, $offset)
-               |    over (partition by stringIdentity(genre) order by id) as ${f.toLowerCase}
-               |from movies
-               |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+              |select
+              | $s(id, $offset)
+              |    over (partition by stringIdentity(genre) order by id) as ${f.toLowerCase}
+              |from movies
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
             expectPartialPushdown = true
           )
         }
@@ -733,21 +733,21 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       ignore(s"09/2024 - $f works with timestamp non-nullable column and null in second and/or third argument") {
         testQuery(
           s"""
-             |select
-             | $s(created, null, 'America/Los_Angeles') as ${f.toLowerCase}1,
-             | $s(created, 'UTC', null) as ${f.toLowerCase}2,
-             | $s(created, null, null) as ${f.toLowerCase}3
-             |from reviews
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            |select
+            | $s(created, null, 'America/Los_Angeles') as ${f.toLowerCase}1,
+            | $s(created, 'UTC', null) as ${f.toLowerCase}2,
+            | $s(created, null, null) as ${f.toLowerCase}3
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       ignore(s"09/2024 - $f works with string non-nullable column") {
         testQuery(
           s"""
-             |select
-             | $s(cast(created as string), 'UTC', 'America/Los_Angeles') as ${f.toLowerCase}
-             |from reviews
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            |select
+            | $s(cast(created as string), 'UTC', 'America/Los_Angeles') as ${f.toLowerCase}
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       ignore(
@@ -755,12 +755,12 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       ) {
         testQuery(
           s"""
-             |select
-             | $s(cast(created as string), null, 'America/Los_Angeles') as ${f.toLowerCase}1,
-             | $s(cast(created as string), 'UTC', null) as ${f.toLowerCase}2,
-             | $s(cast(created as string), null, null) as ${f.toLowerCase}3
-             |from reviews
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            |select
+            | $s(cast(created as string), null, 'America/Los_Angeles') as ${f.toLowerCase}1,
+            | $s(cast(created as string), 'UTC', null) as ${f.toLowerCase}2,
+            | $s(cast(created as string), null, null) as ${f.toLowerCase}3
+            |from reviews
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       ignore(s"09/2024 - $f works with date non-nullable column") {
@@ -771,38 +771,38 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       ignore(s"09/2024 - $f works with date non-nullable column and null in second and/or third argument") {
         testQuery(
           s"""
-             |select
-             | $s(birthday, null, 'America/Los_Angeles') as ${f.toLowerCase}1,
-             | $s(birthday, 'UTC', null) as ${f.toLowerCase}2,
-             | $s(birthday, null, null) as ${f.toLowerCase}3
-             |from users
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            |select
+            | $s(birthday, null, 'America/Los_Angeles') as ${f.toLowerCase}1,
+            | $s(birthday, 'UTC', null) as ${f.toLowerCase}2,
+            | $s(birthday, null, null) as ${f.toLowerCase}3
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
         )
       }
       ignore(s"09/2024 - $f with partial pushdown because of udf in the first argument") {
         testQuery(
           s"""
-             |select $s(stringIdentity(birthday), null, 'America/Los_Angeles') as ${f.toLowerCase}
-             |from users
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            |select $s(stringIdentity(birthday), null, 'America/Los_Angeles') as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
       ignore(s"09/2024 - $f with partial pushdown because of udf in the second argument") {
         testQuery(
           s"""
-             |select $s(birthday, stringIdentity('UTC'), 'America/Los_Angeles') as ${f.toLowerCase}
-             |from users
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            |select $s(birthday, stringIdentity('UTC'), 'America/Los_Angeles') as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
       ignore(s"09/2024 - $f with partial pushdown because of udf in the third argument") {
         testQuery(
           s"""
-             |select $s(birthday, 'UTC', stringIdentity('America/Los_Angeles')) as ${f.toLowerCase}
-             |from users
-             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            |select $s(birthday, 'UTC', stringIdentity('America/Los_Angeles')) as ${f.toLowerCase}
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
       }
@@ -870,12 +870,12 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       it(s"$f works with nullable string column", ExcludeFromSpark34, ExcludeFromSpark35) {
         testQuery(
           s"""
-             |select
-             | id,
-             | substr($s(critic_review), 1, 76) as ${f.toLowerCase}1,
-             | substr($s(critic_review), -1, 76) as ${f.toLowerCase}2
-             |from movies
-             |""".stripMargin.linesIterator.mkString(" ")
+            |select
+            | id,
+            | substr($s(critic_review), 1, 76) as ${f.toLowerCase}1,
+            | substr($s(critic_review), -1, 76) as ${f.toLowerCase}2
+            |from movies
+            |""".stripMargin.linesIterator.mkString(" ")
         )
       }
       it(s"$f with partial pushdown because of udf") {
