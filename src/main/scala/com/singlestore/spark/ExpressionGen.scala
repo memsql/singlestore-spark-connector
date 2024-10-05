@@ -585,7 +585,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
     child: Joinable,
     filter: Option[Joinable],
     extraArgs: Seq[Joinable] = Seq()
-  ) = {
+  ): Statement = {
     filter match {
       case Some(filterExpression) =>
         f(funcName, Seq(f("IF", filterExpression, child, StringVar(null))) ++ extraArgs: _*)
