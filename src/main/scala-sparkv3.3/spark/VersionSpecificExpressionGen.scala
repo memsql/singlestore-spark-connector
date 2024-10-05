@@ -131,7 +131,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
         case TimestampType => {
           e.dataType match {
             case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
-                 DoubleType | _: DecimalType =>
+                DoubleType | _: DecimalType =>
               Some(cast(f("FROM_UNIXTIME", child), "DATETIME(6)"))
             case _ => Some(cast(child, "DATETIME(6)"))
           }
@@ -142,7 +142,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
         case BinaryType => Some(cast(child, "BINARY"))
 
         case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
-             DoubleType | _: DecimalType =>
+            DoubleType | _: DecimalType =>
           if (e.dataType == DateType) {
             Some(StringVar(null))
           } else {
