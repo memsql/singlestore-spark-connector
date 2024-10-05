@@ -126,12 +126,12 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case Rand(expressionExtractor(child), _) => Some(f("RAND", child))
 
     // Cast.scala
-    case Cast(e @ expressionExtractor(child), dataType, _, false) =>
+    case Cast(e @ expressionExtractor(child), dataType, _, false) => {
       dataType match {
         case TimestampType => {
           e.dataType match {
             case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
-                DoubleType | _: DecimalType =>
+                 DoubleType | _: DecimalType =>
               Some(cast(f("FROM_UNIXTIME", child), "DATETIME(6)"))
             case _ => Some(cast(child, "DATETIME(6)"))
           }
@@ -142,7 +142,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
         case BinaryType => Some(cast(child, "BINARY"))
 
         case _: BooleanType | ByteType | ShortType | IntegerType | LongType | FloatType |
-            DoubleType | _: DecimalType =>
+             DoubleType | _: DecimalType =>
           if (e.dataType == DateType) {
             Some(StringVar(null))
           } else {
@@ -165,6 +165,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
         // SingleStore doesn't know how to handle this cast, pass it through AS is
         case _ => Some(child)
       }
+    }
 
     // datetimeExpressions.scala
 
