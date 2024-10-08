@@ -800,7 +800,10 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
         it(s"$f works with long nullable column $testNameSuffix") {
           testQuery(
             s"""
-               |select id, $s(date1, '$timeZone', id) as ${f.toLowerCase}
+               |select
+               | id,
+               | $s(date1, '$timeZone', id) as ${f.toLowerCase}0,
+               | $s(date1, '$timeZone', -id) as ${f.toLowerCase}1
                |from dates
                |where function = '$f'
                |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
@@ -812,7 +815,8 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
               |select
               | id,
               | to_unix_timestamp(birthday)*1000 as birthday_long,
-              | $s(to_unix_timestamp(birthday)*1000, '$timeZone', id) as ${f.toLowerCase}
+              | $s(to_unix_timestamp(birthday)*1000, '$timeZone', id) as ${f.toLowerCase}0,
+              | $s(to_unix_timestamp(birthday)*1000, '$timeZone', -id) as ${f.toLowerCase}1
               |from users
               |${testFilter("birthday")}
               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
@@ -824,7 +828,8 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
               |select
               | user_id,
               | to_unix_timestamp(created)*1000 as created_long,
-              | $s(to_unix_timestamp(created)*1000, '$timeZone', user_id) as ${f.toLowerCase}
+              | $s(to_unix_timestamp(created)*1000, '$timeZone', user_id) as ${f.toLowerCase}0,
+              | $s(to_unix_timestamp(created)*1000, '$timeZone', -user_id) as ${f.toLowerCase}1
               |from reviews
               |${testFilter("created")}
               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")

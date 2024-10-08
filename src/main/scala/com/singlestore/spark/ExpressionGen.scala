@@ -660,15 +660,25 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
       case aggregateExpressionExtractor(expression) => expression
 
       // windowExpressions.scala
-      case WindowExpression(expressionExtractor(child),
+      case WindowExpression(e @ expressionExtractor(child),
                             WindowSpecDefinition(expressionExtractor(partitionSpec),
                                                  expressionExtractor(orderSpec),
                                                  expressionExtractor(frameSpec))) =>
-        child + "OVER" + block(
+        val windowSmt = child + "OVER" + block(
           partitionSpec.map(Raw("PARTITION BY") + _).getOrElse(empty) +
             orderSpec.map(Raw("ORDER BY") + _).getOrElse(empty) +
             frameSpec
         )
+
+        // Need to transform the return type of SingleStore functions that return `DECIMAL(65,15)`
+        // to a lower precision since Spark only supports up to `DECIMAL(38,37)`. SUM returns
+        // `A double if the input type is double, otherwise decimal.`
+        //
+        // Error: java.lang.IllegalArgumentException: DECIMAL precision 65 exceeds max precision 38
+        e.collectFirst { case e: Sum if !e.dataType.isInstanceOf[DoubleType] =>
+          makeDecimal(windowSmt, DecimalType.MAX_PRECISION, 15)
+        }.getOrElse { windowSmt }
+
 
       case UnspecifiedFrame => ""
 

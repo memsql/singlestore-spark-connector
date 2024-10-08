@@ -98,20 +98,8 @@ case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: Expr
       // TODO: case Last(expressionExtractor(child), false) => Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
       // Sum.scala
-      case e @ Sum(expressionExtractor(child), false) =>
-        val sumStmt = aggregateWithFilter("SUM", child, filter)
-
-        // Need to transform the return type of SingleStore functions that return `DECIMAL(65,15)`
-        // to a lower precision since Spark only supports up to `DECIMAL(38,37)`. SUM returns
-        // `A double if the input type is double, otherwise decimal.`
-        //
-        // Error: java.lang.IllegalArgumentException: DECIMAL precision 65 exceeds max precision 38
-        val decimalWrappedStmt = e.dataType match {
-          case DoubleType => sumStmt
-          case _          => makeDecimal(sumStmt, DecimalType.MAX_PRECISION, 15)
-        }
-
-        Some(decimalWrappedStmt)
+      case Sum(expressionExtractor(child), false) =>
+        Some(aggregateWithFilter("SUM", child, filter))
 
       // Average.scala
       case Average(expressionExtractor(child), false) =>
