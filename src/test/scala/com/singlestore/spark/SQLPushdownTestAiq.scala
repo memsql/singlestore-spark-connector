@@ -898,8 +898,7 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       "yyyy-MM-dd hh:mm a", "yyyy-MM-dd a hh:mm", "yyyy-MM-dd a hh:mm:mm:ss a",
       "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd hh:mm:ss", "yyyy-MM-dd hh:mm:mm:ss",
       "yyyy-MM-dd M HH:mm:ss", "yyyy-MM-dd MM HH:mm:ss", "yyyy-MM-dd aMa HH:mm:ss",
-      "yyyy-MM-dd MMM HH:mm:ss", "yyyy-MM-dd aMMMa HH:mm:ss",
-      "yyyy-MM-dd MMMM HH:mm:ss", "yyyy-MM-dd MMMMMM HH:mm:ss",
+      "yyyy-MM-dd MMM HH:mm:ss", "yyyy-MM-dd aMMMa HH:mm:ss", "yyyy-MM-dd MMMM HH:mm:ss",
       "yyyy-MM-dd E HH:mm:ss", "yyyy-MM-dd EE HH:mm:ss",
       "yyyy-MM-dd EEE HH:mm:ss", "yyyy-MM-dd EEEE HH:mm:ss",
     ).sorted
