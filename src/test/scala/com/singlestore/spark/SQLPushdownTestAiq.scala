@@ -5,6 +5,8 @@ import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.types._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 
+import java.sql.Date
+
 class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach with BeforeAndAfterAll {
 
   override def beforeAll(): Unit = {
@@ -78,6 +80,20 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       "testdb.movies_rating",
       spark.read.schema(movieRatingSchema).json("src/test/resources/data/movies_rating.json")
     )
+
+    val datesSchema = StructType(
+      StructField("id", LongType)
+        :: StructField("date1", LongType, nullable = true)
+        :: StructField("date2", LongType, nullable = true)
+        :: StructField("date3", StringType, nullable = true)
+        :: StructField("function", StringType)
+        :: Nil
+    )
+
+    writeTable(
+      "testdb.dates",
+      spark.read.schema(datesSchema).json("src/test/resources/data/dates.json")
+    )
   }
 
   override def beforeEach(): Unit = {
@@ -113,6 +129,7 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
     makeTables("movies")
     makeTables("movies_rating")
     makeTables("reviews")
+    makeTables("dates")
 
     spark.udf.register("stringIdentity", (s: String) => s)
     spark.udf.register("stringUpper", (s: String) => s.toUpperCase)
@@ -120,6 +137,7 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
     spark.udf.register("integerIdentity", (x: Int) => x)
     spark.udf.register("integerFilter", (x: Int) => x % 3 == 1)
     spark.udf.register("floatIdentity", (x: Float) => x)
+    spark.udf.register("dateIdentity", (x: Date) => x)
   }
 
   describe("Null Expressions") {
@@ -745,7 +763,7 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
 
       for (periods <- periodsList) {
         for (period <- periods) {
-          it(s"$f works with period $period") {
+          it(s"$f works with period `${period.toLowerCase}`") {
             testQuery(s"select $f($period from birthday) as $f from users")
             testQuery(s"select $f($period from created) as $f from reviews")
           }
@@ -761,6 +779,608 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       }
       it(s"$f works with simple null") {
         testQuery(s"select $s(null) as ${f.toLowerCase} from users")
+      }
+    }
+
+    val timeZones =
+      Seq("UTC", "America/New_York", "Asia/Seoul", "Asia/Ulan_Bator", "Pacific/Gambier").sorted
+
+    describe("AiqDayStart") {
+      val (f, s) = ("AiqDayStart", "aiq_day_start")
+
+      // Aiq Function works with Epoch in Millisecond precision
+      def testFilter(col: String): String =
+        s"""
+          |where length(cast(to_unix_timestamp($col)*1000 as string)) = 13
+          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+
+      for (timeZone <- timeZones) {
+        val testNameSuffix = s"and timezone `$timeZone`"
+
+        it(s"$f works with long nullable column $testNameSuffix") {
+          testQuery(
+            s"""
+               |select id, $s(date1, '$timeZone', id) as ${f.toLowerCase}
+               |from dates
+               |where function = '$f'
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f works with long non-nullable column from date column $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | id,
+              | to_unix_timestamp(birthday)*1000 as birthday_long,
+              | $s(to_unix_timestamp(birthday)*1000, '$timeZone', id) as ${f.toLowerCase}
+              |from users
+              |${testFilter("birthday")}
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f works with long non-nullable column from timestamp column $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | user_id,
+              | to_unix_timestamp(created)*1000 as created_long,
+              | $s(to_unix_timestamp(created)*1000, '$timeZone', user_id) as ${f.toLowerCase}
+              |from reviews
+              |${testFilter("created")}
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the first argument $testNameSuffix") {
+          testQuery(
+            s"""
+              |select id, $s(longIdentity(date1), '$timeZone', id) as ${f.toLowerCase}
+              |from dates
+              |where function = '$f'
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+      }
+    }
+
+    describe("AiqStringToDate") {
+      val (f, s) = ("AiqStringToDate", "aiq_string_to_date")
+
+      for (timeZone <- timeZones) {
+        val testNameSuffix = s"timezone `$timeZone`"
+
+        val patterns = Seq(
+          ("yyyy-MM-dd HH:mm", "16"),
+          ("yyyy-MM-dd hh:mm a", "17"),
+          ("yyyy-MM-dd a hh:mm", "18"),
+        ).sorted
+
+        for ((pattern, id) <- patterns) {
+          it(s"$f works with long nullable column and datePattern `$pattern`, $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | id,
+                | $s(date1, '$pattern', '$timeZone') as ${f.toLowerCase}
+                |from dates
+                |where function = '$f' and id = $id
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            )
+          }
+        }
+        it(
+          s"$f works with non-nullable date column and datePattern `yyyy-MM-dd`, $testNameSuffix"
+        ) {
+          testQuery(
+            s"""
+              |select id, birthday, $s(birthday, 'yyyy-MM-dd', '$timeZone') as ${f.toLowerCase}
+              |from users
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the first argument $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | id,
+              | $s(dateIdentity(birthday), 'yyyy-MM-dd', '$timeZone') as ${f.toLowerCase}
+              |from users
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+      }
+    }
+
+    val datePatterns = Seq(
+      "yyyy", "yy", "MM", "MMM", "M", "d", "HH", "H", "hh", "h",
+      "yyyy-MM-dd", "yyyy/MM/dd", "yyyy-MM-dd HH:mm", "HH:mm:ss", "hh:mm:ss a",
+      "yyyy-MM-dd hh:mm a", "yyyy-MM-dd a hh:mm", "yyyy-MM-dd a hh:mm:mm:ss a",
+      "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd hh:mm:ss", "yyyy-MM-dd hh:mm:mm:ss",
+      "yyyy-MM-dd M HH:mm:ss", "yyyy-MM-dd MM HH:mm:ss", "yyyy-MM-dd aMa HH:mm:ss",
+      "yyyy-MM-dd MMM HH:mm:ss", "yyyy-MM-dd aMMMa HH:mm:ss",
+      "yyyy-MM-dd MMMM HH:mm:ss", "yyyy-MM-dd MMMMMM HH:mm:ss",
+      "yyyy-MM-dd E HH:mm:ss", "yyyy-MM-dd EE HH:mm:ss",
+      "yyyy-MM-dd EEE HH:mm:ss", "yyyy-MM-dd EEEE HH:mm:ss",
+    ).sorted
+
+    describe("AiqDateToString") {
+      val (f, s) = ("AiqDateToString", "aiq_date_to_string")
+
+      // Aiq Function works with Epoch in Millisecond precision
+      def testFilter(col: String): String =
+        s"""
+          |where length(cast(to_unix_timestamp($col)*1000 as string)) = 13
+          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+
+      for (datePattern <- datePatterns) {
+        for (timeZone <- timeZones) {
+          val testNameSuffix = s"and datePattern `$datePattern`, timezone `$timeZone`"
+
+          it(s"$f works with long nullable column $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | id,
+                | $s(date1, '$datePattern', '$timeZone') as ${f.toLowerCase}
+                |from dates
+                |where function = '$f'
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            )
+          }
+          it(s"$f works with long non-nullable column from date column $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | id,
+                | to_unix_timestamp(birthday)*1000 as birthday_long,
+                | $s(
+                |  to_unix_timestamp(birthday)*1000, '$datePattern', '$timeZone'
+                | ) as ${f.toLowerCase}
+                |from users
+                |${testFilter("birthday")}
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            )
+          }
+          it(s"$f works with long non-nullable column from timestamp column $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | user_id,
+                | to_unix_timestamp(created)*1000 as created_long,
+                | $s(
+                |  to_unix_timestamp(created)*1000, '$datePattern', '$timeZone'
+                | ) as ${f.toLowerCase}
+                |from reviews
+                |${testFilter("created")}
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            )
+          }
+          it(s"$f with partial pushdown because of udf in the first argument $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | id,
+                | $s(longIdentity(date1), '$datePattern', '$timeZone') as ${f.toLowerCase}
+                |from dates
+                |where function = '$f'
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+              expectPartialPushdown = true
+            )
+          }
+        }
+      }
+    }
+
+    val days = Seq("sunday", "SUNDAY", "SUN", "monday").sorted
+
+    describe("AiqWeekDiff") {
+      val (f, s) = ("AiqWeekDiff", "aiq_week_diff")
+
+      // Aiq Function works with Epoch in Millisecond precision
+      def testFilter(col: String): String =
+        s"""
+           |where length(cast(to_unix_timestamp($col)*1000 as string)) = 13
+           |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+
+      for (day <- days) {
+        for (timeZone <- timeZones) {
+          val testNameSuffix = s"and day `$day`, timezone `$timeZone`"
+
+          it(s"$f works with long nullable column $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | id,
+                | $s(date1, date2, '$day', '$timeZone') as ${f.toLowerCase}
+                |from dates
+                |where function = '$f'
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            )
+          }
+          it(s"$f works with long non-nullable column from date column $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | id,
+                | to_unix_timestamp(birthday)*1000 as birthday_long,
+                | to_unix_timestamp(birthday)*1000+1209600000 as incremented_birthday_long,
+                | $s(
+                |  to_unix_timestamp(birthday)*1000,
+                |  to_unix_timestamp(birthday)*1000+1209600000,
+                |  '$day',
+                |  '$timeZone'
+                | ) as ${f.toLowerCase}
+                |from users
+                |${testFilter("birthday")}
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            )
+          }
+          it(s"$f works with long non-nullable column from timestamp column $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | user_id,
+                | to_unix_timestamp(created)*1000 as created_long,
+                | to_unix_timestamp(created)*1000+1209600000 as incremented_created_long,
+                | $s(
+                |  to_unix_timestamp(created)*1000,
+                |  to_unix_timestamp(created)*1000+1209600000,
+                |  '$day',
+                |  '$timeZone'
+                | ) as ${f.toLowerCase}
+                |from reviews
+                |${testFilter("created")}
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            )
+          }
+          it(s"$f with partial pushdown because of udf in the first argument $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | id,
+                | $s(longIdentity(date1), date2, '$day', '$timeZone') as ${f.toLowerCase}
+                |from dates
+                |where function = '$f'
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+              expectPartialPushdown = true
+            )
+          }
+          it(s"$f with partial pushdown because of udf in the second argument $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | id,
+                | $s(date1, longIdentity(date2), '$day', '$timeZone') as ${f.toLowerCase}
+                |from dates
+                |where function = '$f'
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+              expectPartialPushdown = true
+            )
+          }
+          it(s"$f with partial pushdown because of udf in both argument $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | id,
+                | $s(
+                |  longIdentity(date1),
+                |  longIdentity(date2),
+                |  '$day',
+                |  '$timeZone'
+                | ) as ${f.toLowerCase}
+                |from dates
+                |where function = '$f'
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+              expectPartialPushdown = true
+            )
+          }
+        }
+      }
+    }
+
+    describe("AiqDayDiff") {
+      val (f, s) = ("AiqDayDiff", "aiq_day_diff")
+
+      // Aiq Function works with Epoch in Millisecond precision
+      def testFilter(col: String): String =
+        s"""
+          |where length(cast(to_unix_timestamp($col)*1000 as string)) = 13
+          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+
+      for (timeZone <- timeZones) {
+        val testNameSuffix = s"and timezone `$timeZone`"
+
+        it(s"$f works with long nullable column $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | id,
+              | $s(date1, date2, '$timeZone') as ${f.toLowerCase}
+              |from dates
+              |where function = '$f'
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f works with long non-nullable column from date column $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | id,
+              | to_unix_timestamp(birthday)*1000 as birthday_long,
+              | to_unix_timestamp(birthday)*1000+172800000 as incremented_birthday_long,
+              | $s(
+              |  to_unix_timestamp(birthday)*1000,
+              |  to_unix_timestamp(birthday)*1000+172800000,
+              |  '$timeZone'
+              | ) as ${f.toLowerCase}
+              |from users
+              |${testFilter("birthday")}
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f works with long non-nullable column from timestamp column $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | user_id,
+              | to_unix_timestamp(created)*1000 as created_long,
+              | to_unix_timestamp(created)*1000+172800000 as incremented_created_long,
+              | $s(
+              |  to_unix_timestamp(created)*1000,
+              |  to_unix_timestamp(created)*1000+172800000,
+              |  '$timeZone'
+              | ) as ${f.toLowerCase}
+              |from reviews
+              |${testFilter("created")}
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the first argument $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | id,
+              | $s(longIdentity(date1), date2, '$timeZone') as ${f.toLowerCase}
+              |from dates
+              |where function = '$f'
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+        it(s"$f with partial pushdown because of udf in the second argument $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | id,
+              | $s(date1, longIdentity(date2), '$timeZone') as ${f.toLowerCase}
+              |from dates
+              |where function = '$f'
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+        it(s"$f with partial pushdown because of udf in both argument $testNameSuffix") {
+          testQuery(
+            s"""
+             |select
+             | id,
+             | $s(longIdentity(date1), longIdentity(date2), '$timeZone') as ${f.toLowerCase}
+             |from dates
+             |where function = '$f'
+             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+      }
+    }
+
+    describe("AiqDayOfTheWeek") {
+      val (f, s) = ("AiqDayOfTheWeek", "aiq_day_of_the_week")
+
+      // Aiq Function works with Epoch in Millisecond precision
+      def testFilter(col: String): String =
+        s"""
+          |where length(cast(to_unix_timestamp($col)*1000 as string)) = 13
+          |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+
+      for (timeZone <- timeZones) {
+        val testNameSuffix = s"and timezone `$timeZone`"
+
+        it(s"$f works with long nullable column $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | id,
+              | $s(date1, '$timeZone') as ${f.toLowerCase}
+              |from dates
+              |where function = '$f'
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f works with long non-nullable column from date column $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | id,
+              | to_unix_timestamp(birthday)*1000 as birthday_long,
+              | $s(to_unix_timestamp(birthday)*1000, '$timeZone') as ${f.toLowerCase}
+              |from users
+              |${testFilter("birthday")}
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f works with long non-nullable column from timestamp column $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | user_id,
+              | to_unix_timestamp(created)*1000 as created_long,
+              | $s(to_unix_timestamp(created)*1000, '$timeZone') as ${f.toLowerCase}
+              |from reviews
+              |${testFilter("created")}
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f with partial pushdown because of udf on the first argument $testNameSuffix") {
+          testQuery(
+            s"""
+              |select
+              | id,
+              | $s(longIdentity(date1), '$timeZone') as ${f.toLowerCase}
+              |from dates
+              |where function = '$f'
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+      }
+    }
+
+    describe("AiqFromUnixTime") {
+      val (f, s) = ("AiqFromUnixTime", "aiq_from_unixtime")
+
+      // Spark returns +1 year when date is 12-[26|27|28|29|30|31] so removing from testing
+      def testFilter(col: String): String =
+        s"where cast($col as string) not like all ('%12-2%', '%12-3%', '%01-01%')"
+
+      for (datePattern <- datePatterns) {
+        for (timeZone <- timeZones) {
+          val testNameSuffix = s"and datePattern `$datePattern`, timezone `$timeZone`"
+
+          it(s"$f works with long non-nullable column from date column $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | to_unix_timestamp(birthday) as birthday_long,
+                | $s(to_unix_timestamp(birthday), '$datePattern', '$timeZone') as ${f.toLowerCase}
+                |from users
+                |${testFilter("birthday")}
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            )
+          }
+          it(s"$f works with long non-nullable column from timestamp column $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | to_unix_timestamp(created) as created_long,
+                | $s(to_unix_timestamp(created), '$datePattern', '$timeZone') as ${f.toLowerCase}
+                |from reviews
+                |${testFilter("created")}
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+            )
+          }
+          it(s"$f with partial pushdown because of udf on the first argument $testNameSuffix") {
+            testQuery(
+              s"""
+                |select
+                | to_unix_timestamp(birthday) as birthday_long,
+                | $s(
+                |  longIdentity(to_unix_timestamp(birthday)), '$datePattern', '$timeZone'
+                | ) as ${f.toLowerCase}
+                |from users
+                |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+              expectPartialPushdown = true
+            )
+          }
+        }
+      }
+    }
+
+    val functionsGroup2 = Seq(
+      ("ParseToTimestamp", "to_timestamp"),
+      ("ParseToDate", "to_date")
+    ).sorted
+
+    for ((f, s) <- functionsGroup2) {
+      describe(f) {
+        it(s"$f works with date non-nullable column") {
+          testQuery(s"select $s(birthday, 'yyyy-MM-dd') as ${f.toLowerCase} from users")
+        }
+        it(s"$f works with string non-nullable column") {
+          testQuery(
+            s"""
+              |select
+              | $s(cast(birthday as string), 'yyyy-MM-dd') as ${f.toLowerCase}0,
+              | $s(replace(cast(birthday as string), "-", "/"), 'yyyy/MM/dd') as ${f.toLowerCase}1
+              |from users
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f with partial pushdown because of udf") {
+          testQuery(
+            s"""
+              |select
+              | $s(stringIdentity(cast(birthday as string)), 'yyyy-MM-dd') as ${f.toLowerCase}
+              |from users
+              |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+      }
+
+      it(s"$f works with only left argument") {
+        testQuery(s"select $s(cast(birthday as string)) as ${f.toLowerCase} from users")
+      }
+      it(s"$f works with null in the first argument and datePattern `yyyy/MM/dd`") {
+        testQuery(s"select $s(null, 'yyyy/MM/dd') as ${f.toLowerCase} from users")
+      }
+    }
+
+    describe("DateFormatClass") {
+      val (f, s) = ("DateFormatClass", "date_format")
+
+      // Spark returns +1 year when date is 12-[26|27|28|29|30|31] so removing from testing
+      def testFilter(col: String): String =
+        s"where cast($col as string) not like all ('%12-2%', '%12-3%')"
+
+      for (datePattern <- datePatterns) {
+        val testNameSuffix = s"and datePattern `$datePattern`"
+
+        it(s"$f works with date non-nullable column $testNameSuffix") {
+          testQuery(
+            s"""
+               |select $s(birthday, '$datePattern') as ${f.toLowerCase}
+               |from users
+               |${testFilter("birthday")}
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f works with timestamp non-nullable column $testNameSuffix") {
+          testQuery(
+            s"""
+               |select $s(created, '$datePattern') as ${f.toLowerCase}
+               |from reviews
+               |${testFilter("created")}
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f works with string non-nullable column $testNameSuffix") {
+          testQuery(
+            s"""
+               |select $s(cast(birthday as string), '$datePattern') as ${f.toLowerCase}
+               |from users
+               |${testFilter("birthday")}
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" ")
+          )
+        }
+        it(s"$f with partial pushdown because of udf $testNameSuffix") {
+          testQuery(
+            s"""
+               |select
+               | $s(stringIdentity(cast(birthday as string)), '$datePattern') as ${f.toLowerCase}
+               |from users
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+      }
+
+      it(s"$f works with simple null in the first argument and datePattern `yyyy/MM/dd`") {
+        testQuery(s"select $s(null, 'yyyy/MM/dd') as ${f.toLowerCase} from users")
+      }
+      it(s"$f works with simple null in the second argument") {
+        testQuery(s"select $s(cast(birthday as string), null) as ${f.toLowerCase} from users")
       }
     }
 
@@ -854,13 +1474,13 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
   }
 
   describe("String Expressions") {
-    val functionsGroup = Seq(
+    val functionsGroup1 = Seq(
       ("StringTrim", "trim", "both"),
       ("StringTrimLeft", "ltrim", "leading"),
       ("StringTrimRight", "rtrim", "trailing")
     ).sorted
 
-    for ((f, s, d) <- functionsGroup) {
+    for ((f, s, d) <- functionsGroup1) {
       describe(f) {
         it(s"$f works with non-nullable column") {
           testQuery(s"select id, $s(first_name) as ${f.toLowerCase} from users")
@@ -944,6 +1564,30 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
       }
     }
 
+    describe("Decode") {
+      val f = "decode"
+
+      it(s"${f.capitalize} works with string non-nullable column") {
+        testQuery(s"select id, $f(genre, 'Horror', 1, 'Drama', 2, 3) as $f from movies")
+      }
+      it(s"${f.capitalize} works with string nullable column") {
+        testQuery(
+          s"select id, $f(favorite_color, 'Crimson', 1, 'Turquoise', 2, 3) as $f from users"
+        )
+      }
+      it(s"${f.capitalize} with partial pushdown because of udf") {
+        testQuery(
+          s"""
+            |select
+            | id,
+            | $f(stringIdentity(favorite_color), 'Crimson', 1, 'Turquoise', 2, 3) as $f
+            |from users
+            |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+          expectPartialPushdown = true
+        )
+      }
+    }
+
     describe("Reverse") {
       val f = "reverse"
 
@@ -996,6 +1640,46 @@ class SQLPushdownTestAiq extends IntegrationSuiteBase with BeforeAndAfterEach wi
             |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
           expectPartialPushdown = true
         )
+      }
+    }
+
+    val functionsGroup2 = Seq(
+      ("AiqStringCompareCi", "aiq_string_compare_ci"),
+      ("AiqStringCompareNeqCi", "aiq_string_compare_neq_ci")
+    ).sorted
+
+    for ((f, s) <- functionsGroup2) {
+      describe(f) {
+        it(s"$f works with string non-nullable column") {
+          testQuery(s"select id, $s(genre, genre) as ${f.toLowerCase} from movies")
+        }
+        it(s"$f works with string nullable column") {
+          testQuery(
+            s"select id, $s(favorite_color, favorite_color) as ${f.toLowerCase} from users"
+          )
+        }
+        it(s"${f.capitalize} with partial pushdown because of udf in the first argument") {
+          testQuery(
+            s"""
+               |select
+               | id,
+               | $s(stringIdentity(favorite_color), favorite_color) as ${f.toLowerCase}
+               |from users
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
+        it(s"${f.capitalize} with partial pushdown because of udf in the second argument") {
+          testQuery(
+            s"""
+               |select
+               | id,
+               | $s(favorite_color, stringIdentity(favorite_color)) as ${f.toLowerCase}
+               |from users
+               |""".stripMargin.linesIterator.map(_.trim).mkString(" "),
+            expectPartialPushdown = true
+          )
+        }
       }
     }
   }

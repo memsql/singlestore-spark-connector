@@ -120,6 +120,7 @@ trait IntegrationSuiteBase
       .config("spark.driver.extraJavaOptions", "-Duser.timezone=GMT")
       .config("spark.executor.extraJavaOptions", "-Duser.timezone=GMT")
       .config("spark.sql.session.timeZone", "GMT")
+      .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
       .config("spark.datasource.singlestore.ddlEndpoint", s"${masterHost}:${masterPort}")
       .config("spark.datasource.singlestore.user", "root-ssl")
       .config("spark.datasource.singlestore.password", "")

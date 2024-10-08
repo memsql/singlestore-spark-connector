@@ -1,7 +1,6 @@
 package com.singlestore.spark
 
 import java.sql.{Date, Timestamp}
-
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.logical._
@@ -9,6 +8,7 @@ import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.types._
 import org.slf4j.{Logger, LoggerFactory}
 import com.singlestore.spark.JdbcHelpers.getDMLConnProperties
+import org.apache.spark.sql.execution.SQLPlan
 import org.apache.spark.{DataSourceTelemetryHelpers, SparkContext}
 
 import scala.collection.immutable.HashMap
@@ -156,7 +156,7 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
                       VariableList,
                       Boolean,
                       SQLGenContext) => LogicalPlan
-  ) extends SQLChunk {
+  ) extends SQLChunk with SQLPlan {
 
     val isFinal = reader.isFinal
 

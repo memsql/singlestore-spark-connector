@@ -12,9 +12,10 @@ import scala.reflect.ClassTag
 object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
   import SQLGen._
 
-  final val SINGLESTORE_DECIMAL_MAX_PRECISION = 65
-  final val SINGLESTORE_DECIMAL_MAX_SCALE     = 30
-  final val SINGLESTORE_DEFAULT_TIME_FORMAT   = UTF8String.fromString("yyyy-MM-dd HH:mm:ss")
+  final val SINGLESTORE_DECIMAL_MAX_PRECISION       = 65
+  final val SINGLESTORE_DECIMAL_MAX_SCALE           = 30
+  final val SINGLESTORE_DEFAULT_TIME_FORMAT         = UTF8String.fromString("yyyy-MM-dd HH:mm:ss")
+  final val SINGLESTORE_DEFAULT_TIME_FORMAT_LITERAL = Literal(SINGLESTORE_DEFAULT_TIME_FORMAT, StringType)
 
   // DAYS_OF_WEEK_OFFSET_MAP is a map from week day prefix to it's offset (sunday -> 1, saturday -> 7)
   final val DAYS_OF_WEEK_OFFSET_MAP: Map[String, String] = {
@@ -35,16 +36,10 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
    */
   private final def sparkDateFmtToSingleStoreFmtSymbols(format: UTF8String): String = {
     val translatedDateFmt = format.toString match {
-      case "YYYY" | "yyyy" => "%Y"
-      case "YY" | "yy"     => "%y"
-      case "MMM"           => "%b"
-      case "MM"            => "%m"
-      case "M"             => "%c"
-      case "d"             => "%e"
-      case "HH"            => "%H"
-      case "H"             => "%k"
-      case "hh"            => "%h"
-      case "h"             => "%l"
+      case "M" => "%c"
+      case "d" => "%e"
+      case "H" => "%k"
+      case "h" => "%l"
       case fmt =>
         // Note: Order of string replacement for groups matters
         fmt
@@ -55,11 +50,9 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
           .replaceAll("hh:mm:ss a", "%r")
 
           // SingleStore Year, numeric, four digits
-          .replaceAll("(?<=[^Y])Y{4}(?=[^Y])", "%Y")
-          .replaceAll("(?<=[^y])y{4}(?=[^y])", "%Y")
+          .replaceAll("Y{4,}|y{4,}", "%Y")
           // SingleStore Year, numeric (two digits)
-          .replaceAll("(?<=[^Y])Y{2}(?=[^Y])", "%y")
-          .replaceAll("(?<=[^y])y{2}(?=[^y])", "%y")
+          .replaceAll("Y{2}|y{2}", "%y")
 
           // SingleStore Day of year (001 to 366)
           .replaceAll("D{1,3}", "%j")
@@ -67,29 +60,29 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
           // SingleStore Month name (January to December)
           .replaceAll("M{4,}", "%M")
           // SingleStore Abbreviated month (Jan, Feb, Mar…)
-          .replaceAll("(?<=[^M])M{3}(?=[^M])", "%b")
+          .replaceAll("M{3,}", "%b")
           // SingleStore Month number, padded (00 to 12)
-          .replaceAll("(?<=[^M])M{2}(?=[^M])", "%m")
+          .replaceAll("M{2,}", "%m")
           // SingleStore Month number (0 to 12)
-          .replaceAll("(?<=[^M])M(?=[^M])", "%c")
+          .replaceAll("(?<=[^%])M+", "%c")
 
           // SingleStore Day of the month, padded (00 to 31)
           .replaceAll("d{3,}", "%d")
-          .replaceAll("(?<=[^d])d{2}(?=[^d])", "%d")
+          .replaceAll("d{2,}", "%d")
           // SingleStore Day of the month (0 to 31)
-          .replaceAll("(?<=[^d])d(?=[^d])", "%e")
+          .replaceAll("(?<=[^%])d+", "%e")
 
           // SingleStore Hour of day, padded 24h format (00 to 23)
           .replaceAll("H{3,}", "%H")
-          .replaceAll("(?<=[^H])H{2}(?=[^H])", "%H")
+          .replaceAll("H{2,}", "%H")
           // SingleStore Hour of day, 24h format (0 to 23)
-          .replaceAll("(?<=[^H])H(?=[^H])", "%k")
+          .replaceAll("(?<=[^%])H+", "%k")
 
           // SingleStore Hour of day, padded 12h format (01 to 12)
           .replaceAll("h{3,}", "%h")
-          .replaceAll("(?<=[^h])h{2}(?=[^h])", "%h")
+          .replaceAll("h{2,}", "%h")
           // SingleStore Hour of day, 12h format (1 to 12)
-          .replaceAll("(?<=[^h])h(?=[^h])", "%l")
+          .replaceAll("(?<=[^%])h+", "%l")
 
           // SingleStore Minute of hour (00 to 59)
           .replaceAll("m{2,}", "%i")
@@ -438,9 +431,16 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
     def unapply(arg: AiqDayStart): Option[Joinable] = {
       expressionExtractor.unapply(
         UnixMillis(
-          TruncTimestamp(
-            Literal("DAY"),
-            DateAdd(ConvertTimezone(CurrentTimeZone(), arg.timestamp, arg.timezone), arg.plusDays),
+          ConvertTimezone(
+            arg.timezone,
+            Literal("UTC"),
+            TruncTimestamp(
+              Literal("DAY"),
+              DateAdd(
+                AiqFromUnixTime(arg.timestamp, SINGLESTORE_DEFAULT_TIME_FORMAT_LITERAL, arg.timezone),
+                arg.plusDays
+              ),
+            )
           )
         )
       )
@@ -449,41 +449,21 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
 
   case class AiqStringToDateExpressionExtractor(expressionExtractor: ExpressionExtractor) {
     def unapply(arg: AiqStringToDate): Option[Joinable] = {
-      if (arg.format.foldable) {
-        expressionExtractor.unapply(
-          UnixMillis(
-            ConvertTimezone(
-              arg.timeZone,
-              Literal("UTC"),
-              ParseToTimestamp(arg.dateStr, Some(arg.format), TimestampType),
-            )
+      expressionExtractor.unapply(
+        UnixMillis(
+          ConvertTimezone(
+            arg.timeZone,
+            Literal("UTC"),
+            ParseToTimestamp(arg.dateStr, Some(arg.format), TimestampType),
           )
         )
-      } else { None }
+      )
     }
   }
 
   case class AiqDateToStringExpressionExtractor(expressionExtractor: ExpressionExtractor) {
     def unapply(arg: AiqDateToString): Option[Joinable] = {
-      if (arg.dateFormat.foldable) {
-        expressionExtractor.unapply(
-          DateFormatClass(
-            ConvertTimezone(CurrentTimeZone(), arg.timezoneId, arg.timestamp),
-            arg.dateFormat,
-          )
-        )
-      } else { None }
-    }
-  }
-
-  case class AiqDayDiffExpressionExtractor(expressionExtractor: ExpressionExtractor) {
-    def unapply(arg: AiqDayDiff): Option[Joinable] = {
-      expressionExtractor.unapply(
-        DateDiff(
-          ConvertTimezone(CurrentTimeZone(), arg.timezoneId, arg.endTs),    // endDate
-          ConvertTimezone(CurrentTimeZone(), arg.timezoneId, arg.startTs),  // startDate
-        )
-      )
+      expressionExtractor.unapply(AiqFromUnixTime(arg.timestamp, arg.dateFormat, arg.timezoneId))
     }
   }
 
@@ -518,7 +498,10 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
             // - SingleStore: SELECT ((18140 + 3) / 7) !:>int = 2592 (Original value: 2591.8571)
             Floor(
               Divide(
-                Add(AiqDayDiff(Literal(0L), expr, arg.timezoneId), Literal(startDayInt)),
+                // Using FROM_UNIXTIME(0) - 1 as `start_unix_time_ms` here since: SingleStore starts from
+                //  - SingleStore: DATE(FROM_UNIXTIME('0')) = 1970-01-01
+                //  - Spark: spark.sql("select date(from_unixtime(0))").collect() = Array([1969-12-31])
+                Add(AiqDayDiff(DateFromUnixDate(Literal(-1)), expr, arg.timezoneId), Literal(startDayInt)),
                 Literal(7),
               )
             )
@@ -529,12 +512,29 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
     }
   }
 
+  case class AiqDayDiffExpressionExtractor(expressionExtractor: ExpressionExtractor) {
+    def unapply(arg: AiqDayDiff): Option[Joinable] = {
+      expressionExtractor.unapply(
+        DateDiff(
+          AiqFromUnixTime(arg.endTs, SINGLESTORE_DEFAULT_TIME_FORMAT_LITERAL, arg.timezoneId),  // endDate
+          AiqFromUnixTime(arg.startTs, SINGLESTORE_DEFAULT_TIME_FORMAT_LITERAL, arg.timezoneId) // startDate
+        )
+      )
+    }
+  }
+
   case class AiqDayOfTheWeekExpressionExtractor(expressionExtractor: ExpressionExtractor) {
     def unapply(arg: AiqDayOfTheWeek): Option[Joinable] = {
       expressionExtractor.unapply(
         Decode(
           Seq(
-            WeekDay(ConvertTimezone(CurrentTimeZone(), arg.timezoneId, arg.epochTimestamp)),
+            WeekDay(
+              AiqFromUnixTime(
+                arg.epochTimestamp,
+                SINGLESTORE_DEFAULT_TIME_FORMAT_LITERAL,
+                arg.timezoneId
+              )
+            ),
             Literal(0), Literal("monday"),
             Literal(1), Literal("tuesday"),
             Literal(2), Literal("wednesday"),
@@ -554,8 +554,20 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
       if (arg.format.foldable) {
         expressionExtractor.unapply(
           DateFormatClass(
-            ConvertTimezone(CurrentTimeZone(), arg.timeZone, arg.sec),
-            arg.format,
+            ConvertTimezone(
+              CurrentTimeZone(),
+              arg.timeZone,
+              FromUnixTime(
+                If(
+                  // 13 Chars => Epoch Millisecond Precision
+                  EqualTo(Length(Cast(arg.sec, StringType)), Literal(13)),
+                  Floor(Divide(arg.sec, Literal(1000))),
+                  arg.sec
+                ),
+                SINGLESTORE_DEFAULT_TIME_FORMAT_LITERAL
+              )
+            ),
+            arg.format
           )
         )
       } else { None }
@@ -766,7 +778,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
         val funcArgs = if (format == SINGLESTORE_DEFAULT_TIME_FORMAT) {
           Seq(sec)
         } else {
-          Seq(sec, Raw(sparkDateFmtToSingleStoreFmtSymbols(format)))
+          Seq(sec, StringVar(sparkDateFmtToSingleStoreFmtSymbols(format)))
         }
 
         f("FROM_UNIXTIME", funcArgs: _*)
@@ -774,19 +786,27 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
       case DateDiff(expressionExtractor(endDate), expressionExtractor(startDate)) =>
         f("DATEDIFF", endDate, startDate)
 
-      case ParseToTimestamp(expressionExtractor(left),
-                            e @ expressionExtractor(Some(utf8StringFoldableExtractor(format))), _, _)
-        if e.forall(_.foldable) =>
-        f("TO_TIMESTAMP", left, sparkDateFmtToSingleStoreFmtSpecifiers(format))
-
-      case ParseToDate(expressionExtractor(left),
-                       e @ expressionExtractor(Some(utf8StringFoldableExtractor(format))), _)
-        if e.forall(_.foldable) =>
-        f("TO_DATE", left, sparkDateFmtToSingleStoreFmtSpecifiers(format))
-
+      // Used by `ParseToTimestamp` & `ParseToDate` when format is != None
+      case GetTimestamp(expressionExtractor(left),
+                        utf8StringFoldableExtractor(format),
+                        _,
+                        _,
+                        _) =>
+        f("TO_TIMESTAMP", left, StringVar(sparkDateFmtToSingleStoreFmtSpecifiers(format)))
+      case ParseToTimestamp(e @ expressionExtractor(left), formatOpt, _, _)
+          if e.dataType.isInstanceOf[StringType] =>
+        formatOpt match {
+          case Some(utf8StringFoldableExtractor(format)) =>
+            f("TO_TIMESTAMP", left, StringVar(sparkDateFmtToSingleStoreFmtSpecifiers(format)))
+          case None => f("TIMESTAMP", left)
+        }
+      case ParseToDate(e @ expressionExtractor(left), None, _)
+          if e.dataType.isInstanceOf[StringType] =>
+        f("DATE", left)
       case DateFormatClass(expressionExtractor(left),
-                           e @ expressionExtractor(utf8StringFoldableExtractor(right)), _) if e.foldable =>
-        f("DATE_FORMAT", left, sparkDateFmtToSingleStoreFmtSymbols(right))
+                           utf8StringFoldableExtractor(right),
+                           _) =>
+        f("DATE_FORMAT", left, StringVar(sparkDateFmtToSingleStoreFmtSymbols(right)))
 
       case aiqDayStartExpressionExtractor(aiqDayStartStatement)         => aiqDayStartStatement
       case aiqStringToDateExpressionExtractor(aiqStringToDateStatement) => aiqStringToDateStatement
@@ -909,6 +929,7 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
       // datetimeExpressions.scala
       case CurrentDate(_)     => "CURRENT_DATE()"
       case CurrentTimestamp() => "NOW(6)"
+      case CurrentTimeZone()  => "@@SYSTEM_TIME_ZONE"
 
       // mathExpressions.scala
       case EulerNumber() => math.E.toString
@@ -1042,14 +1063,6 @@ object ExpressionGen extends LazyLogging with DataSourceTelemetryHelpers {
             right.eval().asInstanceOf[Int] != 224 =>
         f("SHA2", left, right.toString)
       case Crc32(expressionExtractor(child)) => f("CRC32", child)
-
-      // misc.scala
-      case AesEncrypt(expressionExtractor(input), expressionExtractor(key), expressionExtractor(mode), _) =>
-        f("AES_ENCRYPT", input, key, StringVar(null), mode)
-      case AesDecrypt(expressionExtractor(expr), expressionExtractor(key), expressionExtractor(mode), _) =>
-        f("AES_DECRYPT", expr, key, StringVar(null), mode)
-      case _: CurrentDatabase => "DATABASE()"
-      case _: CurrentUser => "USER()"
 
       //jsonExpressions.scala
       case GetJsonObject(expressionExtractor(json), utf8StringFoldableExtractor(path))

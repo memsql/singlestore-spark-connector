@@ -1,0 +1,20 @@
+{"id":1,"date1":1553890107963,"date2":null,"date3":null,"function":"AiqDayOfTheWeek"}
+{"id":2,"date1":null,"date2":null,"date3":null,"function":"AiqDayOfTheWeek"}
+{"id":3,"date1":1693609200000,"date2":1693616400000,"date3":null,"function":"AiqDayDiff"}
+{"id":4,"date1":1693609200000,"date2":null,"date3":null,"function":"AiqDayDiff"}
+{"id":5,"date1":null,"date2":1693616400000,"date3":null,"function":"AiqDayDiff"}
+{"id":6,"date1":null,"date2":null,"date3":null,"function":"AiqDayDiff"}
+{"id":7,"date1":1551880107963,"date2":1553890107963,"date3":null,"function":"AiqWeekDiff"}
+{"id":8,"date1":1551880107963,"date2":null,"date3":null,"function":"AiqWeekDiff"}
+{"id":9,"date1":null,"date2":1553890107963,"date3":null,"function":"AiqWeekDiff"}
+{"id":10,"date1":null,"date2":null,"date3":null,"function":"AiqWeekDiff"}
+{"id":11,"date1":1567363852000,"date2":1567450252000,"date3":null,"function":"AiqWeekDiff"}
+{"id":12,"date1":1567363852000,"date2":null,"date3":null,"function":"AiqWeekDiff"}
+{"id":13,"date1":null,"date2":1567450252000,"date3":null,"function":"AiqWeekDiff"}
+{"id":14,"date1":null,"date2":null,"date3":null,"function":"AiqWeekDiff"}
+{"id":15,"date1":1567363852000,"date2":null,"date3":null,"function":"AiqDateToString"}
+{"id":16,"date1":null,"date2":null,"date3":"2019-09-01 14:50","function":"AiqStringToDate"}
+{"id":17,"date1":null,"date2":null,"date3":"2019-09-01 02:50 PM","function":"AiqStringToDate"}
+{"id":18,"date1":null,"date2":null,"date3":"2019-09-01 PM 02:50","function":"AiqStringToDate"}
+{"id":19,"date1":1460080000000,"date2":null,"date3":null,"function":"AiqDayStart"}
+{"id":20,"date1":1460080000000,"date2":null,"date3":null,"function":"AiqDayStart"}
