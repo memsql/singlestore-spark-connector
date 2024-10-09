@@ -252,13 +252,13 @@ object JdbcHelpers extends LazyLogging with DataSourceTelemetryHelpers {
     val sql = prepareAndLogSql(
       conf,
       s"""
-         |SELECT IP_ADDR,
-         |PORT,
-         |EXTERNAL_HOST,
-         |EXTERNAL_PORT
-         |FROM INFORMATION_SCHEMA.MV_NODES
-         |WHERE TYPE = "LEAF";
-         |""".stripMargin
+        |SELECT IP_ADDR,
+        |PORT,
+        |EXTERNAL_HOST,
+        |EXTERNAL_PORT
+        |FROM INFORMATION_SCHEMA.MV_NODES
+        |WHERE TYPE = "LEAF";
+        |""".stripMargin
     )
     try {
       val statement = conn.prepareStatement(sql)
