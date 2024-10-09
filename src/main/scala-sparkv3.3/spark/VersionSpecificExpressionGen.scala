@@ -113,11 +113,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
 
     // numberFormatExpressions.scala
     case ToNumber(expressionExtractor(left), expressionExtractor(right)) =>
-      // Need to transform the return type of SingleStore functions that return `DECIMAL(65,15)`
-      // to a lower precision since Spark only supports up to `DECIMAL(38,37)`
-      //
-      // Error: java.lang.IllegalArgumentException: DECIMAL precision 65 exceeds max precision 38
-      Some(makeDecimal(f("TO_NUMBER", left, right), DecimalType.MAX_PRECISION, 15))
+      Some(f("TO_NUMBER", left, right))
 
     // randomExpression.scala
     // TODO PLAT-5759
