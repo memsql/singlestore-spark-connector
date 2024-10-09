@@ -47,8 +47,18 @@ case object SinglestoreDialect extends JdbcDialect {
       case (Types.INTEGER, "SMALLINT UNSIGNED")  => Option(IntegerType)
       case (Types.DECIMAL, "DECIMAL") => {
         if (size > DecimalType.MAX_PRECISION) {
-          throw new IllegalArgumentException(
-            s"DECIMAL precision ${size} exceeds max precision ${DecimalType.MAX_PRECISION}")
+          // Need to transform the return type of SingleStore functions that return `DECIMAL(65,15)`
+          // to a lower precision since Spark only supports up to `DECIMAL(38,37)`. SUM returns
+          // `A double if the input type is double, otherwise decimal.`
+          //
+          // Error: java.lang.IllegalArgumentException: DECIMAL precision 65 exceeds max precision 38
+          log.warn(
+            s"DECIMAL precision $size exceeds max precision ${DecimalType.MAX_PRECISION}. " +
+              s"Setting precision to Spark max ${DecimalType.MAX_PRECISION}."
+          )
+          Option(
+            DecimalType(DecimalType.MAX_PRECISION, md.build().getLong("scale").toInt)
+          )
         } else {
           Option(
             DecimalType(size, md.build().getLong("scale").toInt)

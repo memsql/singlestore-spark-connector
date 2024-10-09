@@ -1,7 +1,7 @@
 package com.singlestore.spark
 
 import com.singlestore.spark.SQLGen.{DoubleVar, ExpressionExtractor, Joinable, SQLGenContext}
-import com.singlestore.spark.ExpressionGen.{aggregateWithFilter, doubleFoldableExtractor, makeDecimal, numberFoldableExtractor, f, op}
+import com.singlestore.spark.ExpressionGen.{aggregateWithFilter, doubleFoldableExtractor, numberFoldableExtractor, f, op}
 import org.apache.spark.sql.catalyst.expressions.aggregate.{
   AggregateFunction,
   ApproximatePercentile,
@@ -16,7 +16,7 @@ import org.apache.spark.sql.catalyst.expressions.aggregate.{
   VariancePop,
   VarianceSamp
 }
-import org.apache.spark.sql.types.{DecimalType, DoubleType, NumericType}
+import org.apache.spark.sql.types.NumericType
 
 case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: ExpressionExtractor,
                                                        context: SQLGenContext,
