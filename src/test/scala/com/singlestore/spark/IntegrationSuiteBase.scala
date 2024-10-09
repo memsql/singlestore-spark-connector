@@ -115,7 +115,7 @@ trait IntegrationSuiteBase
       .builder()
       .master(if (canDoParallelReadFromAggregators) "local[2]" else "local")
       .appName("singlestore-integration-tests")
-      .config("spark.sql.shuffle.partitions", "2")
+      .config("spark.sql.shuffle.partitions", "4")
       .config("spark.driver.bindAddress", "localhost")
       .config("spark.driver.extraJavaOptions", "-Duser.timezone=GMT")
       .config("spark.executor.extraJavaOptions", "-Duser.timezone=GMT")
