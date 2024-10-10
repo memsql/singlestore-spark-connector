@@ -1,11 +1,11 @@
 package com.singlestore.spark
 
 import java.sql.SQLSyntaxErrorException
-
 import com.singlestore.spark.SQLGen.{ExpressionExtractor, SQLGenContext, VariableList}
 import org.apache.spark.DataSourceTelemetryHelpers
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression => CatalystExpression}
+import org.apache.spark.sql.execution.SQLPlan
 import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
 import org.apache.spark.sql.{Row, SQLContext}
 
@@ -15,9 +15,12 @@ case class SinglestoreReaderNoPushdown(query: String,
                                        options: SinglestoreOptions,
                                        @transient val sqlContext: SQLContext)
     extends BaseRelation
-    with TableScan {
+    with TableScan
+    with SQLPlan {
 
   override lazy val schema = JdbcHelpers.loadSchema(options, query, Nil)
+
+  override def sql: String = query
 
   override def buildScan: RDD[Row] = {
     val randHex = Random.nextInt().toHexString
@@ -67,9 +70,12 @@ case class SinglestoreReader(query: String,
     with LazyLogging
     with TableScan
     with CatalystScan
-    with DataSourceTelemetryHelpers {
+    with SQLPlan
+    with DataSourceTelemetryHelpers  {
 
   override lazy val schema = JdbcHelpers.loadSchema(options, query, variables)
+
+  override def sql: String = toString
 
   override def buildScan: RDD[Row] = {
     val randHex = Random.nextInt().toHexString
