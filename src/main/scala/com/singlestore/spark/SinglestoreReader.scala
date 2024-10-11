@@ -7,7 +7,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression => CatalystExpression}
 import org.apache.spark.sql.execution.SQLPlan
 import org.apache.spark.sql.sources.{BaseRelation, CatalystScan, TableScan}
-import org.apache.spark.sql.types.{StructField, StructType}
+import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{Row, SQLContext}
 
 import scala.util.Random
@@ -74,28 +74,7 @@ case class SinglestoreReader(query: String,
     with SQLPlan
     with DataSourceTelemetryHelpers  {
 
-  override lazy val schema: StructType = {
-    // For complex queries (most of AIQ queries), fetching the schema from SingleStore
-    // fails so we implement a fallback strategy to remediate the issue
-    //
-    // scalastyle:off line.size.limit
-    // Inspired by: https://github.com/ActionIQ/spark-redshift/blob/8fdc5635bc20207da9f17433d3f6791fa802eece/src/main/scala/io/github/spark_redshift_community/spark/redshift/RedshiftRelation.scala#L58-L69
-    // scalastyle:on line.size.limit
-    try {
-      JdbcHelpers.loadSchema(options, query, variables)
-    } catch {
-      case ex: Exception if expectedOutput.nonEmpty =>
-        log.warn(
-          s"Loading Schema from SingleStore failed. " +
-            s"Falling back to forming the Schema based on the Expected Output.",
-          ex
-        )
-
-        StructType(
-          expectedOutput.map(attr => StructField(attr.name, attr.dataType, attr.nullable))
-        )
-    }
-  }
+  override lazy val schema: StructType = JdbcHelpers.loadSchema(options, query, variables)
 
   override def sql: String = toString
 
