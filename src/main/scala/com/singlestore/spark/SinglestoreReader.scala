@@ -74,15 +74,31 @@ case class SinglestoreReader(query: String,
     with SQLPlan
     with DataSourceTelemetryHelpers  {
 
-  override lazy val schema: StructType = JdbcHelpers.loadSchema(options, query, variables)
+  // Tables that have too many columns (Dell) may produce very long query strings (> 130k characters)
+  // which will make the PreparedStatement fail with a misleading communication dropped error.
+  // Truncating here to make sure we save as many characters as we can.
+  private def truncateQuery: String = query.stripMargin.linesIterator.map(_.trim).mkString(" ")
 
-  override def sql: String = toString
+  override lazy val schema: StructType = JdbcHelpers.loadSchema(options, truncateQuery, variables)
+
+  override def sql: String =
+    s"""
+      |---------------
+      |SingleStore Query
+      |Variables: (${variables.map(_.variable).mkString(", ")})
+      |SQL:
+      |$query
+      """.stripMargin
 
   override def buildScan: RDD[Row] = {
+    if (sqlContext.sparkContext.dataSourceTelemetry.checkForPushDownFailures.get()) {
+      sqlContext.sparkContext.dataSourceTelemetry.numOfFailedPushDownQueries.getAndIncrement()
+    }
+
     val randHex = Random.nextInt().toHexString
     val rdd =
       SinglestoreRDD(
-        query,
+        truncateQuery,
         variables,
         options,
         schema,
@@ -90,7 +106,7 @@ case class SinglestoreReader(query: String,
         resultMustBeSorted,
         expectedOutput
           .filter(attr => options.parallelReadRepartitionColumns.contains(attr.name))
-          .map(attr => context.ident(attr.name, attr.exprId)),
+          .map(attr => context.ident(attr.name, None)),
         sqlContext.sparkContext,
         randHex,
         DataSourceTelemetryHelpers.createDataSourceTelemetry(
@@ -174,7 +190,7 @@ case class SinglestoreReader(query: String,
       |SingleStore Query
       |Variables: ($v)
       |SQL:
-      |${JdbcHelpers.appendTagsToQuery(options, query)};$explain
+      |$query$explain
       |---------------
       """.stripMargin
   }

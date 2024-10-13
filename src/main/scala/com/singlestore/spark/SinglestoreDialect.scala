@@ -51,7 +51,8 @@ case object SinglestoreDialect extends JdbcDialect {
           // to a lower precision since Spark only supports up to `DECIMAL(38,37)`. SUM returns
           // `A double if the input type is double, otherwise decimal.`
           //
-          // Error: java.lang.IllegalArgumentException: DECIMAL precision 65 exceeds max precision 38
+          // Error:
+          //  java.lang.IllegalArgumentException: DECIMAL precision 65 exceeds max precision 38
           log.warn(
             s"DECIMAL precision $size exceeds max precision ${DecimalType.MAX_PRECISION}. " +
               s"Setting precision to Spark max ${DecimalType.MAX_PRECISION}."
