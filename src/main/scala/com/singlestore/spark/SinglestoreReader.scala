@@ -74,12 +74,7 @@ case class SinglestoreReader(query: String,
     with SQLPlan
     with DataSourceTelemetryHelpers  {
 
-  // Tables that have too many columns (Dell) may produce very long query strings (> 130k characters)
-  // which will make the PreparedStatement fail with a misleading communication dropped error.
-  // Truncating here to make sure we save as many characters as we can.
-  private def truncateQuery: String = query.stripMargin.linesIterator.map(_.trim).mkString(" ")
-
-  override lazy val schema: StructType = JdbcHelpers.loadSchema(options, truncateQuery, variables)
+  override lazy val schema: StructType = JdbcHelpers.loadSchema(options, query, variables)
 
   override def sql: String =
     s"""
@@ -98,7 +93,7 @@ case class SinglestoreReader(query: String,
     val randHex = Random.nextInt().toHexString
     val rdd =
       SinglestoreRDD(
-        truncateQuery,
+        query,
         variables,
         options,
         schema,
@@ -106,7 +101,7 @@ case class SinglestoreReader(query: String,
         resultMustBeSorted,
         expectedOutput
           .filter(attr => options.parallelReadRepartitionColumns.contains(attr.name))
-          .map(attr => context.ident(attr.name, None)),
+          .map(attr => context.ident(attr.name, attr.qualifier.headOption)),
         sqlContext.sparkContext,
         randHex,
         DataSourceTelemetryHelpers.createDataSourceTelemetry(
@@ -146,17 +141,17 @@ case class SinglestoreReader(query: String,
       case (Some(p), Some(f)) =>
         SQLGen
           .select(p)
-          .from(SQLGen.Relation(Nil, this, context.nextAlias(), null))
+          .from(SQLGen.Relation(rawColumns, this, context.nextAlias(), null))
           .where(f)
           .output(rawColumns)
       case (Some(p), None) =>
         SQLGen
           .select(p)
-          .from(SQLGen.Relation(Nil, this, context.nextAlias(), null))
+          .from(SQLGen.Relation(rawColumns, this, context.nextAlias(), null))
           .output(rawColumns)
       case (None, Some(f)) =>
         SQLGen.selectAll
-          .from(SQLGen.Relation(Nil, this, context.nextAlias(), null))
+          .from(SQLGen.Relation(expectedOutput, this, context.nextAlias(), null))
           .where(f)
           .output(expectedOutput)
       case _ =>

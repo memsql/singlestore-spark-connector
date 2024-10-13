@@ -1,8 +1,6 @@
 package com.singlestore.spark
 
 import java.sql.{Date, Timestamp}
-import java.util.concurrent.atomic.AtomicReference
-
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.logical._
@@ -157,7 +155,7 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
     val isFinal = reader.isFinal
 
     val output = rawOutput.map(
-      a => AttributeReference(a.name, a.dataType, a.nullable, a.metadata)(a.exprId)
+      a => AttributeReference(a.name, a.dataType, a.nullable, a.metadata)(a.exprId, Seq(name))
     )
 
     override val sql: String = {
@@ -255,7 +253,7 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
   case class Attr(a: Attribute, context: SQLGenContext) extends Chunk {
     override def toSQL(fieldMap: Map[ExprId, Attribute]): String = {
       val target = fieldMap.getOrElse(a.exprId, a)
-      context.ident(target.name, context.currentAlias.get())
+      context.ident(target.name, target.qualifier.headOption)
     }
   }
 
@@ -532,17 +530,8 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
   case class SQLGenContext(normalizedExprIdMap: HashMap[ExprId, Int],
                            singlestoreVersion: SinglestoreVersion,
                            sparkContext: SparkContext) {
-    val currentAlias: AtomicReference[Option[String]] = new AtomicReference[Option[String]](None)
-    val aliasGen: Iterator[String] = Iterator.from(1).map { i =>
-      val alias = s"a$i"
-      currentAlias.set(Some(alias))
-      alias
-    }
-    def nextAlias(): String = {
-      val subsequentAlias = aliasGen.next()
-      currentAlias.set(Some(subsequentAlias))
-      subsequentAlias
-    }
+    val aliasGen: Iterator[String] = Iterator.from(1).map(i => s"a$i")
+    def nextAlias(): String = aliasGen.next()
 
     def singlestoreVersionAtLeast(version: String): Boolean =
       singlestoreVersion.atLeast(version)
@@ -554,7 +543,7 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
         Ident(s"${name.substring(0, Math.min(name.length, 10))}#${exprId.id}").sql
       }
 
-    def ident(name: String, table: Option[String]): String = Ident(name, table).sql
+    def ident(name: String, qualifier: Option[String]): String = Ident(name, qualifier).sql
   }
 
   object SQLGenContext {
@@ -657,9 +646,9 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
         if (args.lengthCompare(1) > 0) {
           val expressionNames = new mutable.HashSet[String]()
           val hasDuplicates = args.exists({
-            case NamedExpression(name, _) =>
+            case a @ NamedExpression(name, _) =>
               // !expressionNames.add(s"${name}#${a.exprId.id}")
-              !expressionNames.add(context.ident(name, context.currentAlias.get()))
+              !expressionNames.add(context.ident(name, a.qualifier.headOption))
             case _                            => false
           })
           if (hasDuplicates) return None
