@@ -139,6 +139,8 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
     override val sql: String = qualifier
       .map(q => s"${SinglestoreDialect.quoteIdentifier(q)}.")
       .getOrElse("") + SinglestoreDialect.quoteIdentifier(name)
+
+    val alias: String = qualifier.map(q => s"${q}_").getOrElse("") + name
   }
 
   case class Relation(
@@ -155,7 +157,7 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
     val isFinal = reader.isFinal
 
     val output = rawOutput.map(
-      a => AttributeReference(a.name, a.dataType, a.nullable, a.metadata)(a.exprId, Seq(name))
+      a => AttributeReference(a.name, a.dataType, a.nullable, a.metadata)(a.exprId, Seq[String](name))
     )
 
     override val sql: String = {
@@ -184,15 +186,24 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
       s"(\n  $indentedQuery\n) AS $alias"
     }
 
-    def renameOutput: LogicalPlan =
-      select(
-        output
-          .map(a =>
-            alias(SinglestoreDialect.quoteIdentifier(a.name), a.name, a.exprId, reader.context))
-          .reduce(_ + "," + _))
-        .from(this)
-        .output(output)
+    def renameOutput: LogicalPlan = {
+      val renameOutputExpr = output
+        .zipWithIndex
+        .map { case (a, idx) =>
+          Alias(
+            a,
+            Ident(s"col_$idx", a.qualifier.headOption).alias
+          )(a.exprId, a.qualifier, Some(a.metadata))
+        }
+      val expressionExtractor = ExpressionExtractor(reader.context)
+
+      select(renameOutputExpr match {
+        case expressionExtractor(expr) => expr
+        case _                         => None
+      }).from(this)
+        .output(renameOutputExpr.map(_.toAttribute), updateFromFieldMap = false)
         .asLogicalPlan()
+    }
 
     def castOutputAndFinalize: LogicalPlan = {
       val schema = try {
