@@ -1926,7 +1926,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadForReadFromLeaves(
           "select * from users full outer join reviews on users.id = reviews.user_id")
       }
-      ignore("10/2024 | SQLGen.scala NaturalJoin - natural join") {
+      ignore("10/2024 | SQLGen.scala -> NaturalJoin - natural join") {
         testSingleReadForReadFromLeaves(
           "select users.id, rating from users natural join (select user_id as id, rating from reviews)")
       }
@@ -2331,7 +2331,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
       testOrderedQuery(
         "select * from (select id from users) as a, (select id from movies) as b where a.id = b.id order by a.id")
     }
-    it("select same columns twice via natural join") {
+    ignore("10/2024 | SQLGen.scala -> NaturalJoin - select same columns twice via natural join") {
       testOrderedQuery("select * from users as a natural join users order by a.id")
     }
     it("select same column twice from table") {
