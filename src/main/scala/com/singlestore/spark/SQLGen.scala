@@ -1,6 +1,7 @@
 package com.singlestore.spark
 
 import java.sql.{Date, Timestamp}
+
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.logical._
@@ -90,10 +91,13 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
         case LeftOuter               => this + "\nLEFT OUTER JOIN" + c
         case RightOuter              => this + "\nRIGHT OUTER JOIN" + c
         case FullOuter               => this + "\nFULL OUTER JOIN" + c
-        case NaturalJoin(Inner)      => this + "\nNATURAL JOIN" + c
-        case NaturalJoin(LeftOuter)  => this + "\nNATURAL LEFT OUTER JOIN" + c
-        case NaturalJoin(RightOuter) => this + "\nNATURAL RIGHT OUTER JOIN" + c
-        case NaturalJoin(FullOuter)  => this + "\nNATURAL FULL OUTER JOIN" + c
+        // With qualifiers these may create column naming conflicts.
+        // Removing since we are not using them in our Platform and the rest
+        // of the Connectors do not support them either.
+        // case NaturalJoin(Inner)      => this + "\nNATURAL JOIN" + c
+        // case NaturalJoin(LeftOuter)  => this + "\nNATURAL LEFT OUTER JOIN" + c
+        // case NaturalJoin(RightOuter) => this + "\nNATURAL RIGHT OUTER JOIN" + c
+        // case NaturalJoin(FullOuter)  => this + "\nNATURAL FULL OUTER JOIN" + c
         case _                       => throw new IllegalArgumentException(s"join type $joinType not supported")
       }
 
@@ -139,8 +143,6 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
     override val sql: String = qualifier
       .map(q => s"${SinglestoreDialect.quoteIdentifier(q)}.")
       .getOrElse("") + SinglestoreDialect.quoteIdentifier(name)
-
-    val alias: String = qualifier.map(q => s"${q}_").getOrElse("") + name
   }
 
   case class Relation(
@@ -186,24 +188,15 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
       s"(\n  $indentedQuery\n) AS $alias"
     }
 
-    def renameOutput: LogicalPlan = {
-      val renameOutputExpr = output
-        .zipWithIndex
-        .map { case (a, idx) =>
-          Alias(
-            a,
-            Ident(s"col_$idx", a.qualifier.headOption).alias
-          )(a.exprId, a.qualifier, Some(a.metadata))
-        }
-      val expressionExtractor = ExpressionExtractor(reader.context)
-
-      select(renameOutputExpr match {
-        case expressionExtractor(expr) => expr
-        case _                         => None
-      }).from(this)
-        .output(renameOutputExpr.map(_.toAttribute), updateFromFieldMap = false)
+    def renameOutput: LogicalPlan =
+      select(
+        output
+          .map(a =>
+            alias(SinglestoreDialect.quoteIdentifier(a.name), a.name, a.exprId, reader.context))
+          .reduce(_ + "," + _))
+        .from(this)
+        .output(output)
         .asLogicalPlan()
-    }
 
     def castOutputAndFinalize: LogicalPlan = {
       val schema = try {
@@ -542,7 +535,7 @@ object SQLGen extends LazyLogging with DataSourceTelemetryHelpers {
                            singlestoreVersion: SinglestoreVersion,
                            sparkContext: SparkContext) {
     val aliasGen: Iterator[String] = Iterator.from(1).map(i => s"a$i")
-    def nextAlias(): String = aliasGen.next()
+    def nextAlias(): String        = aliasGen.next()
 
     def singlestoreVersionAtLeast(version: String): Boolean =
       singlestoreVersion.atLeast(version)
