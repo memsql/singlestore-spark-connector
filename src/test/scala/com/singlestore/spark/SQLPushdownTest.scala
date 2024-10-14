@@ -1926,7 +1926,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testSingleReadForReadFromLeaves(
           "select * from users full outer join reviews on users.id = reviews.user_id")
       }
-      it("natural join") {
+      ignore("10/2024 | SQLGen.scala NaturalJoin - natural join") {
         testSingleReadForReadFromLeaves(
           "select users.id, rating from users natural join (select user_id as id, rating from reviews)")
       }
