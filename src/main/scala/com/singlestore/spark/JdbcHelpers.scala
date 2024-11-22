@@ -149,30 +149,43 @@ object JdbcHelpers extends LazyLogging {
     }
   }
 
-  def jdbcUtilGetSchema(conn: Connection,
-                        resultSet: ResultSet,
-                        dialect: JdbcDialect,
-                        alwaysNullable: Boolean = false,
-                        isTimestampNTZ: Boolean = false): StructType = {
-    type ImplementsGetSchemaWithConnection = {
-      def getSchema(conn: Connection,
-                    resultSet: ResultSet,
-                    dialect: JdbcDialect,
-                    alwaysNullable: Boolean,
-                    isTimestampNTZ: Boolean): StructType
-    }
-    type ImplementsGetSchema = {
-      def getSchema(resultSet: ResultSet, dialect: JdbcDialect, alwaysNullable: Boolean): StructType
-    }
+  private def jdbcUtilGetSchema(conn: Connection,
+                                resultSet: ResultSet,
+                                dialect: JdbcDialect,
+                                alwaysNullable: Boolean = false,
+                                isTimestampNTZ: Boolean = false): StructType = {
+    val clazz = JdbcUtils.getClass
 
-    if (JdbcUtils.isInstanceOf[ImplementsGetSchemaWithConnection]) {
-      JdbcUtils
-        .asInstanceOf[ImplementsGetSchemaWithConnection]
-        .getSchema(conn, resultSet, dialect, alwaysNullable, isTimestampNTZ)
-    } else {
-      JdbcUtils
-        .asInstanceOf[ImplementsGetSchema]
-        .getSchema(resultSet, dialect, alwaysNullable)
+    try {
+      // Try to find and call the method with `Connection`
+      val method = clazz.getMethod(
+        "getSchema",
+        classOf[Connection],
+        classOf[ResultSet],
+        classOf[JdbcDialect],
+        classOf[Boolean],
+        classOf[Boolean]
+      )
+      method
+        .invoke(JdbcUtils,
+                conn,
+                resultSet,
+                dialect,
+                alwaysNullable: java.lang.Boolean,
+                isTimestampNTZ: java.lang.Boolean)
+        .asInstanceOf[StructType]
+    } catch {
+      case _: NoSuchMethodException =>
+        // Fallback to method without `Connection`
+        val method = clazz.getMethod(
+          "getSchema",
+          classOf[ResultSet],
+          classOf[JdbcDialect],
+          classOf[Boolean]
+        )
+        method
+          .invoke(JdbcUtils, resultSet, dialect, alwaysNullable: java.lang.Boolean)
+          .asInstanceOf[StructType]
     }
   }
 
