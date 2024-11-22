@@ -154,6 +154,8 @@ object JdbcHelpers extends LazyLogging {
                                 dialect: JdbcDialect,
                                 alwaysNullable: Boolean = false,
                                 isTimestampNTZ: Boolean = false): StructType = {
+    // Databricks has a different implementation of getSchema method
+    // Here we check 3 possible implementations and use existing one
     val clazz = JdbcUtils.getClass
 
     try {
@@ -176,16 +178,35 @@ object JdbcHelpers extends LazyLogging {
         .asInstanceOf[StructType]
     } catch {
       case _: NoSuchMethodException =>
-        // Fallback to method without `Connection`
-        val method = clazz.getMethod(
-          "getSchema",
-          classOf[ResultSet],
-          classOf[JdbcDialect],
-          classOf[Boolean]
-        )
-        method
-          .invoke(JdbcUtils, resultSet, dialect, alwaysNullable: java.lang.Boolean)
-          .asInstanceOf[StructType]
+        try {
+          // Fallback to method without `Connection`
+          val method = clazz.getMethod(
+            "getSchema",
+            classOf[ResultSet],
+            classOf[JdbcDialect],
+            classOf[Boolean],
+            classOf[Boolean]
+          )
+          method
+            .invoke(JdbcUtils,
+                    resultSet,
+                    dialect,
+                    alwaysNullable: java.lang.Boolean,
+                    isTimestampNTZ: java.lang.Boolean)
+            .asInstanceOf[StructType]
+        } catch {
+          case _: NoSuchMethodException =>
+            // Fallback to method without `isTimestampNTZ`
+            val method = clazz.getMethod(
+              "getSchema",
+              classOf[ResultSet],
+              classOf[JdbcDialect],
+              classOf[Boolean]
+            )
+            method
+              .invoke(JdbcUtils, resultSet, dialect, alwaysNullable: java.lang.Boolean)
+              .asInstanceOf[StructType]
+        }
     }
   }
 
