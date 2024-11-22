@@ -3,23 +3,22 @@ package com.singlestore.spark
 import java.sql.{
   Connection,
   PreparedStatement,
+  ResultSet,
   SQLException,
   SQLInvalidAuthorizationSpecException,
   Statement
 }
 import java.util.Properties
 import java.util.UUID.randomUUID
-
 import com.singlestore.spark.SinglestoreOptions.{TableKey, TableKeyType}
 import com.singlestore.spark.SQLGen.{SinglestoreVersion, StringVar, VariableList}
 import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
-import org.apache.spark.sql.jdbc.JdbcDialects
+import org.apache.spark.sql.jdbc.{JdbcDialect, JdbcDialects}
 import org.apache.spark.sql.types.{StringType, StructType}
 
 import scala.util.{Failure, Success, Try}
-import org.apache.spark.SparkContext
 
 case class SinglestorePartitionInfo(ordinal: Int, name: String, hostport: String)
 
@@ -61,7 +60,9 @@ object JdbcHelpers extends LazyLogging {
     properties.setProperty("driverClassName", "com.singlestore.jdbc.Driver")
     properties.setProperty("username", conf.user)
     properties.setProperty("password", conf.password)
-    properties.setProperty("connectionAttributes", s"_connector_name:SingleStore Spark Connector,_connector_version:${BuildInfo.version},_product_version:${conf.sparkVersion}")
+    properties.setProperty(
+      "connectionAttributes",
+      s"_connector_name:SingleStore Spark Connector,_connector_version:${BuildInfo.version},_product_version:${conf.sparkVersion}")
     properties.setProperty(
       "connectionProperties",
       (Map(
@@ -118,7 +119,7 @@ object JdbcHelpers extends LazyLogging {
         Iterator[Row]()
       } else {
         val rs     = statement.getResultSet
-        val schema = JdbcUtils.getSchema(rs, SinglestoreDialect, alwaysNullable = true)
+        val schema = jdbcUtilGetSchema(conn, rs, SinglestoreDialect, alwaysNullable = true)
         JdbcUtils.resultSetToRows(rs, schema)
       }
     } finally {
@@ -136,7 +137,7 @@ object JdbcHelpers extends LazyLogging {
         fillStatement(statement, variables)
         val rs = statement.executeQuery()
         try {
-          JdbcUtils.getSchema(rs, SinglestoreDialect, alwaysNullable = true)
+          jdbcUtilGetSchema(conn, rs, SinglestoreDialect, alwaysNullable = true)
         } finally {
           rs.close()
         }
@@ -145,6 +146,34 @@ object JdbcHelpers extends LazyLogging {
       }
     } finally {
       conn.close()
+    }
+  }
+
+  def jdbcUtilGetSchema(conn: Connection,
+                        resultSet: ResultSet,
+                        dialect: JdbcDialect,
+                        alwaysNullable: Boolean = false): StructType = {
+    type ImplementsGetSchemaWithConnection = {
+      def getSchema(conn: Connection,
+                    resultSet: ResultSet,
+                    dialect: JdbcDialect,
+                    alwaysNullable: Boolean = false,
+                    isTimestampNTZ: Boolean = false): StructType
+    }
+    type ImplementsGetSchema = {
+      def getSchema(resultSet: ResultSet,
+                    dialect: JdbcDialect,
+                    alwaysNullable: Boolean = false): StructType
+    }
+
+    if (JdbcUtils.isInstanceOf[ImplementsGetSchemaWithConnection]) {
+      JdbcUtils
+        .asInstanceOf[ImplementsGetSchemaWithConnection]
+        .getSchema(conn, resultSet, dialect, alwaysNullable)
+    } else {
+      JdbcUtils
+        .asInstanceOf[ImplementsGetSchema]
+        .getSchema(resultSet, dialect, alwaysNullable)
     }
   }
 
