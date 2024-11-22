@@ -503,7 +503,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
       }
       assert(readResult.isFailure)
       assert(
-        readResult.failed.get.getMessage
+        readResult.failed.get.getCause.getMessage
           .equals("DECIMAL precision 65 exceeds max precision 38"))
     }
   }
