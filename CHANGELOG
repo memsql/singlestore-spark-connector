@@ -1,3 +1,6 @@
+2024-11-22 Version 4.1.10
+    * Updated JDBC driver to 1.2.7
+
 2024-11-22 Version 4.1.9
     * Changed to work with Databricks runtime 15.4
 
