@@ -28,3 +28,4 @@ atlassian-ide-plugin.xml
 /spark-warehouse
 
 /ci/secring.asc
+scripts/ssl

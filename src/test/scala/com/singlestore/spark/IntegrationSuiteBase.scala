@@ -128,7 +128,7 @@ trait IntegrationSuiteBase
       .config("spark.datasource.singlestore.database", "testdb")
       .config("spark.datasource.singlestore.useSSL", "true")
       .config("spark.datasource.singlestore.serverSslCert",
-              s"${System.getProperty("user.dir")}/scripts/ssl/test-ca-cert.pem")
+              s"${System.getProperty("user.dir")}/scripts/ssl/ca-cert.pem")
       .config("spark.datasource.singlestore.disableSslHostnameVerification", "true")
       .config("spark.sql.crossJoin.enabled", "true")
       .getOrCreate()
