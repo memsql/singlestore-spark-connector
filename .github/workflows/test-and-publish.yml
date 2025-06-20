@@ -1,4 +1,4 @@
-name: Test
+name: Test and Publish
 
 on:
   pull_request:
@@ -108,4 +108,4 @@ jobs:
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
         run: |
-          sbt ++2.12.12 -Dspark.version=${{ matrix.spark_version }} clean publishLocal
+          sbt ++2.12.12 -Dspark.version=${{ matrix.spark_version }} clean publishSigned sonatypeBundleRelease
