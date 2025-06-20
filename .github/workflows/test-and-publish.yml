@@ -1,10 +1,13 @@
-name: Test
+name: Test and Publish
 
 on:
   pull_request:
     types: [ opened, synchronize, reopened ]
   schedule:
     - cron: "0 0 * * 0"
+  push:
+    tags:
+      - "v*"
 
 jobs:
   fetch-s2-versions:
@@ -35,9 +38,6 @@ jobs:
             tag: 'ExcludeFromSpark34'
           - spark_version: '3.5.0'
             tag: 'ExcludeFromSpark35'
-    permissions:
-      checks: write
-      contents: write
 
     steps:
       - name: Remove unnecessary pre-installed toolchains for free disk spaces
@@ -57,7 +57,7 @@ jobs:
           echo "=== AFTER ==="
           df -h
       - uses: actions/checkout@v4
-      - name: Setup test cluster
+      - name: Set up test cluster
         env:
           SINGLESTORE_LICENSE: ${{ secrets.SINGLESTORE_LICENSE }}
           ROOT_PASSWORD: ${{ secrets.SINGLESTORE_PASSWORD }}
@@ -69,10 +69,43 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
           cache: sbt
-      - name: Setup sbt launcher
+      - name: Set up sbt launcher
         uses: sbt/setup-sbt@v1
       - name: Run tests for Spark ${{ matrix.spark_version }}
         env:
           SINGLESTORE_JWT_PASSWORD: ${{ secrets.SINGLESTORE_JWT_PASSWORD }}
           SINGLESTORE_PASSWORD: ${{ secrets.SINGLESTORE_PASSWORD }}
         run: sbt ++2.12.12 "testOnly -- -l ${{ matrix.tag }}" -Dspark.version=${{ matrix.spark_version }}
+
+  publish:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        spark_version: ['3.1.3', '3.2.4', '3.3.4', '3.4.2', '3.5.0']
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          cache: sbt
+      - name: Set up sbt launcher
+        uses: sbt/setup-sbt@v1
+      - name: Set up GPG
+        env:
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          ENCRYPTION_IV: ${{ secrets.ENCRYPTION_IV }}
+        run: |
+          openssl enc -d -aes-256-cbc -K $ENCRYPTION_KEY -iv $ENCRYPTION_IV -in ci/secring.asc.enc -out ci/secring.asc
+          gpg --import ci/secring.asc
+      - name: Publish Spark ${{ matrix.spark_version }}
+        env:
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+        run: |
+          sbt ++2.12.12 -Dspark.version=${{ matrix.spark_version }} clean publishSigned sonatypeBundleRelease
