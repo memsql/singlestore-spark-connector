@@ -1,17 +1,15 @@
 package com.singlestore.spark
 
 import java.sql.{Date, Timestamp}
-
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.plans._
 import org.apache.spark.sql.catalyst.plans.logical._
-import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.types._
 import org.slf4j.{Logger, LoggerFactory}
 import com.singlestore.spark.JdbcHelpers.getDMLConnProperties
 
 import scala.collection.immutable.HashMap
-import scala.collection.{breakOut, mutable}
+import scala.collection.mutable
 
 object SQLGen extends LazyLogging {
   type VariableList = List[Var[_]]
@@ -42,7 +40,8 @@ object SQLGen extends LazyLogging {
 
     lazy val fieldMap: Map[ExprId, Attribute] = relations
       .flatMap(_.output)
-      .map(a => (a.exprId, a))(breakOut)
+      .map(a => (a.exprId, a))
+      .toMap
 
     lazy val variables: VariableList =
       reverseList.collect {
@@ -229,30 +228,10 @@ object SQLGen extends LazyLogging {
   }
 
   object Relation {
-    def unapply(source: LogicalPlan): Option[Relation] =
-      source match {
-        case LogicalRelation(reader: SinglestoreReader, output, catalogTable, isStreaming) => {
-          def convertBack(output: Seq[AttributeReference],
-                          sql: String,
-                          variables: VariableList,
-                          isFinal: Boolean,
-                          context: SQLGenContext): LogicalPlan = {
-            new LogicalRelation(
-              reader.copy(query = sql,
-                          variables = variables,
-                          isFinal = isFinal,
-                          expectedOutput = output,
-                          context = context),
-              output,
-              catalogTable,
-              isStreaming
-            )
-          }
-
-          Some(Relation(output, reader, reader.context.nextAlias(), convertBack))
-        }
-        case _ => None
-      }
+    def unapply(source: LogicalPlan): Option[Relation] = {
+      val versionSpecificRelation = VersionSpecificRelationExtractor
+      versionSpecificRelation.unapply(source)
+    }
   }
 
   case class Attr(a: Attribute, context: SQLGenContext) extends Chunk {
@@ -360,7 +339,9 @@ object SQLGen extends LazyLogging {
       val limitWithOrder = LimitWithOrder(expressionExtractor)
 
       source match {
-        case plan @ Sort(expressionExtractor(expr), true, Relation(relation)) =>
+        case plan @ VersionSpecificSortExtractor(order @ expressionExtractor(expr),
+                                                 true,
+                                                 Relation(relation)) =>
           Some(
             newStatement(plan)
               .selectAll()
@@ -371,7 +352,7 @@ object SQLGen extends LazyLogging {
               .limit(Long.MaxValue.toString)
               .output(plan.output)
               .asLogicalPlan(),
-            plan.order
+            order
           )
 
         case limitWithOrder(logicalPlan, order) => Some(logicalPlan, order)
@@ -384,9 +365,11 @@ object SQLGen extends LazyLogging {
   case class LimitWithOrder(expressionExtractor: ExpressionExtractor) {
     def unapply(source: LogicalPlan): Option[(LogicalPlan, Seq[SortOrder])] = {
       source match {
-        case plan @ Limit(
-              expressionExtractor(limitExpr),
-              innerPlan @ Sort(order @ expressionExtractor(sortExpr), true, Relation(relation))) =>
+        case plan @ Limit(expressionExtractor(limitExpr),
+                          innerPlan @ VersionSpecificSortExtractor(order @ expressionExtractor(
+                                                                     sortExpr),
+                                                                   true,
+                                                                   Relation(relation))) =>
           Some(
             newStatement(plan)
               .withLogicalPlanComment(innerPlan)
@@ -441,16 +424,19 @@ object SQLGen extends LazyLogging {
           .output(plan.output)
       }
 
-      case plan @ Aggregate(expressionExtractor(groupingExpr),
-                            expressionExtractor(aggregateExpr),
-                            relationOrSort(relation)) =>
+      case plan @ VersionSpecificAggregateExtractor(expressionExtractor(groupingExpr),
+                                                    expressionExtractor(aggregateExpr),
+                                                    relationOrSort(relation)) =>
         newStatement(plan)
           .select(aggregateExpr)
           .from(relation)
           .groupby(groupingExpr)
           .output(plan.output)
 
-      case plan @ Window(expressionExtractor(windowExpressions), _, _, relationOrSort(relation)) => {
+      case plan @ VersionSpecificWindowExtractor(expressionExtractor(windowExpressions),
+                                                 _,
+                                                 _,
+                                                 relationOrSort(relation)) => {
         newStatement(plan)
           .select(windowExpressions.map(exp => Raw("*,") + exp))
           .from(relation)
