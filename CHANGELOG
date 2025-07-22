@@ -1,3 +1,6 @@
+2025-07-22 Version 4.1.11
+    * Added support of Spark 4.0.0
+
 2024-11-22 Version 4.1.10
     * Updated JDBC driver to 1.2.7
 
