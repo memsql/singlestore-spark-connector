@@ -56,12 +56,12 @@ lazy val root = project
       "io.netty"               % "netty-buffer"            % "4.1.70.Final",
       "org.apache.commons"     % "commons-dbcp2"           % "2.9.0",
       // test dependencies
-      "org.mariadb.jdbc"    % "mariadb-java-client" % "2.+"     % Test,
-      "org.scalatest"       %% "scalatest"          % "3.1.0"   % Test,
-      "org.scalacheck"      %% "scalacheck"         % "1.14.1"  % Test,
-      "org.mockito"         %% "mockito-scala"      % "2.0.0" % Test,
-      "com.github.mrpowers" %% "spark-fast-tests"   % "1.1.0"   % Test,
-      "com.github.mrpowers" %% "spark-daria"        % "1.2.3"   % Test
+      "org.mariadb.jdbc"    % "mariadb-java-client" % "2.+"    % Test,
+      "org.scalatest"       %% "scalatest"          % "3.1.0"  % Test,
+      "org.scalacheck"      %% "scalacheck"         % "1.14.1" % Test,
+      "org.mockito"         %% "mockito-scala"      % "2.0.0"  % Test,
+      "com.github.mrpowers" %% "spark-fast-tests"   % "1.1.0"  % Test,
+      "com.github.mrpowers" %% "spark-daria"        % "1.2.3"  % Test
     ),
     dependencyOverrides += "com.fasterxml.jackson.core" % "jackson-databind" % jacksonDatabindVersion,
     Test / testOptions += Tests.Argument("-oF"),

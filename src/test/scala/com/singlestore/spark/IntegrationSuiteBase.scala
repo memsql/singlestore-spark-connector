@@ -115,6 +115,7 @@ trait IntegrationSuiteBase
       .master(if (canDoParallelReadFromAggregators) "local[2]" else "local")
       .appName("singlestore-integration-tests")
       .config("spark.driver.host", "127.0.0.1")
+      .config("spark.sql.ansi.enabled", "false")
       .config("spark.driver.bindAddress", "127.0.0.1")
       .config("spark.driver.blockManager.port", "0")
       .config("spark.driver.port", "0")

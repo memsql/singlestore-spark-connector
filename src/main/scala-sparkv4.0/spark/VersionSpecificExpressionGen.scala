@@ -13,6 +13,8 @@ import com.singlestore.spark.SQLGen.{
   stringToJoinable
 }
 import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.expressions.json.JsonExpressionUtils
+import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke
 import org.apache.spark.sql.types.{
   BinaryType,
   BooleanType,
@@ -178,6 +180,10 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case LengthOfJsonArray(expressionExtractor(child)) =>
       Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
 
+    case StaticInvoke(clazz, _, "lengthOfJsonArray", Seq(expressionExtractor(child)), _, _, _, _, _)
+        if clazz == classOf[JsonExpressionUtils] =>
+      Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
+
     case NextDay(expressionExtractor(startDate), utf8StringFoldableExtractor(dayOfWeek), false) =>
       Some(
         computeNextDay(
@@ -279,8 +285,9 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case Right(expressionExtractor(str), expressionExtractor(len)) =>
       Some(f("RIGHT", str, len))
 
-    case Round(expressionExtractor(child), expressionExtractor(scale), false)    => Some(f("ROUND", child, scale))
-    case Unhex(expressionExtractor(child), false)     => Some(f("UNHEX", child))
+    case Round(expressionExtractor(child), expressionExtractor(scale), false) =>
+      Some(f("ROUND", child, scale))
+    case Unhex(expressionExtractor(child), false) => Some(f("UNHEX", child))
 
     // ----------------------------------
     // Ternary Expressions
@@ -289,13 +296,12 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     // mathExpressions.scala
     case Conv(expressionExtractor(numExpr),
               intFoldableExtractor(fromBase),
-              intFoldableExtractor(toBase), false)
+              intFoldableExtractor(toBase),
+              false)
         // SingleStore supports bases only from [2, 36]
         if fromBase >= 2 && fromBase <= 36 &&
           toBase >= 2 && toBase <= 36 =>
       Some(f("CONV", numExpr, IntVar(fromBase), IntVar(toBase)))
-
-
 
     case _ => None
   }

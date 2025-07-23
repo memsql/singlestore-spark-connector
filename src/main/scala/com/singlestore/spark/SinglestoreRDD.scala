@@ -1,6 +1,6 @@
 package com.singlestore.spark
 
-import java.sql.{Connection, PreparedStatement, ResultSet}
+import java.sql.{Connection, Date, PreparedStatement, ResultSet}
 import java.util.concurrent.{Executors, ForkJoinPool}
 import com.singlestore.spark.SQLGen.VariableList
 import org.apache.spark.rdd.RDD
@@ -178,6 +178,12 @@ case class SinglestoreRDD(query: String,
           case ((_: LongType, _: IntegerType), i) =>
             (r: Row) =>
               getOrNull(r.getLong(i).toInt, r, i)
+          case ((_: DecimalType, _: DoubleType), i) =>
+            (r: Row) =>
+              getOrNull(r.getDecimal(i).doubleValue(), r, i)
+          case ((_: StringType, _: DateType), i) =>
+            (r: Row) =>
+              getOrNull(Date.valueOf(r.getString(i)), r, i)
 
           case ((l, r), i) =>
             options.assert(l == r, s"SinglestoreRDD: unable to encode ${l} into ${r}")

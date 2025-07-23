@@ -190,6 +190,9 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                 // Replace all Shorts with Integers, because JDBC connector converts SMALLINT to IntegerType when SingleStore connector converts it to ShortType
                 case _: ShortType =>
                   newDf = newDf.withColumn(x.name, newDf(x.name).cast(IntegerType))
+                // Replace all Byte with Integers, because JDBC connector (prior Spark 4.0) converts TINYINT to IntegerType when SingleStore connector converts it to ByteType
+                case _: ByteType =>
+                  newDf = newDf.withColumn(x.name, newDf(x.name).cast(IntegerType))
                 // Replace all CalendarIntervals with Strings, because assertApproximateDataFrameEquality can't sort CalendarIntervals
                 case _: CalendarIntervalType =>
                   newDf = newDf.withColumn(x.name, newDf(x.name).cast(StringType))
@@ -197,10 +200,15 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             })
           newDf
         }
-        assertApproximateDataFrameEquality(changeTypes(singlestoreDF),
-                                           changeTypes(jdbcDF),
-                                           dataFrameEqualityPrecision,
-                                           orderedComparison = alreadyOrdered)
+        if (alreadyOrdered) {
+          assertApproximateDataFrameEquality(changeTypes(singlestoreDF),
+                                             changeTypes(jdbcDF),
+                                             dataFrameEqualityPrecision)
+        } else {
+          assertApproximateDataFrameEquality(defaultSortDataset(changeTypes(singlestoreDF)),
+                                             defaultSortDataset(changeTypes(jdbcDF)),
+                                             dataFrameEqualityPrecision)
+        }
       } catch {
         case e: Throwable =>
           if (continuousIntegration) { println(singlestoreDF.explain(true)) }
@@ -989,7 +997,8 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           testQuery("select bit_get(id, -2) from users_sample")
         } catch {
           case e: Throwable =>
-            if (e.toString.contains("Invalid bit position: -2 is less than zero")) {
+            if (e.toString.contains("Invalid bit position: -2 is less than zero") ||
+                e.toString.contains("The value of parameter(s) `pos` in `bit_get` is invalid")) {
               None
             } else {
               throw e
@@ -1004,7 +1013,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
           testQuery("select bit_get(id, 100000) from users_sample")
         } catch {
           case e: Throwable =>
-            if (e.toString.contains("Invalid bit position: 100000 exceeds the bit upper limit")) {
+            if (e.toString
+                  .contains("Invalid bit position: 100000 exceeds the bit upper limit") ||
+                e.toString
+                  .contains("The value of parameter(s) `pos` in `bit_get` is invalid")) {
               None
             } else {
               throw e
