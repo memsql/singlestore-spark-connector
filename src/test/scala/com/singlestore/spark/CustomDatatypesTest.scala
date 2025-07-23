@@ -45,7 +45,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
         ),
         spark.createDF(
           List(1: Short, 1: Short, 0: Short, null).zipWithIndex,
-          List(("data", ShortType, true), ("id", IntegerType, true))
+          List(("data", ByteType, true), ("id", IntegerType, true))
         ),
         options,
         tableName
@@ -77,7 +77,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
         ),
         spark.createDF(
           List(-128: Short, 0: Short, 6: Short, 127: Short, null).zipWithIndex,
-          List(("data", ShortType, true), ("id", IntegerType, true))
+          List(("data", ByteType, true), ("id", IntegerType, true))
         ),
         options,
         tableName
@@ -668,7 +668,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
       )
       val expectedDf = spark.createDF(
         List((1, 21.toShort), (2, null)),
-        List(("id", IntegerType, true), ("age", ShortType, true))
+        List(("id", IntegerType, true), ("age", ByteType, true))
       )
       insertAndAssertEquality("byteAvro", df, expectedDf)
     }
@@ -680,7 +680,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
       )
       val expectedDf = spark.createDF(
         List((1, 21.toShort), (2, -12.toShort)),
-        List(("id", IntegerType, true), ("age", ShortType, true))
+        List(("id", IntegerType, true), ("age", ByteType, true))
       )
       insertAndAssertEquality("byteAvro", df, expectedDf)
     }
@@ -692,7 +692,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
       )
       val expectedDf = spark.createDF(
         List((1, 1.toShort), (2, null)),
-        List(("id", IntegerType, true), ("age", ShortType, true))
+        List(("id", IntegerType, true), ("age", ByteType, true))
       )
       insertAndAssertEquality("booleanAvro", df, expectedDf)
     }
@@ -704,7 +704,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
       )
       val expectedDf = spark.createDF(
         List((1, 1.toShort), (2, 0.toShort)),
-        List(("id", IntegerType, true), ("age", ShortType, true))
+        List(("id", IntegerType, true), ("age", ByteType, true))
       )
       insertAndAssertEquality("booleanAvro", df, expectedDf)
     }
