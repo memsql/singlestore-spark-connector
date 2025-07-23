@@ -59,9 +59,9 @@ lazy val root = project
       "org.mariadb.jdbc"    % "mariadb-java-client" % "2.+"     % Test,
       "org.scalatest"       %% "scalatest"          % "3.1.0"   % Test,
       "org.scalacheck"      %% "scalacheck"         % "1.14.1"  % Test,
-      "org.mockito"         %% "mockito-scala"      % "1.16.37" % Test,
+      "org.mockito"         %% "mockito-scala"      % "2.0.0" % Test,
       "com.github.mrpowers" %% "spark-fast-tests"   % "1.1.0"   % Test,
-      "com.github.mrpowers" %% "spark-daria"        % "1.2.3"  % Test
+      "com.github.mrpowers" %% "spark-daria"        % "1.2.3"   % Test
     ),
     dependencyOverrides += "com.fasterxml.jackson.core" % "jackson-databind" % jacksonDatabindVersion,
     Test / testOptions += Tests.Argument("-oF"),
@@ -86,3 +86,4 @@ publishTo := sonatypePublishToBundle.value
 publishMavenStyle := true
 sonatypeSessionName := s"[sbt-sonatype] ${name.value} ${version.value}"
 sonatypeProjectHosting := Some(GitHubHosting("memsql", "memsql-spark-connector", "carl@memsql.com"))
+Test / javaOptions += "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"

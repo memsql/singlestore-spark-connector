@@ -175,6 +175,9 @@ case class SinglestoreRDD(query: String,
           case ((_: LongType, _: ByteType), i) =>
             (r: Row) =>
               getOrNull(r.getLong(i).toByte, r, i)
+          case ((_: LongType, _: IntegerType), i) =>
+            (r: Row) =>
+              getOrNull(r.getLong(i).toInt, r, i)
 
           case ((l, r), i) =>
             options.assert(l == r, s"SinglestoreRDD: unable to encode ${l} into ${r}")

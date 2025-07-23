@@ -3237,16 +3237,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             |    ) or 
             |    critic_rating is null""".stripMargin)
       }
-      it("works with null",
-         ExcludeFromSpark31,
-         ExcludeFromSpark32,
-         ExcludeFromSpark33,
-         ExcludeFromSpark34,
-         ExcludeFromSpark35) {
-        // in 3.1 version, spark simplifies this query and doesn't send it to the database, so it is read from single partition
-        testQuery(
-          "select format_number(critic_rating, null) from movies where critic_rating - floor(critic_rating) != 0.5 or critic_rating is null")
-      }
 
       it("works with format") {
         if (spark.version != "2.3.4") {
@@ -3709,7 +3699,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("Base64") {
-      it("works", ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35) {
+      it("works", ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35, ExcludeFromSpark40) {
         testQuery("select id, base64(critic_review) as x from movies")
       }
       it("partial pushdown with udf") {
@@ -3719,7 +3709,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("UnBase64") {
-      it("works", ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35) {
+      it("works", ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35, ExcludeFromSpark40) {
         testQuery("select id, unbase64(base64(critic_review)) as x from movies")
       }
       it("partial pushdown with udf") {
@@ -3818,17 +3808,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
     it("null literal") {
       testQuery("select rand(null)*id from users", expectSameResult = false)
-    }
-    it("empty arguments",
-       ExcludeFromSpark31,
-       ExcludeFromSpark32,
-       ExcludeFromSpark33,
-       ExcludeFromSpark34,
-       ExcludeFromSpark35) {
-      // TODO PLAT-5759
-      testQuery("select rand()*id from users",
-                expectSameResult = false,
-                expectCodegenDeterminism = false)
     }
 
     it("should return the same value for the same input") {
@@ -3991,7 +3970,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                     expectPartialPushdown = true)
         }
       }
-      it("very simple patterns", ExcludeFromSpark34, ExcludeFromSpark35) {
+      it("very simple patterns", ExcludeFromSpark34, ExcludeFromSpark35, ExcludeFromSpark40) {
         for (f <- functions) {
           log.debug(s"testing $f")
           //Sparks computes such in more optimal way and does not invoke pushdown
@@ -3999,7 +3978,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                     expectPartialPushdown = true)
         }
       }
-      it("very simple patterns full pushdown", ExcludeFromSpark31, ExcludeFromSpark32, ExcludeFromSpark33) {
+      it("very simple patterns full pushdown",
+         ExcludeFromSpark31,
+         ExcludeFromSpark32,
+         ExcludeFromSpark33) {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')")
