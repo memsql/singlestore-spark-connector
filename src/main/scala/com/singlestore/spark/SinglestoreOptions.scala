@@ -302,11 +302,7 @@ object SinglestoreOptions extends LazyLogging {
       password = options.getOrElse(PASSWORD, ""),
       database = options.get(DATABASE).orElse(table.flatMap(t => t.database)),
       jdbcExtraOptions = options.originalMap
-        .filterKeys(key => !singlestoreOptionNames(key.toLowerCase()))
-        // filterKeys produces a map which is not serializable due to a bug in Scala
-        // https://github.com/scala/bug/issues/7005
-        // mapping everything through the identity function fixes it...
-        .map(identity),
+        .filter { case (key, _) => !singlestoreOptionNames(key.toLowerCase()) },
       enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean,
       disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean,
       enableParallelRead =

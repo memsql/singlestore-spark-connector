@@ -33,15 +33,15 @@ case object SinglestoreDialect extends JdbcDialect {
                                size: Int,
                                md: MetadataBuilder): Option[DataType] = {
     (sqlType, typeName) match {
-      case (Types.REAL, "FLOAT")        => Option(FloatType)
-      case (Types.BIT, "BIT")           => Option(BinaryType)
+      case (Types.REAL, "FLOAT") => Option(FloatType)
+      case (Types.BIT, "BIT")    => Option(BinaryType)
       // JDBC driver returns incorrect SQL type for BIT
       // TODO delete after PLAT-6829 is fixed
-      case (Types.BOOLEAN, "BIT")           => Option(BinaryType)
-      case (Types.TINYINT, "TINYINT")   => Option(ShortType)
-      case (Types.SMALLINT, "SMALLINT") => Option(ShortType)
-      case (Types.INTEGER, "SMALLINT")  => Option(IntegerType)
-      case (Types.INTEGER, "SMALLINT UNSIGNED")  => Option(IntegerType)
+      case (Types.BOOLEAN, "BIT")               => Option(BinaryType)
+      case (Types.TINYINT, "TINYINT")           => Option(ByteType)
+      case (Types.SMALLINT, "SMALLINT")         => Option(ShortType)
+      case (Types.INTEGER, "SMALLINT")          => Option(IntegerType)
+      case (Types.INTEGER, "SMALLINT UNSIGNED") => Option(IntegerType)
       case (Types.DECIMAL, "DECIMAL") => {
         if (size > DecimalType.MAX_PRECISION) {
           throw new IllegalArgumentException(

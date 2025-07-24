@@ -21,6 +21,7 @@ trait IntegrationSuiteBase
     with BeforeAndAfterAll
     with DataFrameComparer
     with LazyLogging {
+  object ExcludeFromSpark40 extends Tag("ExcludeFromSpark40")
   object ExcludeFromSpark35 extends Tag("ExcludeFromSpark35")
   object ExcludeFromSpark34 extends Tag("ExcludeFromSpark34")
   object ExcludeFromSpark33 extends Tag("ExcludeFromSpark33")
@@ -113,6 +114,11 @@ trait IntegrationSuiteBase
       .builder()
       .master(if (canDoParallelReadFromAggregators) "local[2]" else "local")
       .appName("singlestore-integration-tests")
+      .config("spark.driver.host", "127.0.0.1")
+      .config("spark.sql.ansi.enabled", "false")
+      .config("spark.driver.bindAddress", "127.0.0.1")
+      .config("spark.driver.blockManager.port", "0")
+      .config("spark.driver.port", "0")
       .config("spark.sql.shuffle.partitions", "1")
       .config("spark.driver.bindAddress", "localhost")
       .config("spark.driver.extraJavaOptions", "-Duser.timezone=GMT")

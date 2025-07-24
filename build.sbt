@@ -4,8 +4,15 @@ import xerial.sbt.Sonatype._
   To run tests or publish with a specific spark version use this java option:
     -Dspark.version=3.0.0
  */
-val sparkVersion       = sys.props.get("spark.version").getOrElse("3.1.3")
-val scalaVersionStr    = "2.12.12"
+val sparkVersion = sys.props.get("spark.version").getOrElse("4.0.0")
+val scalaVersionStr = sparkVersion match {
+  case "3.1.3" => "2.12.12"
+  case "3.2.4" => "2.12.12"
+  case "3.3.4" => "2.12.12"
+  case "3.4.2" => "2.12.12"
+  case "3.5.0" => "2.12.12"
+  case "4.0.0" => "2.13.8"
+}
 val scalaVersionPrefix = scalaVersionStr.substring(0, 4)
 val jacksonDatabindVersion = sparkVersion match {
   case "3.1.3" => "2.10.0"
@@ -13,6 +20,7 @@ val jacksonDatabindVersion = sparkVersion match {
   case "3.3.4" => "2.13.4.2"
   case "3.4.2" => "2.14.2"
   case "3.5.0" => "2.15.2"
+  case "4.0.0" => "2.18.2"
 }
 
 lazy val root = project
@@ -29,8 +37,9 @@ lazy val root = project
       case "3.3.4" => "scala-sparkv3.3"
       case "3.4.2" => "scala-sparkv3.4"
       case "3.5.0" => "scala-sparkv3.5"
+      case "4.0.0" => "scala-sparkv4.0"
     }),
-    version := s"4.1.10-spark-${sparkVersion}",
+    version := s"4.2.0-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
     ),
@@ -47,12 +56,12 @@ lazy val root = project
       "io.netty"               % "netty-buffer"            % "4.1.70.Final",
       "org.apache.commons"     % "commons-dbcp2"           % "2.9.0",
       // test dependencies
-      "org.mariadb.jdbc"    % "mariadb-java-client" % "2.+"     % Test,
-      "org.scalatest"       %% "scalatest"          % "3.1.0"   % Test,
-      "org.scalacheck"      %% "scalacheck"         % "1.14.1"  % Test,
-      "org.mockito"         %% "mockito-scala"      % "1.16.37" % Test,
-      "com.github.mrpowers" %% "spark-fast-tests"   % "0.21.3"  % Test,
-      "com.github.mrpowers" %% "spark-daria"        % "0.38.2"  % Test
+      "org.mariadb.jdbc"    % "mariadb-java-client" % "2.+"    % Test,
+      "org.scalatest"       %% "scalatest"          % "3.1.0"  % Test,
+      "org.scalacheck"      %% "scalacheck"         % "1.14.1" % Test,
+      "org.mockito"         %% "mockito-scala"      % "2.0.0"  % Test,
+      "com.github.mrpowers" %% "spark-fast-tests"   % "1.1.0"  % Test,
+      "com.github.mrpowers" %% "spark-daria"        % "1.2.3"  % Test
     ),
     dependencyOverrides += "com.fasterxml.jackson.core" % "jackson-databind" % jacksonDatabindVersion,
     Test / testOptions += Tests.Argument("-oF"),
@@ -77,3 +86,4 @@ publishTo := sonatypePublishToBundle.value
 publishMavenStyle := true
 sonatypeSessionName := s"[sbt-sonatype] ${name.value} ${version.value}"
 sonatypeProjectHosting := Some(GitHubHosting("memsql", "memsql-spark-connector", "carl@memsql.com"))
+Test / javaOptions += "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
