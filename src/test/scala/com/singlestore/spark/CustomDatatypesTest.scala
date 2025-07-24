@@ -44,7 +44,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
           List(("data", BooleanType, true), ("id", IntegerType, true))
         ),
         spark.createDF(
-          List(1: Short, 1: Short, 0: Short, null).zipWithIndex,
+          List(1: Byte, 1: Byte, 0: Byte, null).zipWithIndex,
           List(("data", ByteType, true), ("id", IntegerType, true))
         ),
         options,
@@ -76,7 +76,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
           List(("data", ByteType, true), ("id", IntegerType, true))
         ),
         spark.createDF(
-          List(-128: Short, 0: Short, 6: Short, 127: Short, null).zipWithIndex,
+          List(-128: Byte, 0: Byte, 6: Byte, 127: Byte, null).zipWithIndex,
           List(("data", ByteType, true), ("id", IntegerType, true))
         ),
         options,
@@ -570,7 +570,8 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
         // before Spark 3.2.0 JDBC TIME type was read as Timestamp
         // in SPARK-34357 special handling of TIME type was added
         // and it ignores date part
-        if (SinglestoreVersion(spark.version).atLeast("3.2.0")) {
+        if (SinglestoreVersion(spark.version).atLeast("3.2.0") && !SinglestoreVersion(spark.version)
+              .atLeast("4.0.0")) {
           List(null,
                Timestamp.valueOf("1970-01-01 22:59:59.0"),
                Timestamp.valueOf("1970-01-01 01:00:01"))
@@ -667,7 +668,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
         List(("id", IntegerType, true), ("age", ByteType, true))
       )
       val expectedDf = spark.createDF(
-        List((1, 21.toShort), (2, null)),
+        List((1, 21.toByte), (2, null)),
         List(("id", IntegerType, true), ("age", ByteType, true))
       )
       insertAndAssertEquality("byteAvro", df, expectedDf)
@@ -679,7 +680,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
         List(("id", IntegerType, false), ("age", ByteType, false))
       )
       val expectedDf = spark.createDF(
-        List((1, 21.toShort), (2, -12.toShort)),
+        List((1, 21.toByte), (2, -12.toByte)),
         List(("id", IntegerType, true), ("age", ByteType, true))
       )
       insertAndAssertEquality("byteAvro", df, expectedDf)
@@ -691,7 +692,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
         List(("id", IntegerType, true), ("age", BooleanType, true))
       )
       val expectedDf = spark.createDF(
-        List((1, 1.toShort), (2, null)),
+        List((1, 1.toByte), (2, null)),
         List(("id", IntegerType, true), ("age", ByteType, true))
       )
       insertAndAssertEquality("booleanAvro", df, expectedDf)
@@ -703,7 +704,7 @@ class CustomDatatypesTest extends IntegrationSuiteBase {
         List(("id", IntegerType, false), ("age", BooleanType, false))
       )
       val expectedDf = spark.createDF(
-        List((1, 1.toShort), (2, 0.toShort)),
+        List((1, 1.toByte), (2, 0.toByte)),
         List(("id", IntegerType, true), ("age", ByteType, true))
       )
       insertAndAssertEquality("booleanAvro", df, expectedDf)
