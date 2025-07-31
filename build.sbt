@@ -87,3 +87,4 @@ publishMavenStyle := true
 sonatypeSessionName := s"[sbt-sonatype] ${name.value} ${version.value}"
 sonatypeProjectHosting := Some(GitHubHosting("memsql", "memsql-spark-connector", "carl@memsql.com"))
 Test / javaOptions += "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+sonatypeCredentialHost := sonatypeCentralHost
