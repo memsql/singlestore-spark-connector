@@ -277,7 +277,7 @@ object SQLGen extends LazyLogging {
       // isStreaming: Boolean
       val baseArgs: Array[AnyRef] = Array(
         reader.asInstanceOf[AnyRef],
-        lr.output.asInstanceOf[AnyRef],
+        reader.expectedOutput,
         lr.catalogTable.asInstanceOf[AnyRef],
         java.lang.Boolean.valueOf(lr.isStreaming)
       )
@@ -291,7 +291,7 @@ object SQLGen extends LazyLogging {
             val dm = cls.getMethod(s"copy$$default$$$i")
             dm.invoke(lr)
           }
-          (baseArgs ++ extras).toArray
+          baseArgs ++ extras
         }
 
       copyM.invoke(lr, args: _*).asInstanceOf[LogicalRelation]
