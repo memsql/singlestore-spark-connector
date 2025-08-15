@@ -1,3 +1,6 @@
+2025-08-15 Version 4.2.1
+    * Fixed compatibility issue with Databricks 16.4
+
 2025-07-22 Version 4.2.0
     * Added support of Spark 4.0.0
     * Changed type conversion for TINYINT to ByteType
