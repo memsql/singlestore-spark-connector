@@ -249,9 +249,14 @@ class LoadDataWriter(createDatabaseWriter: () => (OutputStream, Future[Long]), c
   }
 
   override def commit(): WriterCommitMessage = {
-    Try(outputstream.close())
-    Await.result(writeFuture, Duration.Inf)
-    conn.commit()
+    try {
+      Try(outputstream.close())
+      Await.result(writeFuture, Duration.Inf)
+      conn.commit()
+    } finally {
+      conn.close()
+    }
+
     new WriteSuccess
   }
 
@@ -323,10 +328,15 @@ class AvroDataWriter(avroSchema: Schema,
   }
 
   override def commit(): WriterCommitMessage = {
-    encoder.flush()
-    Try(outputstream.close())
-    Await.result(writeFuture, Duration.Inf)
-    conn.commit()
+    try {
+      encoder.flush()
+      Try(outputstream.close())
+      Await.result(writeFuture, Duration.Inf)
+      conn.commit()
+    } finally {
+      conn.close()
+    }
+
     new WriteSuccess
   }
 
