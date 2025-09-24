@@ -1,3 +1,6 @@
+2025-09-24 Version 4.2.2
+    * Restored proper connection closure logic
+
 2025-08-15 Version 4.2.1
     * Fixed compatibility issue with Databricks 16.4
 
