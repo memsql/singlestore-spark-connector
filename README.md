@@ -137,6 +137,37 @@ CREATE TABLE bar USING singlestore OPTIONS ('ddlEndpoint'='singlestore-master.cl
 
 For Java/Python versions of some of these examples, visit the section ["Java & Python Example"](#java-python-example)
 
+## Passing Parameters to the SingleStore JDBC Driver
+
+The SingleStore Spark Connector uses the SingleStore JDBC Driver under the hood. Any configuration options provided to the connector that do not belong to the SingleStore Spark connector specifically (and are not described in the [Configuration](#configuration) section above) are treated as JDBC parameters and are passed directly to the underlying JDBC driver.
+
+You can find a comprehensive list of the available JDBC driver parameters in the [SingleStore JDBC Driver documentation](https://docs.singlestore.com/cloud/developer-resources/connect-with-application-development-tools/connect-with-java-jdbc/the-singlestore-jdbc-driver/).
+
+### Examples
+
+**Setting JDBC parameters globally:**
+
+You can set JDBC parameters globally across your Spark session by using the `spark.datasource.singlestore.` prefix, just like standard connector options.
+
+```scala
+// 'connectTimeout' and 'createDatabaseIfNotExist' are JDBC parameters, not Spark connector options
+spark.conf.set("spark.datasource.singlestore.connectTimeout", "10000")
+spark.conf.set("spark.datasource.singlestore.createDatabaseIfNotExist", "true")
+```
+
+**Setting JDBC parameters using the Read API:**
+
+You can also pass JDBC parameters locally when constructing a DataFrame by passing them into the `.option()` method.
+```scala
+val df = spark.read
+    .format("singlestore")
+    .option("ddlEndpoint", "singlestore-master.cluster.internal")
+    .option("user", "admin")
+    .option("connectTimeout", "10000") // This is passed directly to the JDBC driver
+    .option("createDatabaseIfNotExist", "true") // This is passed directly to the JDBC driver
+    .load("foo")
+```
+
 ## Writing to SingleStoreDB
 
 The `singlestore-spark-connector` supports saving dataframes to SingleStoreDB using the Spark write API. Here is a basic example of using this API:
