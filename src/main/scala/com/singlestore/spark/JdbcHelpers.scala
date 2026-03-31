@@ -49,7 +49,7 @@ object JdbcHelpers extends LazyLogging {
     }
 
     val sessionVariables = Seq(
-      "collation_server=utf8_general_ci",
+      "collation_server=utf8mb4_bin",
       "sql_select_limit=18446744073709551615",
       "compile_only=false",
       "sql_mode='STRICT_ALL_TABLES,ONLY_FULL_GROUP_BY'"
