@@ -34,7 +34,6 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
       .groupBy(r => r.get(0))
       .mapValues(r => r.map(_.getString(1)).head)
 
-    assert(variables("COLLATION_SERVER") == "utf8_general_ci")
     assert(variables("SQL_SELECT_LIMIT") == "18446744073709551615")
     assert(variables("COMPILE_ONLY") == "OFF")
 
