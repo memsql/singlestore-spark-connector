@@ -147,7 +147,7 @@ You can find a comprehensive list of the available JDBC driver parameters in the
 
 **Setting JDBC parameters globally:**
 
-You can set JDBC parameters globally across your Spark session by using the `spark.datasource.singlestore.` prefix, just like standard connector options.
+You can set JDBC parameters globally across your Spark session by using the `spark.datasource.singlestore.` prefix, similar to standard connector options.
 
 ```scala
 // 'connectTimeout' and 'createDatabaseIfNotExist' are JDBC parameters, not Spark connector options
@@ -157,7 +157,7 @@ spark.conf.set("spark.datasource.singlestore.createDatabaseIfNotExist", "true")
 
 **Setting JDBC parameters using the Read API:**
 
-You can also pass JDBC parameters locally when constructing a DataFrame by passing them into the `.option()` method.
+You can also pass JDBC parameters in the `.option()` method when constructing a DataFrame.
 ```scala
 val df = spark.read
     .format("singlestore")
