@@ -27,6 +27,7 @@ jobs:
       matrix:
         singlestore_version: ${{ fromJson(needs.fetch-s2-versions.outputs.versions) }}
         spark_version: ['3.1.3', '3.2.4', '3.3.4', '3.4.2', '3.5.0', '4.0.0']
+        force_read_from_leaves: ['FALSE']
         include:
           - spark_version: '3.1.3'
             tag: 'ExcludeFromSpark31'
@@ -52,7 +53,12 @@ jobs:
             tag: 'ExcludeFromSpark40'
             scala_version: '2.13.8'
             java_version: '17'
-
+          - force_read_from_leaves: 'TRUE'
+            singlestore_version: '9.0'
+            spark_version: '4.0.0'
+            tag: 'ExcludeFromSpark40'
+            scala_version: '2.13.8'
+            java_version: '17'
     steps:
       - name: Remove unnecessary pre-installed toolchains for free disk spaces
         run: |
@@ -89,6 +95,7 @@ jobs:
         env:
           SINGLESTORE_JWT_PASSWORD: ${{ secrets.SINGLESTORE_JWT_PASSWORD }}
           SINGLESTORE_PASSWORD: ${{ secrets.SINGLESTORE_PASSWORD }}
+          FORCE_READ_FROM_LEAVES: ${{ matrix.force_read_from_leaves }}
         run: sbt ++${{ matrix.scala_version }} "testOnly -- -l ${{ matrix.tag }}" -Dspark.version=${{ matrix.spark_version }}
 
   publish:
