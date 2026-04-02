@@ -63,6 +63,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
 
   private def partitionsFromExplainJSON(database: String,
                                         partitionHostPorts: List[SinglestorePartitionInfo],
+                                        singlestoreVersion: SinglestoreVersion,
                                         explainJSON: JsValue): Option[Array[Partition]] = {
     def saveErrorMessageReadFromLeaves(message: String): Unit = {
       saveErrorMessage(ReadFromLeaves, message)
@@ -88,7 +89,6 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
       val query = fields
         .get("query")
         .map(_.convertTo[String])
-        .map(q => q.replaceFirst("""^SELECT WITH\(PARALLELISM_LEVEL="SEGMENT"\)""", "SELECT"))
       val children =
         fields.get("inputs").map(_.convertTo[Seq[JsValue]].flatMap(walk)).getOrElse(Nil)
       Seq((executor, query)) ++ children
@@ -141,6 +141,12 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     var partitionQuery = queries.head
     // the partitionQuery may start with USING, so lets remove everything up to the first SELECT
     partitionQuery = partitionQuery.slice(partitionQuery.indexOf("SELECT"), partitionQuery.length)
+    //
+    if (singlestoreVersion.atLeast("9.0.0")) {
+      // Starting from 9.0.0 SingleStore fails when trying to execute a query with SELECT WITH(PARALLELISM_LEVEL="SEGMENT") syntax on the leaf nodes
+      partitionQuery =
+        partitionQuery.replaceFirst("""^SELECT WITH\(PARALLELISM_LEVEL="SEGMENT"\)""", "SELECT")
+    }
 
     val firstPartitionName = s"${database}_0"
 
@@ -195,9 +201,9 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     val minimalExternalHostVersion = "7.1.0"
     val explainJSON =
       JdbcHelpers.explainJSONQuery(options, rdd.query, rdd.variables).parseJson
-    val partitions = JdbcHelpers.partitionHostPorts(options, options.database.head)
+    val partitions         = JdbcHelpers.partitionHostPorts(options, options.database.head)
+    val singlestoreVersion = SinglestoreVersion(JdbcHelpers.getSinglestoreVersion(options))
     val partitionHostPorts = {
-      val singlestoreVersion = SinglestoreVersion(JdbcHelpers.getSinglestoreVersion(options))
       if (singlestoreVersion.atLeast(minimalExternalHostVersion)) {
         val externalHostMap = JdbcHelpers.externalHostPorts(options)
         var isValid         = true
@@ -217,7 +223,10 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
       }
     }
     try {
-      partitionsFromExplainJSON(options.database.head, partitionHostPorts, explainJSON)
+      partitionsFromExplainJSON(options.database.head,
+                                partitionHostPorts,
+                                singlestoreVersion,
+                                explainJSON)
     } catch {
       case _: DeserializationException => None
     }
