@@ -85,7 +85,10 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     def walk(node: JsValue): Seq[(Option[String], Option[String])] = {
       val fields   = node.asJsObject.fields
       val executor = fields.get("executor").map(_.convertTo[String].toLowerCase)
-      val query    = fields.get("query").map(_.convertTo[String])
+      val query = fields
+        .get("query")
+        .map(_.convertTo[String])
+        .map(q => q.replaceFirst("""^SELECT WITH\(PARALLELISM_LEVEL="SEGMENT"\)""", "SELECT"))
       val children =
         fields.get("inputs").map(_.convertTo[Seq[JsValue]].flatMap(walk)).getOrElse(Nil)
       Seq((executor, query)) ++ children
