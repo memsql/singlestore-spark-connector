@@ -339,7 +339,7 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
           false,
           SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 30000, 1000, -1, -1),
           SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 2000, 1000, -1, -1),
-          "3.4.0"
+          spark.sparkContext.version
         ),
         false
       )
@@ -355,7 +355,8 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
     try {
       val stmt = conn.createStatement()
       try {
-        val rs = stmt.executeQuery("select * from information_schema.mv_connection_attributes")
+        val rs = stmt.executeQuery(
+          "select * from information_schema.mv_connection_attributes where CONNECTION_ID=CONNECTION_ID()")
         try {
           while (rs.next()) {
             actualAttributes = actualAttributes + (rs.getString(3) -> rs.getString(4))
