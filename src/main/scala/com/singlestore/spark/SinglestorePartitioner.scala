@@ -63,7 +63,6 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
 
   private def partitionsFromExplainJSON(database: String,
                                         partitionHostPorts: List[SinglestorePartitionInfo],
-                                        singlestoreVersion: SinglestoreVersion,
                                         explainJSON: JsValue): Option[Array[Partition]] = {
     def saveErrorMessageReadFromLeaves(message: String): Unit = {
       saveErrorMessage(ReadFromLeaves, message)
@@ -199,9 +198,9 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     val minimalExternalHostVersion = "7.1.0"
     val explainJSON =
       JdbcHelpers.explainJSONQuery(options, rdd.query, rdd.variables).parseJson
-    val partitions         = JdbcHelpers.partitionHostPorts(options, options.database.head)
-    val singlestoreVersion = SinglestoreVersion(JdbcHelpers.getSinglestoreVersion(options))
+    val partitions = JdbcHelpers.partitionHostPorts(options, options.database.head)
     val partitionHostPorts = {
+      val singlestoreVersion = SinglestoreVersion(JdbcHelpers.getSinglestoreVersion(options))
       if (singlestoreVersion.atLeast(minimalExternalHostVersion)) {
         val externalHostMap = JdbcHelpers.externalHostPorts(options)
         var isValid         = true
@@ -221,10 +220,7 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
       }
     }
     try {
-      partitionsFromExplainJSON(options.database.head,
-                                partitionHostPorts,
-                                singlestoreVersion,
-                                explainJSON)
+      partitionsFromExplainJSON(options.database.head, partitionHostPorts, explainJSON)
     } catch {
       case _: DeserializationException => None
     }
