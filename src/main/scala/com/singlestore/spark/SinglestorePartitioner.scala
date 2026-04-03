@@ -141,12 +141,10 @@ case class SinglestorePartitioner(rdd: SinglestoreRDD) extends LazyLogging {
     var partitionQuery = queries.head
     // the partitionQuery may start with USING, so lets remove everything up to the first SELECT
     partitionQuery = partitionQuery.slice(partitionQuery.indexOf("SELECT"), partitionQuery.length)
-    //
-    if (singlestoreVersion.atLeast("9.0.0")) {
-      // Starting from 9.0.0 SingleStore fails when trying to execute a query with SELECT WITH(PARALLELISM_LEVEL="SEGMENT") syntax on the leaf nodes
-      partitionQuery =
-        partitionQuery.replaceFirst("""^SELECT WITH\(PARALLELISM_LEVEL="SEGMENT"\)""", "SELECT")
-    }
+
+    // Starting from 9.0.0 SingleStore fails when trying to execute a query with SELECT WITH(PARALLELISM_LEVEL="SEGMENT") syntax on the leaf nodes
+    partitionQuery =
+      partitionQuery.replaceFirst("""^SELECT WITH\(PARALLELISM_LEVEL="SEGMENT"\)""", "SELECT")
 
     val firstPartitionName = s"${database}_0"
 
