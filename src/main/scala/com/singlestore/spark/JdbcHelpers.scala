@@ -127,25 +127,27 @@ object JdbcHelpers extends LazyLogging {
   }
 
   def loadSchema(conf: SinglestoreOptions, query: String, variables: VariableList): StructType = {
-    val conn =
-      SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
-    try {
-      val statement =
-        conn.prepareStatement(SinglestoreDialect.getSchemaQuery(s"($query) AS q"))
+    conf.customSchema.getOrElse({
+      val conn =
+        SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
       try {
-        fillStatement(statement, variables)
-        val rs = statement.executeQuery()
+        val statement =
+          conn.prepareStatement(SinglestoreDialect.getSchemaQuery(s"($query) AS q"))
         try {
-          jdbcUtilGetSchema(conn, rs, SinglestoreDialect, alwaysNullable = true)
+          fillStatement(statement, variables)
+          val rs = statement.executeQuery()
+          try {
+            jdbcUtilGetSchema(conn, rs, SinglestoreDialect, alwaysNullable = true)
+          } finally {
+            rs.close()
+          }
         } finally {
-          rs.close()
+          statement.close()
         }
       } finally {
-        statement.close()
+        conn.close()
       }
-    } finally {
-      conn.close()
-    }
+    })
   }
 
   private def jdbcUtilGetSchema(conn: Connection,

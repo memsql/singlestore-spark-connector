@@ -11,11 +11,11 @@ class SinglestoreOptionsTest extends IntegrationSuiteBase {
         SinglestoreOptions(
           CaseInsensitiveMap(
             requiredOptions ++ Map("dmlEndpoints" -> "host1:3302,host2:3302,host1:3342")),
-            spark.sparkContext) ==
+          spark.sparkContext) ==
           SinglestoreOptions(
             CaseInsensitiveMap(
               requiredOptions ++ Map("dmlEndpoints" -> "host2:3302,host1:3302,host1:3342")),
-              spark.sparkContext),
+            spark.sparkContext),
         "Should sort dmlEndpoints"
       )
     }
@@ -81,6 +81,13 @@ class SinglestoreOptionsTest extends IntegrationSuiteBase {
       assert(
         SinglestoreOptions
           .trimAndUnescapeColumn(" a```a``sd` ```a``sd` ") == "a```a``sd` ```a``sd`")
+    }
+  }
+
+  it("disablePushdown and customSchema") {
+    assertThrows[IllegalArgumentException] {
+      SinglestoreOptions(CaseInsensitiveMap(requiredOptions ++ Map("customSchema" -> "a INT")),
+        spark.sparkContext)
     }
   }
 }
