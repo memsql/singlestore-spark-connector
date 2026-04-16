@@ -4,20 +4,7 @@ import java.sql.SQLSyntaxErrorException
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
 import com.singlestore.spark.SinglestoreOptions.{CompressionType, TableKeyType}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{
-  ByteType,
-  CalendarIntervalType,
-  DataType,
-  DecimalType,
-  DoubleType,
-  FloatType,
-  IntegerType,
-  LongType,
-  ShortType,
-  StringType,
-  StructField,
-  StructType
-}
+import org.apache.spark.sql.types.{IntegerType, LongType, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.scalatest.BeforeAndAfterEach
 import com.singlestore.spark.SQLHelper._
