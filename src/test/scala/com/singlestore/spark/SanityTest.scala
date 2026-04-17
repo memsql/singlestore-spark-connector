@@ -1,11 +1,10 @@
 package com.singlestore.spark
 
 import java.sql.SQLSyntaxErrorException
-
 import com.github.mrpowers.spark.daria.sql.SparkSessionExt._
 import com.singlestore.spark.SinglestoreOptions.{CompressionType, TableKeyType}
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{IntegerType, StringType}
+import org.apache.spark.sql.types.{IntegerType, LongType, StringType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.scalatest.BeforeAndAfterEach
 import com.singlestore.spark.SQLHelper._
@@ -45,6 +44,27 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
       .head
       .getString(0)
     assert(sql_mode == "ONLY_FULL_GROUP_BY,STRICT_ALL_TABLES")
+  }
+
+  it("DataSource V1 read sanity custom schema") {
+    val schema = StructType(
+      Seq(
+        StructField("id", LongType, true),
+        StructField("name", StringType, true),
+      ))
+
+    val x = spark.read
+      .format(DefaultSource.SINGLESTORE_SOURCE_NAME_SHORT)
+      .option(SinglestoreOptions.TABLE_NAME, "testdb.foo")
+      .option("disablePushdown", "true")
+      .option("customSchema", schema.toDDL)
+      .load()
+
+    assertSmallDataFrameEquality(
+      x,
+      df.withColumn("id", df("id").cast(LongType)),
+      orderedComparison = false
+    )
   }
 
   it("DataSource V1 read sanity") {
@@ -339,7 +359,8 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
           false,
           SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 30000, 1000, -1, -1),
           SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 2000, 1000, -1, -1),
-          spark.sparkContext.version
+          spark.sparkContext.version,
+          Option.empty
         ),
         false
       )

@@ -5,6 +5,7 @@ import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.parser.CatalystSqlParser
 import org.apache.spark.sql.catalyst.util.CaseInsensitiveMap
 import org.apache.spark.SparkContext
+import org.apache.spark.sql.types.StructType
 
 case class SinglestoreOptions(
     ddlEndpoint: String,
@@ -35,7 +36,8 @@ case class SinglestoreOptions(
     createRowstoreTable: Boolean,
     driverConnectionPoolOptions: SinglestoreConnectionPoolOptions,
     executorConnectionPoolOptions: SinglestoreConnectionPoolOptions,
-    sparkVersion: String
+    sparkVersion: String,
+    customSchema: Option[StructType]
 ) extends LazyLogging {
 
   def assert(condition: Boolean, message: String) = {
@@ -125,6 +127,7 @@ object SinglestoreOptions extends LazyLogging {
   final val ENABLE_ASSERTS       = newOption("enableAsserts")
   final val DISABLE_PUSHDOWN     = newOption("disablePushdown")
   final val ENABLE_PARALLEL_READ = newOption("enableParallelRead")
+  final val CUSTOM_SCHEMA        = newOption("customSchema")
 
   final val DRIVER_CONNECTION_POOL_ENABLED        = newOption("driverConnectionPool.Enabled")
   final val DRIVER_CONNECTION_POOL_MAX_OPEN_CONNS = newOption("driverConnectionPool.MaxOpenConns")
@@ -238,6 +241,13 @@ object SinglestoreOptions extends LazyLogging {
   def apply(options: CaseInsensitiveMap[String], sc: SparkContext): SinglestoreOptions = {
     val table = getTable(options)
 
+    val disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean
+
+    require(
+      !(!disablePushdown && options.isDefinedAt(CUSTOM_SCHEMA)),
+      s"Pushdown cannot be enabled when '$CUSTOM_SCHEMA' option is specified. Disable pushdown by setting '$DISABLE_PUSHDOWN' option to 'true'."
+    )
+
     require(
       options.isDefinedAt(DDL_ENDPOINT) || options.isDefinedAt(CLIENT_ENDPOINT),
       s"One of the following options must be specified: '$DDL_ENDPOINT', '$CLIENT_ENDPOINT'"
@@ -304,7 +314,8 @@ object SinglestoreOptions extends LazyLogging {
       jdbcExtraOptions = options.originalMap
         .filter { case (key, _) => !singlestoreOptionNames(key.toLowerCase()) },
       enableAsserts = options.get(ENABLE_ASSERTS).getOrElse("false").toBoolean,
-      disablePushdown = options.get(DISABLE_PUSHDOWN).getOrElse("false").toBoolean,
+      disablePushdown = disablePushdown,
+      customSchema = options.get(CUSTOM_SCHEMA).map(StructType.fromDDL),
       enableParallelRead =
         ParallelReadEnablement(options.get(ENABLE_PARALLEL_READ).getOrElse("automaticLite")),
       overwriteBehavior = {
