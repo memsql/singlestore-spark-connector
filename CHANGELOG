@@ -1,3 +1,6 @@
+2026-04-02 Version 5.0.1
+    * Added customSchema option
+
 2026-04-02 Version 5.0.0
     * Removed setting of the default server colation
     * Fixed parallel read from leaves for SingleStore versions 9.0.0 and later
