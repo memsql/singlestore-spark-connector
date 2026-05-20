@@ -90,7 +90,7 @@ jobs:
           distribution: 'temurin'
           cache: sbt
       - name: Set up sbt launcher
-        uses: sbt/setup-sbt@v1
+        uses: sbt/setup-sbt@v1.1.22
       - name: Run tests for Spark ${{ matrix.spark_version }}
         env:
           SINGLESTORE_JWT_PASSWORD: ${{ secrets.SINGLESTORE_JWT_PASSWORD }}
