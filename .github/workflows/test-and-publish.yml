@@ -149,3 +149,23 @@ jobs:
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
         run: |
           sbt ++${{ matrix.scala_version }} -Dspark.version=${{ matrix.spark_version }} clean publishSigned sonatypeBundleRelease
+  
+  create_task_docs_update:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Jira Task To Update Docs
+        uses: singlestore-labs/docs-release-jira-task@v1
+        with:
+          jira_user_email: ${{ secrets.JIRA_USER_EMAIL }}
+          jira_api_token: ${{ secrets.JIRA_API_TOKEN }}
+          integration: "SingleStore Spark Connector"
+          version: ${{ github.ref_name }}
+          description: "This ticket is created automatically by the Spark release workflow.
+A new version of the Spark connector has been published.
+The compatibility matrix on the following documentation page should be updated: https://docs.singlestore.com/cloud/load-data/integrate-with-singlestore-helios/load-data-from-spark/getting-started/ .
+Information about the new connector version is available in the CHANGELOG: https://github.com/memsql/singlestore-spark-connector/blob/master/CHANGELOG .
+If the GitHub README has changed since the previous version, the SingleStore Spark Connector documentation should also be updated: https://github.com/memsql/singlestore-spark-connector/blob/master/README.md .
+The list of supported Spark versions can be found in the Maven repository several days after the release: https://mvnrepository.com/artifact/com.singlestore/singlestore-spark-connector .
+We release multiple versions of the `singlestore-spark-connector`, one for each supported Spark version.
+The connector follows the `x.x.x-spark-y.y.y` naming convention, where `x.x.x` is the connector version and `y.y.y` is the corresponding Spark version."
