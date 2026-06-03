@@ -1,6 +1,6 @@
 name: Publish Glue Container
 
-# Before running this workflow, you must update action environment secrets to provide access
+# Before running this workflow, you must update action secrets to provide access
 # to MarketplaceAdmin AWS account (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN)
 # TODO: Setup OIDC authentication
 on:
@@ -63,6 +63,14 @@ jobs:
             --arg ts "$(date -u '+%Y-%m-%d %H:%M:%S')" \
             '.version = $version | .releasetimestamp = $ts' \
             ci/glue-config.json > target/pack/lib/config
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
 
       - name: Authenticate to registry
         run: |
