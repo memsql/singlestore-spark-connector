@@ -27,6 +27,7 @@ lazy val root = project
   .withId("singlestore-spark-connector")
   .in(file("."))
   .enablePlugins(BuildInfoPlugin)
+  .enablePlugins(PackPlugin)
   .settings(
     name := "singlestore-spark-connector",
     organization := "com.singlestore",

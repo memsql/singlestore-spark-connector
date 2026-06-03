@@ -1,0 +1,74 @@
+name: Publish Glue Container
+
+# Before running this workflow, you must update action environment secrets to provide access
+# to MarketplaceAdmin AWS account (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN)
+# TODO: Setup OIDC authentication
+on:
+  workflow_dispatch:
+    inputs:
+      connector_version:
+        description: Connector version (e.g. 5.0.1). Leave empty when running from a v* tag to use the tag name.
+        required: false
+        type: string
+      spark_version:
+        description: Spark version. Choose a version from build.sbt that is compatible with the latest AWS Glue release https://docs.aws.amazon.com/glue/latest/dg/release-notes.html.
+        required: true
+        type: string
+        default: '3.5.0'
+      scala_version:
+        description: Scala version. Choose a version from build.sbt that is compatible with the latest AWS Glue release https://docs.aws.amazon.com/glue/latest/dg/release-notes.html.
+        required: true
+        type: string
+        default: '2.12.12'
+      java_version:
+        description: Java version.  Choose a version that is compatible with Spark and Scala versions.
+        required: true
+        type: string
+        default: '11'
+
+jobs:
+  publish-glue-container:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve connector version
+        id: version
+        run: |
+          if [ -n "${{ inputs.connector_version }}" ]; then
+            echo "value=${{ inputs.connector_version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java_version }}
+          distribution: 'temurin'
+          cache: sbt
+
+      - name: Set up sbt launcher
+        uses: sbt/setup-sbt@v1
+
+      - name: Build connector JAR and dependencies
+        run: |
+          sbt ++${{ inputs.scala_version }} -Dspark.version=${{ inputs.spark_version }} pack
+
+      - name: Add Glue config
+        run: |
+          jq \
+            --arg version "${{ steps.version.outputs.value }}" \
+            --arg ts "$(date -u '+%Y-%m-%d %H:%M:%S')" \
+            '.version = $version | .releasetimestamp = $ts' \
+            ci/glue-config.json > target/pack/lib/config
+
+      - name: Authenticate to registry
+        run: |
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 709825985650.dkr.ecr.us-east-1.amazonaws.com
+
+      - name: Build and push docker image
+        run: |
+          docker build -t 709825985650.dkr.ecr.us-east-1.amazonaws.com/singlestore/marketplace-spark:${{ steps.version.outputs.value }} -f ci/Dockerfile .
+          docker push 709825985650.dkr.ecr.us-east-1.amazonaws.com/singlestore/marketplace-spark:${{ steps.version.outputs.value }}
