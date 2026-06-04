@@ -1,0 +1,10 @@
+{
+  "releasetimestamp": "2026-04-21 12:00:00",
+  "connectiontype": "MARKETPLACE",
+  "classname": "com.singlestore.spark",
+  "publishername": "SingleStore",
+  "connectortype": "SingleStoreSpark",
+  "version": "5.0.1-spark-3.5.0",
+  "description": "Spark Connector for SingleStore",
+  "supportinformation": "Please check for this driver's online help."
+}

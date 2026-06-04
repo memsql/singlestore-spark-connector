@@ -1,0 +1,91 @@
+name: Publish Glue Container
+
+# Before running this workflow, you must update action secrets to provide access
+# to MarketplaceAdmin AWS account (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN)
+# TODO: Setup OIDC authentication
+on:
+  workflow_dispatch:
+    inputs:
+      connector_version:
+        description: Connector version (e.g. 5.0.1). Leave empty when running from a v* tag to use the tag name.
+        required: false
+        type: string
+      spark_version:
+        description: Spark version. Choose a version from build.sbt that is compatible with the latest AWS Glue release https://docs.aws.amazon.com/glue/latest/dg/release-notes.html.
+        required: true
+        type: string
+        default: '3.5.0'
+      scala_version:
+        description: Scala version. Choose a version from build.sbt that is compatible with the latest AWS Glue release https://docs.aws.amazon.com/glue/latest/dg/release-notes.html.
+        required: true
+        type: string
+        default: '2.12.12'
+      java_version:
+        description: Java version.  Choose a version that is compatible with Spark and Scala versions.
+        required: true
+        type: string
+        default: '11'
+
+jobs:
+  publish-glue-container:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve connector version
+        id: version
+        run: |
+          if [ -n "${{ inputs.connector_version }}" ]; then
+            version="${{ inputs.connector_version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+            echo "::error::Invalid version format: '$version'. Version must follow SemVer format (e.g., 1.2.3). If not running from a v* tag, 'connector_version' input must be explicitly set."
+            exit 1
+          fi
+
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ inputs.java_version }}
+          distribution: 'temurin'
+          cache: sbt
+
+      - name: Set up sbt launcher
+        uses: sbt/setup-sbt@v1
+
+      - name: Build connector JAR and dependencies
+        run: |
+          sbt ++${{ inputs.scala_version }} -Dspark.version=${{ inputs.spark_version }} pack
+
+      - name: Add Glue config
+        run: |
+          jq \
+            --arg version "${{ steps.version.outputs.value }}" \
+            --arg ts "$(date -u '+%Y-%m-%d %H:%M:%S')" \
+            '.version = $version | .releasetimestamp = $ts' \
+            ci/glue-config.json > target/pack/lib/config
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Authenticate to registry
+        run: |
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 709825985650.dkr.ecr.us-east-1.amazonaws.com
+
+      - name: Build and push docker image
+        # Pushes our AWS Glue connector to the official AWS Marketplace ECR registry
+        # (Account ID: 709825985650, Region: us-east-1) for public availability.
+        run: |
+          docker build -t 709825985650.dkr.ecr.us-east-1.amazonaws.com/singlestore/marketplace-spark:${{ steps.version.outputs.value }} -f ci/Dockerfile .
+          docker push 709825985650.dkr.ecr.us-east-1.amazonaws.com/singlestore/marketplace-spark:${{ steps.version.outputs.value }}
