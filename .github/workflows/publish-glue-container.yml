@@ -37,17 +37,17 @@ jobs:
         id: version
         run: |
           if [ -n "${{ inputs.connector_version }}" ]; then
-            echo "value=${{ inputs.connector_version }}" >> "$GITHUB_OUTPUT"
+            version="${{ inputs.connector_version }}"
           else
             version="${GITHUB_REF_NAME#v}"
-
-            if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
-              echo "::error::connector_version must be set when not running from a v* tag (ref is ${GITHUB_REF_NAME})"
-              exit 1
-            fi
-
-            echo "value=$version" >> "$GITHUB_OUTPUT"
           fi
+
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+            echo "::error::Invalid version format: '$version'. Version must follow SemVer format (e.g., 1.2.3). If not running from a v* tag, 'connector_version' input must be explicitly set."
+            exit 1
+          fi
+
+          echo "value=$version" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -84,6 +84,8 @@ jobs:
           aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 709825985650.dkr.ecr.us-east-1.amazonaws.com
 
       - name: Build and push docker image
+        # Pushes our AWS Glue connector to the official AWS Marketplace ECR registry
+        # (Account ID: 709825985650, Region: us-east-1) for public availability.
         run: |
           docker build -t 709825985650.dkr.ecr.us-east-1.amazonaws.com/singlestore/marketplace-spark:${{ steps.version.outputs.value }} -f ci/Dockerfile .
           docker push 709825985650.dkr.ecr.us-east-1.amazonaws.com/singlestore/marketplace-spark:${{ steps.version.outputs.value }}
