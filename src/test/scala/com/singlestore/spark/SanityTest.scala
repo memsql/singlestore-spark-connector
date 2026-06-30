@@ -8,7 +8,6 @@ import org.apache.spark.sql.types.{IntegerType, LongType, StringType, StructFiel
 import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 import org.scalatest.BeforeAndAfterEach
 import com.singlestore.spark.SQLHelper._
-import org.json4s.BuildInfo
 
 class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
   var df: DataFrame = _

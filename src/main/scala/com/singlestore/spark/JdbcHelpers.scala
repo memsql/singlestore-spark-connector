@@ -10,7 +10,6 @@ import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.jdbc.{JdbcDialect, JdbcDialects}
 import org.apache.spark.sql.types.{StringType, StructType}
-import org.json4s.BuildInfo
 
 import scala.util.{Failure, Success, Try}
 
