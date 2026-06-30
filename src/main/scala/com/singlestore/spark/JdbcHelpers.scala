@@ -1,13 +1,6 @@
 package com.singlestore.spark
 
-import java.sql.{
-  Connection,
-  PreparedStatement,
-  ResultSet,
-  SQLException,
-  SQLInvalidAuthorizationSpecException,
-  Statement
-}
+import java.sql.{Connection, PreparedStatement, ResultSet, SQLException, SQLInvalidAuthorizationSpecException, Statement}
 import java.util.Properties
 import java.util.UUID.randomUUID
 import com.singlestore.spark.SinglestoreOptions.{TableKey, TableKeyType}
@@ -17,6 +10,7 @@ import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.execution.datasources.jdbc.{JDBCOptions, JdbcUtils}
 import org.apache.spark.sql.jdbc.{JdbcDialect, JdbcDialects}
 import org.apache.spark.sql.types.{StringType, StructType}
+import org.json4s.BuildInfo
 
 import scala.util.{Failure, Success, Try}
 
@@ -420,11 +414,13 @@ object JdbcHelpers extends LazyLogging {
   }
 
   def tableExists(conn: Connection, table: TableIdentifier): Boolean = {
+    val sql = SinglestoreDialect.getTableExistsQuery(table.quotedString)
+    log.trace(s"Executing SQL:\n$sql")
     conn.withStatement(
       stmt =>
         Try {
           try {
-            stmt.execute(SinglestoreDialect.getTableExistsQuery(table.quotedString))
+            stmt.execute(sql)
           } finally {
             stmt.close()
           }
@@ -612,7 +608,7 @@ object JdbcHelpers extends LazyLogging {
     val conn =
       SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
     try {
-      if (JdbcHelpers.tableExists(conn, table)) {
+      if (conf.tableExists.getOrElse(JdbcHelpers.tableExists(conn, table))) {
         mode match {
           case SaveMode.Overwrite =>
             conf.overwriteBehavior match {
