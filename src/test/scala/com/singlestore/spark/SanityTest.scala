@@ -357,6 +357,7 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
           10,
           10,
           false,
+          Option.empty,
           SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 30000, 1000, -1, -1),
           SinglestoreConnectionPoolOptions(enabled = true, -1, 8, 2000, 1000, -1, -1),
           spark.sparkContext.version,
@@ -393,5 +394,19 @@ class SanityTest extends IntegrationSuiteBase with BeforeAndAfterEach {
     } finally {
       conn.close()
     }
+  }
+
+  it("tableExists config") {
+    df.write
+      .format(DefaultSource.SINGLESTORE_SOURCE_NAME)
+      .mode(SaveMode.Overwrite)
+      .option("tableExists", "false")
+      .save("testdb.tableExists")
+
+    df.write
+      .format(DefaultSource.SINGLESTORE_SOURCE_NAME)
+      .mode(SaveMode.Overwrite)
+      .option("tableExists", "true")
+      .save("testdb.tableExists")
   }
 }

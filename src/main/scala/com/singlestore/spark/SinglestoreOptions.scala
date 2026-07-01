@@ -34,6 +34,7 @@ case class SinglestoreOptions(
     maxErrors: Int,
     insertBatchSize: Int,
     createRowstoreTable: Boolean,
+    tableExists: Option[Boolean],
     driverConnectionPoolOptions: SinglestoreConnectionPoolOptions,
     executorConnectionPoolOptions: SinglestoreConnectionPoolOptions,
     sparkVersion: String,
@@ -123,6 +124,7 @@ object SinglestoreOptions extends LazyLogging {
   final val INSERT_BATCH_SIZE     = newOption("insertBatchSize")
   final val MAX_ERRORS            = newOption("maxErrors")
   final val CREATE_ROWSTORE_TABLE = newOption("createRowstoreTable")
+  final val TABLE_EXISTS          = newOption("tableExists")
 
   final val ENABLE_ASSERTS       = newOption("enableAsserts")
   final val DISABLE_PUSHDOWN     = newOption("disablePushdown")
@@ -374,6 +376,7 @@ object SinglestoreOptions extends LazyLogging {
           .map(column => trimAndUnescapeColumn(column))
           .toSet,
       createRowstoreTable = options.getOrElse(CREATE_ROWSTORE_TABLE, "false").toBoolean,
+      tableExists = options.get(TABLE_EXISTS).map(_.toBoolean),
       executorConnectionPoolOptions = SinglestoreConnectionPoolOptions(
         options.getOrElse(EXECUTOR_CONNECTION_POOL_ENABLED, "true").toBoolean,
         options.getOrElse(EXECUTOR_CONNECTION_POOL_MAX_OPEN_CONNS, "-1").toInt,
