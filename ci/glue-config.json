@@ -4,7 +4,7 @@
   "classname": "com.singlestore.spark",
   "publishername": "SingleStore",
   "connectortype": "SingleStoreSpark",
-  "version": "5.0.1-spark-3.5.0",
+  "version": "5.0.2-spark-3.5.0",
   "description": "Spark Connector for SingleStore",
   "supportinformation": "Please check for this driver's online help."
 }
