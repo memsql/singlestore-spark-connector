@@ -432,19 +432,22 @@ object JdbcHelpers extends LazyLogging {
       SinglestoreConnectionPool.getConnection(getDDLConnProperties(conf, isOnExecutor = false))
     val sql = "select @@memsql_version"
     log.trace(s"Executing SQL:\n$sql")
-    val resultSet = conn.withStatement(stmt => {
-      try {
-        stmt.executeQuery(sql)
-      } catch {
-        case _: SQLException => throw new IllegalArgumentException("Can't get SingleStore version")
-      } finally {
-        stmt.close()
-        conn.close()
-      }
-    })
-    if (resultSet.next()) {
-      resultSet.getString("@@memsql_version")
-    } else throw new IllegalArgumentException("Can't get SingleStore version")
+    try {
+      conn.withStatement(stmt => {
+        val resultSet =
+          try {
+            stmt.executeQuery(sql)
+          } catch {
+            case _: SQLException =>
+              throw new IllegalArgumentException("Can't get SingleStore version")
+          }
+        if (resultSet.next()) {
+          resultSet.getString("@@memsql_version")
+        } else throw new IllegalArgumentException("Can't get SingleStore version")
+      })
+    } finally {
+      conn.close()
+    }
   }
 
   def createTable(conn: Connection,
@@ -463,14 +466,15 @@ object JdbcHelpers extends LazyLogging {
     val sql =
       s"SELECT num_partitions FROM information_schema.DISTRIBUTED_DATABASES WHERE database_name = '$database'"
     log.trace(s"Executing SQL:\n$sql")
-    val resultSet = conn.withStatement(stmt => stmt.executeQuery(sql))
-
-    if (resultSet.next()) {
-      resultSet.getInt("num_partitions")
-    } else {
-      throw new IllegalArgumentException(
-        s"Failed to get number of partitions for '$database' database")
-    }
+    conn.withStatement(stmt => {
+      val resultSet = stmt.executeQuery(sql)
+      if (resultSet.next()) {
+        resultSet.getInt("num_partitions")
+      } else {
+        throw new IllegalArgumentException(
+          s"Failed to get number of partitions for '$database' database")
+      }
+    })
   }
 
   def getResultTableName(applicationId: String,
@@ -580,23 +584,20 @@ object JdbcHelpers extends LazyLogging {
         .getOrElse(throw new IllegalArgumentException("Database name should be defined"))
     val sql = s"using $databaseName show tables extended like '${table.table}'"
     log.trace(s"Executing SQL:\n$sql")
-    val resultSet = conn.withStatement(stmt => {
-      Try {
-        try {
-          stmt.executeQuery(sql)
-        } finally {
-          stmt.close()
-          conn.close()
-        }
-      }
-    })
-    resultSet.toOption.fold(false)(resultSet => {
-      if (resultSet.next()) {
-        !resultSet.getBoolean("distributed")
-      } else {
-        throw new IllegalArgumentException(s"Table `$databaseName.${table.table}` doesn't exist")
-      }
-    })
+    try {
+      conn.withStatement(stmt => {
+        Try(stmt.executeQuery(sql)).toOption.fold(false)(resultSet => {
+          if (resultSet.next()) {
+            !resultSet.getBoolean("distributed")
+          } else {
+            throw new IllegalArgumentException(
+              s"Table `$databaseName.${table.table}` doesn't exist")
+          }
+        })
+      })
+    } finally {
+      conn.close()
+    }
   }
 
   def prepareTableForWrite(conf: SinglestoreOptions,
