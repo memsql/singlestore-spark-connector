@@ -143,29 +143,42 @@ jobs:
         run: |
           openssl enc -d -aes-256-cbc -K $ENCRYPTION_KEY -iv $ENCRYPTION_IV -in ci/secring.asc.enc -out ci/secring.asc
           gpg --import ci/secring.asc
-      - name: Publish Spark ${{ matrix.spark_version }}
+      - name: Extract build variables
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "SCALA_BINARY=$(echo '${{ matrix.scala_version }}' | cut -d. -f1-2)" >> "$GITHUB_ENV"
+      - name: Publish Spark ${{ matrix.spark_version }} to Maven
         env:
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
         run: |
-          sbt ++${{ matrix.scala_version }} -Dspark.version=${{ matrix.spark_version }} clean publishSigned sonatypeBundleRelease
-  
-  create_task_docs_update:
-    needs: publish
-    runs-on: ubuntu-latest
-    steps:
-      - name: Create Jira Task To Update Docs
-        uses: singlestore-labs/docs-release-jira-task@v1
+          sbt ++${{ matrix.scala_version }} -Dconnector.version=${{ env.VERSION }} -Dspark.version=${{ matrix.spark_version }} clean publishSigned sonatypeBundleRelease
+      - name: Build fat JAR
+        run: |
+          sbt ++${{ matrix.scala_version }} -Dconnector.version=${{ env.VERSION }} -Dspark.version=${{ matrix.spark_version }} assembly
+      - name: Upload fat JAR
+        uses: actions/upload-artifact@v4
         with:
-          jira_user_email: ${{ secrets.JIRA_USER_EMAIL }}
-          jira_api_token: ${{ secrets.JIRA_API_TOKEN }}
-          integration: "SingleStore Spark Connector"
-          version: ${{ github.ref_name }}
-          description: "This ticket is created automatically by the Spark release workflow.
-A new version of the Spark connector has been published.
-The compatibility matrix on the following documentation page should be updated: https://docs.singlestore.com/cloud/load-data/integrate-with-singlestore-helios/load-data-from-spark/getting-started/ .
-Information about the new connector version is available in the CHANGELOG: https://github.com/memsql/singlestore-spark-connector/blob/master/CHANGELOG .
-If the GitHub README has changed since the previous version, the SingleStore Spark Connector documentation should also be updated: https://github.com/memsql/singlestore-spark-connector/blob/master/README.md .
-The list of supported Spark versions can be found in the Maven repository several days after the release: https://mvnrepository.com/artifact/com.singlestore/singlestore-spark-connector .
-We release multiple versions of the `singlestore-spark-connector`, one for each supported Spark version.
-The connector follows the `x.x.x-spark-y.y.y` naming convention, where `x.x.x` is the connector version and `y.y.y` is the corresponding Spark version."
+          name: singlestore-spark-connector-assembly-${{ env.VERSION }}-spark-${{ matrix.spark_version }}.jar
+          path: target/scala-${{ env.SCALA_BINARY }}/singlestore-spark-connector-assembly-${{ env.VERSION }}-spark-${{ matrix.spark_version }}.jar
+          if-no-files-found: error
+
+  github-release:
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download fat JARs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: singlestore-spark-connector-assembly-*
+          merge-multiple: true
+          path: release-jars
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          generate_release_notes: true
+          files: release-jars/*.jar
+          fail_on_unmatched_files: true

@@ -1,3 +1,7 @@
+This file contains the changelog through version 5.0.2.
+For newer releases, see the GitHub release notes:
+https://github.com/memsql/singlestore-spark-connector/releases
+
 2026-07-01 Version 5.0.2
     * Added tableExists option
 

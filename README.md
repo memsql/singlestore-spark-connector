@@ -1,27 +1,30 @@
 # SingleStoreDB Spark Connector
-## Version: 5.0.2 [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
+## [![Maven Central](https://img.shields.io/maven-central/v/com.singlestore/singlestore-spark-connector?label=Version)](https://mvnrepository.com/artifact/com.singlestore/singlestore-spark-connector) [![License](http://img.shields.io/:license-Apache%202-brightgreen.svg)](http://www.apache.org/licenses/LICENSE-2.0.txt)
 
 ## Getting Started
 
-You can find the latest version of the connector on Maven Central and
-spark-packages.org. The group is `com.singlestore` and the artifact is
-`singlestore-spark-connector_2.11` for Spark 2 and `singlestore-spark-connector_2.12` for Spark 3.
+Choose a connector build that matches your Spark and Scala versions from [Maven Central](https://mvnrepository.com/artifact/com.singlestore/singlestore-spark-connector)
 
-* [Maven Central (Spark 2)](https://search.maven.org/artifact/com.singlestore/singlestore-spark-connector_2.11)
-* [Maven Central (Spark 3)](https://search.maven.org/artifact/com.singlestore/singlestore-spark-connector_2.12)
-* [spark-packages.org](https://spark-packages.org/package/memsql/memsql-spark-connector)
-
-You can add the connector to your Spark application using: spark-shell, pyspark, or spark-submit
-```
-$SPARK_HOME/bin/spark-shell --packages com.singlestore:singlestore-spark-connector_2.12:5.0.2-spark-4.0.0
-```
+The group is `com.singlestore` and the artifact is `singlestore-spark-connector_<scala-binary-version>`
+(for example `_2.12` for Spark 3.x, `_2.13` for Spark 4.x).
 
 We release multiple versions of the `singlestore-spark-connector`, one for each supported Spark version.
-The connector follows the `x.x.x-spark-y.y.y` naming convention, where `x.x.x` represents the connector version 
-and `y.y.y` represents the corresponding Spark version. 
-For example, in connector `5.0.2-spark-4.0.0`, 4.1.11 is the version of the connector, 
-compiled and tested against Spark version 4.0.0. 
+The connector follows the `x.x.x-spark-y.y.y` naming convention, where `x.x.x` represents the connector version
+and `y.y.y` represents the corresponding Spark version.
+For example, `5.0.2-spark-4.0.0` is connector version `5.0.2`, compiled and tested against Spark `4.0.0`.
 It is critical to select the connector version that corresponds to the Spark version in use.
+
+You can add the connector to your Spark application using spark-shell, pyspark, or spark-submit:
+```
+$SPARK_HOME/bin/spark-shell --packages com.singlestore:singlestore-spark-connector_<scala-version>:<connector-version>-spark-<spark-version>
+```
+
+Replace `<scala-version>`, `<connector-version>`, and `<spark-version>` with values from Maven Central.
+For example:
+```
+$SPARK_HOME/bin/spark-shell --packages com.singlestore:singlestore-spark-connector_2.13:5.0.2-spark-4.0.0
+```
+
 
 ## Configuration
 
@@ -691,6 +694,21 @@ of the plan. See the debugging SQL Pushdown section above for more information
 on how to do this.
 
 Happy querying!
+
+## Release process
+
+To release a new version push a version tag using semantic versioning with a `v` prefix (`v<major>.<minor>.<patch>`, for example `v1.2.3`):
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+The connector version is derived from the tag (the leading `v` is stripped). This triggers the [Test and Publish workflow](.github/workflows/test-and-publish.yml), which:
+
+- Runs the test matrix across supported Spark and SingleStore versions
+- Publishes one Maven artifact per supported Spark version to [Maven Central](https://mvnrepository.com/artifact/com.singlestore/singlestore-spark-connector), using the `x.x.x-spark-y.y.y` version scheme (for example `1.0.1-spark-4.0.0`)
+- Creates a [GitHub Release](https://github.com/memsql/singlestore-spark-connector/releases) with auto-generated release notes and a fat JAR for each Spark version (`singlestore-spark-connector-assembly-<version>-spark-<spark-version>.jar`)
 
 ## Setting up development environment
 
