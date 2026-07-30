@@ -22,6 +22,7 @@ val jacksonDatabindVersion = sparkVersion match {
   case "3.5.0" => "2.15.2"
   case "4.0.0" => "2.18.2"
 }
+val connectorVersion = sys.props.get("connector.version").getOrElse("0.0.0-SNAPSHOT")
 
 lazy val root = project
   .withId("singlestore-spark-connector")
@@ -40,7 +41,7 @@ lazy val root = project
       case "3.5.0" => "scala-sparkv3.5"
       case "4.0.0" => "scala-sparkv4.0"
     }),
-    version := s"5.0.2-spark-${sparkVersion}",
+    version := s"${connectorVersion}-spark-${sparkVersion}",
     licenses += "Apache-2.0" -> url(
       "http://opensource.org/licenses/Apache-2.0"
     ),
