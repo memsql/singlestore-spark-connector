@@ -61,7 +61,7 @@ jobs:
 
       - name: Build connector JAR and dependencies
         run: |
-          sbt ++${{ inputs.scala_version }} -Dspark.version=${{ inputs.spark_version }} pack
+          sbt ++${{ inputs.scala_version }} -Dspark.version=${{ inputs.spark_version }} -Dconnector.version=${{ steps.version.outputs.value }} pack
 
       - name: Add Glue config
         run: |
