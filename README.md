@@ -707,6 +707,8 @@ git push origin v1.0.1
 The connector version is derived from the tag (the leading `v` is stripped). This triggers the [Test and Publish workflow](.github/workflows/test-and-publish.yml), which:
 
 - Runs the test matrix across supported Spark and SingleStore versions
+- Builds the connector JARs with the release version
+- Signs JARs with Azure Trusted Signing and verifies the signature
 - Publishes one Maven artifact per supported Spark version to [Maven Central](https://mvnrepository.com/artifact/com.singlestore/singlestore-spark-connector), using the `x.x.x-spark-y.y.y` version scheme (for example `1.0.1-spark-4.0.0`)
 - Creates a [GitHub Release](https://github.com/memsql/singlestore-spark-connector/releases) with auto-generated release notes and a fat JAR for each Spark version (`singlestore-spark-connector-assembly-<version>-spark-<spark-version>.jar`)
 

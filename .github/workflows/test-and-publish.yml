@@ -102,6 +102,9 @@ jobs:
     needs: test
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
 
     strategy:
       matrix:
@@ -147,15 +150,74 @@ jobs:
         run: |
           echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
           echo "SCALA_BINARY=$(echo '${{ matrix.scala_version }}' | cut -d. -f1-2)" >> "$GITHUB_ENV"
+      - name: Install Jsign
+        if: ${{ success() }}
+        run: |
+          wget https://github.com/ebourg/jsign/releases/download/7.0/jsign_7.0_all.deb
+          sudo dpkg -i jsign_7.0_all.deb
+      - name: Azure Login
+        if: ${{ success() }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Build Jar
+        run: |
+          sbt ++${{ matrix.scala_version }} -Dconnector.version=${{ env.VERSION }} -Dspark.version=${{ matrix.spark_version }} clean package
+      - name: Build fat JAR
+        run: |
+          sbt ++${{ matrix.scala_version }} -Dconnector.version=${{ env.VERSION }} -Dspark.version=${{ matrix.spark_version }} assembly
+      - name: Sign JARs with Jsign
+        if: ${{ success() }}
+        run: |
+          AZURE_ACCESS_TOKEN=$(az account get-access-token --resource https://codesigning.azure.net --query accessToken -o tsv)
+          JSIGN_JAR=/usr/share/jsign/jsign-7.0.jar
+          ENDPOINT="${{ vars.AZURE_SIGNING_ENDPOINT }}"
+          ALIAS="${{ vars.AZURE_SIGNING_ACCOUNT }}/${{ vars.AZURE_SIGNING_PROFILE }}"
+          for JAR in \
+            "target/scala-${{ env.SCALA_BINARY }}/singlestore-spark-connector_${{ env.SCALA_BINARY }}-${{ env.VERSION }}-spark-${{ matrix.spark_version }}.jar" \
+            "target/scala-${{ env.SCALA_BINARY }}/singlestore-spark-connector-assembly-${{ env.VERSION }}-spark-${{ matrix.spark_version }}.jar"; do
+            jarsigner \
+              -J-cp -J"$JSIGN_JAR" -J--add-modules -Jjava.sql \
+              -providerClass net.jsign.jca.JsignJcaProvider \
+              -providerArg "$ENDPOINT" \
+              -keystore NONE \
+              -storetype TRUSTEDSIGNING \
+              -storepass "$AZURE_ACCESS_TOKEN" \
+              -tsa "http://timestamp.acs.microsoft.com" \
+              "$JAR" "$ALIAS"
+          done
+      # The Trusted Signing root is not shipped in the JDK truststore, so without
+      # it jarsigner reports the signer and timestamp chains as unverifiable.
+      - name: Trust the Azure Trusted Signing root CA
+        if: ${{ success() }}
+        run: |
+          EXPECTED_SHA256="53:67:F2:0C:7A:DE:0E:2B:CA:79:09:15:05:6D:08:6B:72:0C:33:C1:FA:2A:26:61:AC:F7:87:E3:29:2E:12:70"
+          curl -fsSL -o msroot2020.crt \
+            "https://www.microsoft.com/pkiops/certs/Microsoft%20Identity%20Verification%20Root%20Certificate%20Authority%202020.crt"
+          ACTUAL_SHA256=$(openssl x509 -inform DER -in msroot2020.crt -noout -fingerprint -sha256 | cut -d= -f2)
+          if [[ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]]; then
+            echo "Unexpected root CA fingerprint: $ACTUAL_SHA256" >&2
+            exit 1
+          fi
+          # setup-java installs the JDK as root; the runner user cannot write cacerts.
+          sudo "$JAVA_HOME/bin/keytool" -importcert -noprompt \
+            -alias microsoft-identity-verification-root-ca-2020 \
+            -keystore "$JAVA_HOME/lib/security/cacerts" \
+            -storepass changeit \
+            -file msroot2020.crt
+      - name: Verify signed JARs
+        if: ${{ success() }}
+        run: |
+          jarsigner -verify -strict "target/scala-${{ env.SCALA_BINARY }}/singlestore-spark-connector_${{ env.SCALA_BINARY }}-${{ env.VERSION }}-spark-${{ matrix.spark_version }}.jar"
+          jarsigner -verify -strict "target/scala-${{ env.SCALA_BINARY }}/singlestore-spark-connector-assembly-${{ env.VERSION }}-spark-${{ matrix.spark_version }}.jar"
       - name: Publish Spark ${{ matrix.spark_version }} to Maven
         env:
           SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
         run: |
-          sbt ++${{ matrix.scala_version }} -Dconnector.version=${{ env.VERSION }} -Dspark.version=${{ matrix.spark_version }} clean publishSigned sonatypeBundleRelease
-      - name: Build fat JAR
-        run: |
-          sbt ++${{ matrix.scala_version }} -Dconnector.version=${{ env.VERSION }} -Dspark.version=${{ matrix.spark_version }} assembly
+          sbt ++${{ matrix.scala_version }} -Dconnector.version=${{ env.VERSION }} -Dspark.version=${{ matrix.spark_version }} publishSigned sonatypeBundleRelease
       - name: Upload fat JAR
         uses: actions/upload-artifact@v4
         with:
