@@ -989,10 +989,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
     }
 
     describe("bitwiseGet") {
-      it("numbers", ExcludeFromSpark31) {
+      it("numbers") {
         testQuery("select bit_get(id, 2) from users_sample")
       }
-      it("negative left argument", ExcludeFromSpark31) {
+      it("negative left argument") {
         try {
           testQuery("select bit_get(id, -2) from users_sample")
         } catch {
@@ -1005,10 +1005,10 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             }
         }
       }
-      it("negative right argument", ExcludeFromSpark31) {
+      it("negative right argument") {
         testQuery("select bit_get(-200, 2), id from users_sample")
       }
-      it("exceeds upper limit left argument", ExcludeFromSpark31) {
+      it("exceeds upper limit left argument") {
         try {
           testQuery("select bit_get(id, 100000) from users_sample")
         } catch {
@@ -1023,14 +1023,14 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
             }
         }
       }
-      it("big int right argument", ExcludeFromSpark31) {
+      it("big int right argument") {
         testQuery("select bit_get(1000000000000000, 2), id from users_sample")
       }
-      it("partial pushdown because of udf in the left argument", ExcludeFromSpark31) {
+      it("partial pushdown because of udf in the left argument") {
         testQuery("select bit_get(cast(stringIdentity(movie_id) as integer), 2) from reviews",
                   expectPartialPushdown = true)
       }
-      it("partial pushdown because of udf in the right argument", ExcludeFromSpark31) {
+      it("partial pushdown because of udf in the right argument") {
         testQuery("select bit_get(movie_id, cast(stringIdentity(2) as integer)) from reviews",
                   expectPartialPushdown = true)
       }
@@ -3709,26 +3709,6 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
         testQuery("select id, chr(stringIdentity(id)) from movies", expectPartialPushdown = true)
       }
     }
-
-    describe("Base64") {
-      it("works", ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35, ExcludeFromSpark40) {
-        testQuery("select id, base64(critic_review) as x from movies")
-      }
-      it("partial pushdown with udf") {
-        testQuery("select id, base64(stringIdentity(critic_review)) from movies",
-                  expectPartialPushdown = true)
-      }
-    }
-
-    describe("UnBase64") {
-      it("works", ExcludeFromSpark33, ExcludeFromSpark34, ExcludeFromSpark35, ExcludeFromSpark40) {
-        testQuery("select id, unbase64(base64(critic_review)) as x from movies")
-      }
-      it("partial pushdown with udf") {
-        testQuery("select id, unbase64(base64(stringIdentity(critic_review))) from movies",
-                  expectPartialPushdown = true)
-      }
-    }
   }
 
   describe("decimalExpressions") {
@@ -3982,18 +3962,7 @@ class SQLPushdownTest extends IntegrationSuiteBase with BeforeAndAfterEach with 
                     expectPartialPushdown = true)
         }
       }
-      it("very simple patterns", ExcludeFromSpark34, ExcludeFromSpark35, ExcludeFromSpark40) {
-        for (f <- functions) {
-          log.debug(s"testing $f")
-          //Sparks computes such in more optimal way and does not invoke pushdown
-          testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')",
-                    expectPartialPushdown = true)
-        }
-      }
-      it("very simple patterns full pushdown",
-         ExcludeFromSpark31,
-         ExcludeFromSpark32,
-         ExcludeFromSpark33) {
+      it("very simple patterns full pushdown") {
         for (f <- functions) {
           log.debug(s"testing $f")
           testQuery(s"select * from users where first_name $f ('A%', '%b%', '%e')")

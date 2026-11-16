@@ -204,6 +204,19 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
       Some(addMicroseconds(start, v))
     }
 
+    case TimeAdd(expressionExtractor(start),
+      Literal(v: CalendarInterval, CalendarIntervalType),
+      timeZoneId) => {
+      def addDays(start: Joinable) =
+        if (v.days == 0) {
+          start
+        } else {
+          f("DATE_ADD", start, Raw("INTERVAL") + v.days.toString + "DAY")
+        }
+
+      Some(addMicroseconds(addDays(addMonths(start, v)), v))
+    }
+
     case TimestampAddYMInterval(expressionExtractor(start),
                                 Literal(v: Int, YearMonthIntervalType(_, _)),
                                 timeZoneId) => {

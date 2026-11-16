@@ -7,7 +7,7 @@ object VersionSpecificWindowExtractor {
   def unapply(plan: LogicalPlan)
     : Option[(Seq[NamedExpression], Seq[Expression], Seq[SortOrder], LogicalPlan)] =
     plan match {
-      case Window(windowExpressions, partitionSpec, orderSpec, child) =>
+      case Window(windowExpressions, partitionSpec, orderSpec, child, _) =>
         Option(windowExpressions, partitionSpec, orderSpec, child)
       case _ => None
     }
