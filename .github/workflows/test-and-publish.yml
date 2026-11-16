@@ -39,13 +39,13 @@ jobs:
             java_version: '17'
           - spark_version: '4.1.4'
             tag: 'ExcludeFromSpark41'
-            scala_version: '2.13.16'
+            scala_version: '2.13.17'
             java_version: '17'
           - force_read_from_leaves: 'TRUE'
             singlestore_version: '9.0'
             spark_version: '4.1.4'
             tag: 'ExcludeFromSpark41'
-            scala_version: '2.13.16'
+            scala_version: '2.13.17'
             java_version: '17'
     steps:
       - name: Remove unnecessary pre-installed toolchains for free disk spaces
@@ -106,7 +106,7 @@ jobs:
             java_version: '17'
           - spark_version: '4.1.4'
             tag: 'ExcludeFromSpark41'
-            scala_version: '2.13.16'
+            scala_version: '2.13.17'
             java_version: '17'
 
     steps:
