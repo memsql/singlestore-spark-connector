@@ -19,6 +19,7 @@ import org.apache.spark.sql.types.{
   BinaryType,
   BooleanType,
   ByteType,
+  CalendarIntervalType,
   DateType,
   DayTimeIntervalType,
   DecimalType,
@@ -32,6 +33,7 @@ import org.apache.spark.sql.types.{
   TimestampType,
   YearMonthIntervalType
 }
+import org.apache.spark.unsafe.types.CalendarInterval
 
 case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor) {
   def unapply(e: Expression): Option[Joinable] = e match {
@@ -211,8 +213,8 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     }
 
     case TimeAdd(expressionExtractor(start),
-      Literal(v: CalendarInterval, CalendarIntervalType),
-      timeZoneId) => {
+                 Literal(v: CalendarInterval, CalendarIntervalType),
+                 timeZoneId) => {
       def addDays(start: Joinable) =
         if (v.days == 0) {
           start
