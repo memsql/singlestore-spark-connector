@@ -14,7 +14,7 @@ val scalaVersionPrefix = scalaVersionStr.substring(0, 4)
 val jacksonDatabindVersion = sparkVersion match {
   case "3.5.0" => "2.15.2"
   case "4.0.0" => "2.18.2"
-  case "4.1.4" => "2.19.2"
+  case "4.1.4" => "2.21.2"
 }
 val connectorVersion = sys.props.get("connector.version").getOrElse("0.0.0-SNAPSHOT")
 
