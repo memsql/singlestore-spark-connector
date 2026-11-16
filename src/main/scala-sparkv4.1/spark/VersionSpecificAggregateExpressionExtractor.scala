@@ -2,20 +2,8 @@ package com.singlestore.spark
 
 import com.singlestore.spark.SQLGen.{ExpressionExtractor, SQLGenContext, Statement}
 import com.singlestore.spark.ExpressionGen.{aggregateWithFilter, f, op}
-import org.apache.spark.sql.catalyst.expressions.aggregate.{
-  AggregateFunction,
-  Average,
-  First,
-  Kurtosis,
-  Last,
-  Skewness,
-  StddevPop,
-  StddevSamp,
-  Sum,
-  VariancePop,
-  VarianceSamp
-}
-import org.apache.spark.sql.catalyst.expressions.EvalMode
+import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateFunction, Average, First, Kurtosis, Last, Skewness, StddevPop, StddevSamp, Sum, VariancePop, VarianceSamp}
+import org.apache.spark.sql.catalyst.expressions.{EvalMode, NumericEvalContext}
 
 case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: ExpressionExtractor,
                                                        context: SQLGenContext,
@@ -99,7 +87,7 @@ case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: Expr
         Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
       // Sum.scala
-      case Sum(expressionExtractor(child), EvalMode.LEGACY) =>
+      case Sum(expressionExtractor(child), NumericEvalContext(EvalMode.LEGACY, true)) =>
         Some(aggregateWithFilter("SUM", child, filter))
 
       // Average.scala
