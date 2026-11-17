@@ -60,35 +60,35 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
 
     case IntegralDivide(expressionExtractor(left),
                         expressionExtractor(right),
-                        NumericEvalContext(EvalMode.LEGACY, true)) =>
+                        NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(f("FLOOR", op("/", left, right)))
 
     // arithmetic.scala
     case Add(expressionExtractor(left),
              expressionExtractor(right),
-             NumericEvalContext(EvalMode.LEGACY, true)) =>
+             NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(op("+", left, right))
     case Subtract(expressionExtractor(left),
                   expressionExtractor(right),
-                  NumericEvalContext(EvalMode.LEGACY, true)) =>
+                  NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(op("-", left, right))
     case Multiply(expressionExtractor(left),
                   expressionExtractor(right),
-                  NumericEvalContext(EvalMode.LEGACY, true)) =>
+                  NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(op("*", left, right))
     case Divide(expressionExtractor(left),
                 expressionExtractor(right),
-                NumericEvalContext(EvalMode.LEGACY, true)) =>
+                NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(op("/", left, right))
     case Remainder(expressionExtractor(left),
                    expressionExtractor(right),
-                   NumericEvalContext(EvalMode.LEGACY, true)) =>
+                   NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(op("%", left, right))
     case Abs(expressionExtractor(child), false) => Some(f("ABS", child))
 
     case Pmod(expressionExtractor(left),
               expressionExtractor(right),
-              NumericEvalContext(EvalMode.LEGACY, true)) =>
+              NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(block(block(block(left + "%" + right) + "+" + right) + "%" + right))
 
     // SingleStore and spark support other date formats
@@ -193,9 +193,6 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case MicrosToTimestamp(expressionExtractor(child)) =>
       Some(f("TIMESTAMPADD", "MICROSECOND", child, "'1970-01-01 00:00:00'"))
 
-    case LengthOfJsonArray(expressionExtractor(child)) =>
-      Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
-
     case StaticInvoke(clazz, _, "lengthOfJsonArray", Seq(expressionExtractor(child)), _, _, _, _, _)
         if clazz == classOf[JsonExpressionUtils] =>
       Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
@@ -228,16 +225,8 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
 
     case TimestampAddInterval(expressionExtractor(start),
                               Literal(v: CalendarInterval, CalendarIntervalType),
-                              timeZoneId) => {
-      def addDays(start: Joinable) =
-        if (v.days == 0) {
-          start
-        } else {
-          f("DATE_ADD", start, Raw("INTERVAL") + v.days.toString + "DAY")
-        }
-
-      Some(addMicroseconds(addDays(addMonths(start, v)), v))
-    }
+                              timeZoneId) =>
+      Some(addCalendarInterval(start, v))
 
     case TimestampAddYMInterval(expressionExtractor(start),
                                 Literal(v: Int, YearMonthIntervalType(_, _)),
