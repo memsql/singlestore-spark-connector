@@ -26,7 +26,7 @@ jobs:
     strategy:
       matrix:
         singlestore_version: ${{ fromJson(needs.fetch-s2-versions.outputs.versions) }}
-        spark_version: ['3.5.0', '4.0.0', '4.1.4']
+        spark_version: ['3.5.0', '4.0.0', '4.1.4', '4.2.1']
         force_read_from_leaves: ['FALSE']
         include:
           - spark_version: '3.5.0'
@@ -41,11 +41,15 @@ jobs:
             tag: 'ExcludeFromSpark41'
             scala_version: '2.13.17'
             java_version: '17'
+          - spark_version: '4.2.1'
+            tag: 'ExcludeFromSpark42'
+            scala_version: '2.13.18'
+            java_version: '17'
           - force_read_from_leaves: 'TRUE'
             singlestore_version: '9.0'
-            spark_version: '4.1.4'
-            tag: 'ExcludeFromSpark41'
-            scala_version: '2.13.17'
+            spark_version: '4.2.1'
+            tag: 'ExcludeFromSpark42'
+            scala_version: '2.13.18'
             java_version: '17'
     steps:
       - name: Remove unnecessary pre-installed toolchains for free disk spaces
@@ -96,7 +100,7 @@ jobs:
 
     strategy:
       matrix:
-        spark_version: ['3.5.0', '4.0.0', '4.1.4']
+        spark_version: ['3.5.0', '4.0.0', '4.1.4', '4.2.1']
         include:
           - spark_version: '3.5.0'
             scala_version: '2.12.12'
@@ -106,6 +110,9 @@ jobs:
             java_version: '17'
           - spark_version: '4.1.4'
             scala_version: '2.13.17'
+            java_version: '17'
+          - spark_version: '4.2.1'
+            scala_version: '2.13.18'
             java_version: '17'
 
     steps:
