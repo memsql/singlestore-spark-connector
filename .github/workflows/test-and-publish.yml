@@ -26,7 +26,7 @@ jobs:
     strategy:
       matrix:
         singlestore_version: ${{ fromJson(needs.fetch-s2-versions.outputs.versions) }}
-        spark_version: ['3.5.0', '4.0.0', '4.1.4', '4.2.1']
+        spark_version: ['3.5.0', '4.0.0', '4.1.4', '4.2.1', '4.3.0']
         force_read_from_leaves: ['FALSE']
         include:
           - spark_version: '3.5.0'
@@ -45,10 +45,14 @@ jobs:
             tag: 'ExcludeFromSpark42'
             scala_version: '2.13.18'
             java_version: '17'
+          - spark_version: '4.3.0'
+            tag: 'ExcludeFromSpark43'
+            scala_version: '2.13.18'
+            java_version: '17'
           - force_read_from_leaves: 'TRUE'
             singlestore_version: '9.0'
-            spark_version: '4.2.1'
-            tag: 'ExcludeFromSpark42'
+            spark_version: '4.3.0'
+            tag: 'ExcludeFromSpark43'
             scala_version: '2.13.18'
             java_version: '17'
     steps:
@@ -100,7 +104,7 @@ jobs:
 
     strategy:
       matrix:
-        spark_version: ['3.5.0', '4.0.0', '4.1.4', '4.2.1']
+        spark_version: ['3.5.0', '4.0.0', '4.1.4', '4.2.1', '4.3.0']
         include:
           - spark_version: '3.5.0'
             scala_version: '2.12.12'
@@ -112,6 +116,9 @@ jobs:
             scala_version: '2.13.17'
             java_version: '17'
           - spark_version: '4.2.1'
+            scala_version: '2.13.18'
+            java_version: '17'
+          - spark_version: '4.3.0'
             scala_version: '2.13.18'
             java_version: '17'
 
