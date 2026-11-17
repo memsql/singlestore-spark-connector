@@ -87,7 +87,7 @@ case class VersionSpecificAggregateExpressionExtractor(expressionExtractor: Expr
         Some(aggregateWithFilter("ANY_VALUE", child, filter))
 
       // Sum.scala
-      case Sum(expressionExtractor(child), NumericEvalContext(EvalMode.LEGACY, true)) =>
+      case Sum(expressionExtractor(child), NumericEvalContext(EvalMode.LEGACY, _)) =>
         Some(aggregateWithFilter("SUM", child, filter))
 
       // Average.scala
