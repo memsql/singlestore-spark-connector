@@ -58,6 +58,17 @@ object ExpressionGen extends LazyLogging {
       f("DATE_ADD", start, Raw("INTERVAL") + v.toString + "MONTH")
     }
 
+  def addCalendarInterval(start: Joinable, v: CalendarInterval): Joinable = {
+    def addDays(start: Joinable) =
+      if (v.days == 0) {
+        start
+      } else {
+        f("DATE_ADD", start, Raw("INTERVAL") + v.days.toString + "DAY")
+      }
+
+    addMicroseconds(addDays(addMonths(start, v)), v)
+  }
+
   def subMicroseconds(start: Joinable, v: CalendarInterval): Joinable =
     if (v.microseconds == 0) {
       start
@@ -377,19 +388,6 @@ object ExpressionGen extends LazyLogging {
         f("ADDDATE", startDate, days)
       case DateSub(expressionExtractor(startDate), expressionExtractor(days)) =>
         f("SUBDATE", startDate, days)
-
-      case TimeAdd(expressionExtractor(start),
-                   Literal(v: CalendarInterval, CalendarIntervalType),
-                   timeZoneId) => {
-        def addDays(start: Joinable) =
-          if (v.days == 0) {
-            start
-          } else {
-            f("DATE_ADD", start, Raw("INTERVAL") + v.days.toString + "DAY")
-          }
-
-        addMicroseconds(addDays(addMonths(start, v)), v)
-      }
 
       case FromUTCTimestamp(expressionExtractor(timestamp), expressionExtractor(timezone)) =>
         f("CONVERT_TZ", timestamp, StringVar("UTC"), timezone)

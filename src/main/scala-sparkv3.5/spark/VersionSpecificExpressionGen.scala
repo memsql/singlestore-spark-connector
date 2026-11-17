@@ -17,6 +17,7 @@ import org.apache.spark.sql.types.{
   BinaryType,
   BooleanType,
   ByteType,
+  CalendarIntervalType,
   DateType,
   DayTimeIntervalType,
   DecimalType,
@@ -30,6 +31,7 @@ import org.apache.spark.sql.types.{
   TimestampType,
   YearMonthIntervalType
 }
+import org.apache.spark.unsafe.types.CalendarInterval
 
 case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor) {
   def unapply(e: Expression): Option[Joinable] = e match {
@@ -204,6 +206,11 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
       Some(addMicroseconds(start, v))
     }
 
+    case TimeAdd(expressionExtractor(start),
+                 Literal(v: CalendarInterval, CalendarIntervalType),
+                 timeZoneId) =>
+      Some(addCalendarInterval(start, v))
+
     case TimestampAddYMInterval(expressionExtractor(start),
                                 Literal(v: Int, YearMonthIntervalType(_, _)),
                                 timeZoneId) => {
@@ -279,8 +286,9 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case Right(expressionExtractor(str), expressionExtractor(len)) =>
       Some(f("RIGHT", str, len))
 
-    case Round(expressionExtractor(child), expressionExtractor(scale), false)    => Some(f("ROUND", child, scale))
-    case Unhex(expressionExtractor(child), false)     => Some(f("UNHEX", child))
+    case Round(expressionExtractor(child), expressionExtractor(scale), false) =>
+      Some(f("ROUND", child, scale))
+    case Unhex(expressionExtractor(child), false) => Some(f("UNHEX", child))
 
     // ----------------------------------
     // Ternary Expressions
@@ -289,13 +297,12 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     // mathExpressions.scala
     case Conv(expressionExtractor(numExpr),
               intFoldableExtractor(fromBase),
-              intFoldableExtractor(toBase), false)
+              intFoldableExtractor(toBase),
+              false)
         // SingleStore supports bases only from [2, 36]
         if fromBase >= 2 && fromBase <= 36 &&
           toBase >= 2 && toBase <= 36 =>
       Some(f("CONV", numExpr, IntVar(fromBase), IntVar(toBase)))
-
-
 
     case _ => None
   }

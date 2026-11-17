@@ -19,6 +19,7 @@ import org.apache.spark.sql.types.{
   BinaryType,
   BooleanType,
   ByteType,
+  CalendarIntervalType,
   DateType,
   DayTimeIntervalType,
   DecimalType,
@@ -32,6 +33,7 @@ import org.apache.spark.sql.types.{
   TimestampType,
   YearMonthIntervalType
 }
+import org.apache.spark.unsafe.types.CalendarInterval
 
 case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor) {
   def unapply(e: Expression): Option[Joinable] = e match {
@@ -177,9 +179,6 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case MicrosToTimestamp(expressionExtractor(child)) =>
       Some(f("TIMESTAMPADD", "MICROSECOND", child, "'1970-01-01 00:00:00'"))
 
-    case LengthOfJsonArray(expressionExtractor(child)) =>
-      Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
-
     case StaticInvoke(clazz, _, "lengthOfJsonArray", Seq(expressionExtractor(child)), _, _, _, _, _)
         if clazz == classOf[JsonExpressionUtils] =>
       Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
@@ -209,6 +208,11 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
                  timeZoneId) => {
       Some(addMicroseconds(start, v))
     }
+
+    case TimeAdd(expressionExtractor(start),
+                 Literal(v: CalendarInterval, CalendarIntervalType),
+                 timeZoneId) =>
+      Some(addCalendarInterval(start, v))
 
     case TimestampAddYMInterval(expressionExtractor(start),
                                 Literal(v: Int, YearMonthIntervalType(_, _)),

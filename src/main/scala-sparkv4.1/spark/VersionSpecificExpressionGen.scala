@@ -13,10 +13,13 @@ import com.singlestore.spark.SQLGen.{
   stringToJoinable
 }
 import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.expressions.json.JsonExpressionUtils
+import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke
 import org.apache.spark.sql.types.{
   BinaryType,
   BooleanType,
   ByteType,
+  CalendarIntervalType,
   DateType,
   DayTimeIntervalType,
   DecimalType,
@@ -30,6 +33,7 @@ import org.apache.spark.sql.types.{
   TimestampType,
   YearMonthIntervalType
 }
+import org.apache.spark.unsafe.types.CalendarInterval
 
 case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor) {
   def unapply(e: Expression): Option[Joinable] = e match {
@@ -54,23 +58,37 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
 
     case Elt(expressionExtractor(Some(child)), false) => Some(f("ELT", child))
 
-    case IntegralDivide(expressionExtractor(left), expressionExtractor(right), false) =>
+    case IntegralDivide(expressionExtractor(left),
+                        expressionExtractor(right),
+                        NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(f("FLOOR", op("/", left, right)))
 
     // arithmetic.scala
-    case Add(expressionExtractor(left), expressionExtractor(right), false) =>
+    case Add(expressionExtractor(left),
+             expressionExtractor(right),
+             NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(op("+", left, right))
-    case Subtract(expressionExtractor(left), expressionExtractor(right), false) =>
+    case Subtract(expressionExtractor(left),
+                  expressionExtractor(right),
+                  NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(op("-", left, right))
-    case Multiply(expressionExtractor(left), expressionExtractor(right), false) =>
+    case Multiply(expressionExtractor(left),
+                  expressionExtractor(right),
+                  NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(op("*", left, right))
-    case Divide(expressionExtractor(left), expressionExtractor(right), false) =>
+    case Divide(expressionExtractor(left),
+                expressionExtractor(right),
+                NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(op("/", left, right))
-    case Remainder(expressionExtractor(left), expressionExtractor(right), false) =>
+    case Remainder(expressionExtractor(left),
+                   expressionExtractor(right),
+                   NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(op("%", left, right))
     case Abs(expressionExtractor(child), false) => Some(f("ABS", child))
 
-    case Pmod(expressionExtractor(left), expressionExtractor(right), false) =>
+    case Pmod(expressionExtractor(left),
+              expressionExtractor(right),
+              NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(block(block(block(left + "%" + right) + "+" + right) + "%" + right))
 
     // SingleStore and spark support other date formats
@@ -116,7 +134,7 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case Rand(expressionExtractor(child), false) => Some(f("RAND", child))
 
     // Cast.scala
-    case Cast(e @ expressionExtractor(child), dataType, _, false) => {
+    case Cast(e @ expressionExtractor(child), dataType, _, EvalMode.LEGACY) => {
       dataType match {
         case TimestampType => {
           e.dataType match {
@@ -175,7 +193,8 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case MicrosToTimestamp(expressionExtractor(child)) =>
       Some(f("TIMESTAMPADD", "MICROSECOND", child, "'1970-01-01 00:00:00'"))
 
-    case LengthOfJsonArray(expressionExtractor(child)) =>
+    case StaticInvoke(clazz, _, "lengthOfJsonArray", Seq(expressionExtractor(child)), _, _, _, _, _)
+        if clazz == classOf[JsonExpressionUtils] =>
       Some(f("LENGTH", f("JSON_TO_ARRAY", child)))
 
     case NextDay(expressionExtractor(startDate), utf8StringFoldableExtractor(dayOfWeek), false) =>
@@ -198,11 +217,16 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
                          StringVar(null)
                        )))
 
-    case TimeAdd(expressionExtractor(start),
-                 Literal(v: Long, DayTimeIntervalType(_, _)),
-                 timeZoneId) => {
+    case TimestampAddInterval(expressionExtractor(start),
+                              Literal(v: Long, DayTimeIntervalType(_, _)),
+                              timeZoneId) => {
       Some(addMicroseconds(start, v))
     }
+
+    case TimestampAddInterval(expressionExtractor(start),
+                              Literal(v: CalendarInterval, CalendarIntervalType),
+                              timeZoneId) =>
+      Some(addCalendarInterval(start, v))
 
     case TimestampAddYMInterval(expressionExtractor(start),
                                 Literal(v: Int, YearMonthIntervalType(_, _)),
@@ -273,22 +297,15 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
       Some(block(Raw("CASE") + caseBranches + elseBranch + Raw("END")))
     }
 
-    // nullExpressions.scala
-    case IfNull(expressionExtractor(left), expressionExtractor(right), _) =>
-      Some(f("COALESCE", left, right))
-
     // stringExpressions.scala
-    case Left(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
-      Some(f("LEFT", str, len, child))
-    case Right(expressionExtractor(str), expressionExtractor(len), expressionExtractor(child)) =>
-      Some(f("RIGHT", str, len, child))
+    case Left(expressionExtractor(str), expressionExtractor(len)) =>
+      Some(f("LEFT", str, len))
+    case Right(expressionExtractor(str), expressionExtractor(len)) =>
+      Some(f("RIGHT", str, len))
 
-    case Base64(expressionExtractor(child))   => Some(f("TO_BASE64", child))
-    case UnBase64(expressionExtractor(child)) => Some(f("FROM_BASE64", child))
-
-    case Round(expressionExtractor(child), expressionExtractor(scale)) =>
+    case Round(expressionExtractor(child), expressionExtractor(scale), false) =>
       Some(f("ROUND", child, scale))
-    case Unhex(expressionExtractor(child)) => Some(f("UNHEX", child))
+    case Unhex(expressionExtractor(child), false) => Some(f("UNHEX", child))
 
     // ----------------------------------
     // Ternary Expressions
@@ -297,7 +314,8 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     // mathExpressions.scala
     case Conv(expressionExtractor(numExpr),
               intFoldableExtractor(fromBase),
-              intFoldableExtractor(toBase))
+              intFoldableExtractor(toBase),
+              false)
         // SingleStore supports bases only from [2, 36]
         if fromBase >= 2 && fromBase <= 36 &&
           toBase >= 2 && toBase <= 36 =>
