@@ -84,7 +84,9 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
                    expressionExtractor(right),
                    NumericEvalContext(EvalMode.LEGACY, _)) =>
       Some(op("%", left, right))
-    case Abs(expressionExtractor(child), false) => Some(f("ABS", child))
+    case Abs(expressionExtractor(child), false)   => Some(f("ABS", child))
+    case Ceil(expressionExtractor(child), false)  => Some(f("CEIL", child))
+    case Floor(expressionExtractor(child), false) => Some(f("FLOOR", child))
 
     case Pmod(expressionExtractor(left),
               expressionExtractor(right),
