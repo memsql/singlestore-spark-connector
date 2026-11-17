@@ -1,6 +1,13 @@
 package com.singlestore.spark
 
-import java.sql.{Connection, PreparedStatement, ResultSet, SQLException, SQLInvalidAuthorizationSpecException, Statement}
+import java.sql.{
+  Connection,
+  PreparedStatement,
+  ResultSet,
+  SQLException,
+  SQLInvalidAuthorizationSpecException,
+  Statement
+}
 import java.util.Properties
 import java.util.UUID.randomUUID
 import com.singlestore.spark.SinglestoreOptions.{TableKey, TableKeyType}
@@ -147,18 +154,19 @@ object JdbcHelpers extends LazyLogging {
                                 resultSet: ResultSet,
                                 dialect: JdbcDialect,
                                 alwaysNullable: Boolean = false,
-                                isTimestampNTZ: Boolean = false): StructType = {
+                                isTimestampNTZ: Boolean = false,
+                                preferTimestampNanos: Boolean = false): StructType = {
     // Databricks has a different implementation of getSchema method
-    // Here we check 3 possible implementations and use existing one
+    // Here we check 4 possible implementations and use existing one
     val clazz = JdbcUtils.getClass
-
     try {
-      // Try to find and call the method with `Connection`
+      // Try to find and call the method with `preferTimestampNanos`
       val method = clazz.getMethod(
         "getSchema",
         classOf[Connection],
         classOf[ResultSet],
         classOf[JdbcDialect],
+        classOf[Boolean],
         classOf[Boolean],
         classOf[Boolean]
       )
@@ -168,14 +176,17 @@ object JdbcHelpers extends LazyLogging {
                 resultSet,
                 dialect,
                 alwaysNullable: java.lang.Boolean,
-                isTimestampNTZ: java.lang.Boolean)
+                isTimestampNTZ: java.lang.Boolean,
+                preferTimestampNanos: java.lang.Boolean)
         .asInstanceOf[StructType]
+
     } catch {
       case _: NoSuchMethodException =>
         try {
-          // Fallback to method without `Connection`
+          // Try to find and call the method with `Connection`
           val method = clazz.getMethod(
             "getSchema",
+            classOf[Connection],
             classOf[ResultSet],
             classOf[JdbcDialect],
             classOf[Boolean],
@@ -183,6 +194,7 @@ object JdbcHelpers extends LazyLogging {
           )
           method
             .invoke(JdbcUtils,
+                    conn,
                     resultSet,
                     dialect,
                     alwaysNullable: java.lang.Boolean,
@@ -190,16 +202,35 @@ object JdbcHelpers extends LazyLogging {
             .asInstanceOf[StructType]
         } catch {
           case _: NoSuchMethodException =>
-            // Fallback to method without `isTimestampNTZ`
-            val method = clazz.getMethod(
-              "getSchema",
-              classOf[ResultSet],
-              classOf[JdbcDialect],
-              classOf[Boolean]
-            )
-            method
-              .invoke(JdbcUtils, resultSet, dialect, alwaysNullable: java.lang.Boolean)
-              .asInstanceOf[StructType]
+            try {
+              // Fallback to method without `Connection`
+              val method = clazz.getMethod(
+                "getSchema",
+                classOf[ResultSet],
+                classOf[JdbcDialect],
+                classOf[Boolean],
+                classOf[Boolean]
+              )
+              method
+                .invoke(JdbcUtils,
+                        resultSet,
+                        dialect,
+                        alwaysNullable: java.lang.Boolean,
+                        isTimestampNTZ: java.lang.Boolean)
+                .asInstanceOf[StructType]
+            } catch {
+              case _: NoSuchMethodException =>
+                // Fallback to method without `isTimestampNTZ`
+                val method = clazz.getMethod(
+                  "getSchema",
+                  classOf[ResultSet],
+                  classOf[JdbcDialect],
+                  classOf[Boolean]
+                )
+                method
+                  .invoke(JdbcUtils, resultSet, dialect, alwaysNullable: java.lang.Boolean)
+                  .asInstanceOf[StructType]
+            }
         }
     }
   }
