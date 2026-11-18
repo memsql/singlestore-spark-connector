@@ -167,7 +167,8 @@ object JdbcHelpers extends LazyLogging {
           method =>
             (conn, resultSet, dialect, alwaysNullable, isTimestampNTZ, preferTimestampNanos) =>
               method
-                .invoke(conn,
+                .invoke(JdbcUtils,
+                        conn,
                         resultSet,
                         dialect,
                         alwaysNullable: java.lang.Boolean,
@@ -178,7 +179,8 @@ object JdbcHelpers extends LazyLogging {
         find(classOf[Connection], classOf[ResultSet], classOf[JdbcDialect], bool, bool).map {
           method => (conn, resultSet, dialect, alwaysNullable, isTimestampNTZ, _) =>
             method
-              .invoke(conn,
+              .invoke(JdbcUtils,
+                      conn,
                       resultSet,
                       dialect,
                       alwaysNullable: java.lang.Boolean,
@@ -188,7 +190,8 @@ object JdbcHelpers extends LazyLogging {
         find(classOf[ResultSet], classOf[JdbcDialect], bool, bool).map {
           method => (_, resultSet, dialect, alwaysNullable, isTimestampNTZ, _) =>
             method
-              .invoke(resultSet,
+              .invoke(JdbcUtils,
+                      resultSet,
                       dialect,
                       alwaysNullable: java.lang.Boolean,
                       isTimestampNTZ: java.lang.Boolean)
@@ -197,7 +200,7 @@ object JdbcHelpers extends LazyLogging {
         find(classOf[ResultSet], classOf[JdbcDialect], bool).map {
           method => (_, resultSet, dialect, alwaysNullable, _, _) =>
             method
-              .invoke(resultSet, dialect, alwaysNullable: java.lang.Boolean)
+              .invoke(JdbcUtils, resultSet, dialect, alwaysNullable: java.lang.Boolean)
               .asInstanceOf[StructType]
         }
       )
