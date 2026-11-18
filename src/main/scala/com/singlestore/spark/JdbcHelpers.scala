@@ -1,6 +1,13 @@
 package com.singlestore.spark
 
-import java.sql.{Connection, PreparedStatement, ResultSet, SQLException, SQLInvalidAuthorizationSpecException, Statement}
+import java.sql.{
+  Connection,
+  PreparedStatement,
+  ResultSet,
+  SQLException,
+  SQLInvalidAuthorizationSpecException,
+  Statement
+}
 import java.util.Properties
 import java.util.UUID.randomUUID
 import com.singlestore.spark.SinglestoreOptions.{TableKey, TableKeyType}
@@ -143,66 +150,73 @@ object JdbcHelpers extends LazyLogging {
     })
   }
 
-  private def jdbcUtilGetSchema(conn: Connection,
-                                resultSet: ResultSet,
-                                dialect: JdbcDialect,
-                                alwaysNullable: Boolean = false,
-                                isTimestampNTZ: Boolean = false): StructType = {
-    // Databricks has a different implementation of getSchema method
-    // Here we check 3 possible implementations and use existing one
-    val clazz = JdbcUtils.getClass
+  // Spark and Databricks ship different JdbcUtils.getSchema overloads.
+  // Resolve the one present on this classpath.
+  private lazy val jdbcGetSchema
+    : (Connection, ResultSet, JdbcDialect, Boolean, Boolean, Boolean) => StructType = {
+    val bool = classOf[Boolean]
 
-    try {
-      // Try to find and call the method with `Connection`
-      val method = clazz.getMethod(
-        "getSchema",
-        classOf[Connection],
-        classOf[ResultSet],
-        classOf[JdbcDialect],
-        classOf[Boolean],
-        classOf[Boolean]
-      )
-      method
-        .invoke(JdbcUtils,
-                conn,
-                resultSet,
-                dialect,
-                alwaysNullable: java.lang.Boolean,
-                isTimestampNTZ: java.lang.Boolean)
-        .asInstanceOf[StructType]
-    } catch {
-      case _: NoSuchMethodException =>
-        try {
-          // Fallback to method without `Connection`
-          val method = clazz.getMethod(
-            "getSchema",
-            classOf[ResultSet],
-            classOf[JdbcDialect],
-            classOf[Boolean],
-            classOf[Boolean]
-          )
-          method
-            .invoke(JdbcUtils,
-                    resultSet,
-                    dialect,
-                    alwaysNullable: java.lang.Boolean,
-                    isTimestampNTZ: java.lang.Boolean)
-            .asInstanceOf[StructType]
-        } catch {
-          case _: NoSuchMethodException =>
-            // Fallback to method without `isTimestampNTZ`
-            val method = clazz.getMethod(
-              "getSchema",
-              classOf[ResultSet],
-              classOf[JdbcDialect],
-              classOf[Boolean]
-            )
+    def find(parameterTypes: Class[_]*): Option[java.lang.reflect.Method] =
+      try Some(JdbcUtils.getClass.getMethod("getSchema", parameterTypes: _*))
+      catch { case _: NoSuchMethodException => None }
+
+    val candidates
+      : Seq[Option[(Connection, ResultSet, JdbcDialect, Boolean, Boolean, Boolean) => StructType]] =
+      Seq(
+        find(classOf[Connection], classOf[ResultSet], classOf[JdbcDialect], bool, bool, bool).map {
+          method =>
+            (conn, resultSet, dialect, alwaysNullable, isTimestampNTZ, preferTimestampNanos) =>
+              method
+                .invoke(JdbcUtils,
+                        conn,
+                        resultSet,
+                        dialect,
+                        alwaysNullable: java.lang.Boolean,
+                        isTimestampNTZ: java.lang.Boolean,
+                        preferTimestampNanos: java.lang.Boolean)
+                .asInstanceOf[StructType]
+        },
+        find(classOf[Connection], classOf[ResultSet], classOf[JdbcDialect], bool, bool).map {
+          method => (conn, resultSet, dialect, alwaysNullable, isTimestampNTZ, _) =>
+            method
+              .invoke(JdbcUtils,
+                      conn,
+                      resultSet,
+                      dialect,
+                      alwaysNullable: java.lang.Boolean,
+                      isTimestampNTZ: java.lang.Boolean)
+              .asInstanceOf[StructType]
+        },
+        find(classOf[ResultSet], classOf[JdbcDialect], bool, bool).map {
+          method => (_, resultSet, dialect, alwaysNullable, isTimestampNTZ, _) =>
+            method
+              .invoke(JdbcUtils,
+                      resultSet,
+                      dialect,
+                      alwaysNullable: java.lang.Boolean,
+                      isTimestampNTZ: java.lang.Boolean)
+              .asInstanceOf[StructType]
+        },
+        find(classOf[ResultSet], classOf[JdbcDialect], bool).map {
+          method => (_, resultSet, dialect, alwaysNullable, _, _) =>
             method
               .invoke(JdbcUtils, resultSet, dialect, alwaysNullable: java.lang.Boolean)
               .asInstanceOf[StructType]
         }
-    }
+      )
+
+    candidates.flatten.headOption.getOrElse(
+      throw new NoSuchMethodException(
+        "org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils.getSchema"))
   }
+
+  private def jdbcUtilGetSchema(conn: Connection,
+                                resultSet: ResultSet,
+                                dialect: JdbcDialect,
+                                alwaysNullable: Boolean = false,
+                                isTimestampNTZ: Boolean = false,
+                                preferTimestampNanos: Boolean = false): StructType =
+    jdbcGetSchema(conn, resultSet, dialect, alwaysNullable, isTimestampNTZ, preferTimestampNanos)
 
   def explainQuery(conf: SinglestoreOptions, query: String, variables: VariableList): String = {
     val conn =

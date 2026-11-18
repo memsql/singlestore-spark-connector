@@ -71,6 +71,8 @@ case class VersionSpecificExpressionGen(expressionExtractor: ExpressionExtractor
     case Remainder(expressionExtractor(left), expressionExtractor(right), EvalMode.LEGACY) =>
       Some(op("%", left, right))
     case Abs(expressionExtractor(child), false) => Some(f("ABS", child))
+    case Ceil(expressionExtractor(child))       => Some(f("CEIL", child))
+    case Floor(expressionExtractor(child))      => Some(f("FLOOR", child))
 
     case Pmod(expressionExtractor(left), expressionExtractor(right), EvalMode.LEGACY) =>
       Some(block(block(block(left + "%" + right) + "+" + right) + "%" + right))
